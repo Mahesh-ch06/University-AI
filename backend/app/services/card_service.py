@@ -115,15 +115,77 @@ BTECH_CSE_SEMESTER_FEE_CARD = {
             "note": "₹15,000 other university fee + ₹5,000 semester-end examination fee",
         },
         {
+            "category": "Total Per-Semester Payable (Regular)",
+            "amount": "₹1,80,000 / Sem",
+            "frequency": "₹3,60,000 / Year",
+            "note": "Tuition (₹1,70,000) + Other & Exam Fees (₹10,000). Hostels separate.",
+        },
+        {
+            "category": "Total 1st Semester Payable",
+            "amount": "₹1,85,000",
+            "frequency": "Semester 1",
+            "note": "Regular semester total + one-time enrollment fee (₹5,000)",
+        },
+        {
             "category": "CSE Specialization Fee (From Year 2+)",
             "amount": "₹15,000 / Sem",
             "frequency": "₹30,000 / Year",
             "note": "Applicable from 3rd semester for AI & ML, Data Science, Cyber Security tracks",
         },
     ],
-    "scholarship_note": "Merit scholarships provide 10% to 40% tuition fee waiver (up to ₹68,000/sem saved; net tuition ₹1,02,000/sem). Hostels (₹1,15,000 to ₹1,35,000/yr) separate. 2027-28 fees, as per Admissions Office.",
+    "scholarship_note": "Merit scholarships provide 10% to 40% tuition fee waiver (up to ₹68,000/sem saved; net tuition ₹1,02,000/sem; total regular sem ₹1,12,000/sem). Hostel is optional & separate (₹1,15,000 to ₹1,35,000/yr). 2027-28 fees, as per Admissions Office.",
 }
 
+BTECH_CSE_WITH_HOSTEL_FEE_CARD = {
+    "type": "fee_breakdown",
+    "title": "B.Tech CSE Fee + Hostel Per-Semester Total Breakdown (Official 2027-28)",
+    "currency": "INR",
+    "items": [
+        {
+            "category": "1st Semester Tuition Fee (B.Tech CSE)",
+            "amount": "₹1,70,000",
+            "frequency": "Semester 1",
+            "note": "Base tuition (₹3,40,000/yr). Up to 40% merit scholarship waiver available",
+        },
+        {
+            "category": "2nd Semester Tuition Fee (B.Tech CSE)",
+            "amount": "₹1,70,000",
+            "frequency": "Semester 2",
+            "note": "Annual base ₹3,40,000 (+₹9,000/yr annual escalation in subsequent years)",
+        },
+        {
+            "category": "Residential Hostel & Mess (AC 4-Sharing)",
+            "amount": "₹62,500 / Sem",
+            "frequency": "₹1,25,000 / Year",
+            "note": "4 daily meals in mega dining hall, laundry, high-speed Wi-Fi, 24/7 security",
+        },
+        {
+            "category": "Other & Examination Fees",
+            "amount": "₹10,000 / Sem",
+            "frequency": "₹20,000 / Year",
+            "note": "₹15,000 other university fee + ₹5,000 semester-end examination fee",
+        },
+        {
+            "category": "One-Time Enrollment Fee",
+            "amount": "₹5,000",
+            "frequency": "One-Time (Semester 1)",
+            "note": "Mandatory official enrollment component paid once in Year 1",
+        },
+        {
+            "category": "Combined Total Per-Semester (Regular)",
+            "amount": "₹2,42,500 / Sem",
+            "frequency": "₹4,85,000 / Year",
+            "note": "Combined Tuition (₹1.70L) + Other/Exam (₹10k) + Hostel & Mess (₹62.5k)",
+        },
+        {
+            "category": "Combined Total 1st Semester Payable",
+            "amount": "₹2,47,500",
+            "frequency": "Semester 1",
+            "note": "Regular combined total + one-time enrollment fee (₹5,000)",
+        },
+    ],
+    "scholarship_note": "With 40% merit scholarship, net tuition is ₹1,02,000/sem, bringing the combined regular per-semester total to ₹1,74,500/sem. 2027-28 fees, as per Admissions Office.",
+}
 
 # Alias for backwards compatibility
 BTECH_CSE_FEE_CARD = BTECH_CSE_SEMESTER_FEE_CARD
@@ -139,6 +201,7 @@ APPLICATION_AD_CARD = {
     "cta_url": "https://apply.sru.edu.in",
     "intro_text": "For 2027-28 admissions, here is an exclusive application offer:",
 }
+
 
 
 MERIT_SCHOLARSHIP_CARD = {
@@ -760,13 +823,26 @@ def generate_cards(
     )
 
 
+    is_fee_with_hostel_query = any(k in msg_lower for k in (
+        "with hostel", "including hostel", "plus hostel", "hostel and tuition",
+        "tuition and hostel", "both tuition and hostel", "and hostel fee", "add hostel",
+        "hostel fee included", "fee along with hostel", "along with hostel"
+    )) or (
+        any(k in msg_lower for k in ("hostel", "mess", "boarding")) and
+        any(k in msg_lower for k in ("tuition", "cse fee", "btech fee", "b.tech fee", "total fee", "per sem"))
+    )
+
     is_btech_fee_query = any(k in msg_lower for k in ("btech", "b.tech", "engineering fee", "btech fee", "b.tech fee")) or (
         any(k in msg_lower for k in ("btech", "b.tech")) and any(k in msg_lower for k in ("fee", "fees", "tuition", "cost", "scholarship"))
     )
 
     if is_transport_fee_query:
         cards.append(TRANSPORT_FEE_CARD)
-    elif is_hostel_fee_query:
+    elif is_fee_with_hostel_query:
+        # User explicitly asked to include hostel in the fee breakdown
+        cards.append(BTECH_CSE_WITH_HOSTEL_FEE_CARD)
+    elif is_hostel_fee_query and not (is_cse_fee_query or is_btech_fee_query):
+        # User asked purely for hostel fees
         cards.append(HOSTEL_FEE_CARD)
     elif is_exam_fee_query:
         cards.append(EXAM_FEE_CARD)
@@ -775,6 +851,7 @@ def generate_cards(
     elif is_scholarship_only_query:
         cards.append(MERIT_SCHOLARSHIP_CARD)
     elif is_cse_fee_query:
+        # User asked for CSE fee WITHOUT hostel (hostel not added)
         cards.append(BTECH_CSE_SEMESTER_FEE_CARD)
     elif is_btech_fee_query:
         cards.append(BTECH_ACADEMIC_FEE_CARD)
@@ -783,6 +860,7 @@ def generate_cards(
         if any(k in msg_lower for k in ("structure", "complete fee", "breakdown", "all fees", "details", "academic", "tuition")):
             if not any(k in msg_lower for k in ("transport", "bus", "hostel", "mess", "exam")):
                 cards.append(BTECH_ACADEMIC_FEE_CARD)
+
 
     # 2b. Sponsored Early Bird Application Ad Card (media_1794676975023.png reference)
     # Attached whenever student queries joining B.Tech CSE, application discount, applying online, or early bird offers

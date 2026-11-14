@@ -178,16 +178,18 @@ _PHONE = {"type": "string", "description": "10-digit mobile number exactly as th
 TOOLS = {
     "calculate_fee": (tool_calculate_fee, "Calculating your fee", {
         "description": "Official fee and merit scholarship for one student. ALWAYS call this for any "
-                       "question about fees, scholarship, total cost or cost after scholarship. "
-                       "Never state a fee from memory.",
+                       "question about fees, scholarship, total cost, or per-semester breakdown. "
+                       "Pass hostel parameter ONLY if the student explicitly selected or asked for hostel (e.g. 'with hostel'). "
+                       "If the student did not ask for hostel, keep hostel='none'. Never state a fee from memory.",
         "parameters_json_schema": _obj({
             "program": _PROGRAM, "percent": _PERCENT,
             "board": {"type": "string", "enum": ["state_board", "cbse"]},
             "eapcet_rank": {"type": "integer", "description": "TG/AP EAPCET (EAMCET) rank."},
             "jee_percentile": {"type": "number"},
-            "hostel": {"type": "string", "enum": ["none", "non_ac_4", "non_ac_3", "ac_4", "ac_3"]},
+            "hostel": {"type": "string", "enum": ["none", "non_ac_4", "non_ac_3", "ac_4", "ac_3"], "description": "Pass ONLY if student explicitly requested hostel. Default is 'none'."},
             "specialization": {"type": "boolean", "description": "true for AI & ML, Data Science, Cyber Security tracks."},
         }, ["program"])}),
+
     "check_eligibility": (tool_check_eligibility, "Checking eligibility", {
         "description": "Checks if a student meets the minimum marks for a program. Call whenever marks "
                        "and a program are known and the student asks 'can I join'.",

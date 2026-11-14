@@ -252,3 +252,63 @@ def test_btech_cse_semester_fee_structure():
     assert items["One-Time Enrollment Fee"] == "₹5,000"
 
 
+def test_btech_cse_fee_without_hostel_does_not_add_hostel():
+    """Verify that asking for B.Tech CSE fee without hostel does NOT add hostel fee."""
+    from app.services.card_service import generate_cards
+    cards = generate_cards(
+        user_message="What is the fee breakdown for B.Tech CSE per semester?",
+        answer="Here is the per semester fee breakdown for B.Tech CSE.",
+    )
+    assert len(cards) >= 1
+    fee_card = next(c for c in cards if c.get("type") == "fee_breakdown")
+    assert "B.Tech CSE" in fee_card["title"]
+    assert "Hostel" not in fee_card["title"]
+    # Verify no item has hostel in category or amount
+    assert not any("Hostel" in item["category"] for item in fee_card["items"])
+    # Verify regular academic per-sem total
+    item_map = {i["category"]: i["amount"] for i in fee_card["items"]}
+    assert item_map.get("Total Per-Semester Payable (Regular)") == "₹1,80,000 / Sem"
+    assert item_map.get("Total 1st Semester Payable") == "₹1,85,000"
+
+
+def test_btech_cse_fee_with_hostel_adds_hostel_per_sem():
+    """Verify that asking for fee WITH hostel adds the hostel per-semester breakdown."""
+    from app.services.card_service import generate_cards
+    cards = generate_cards(
+        user_message="I want to join B.Tech CSE with hostel, what is the total fee breakdown per sem?",
+        answer="Here is the total per-semester fee breakdown including tuition and hostel.",
+    )
+    assert len(cards) >= 1
+    fee_card = next(c for c in cards if c.get("type") == "fee_breakdown")
+    assert "Hostel" in fee_card["title"]
+    item_map = {i["category"]: i["amount"] for i in fee_card["items"]}
+    assert "Residential Hostel & Mess (AC 4-Sharing)" in item_map
+    assert item_map["Residential Hostel & Mess (AC 4-Sharing)"] == "₹62,500 / Sem"
+    assert item_map.get("Combined Total Per-Semester (Regular)") == "₹2,42,500 / Sem"
+    assert item_map.get("Combined Total 1st Semester Payable") == "₹2,47,500"
+
+
+def test_calculate_fee_conditional_hostel():
+    """Verify calculate_fee tool conditional hostel behavior."""
+    from app.sru_agent.fees import calculate_fee
+
+    # 1. Without hostel (default)
+    res_no_hostel = calculate_fee(program="btech_cse", hostel="none")
+    assert res_no_hostel["has_hostel"] is False
+    assert res_no_hostel["total_per_semester"] == "₹1,80,000"
+    assert res_no_hostel["sem1_total_payable"] == "₹1,85,000"
+    assert "hostel_per_sem" not in res_no_hostel["per_sem_breakdown"]
+    assert res_no_hostel["hostel"] is None
+
+    # 2. With AC 4-sharing hostel explicitly requested
+    res_with_hostel = calculate_fee(program="btech_cse", hostel="ac_4")
+    assert res_with_hostel["has_hostel"] is True
+    assert res_with_hostel["hostel"] is not None
+    assert res_with_hostel["hostel"]["per_semester"] == "₹62,500"
+    assert res_with_hostel["total_per_semester"] == "₹2,42,500"
+    assert res_with_hostel["sem1_total_payable"] == "₹2,47,500"
+    assert res_with_hostel["per_sem_breakdown"]["hostel_per_sem"] == "₹62,500"
+
+
+
+

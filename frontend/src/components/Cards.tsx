@@ -657,13 +657,15 @@ export function ProgramsOfferedCard({ card }: CardProps) {
 export function AgentFeeCard({ card }: CardProps) {
   const d = card.data || {};
   const progName = d.program_name || d.program || "Academic Program";
-  const semTuition = d.net_tuition_per_sem ?? d.base_tuition_per_sem ?? 0;
-  const annualTuition = d.net_tuition_annual ?? d.base_tuition_annual ?? 0;
+  const semTuition = d.net_tuition_per_sem ?? d.base_tuition_per_sem ?? (d.per_semester_after_scholarship || "₹1,70,000");
   const waiver = d.scholarship_percent || 0;
-  const firstYearTotal = d.first_year_tuition_plus_onetime ?? (annualTuition + (d.one_time_fees || 0));
+  const hasHostel = Boolean(d.has_hostel || (d.hostel && d.hostel.per_year));
+  const hostelPerSem = d.hostel?.per_semester || (d.hostel?.per_year ? `₹${Math.round(parseInt(String(d.hostel.per_year).replace(/[^\d]/g, ""), 10) / 2).toLocaleString("en-IN")}` : null);
+  const totalPerSem = d.total_per_semester || (hasHostel ? "₹2,42,500" : "₹1,80,000");
+  const sem1Total = d.sem1_total_payable || (hasHostel ? "₹2,47,500" : "₹1,85,000");
 
   const handleWhatsApp = () => {
-    const text = `Hello SR University Admissions! I received this fee calculation for ${progName} (${d.admission_year || "2027-28"}). Net Tuition: ₹${semTuition.toLocaleString("en-IN")}/sem, Scholarship: ${waiver}%. Please assist me with admissions.`;
+    const text = `Hello SR University Admissions! I received this fee calculation for ${progName} (${d.admission_year || "2027-28"}). Net Tuition: ${semTuition}/sem, Scholarship: ${waiver}%, Total/sem: ${totalPerSem} ${hasHostel ? "(including hostel)" : "(without hostel)"}. Please assist me with admissions.`;
     window.open(`https://wa.me/918331003030?text=${encodeURIComponent(text)}`, "_blank");
   };
 
@@ -678,22 +680,50 @@ export function AgentFeeCard({ card }: CardProps) {
       <div className="agent-fee-stats-grid">
         <div className="agent-fee-stat">
           <span className="agent-fee-stat-label">Net Tuition / Sem</span>
-          <span className="agent-fee-stat-val bold-emerald">₹{semTuition.toLocaleString("en-IN")}</span>
-          <span className="agent-fee-stat-sub">per semester</span>
+          <span className="agent-fee-stat-val bold-emerald">
+            {typeof semTuition === "number" ? `₹${semTuition.toLocaleString("en-IN")}` : semTuition}
+          </span>
+          <span className="agent-fee-stat-sub">per semester tuition</span>
         </div>
         <div className="agent-fee-stat">
           <span className="agent-fee-stat-label">Merit Scholarship</span>
           <span className="agent-fee-stat-val bold-blue">{waiver > 0 ? `${waiver}% Waiver` : "Standard Slabs"}</span>
           <span className="agent-fee-stat-sub">official merit waiver</span>
         </div>
-        <div className="agent-fee-stat">
-          <span className="agent-fee-stat-label">1st Year Tuition + One-Time</span>
-          <span className="agent-fee-stat-val">₹{firstYearTotal.toLocaleString("en-IN")}</span>
-          <span className="agent-fee-stat-sub">includes enrollment & admission</span>
-        </div>
+        {hasHostel ? (
+          <>
+            <div className="agent-fee-stat">
+              <span className="agent-fee-stat-label">Hostel & Mess / Sem</span>
+              <span className="agent-fee-stat-val bold-blue">{hostelPerSem}</span>
+              <span className="agent-fee-stat-sub">{d.hostel?.type || "AC 4-Sharing"} (4 meals/day)</span>
+            </div>
+            <div className="agent-fee-stat">
+              <span className="agent-fee-stat-label">Combined Total / Sem</span>
+              <span className="agent-fee-stat-val bold-emerald">{totalPerSem}</span>
+              <span className="agent-fee-stat-sub">Tuition + Other + Hostel</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="agent-fee-stat">
+              <span className="agent-fee-stat-label">Total / Sem (Academic)</span>
+              <span className="agent-fee-stat-val bold-emerald">{totalPerSem}</span>
+              <span className="agent-fee-stat-sub">Tuition + Other/Exam Fees</span>
+            </div>
+            <div className="agent-fee-stat">
+              <span className="agent-fee-stat-label">1st Sem Total</span>
+              <span className="agent-fee-stat-val">{sem1Total}</span>
+              <span className="agent-fee-stat-sub">includes ₹5k enrollment</span>
+            </div>
+          </>
+        )}
       </div>
       <div className="agent-card-footer">
-        <span className="agent-card-source-tag">Source: {d.source || "SR University Admissions Office (2027-28)"}</span>
+        <span className="agent-card-source-tag">
+          {hasHostel
+            ? "🏠 Hostel & Dining included in total per semester."
+            : "ℹ️ Hostel fee NOT included (separate & optional: ₹1.15L – ₹1.35L/yr)."}
+        </span>
         <button type="button" className="agent-card-wa-btn" onClick={handleWhatsApp}>
           💬 WhatsApp Admissions
         </button>
@@ -701,6 +731,7 @@ export function AgentFeeCard({ card }: CardProps) {
     </div>
   );
 }
+
 
 export function AgentCallbackCard({ card }: CardProps) {
   const d = card.data || {};

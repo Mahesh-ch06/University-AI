@@ -133,6 +133,17 @@ def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=N
     spec = prog.get("specialization_fee_per_year_from_year2", 0) if specialization else 0
 
     first_year = per_year[0]["_net"] + one_time + yearly_other + hostel_fee
+
+    # Per-semester calculations
+    tuition_sem1 = round(per_year[0]["_net"] / 2)
+    other_sem = round(yearly_other / 2)
+    has_hostel = bool(hostel_fee > 0)
+    hostel_sem = round(hostel_fee / 2) if has_hostel else 0
+
+    # Total per semester: only adds hostel if user selected hostel!
+    regular_sem_total = tuition_sem1 + other_sem + (hostel_sem if has_hostel else 0)
+    sem1_total_payable = regular_sem_total + one_time
+
     result = {
         "status": "ok",
         "academic_year": data["academic_year"],
@@ -148,12 +159,29 @@ def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=N
         "saving_first_year": inr(base - per_year[0]["_net"]),
         "one_time_enrollment_fee": inr(one_time),
         "other_yearly_fees": inr(yearly_other),
-        "hostel": {"type": HOSTEL_LABELS.get(hostel), "per_year": inr(hostel_fee)} if hostel_fee else None,
+        "other_fees_per_semester": inr(other_sem),
+        "has_hostel": has_hostel,
+        "hostel": {
+            "type": HOSTEL_LABELS.get(hostel),
+            "per_year": inr(hostel_fee),
+            "per_semester": inr(hostel_sem),
+        } if has_hostel else None,
+        "total_per_semester": inr(regular_sem_total),
+        "sem1_total_payable": inr(sem1_total_payable),
+        "per_sem_breakdown": {
+            "tuition_per_sem": per_year[0]["per_semester"],
+            "other_fees_per_sem": inr(other_sem),
+            **({"hostel_per_sem": inr(hostel_sem)} if has_hostel else {}),
+            "one_time_enrollment": inr(one_time),
+            "regular_sem_total": inr(regular_sem_total),
+            "sem1_total_payable": inr(sem1_total_payable),
+        },
         "first_year_total_payable": inr(first_year),
         "yearly_increase": inr(prog["yearly_increase"]),
         "not_included": ["transport", "books and personal expenses"] + ([] if hostel_fee else ["hostel"]),
         "notes": [],
     }
+
     if years:
         total = (sum(p["_net"] for p in per_year) + one_time
                  + (yearly_other + hostel_fee) * years + spec * (years - 1))
