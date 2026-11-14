@@ -159,8 +159,8 @@ def test_check_video_affirmative_or_negative():
     assert is_no is False
 
 
-def test_cards_not_shown_for_implicit_queries_until_confirmed(monkeypatch):
-    """Verify video cards are NOT shown automatically on standard queries, but only upon confirmation."""
+def test_cards_displayed_directly_for_visual_queries(monkeypatch):
+    """Verify video cards are displayed directly for visual/facility queries without requiring explicit confirmation."""
     from app.services.card_service import generate_cards
 
     mock_results = {
@@ -188,24 +188,23 @@ def test_cards_not_shown_for_implicit_queries_until_confirmed(monkeypatch):
     monkeypatch.setattr("app.services.video_service._get_video_collection", lambda: MockCollection())
     fake_embedding = [0.01] * 768
 
-    # 1. Standard question about hostels -> NO video card in response!
-    cards_initial = generate_cards(
+    # 1. Visual/facilities question about hostels -> Video card is directly attached!
+    cards_hostel = generate_cards(
         user_message="Tell me about the hostel facilities and rooms",
         answer="SR University provides separate hostels with study spaces and Wi-Fi.",
         query_embedding=fake_embedding,
     )
-    assert not any(c.get("type") == "video_recommendations" for c in cards_initial)
+    assert any(c.get("type") == "video_recommendations" for c in cards_hostel)
 
-    # 2. Confirmed affirmative response -> Video card is attached in separate response!
-    cards_confirmed = generate_cards(
-        user_message="yes",
-        answer="Here is the official video tour of our Hostels & Living:",
+    # 2. Purely transactional/numerical fee question -> NO video card attached!
+    cards_fee = generate_cards(
+        user_message="What is the tuition fee for B.Tech CSE?",
+        answer="The tuition fee is ₹3,40,000 per year.",
         query_embedding=fake_embedding,
-        is_video_confirmed=True,
     )
-    assert any(c.get("type") == "video_recommendations" for c in cards_confirmed)
+    assert not any(c.get("type") == "video_recommendations" for c in cards_fee)
 
-    # 3. Explicit video ask from the start -> Video card is attached directly!
+    # 3. Explicit video ask -> Video card is attached directly!
     cards_explicit = generate_cards(
         user_message="Show me a video tour of the campus",
         answer="Here is our official campus tour walkthrough.",

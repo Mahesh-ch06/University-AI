@@ -1,7 +1,12 @@
 """Card service — detects and generates structured interactive cards for rich UI rendering."""
 
 import re
-from app.services.video_service import get_relevant_videos, create_video_card, is_explicit_video_query
+from app.services.video_service import (
+    create_video_card,
+    get_relevant_videos,
+    is_explicit_video_query,
+    should_display_videos,
+)
 
 COMPARISON_CSE_AIML = {
     "type": "comparison",
@@ -781,17 +786,19 @@ def generate_cards(
 
     # 6. University YouTube Media Recommendations (Dense Semantic Search via ChromaDB)
     # Zero keyword matching: relevance is governed purely by ChromaDB semantic cosine distance.
-    # Attached only when explicitly requested or confirmed via affirmative Yes/No response.
-    if (is_video_query or is_video_confirmed) and query_embedding:
-        relevant_videos = get_relevant_videos(
-            user_message=user_message,
-            answer=answer,
-            sources=sources,
-            query_embedding=query_embedding,
-            is_explicit=is_video_query,
-        )
-        if relevant_videos:
-            cards.append(create_video_card(relevant_videos, is_explicit=True))
+    # Directly displayed for visual / campus / placement queries or when asked/confirmed.
+    if query_embedding:
+        should_show_videos = is_video_query or is_video_confirmed or should_display_videos(user_message)
+        if should_show_videos:
+            relevant_videos = get_relevant_videos(
+                user_message=user_message,
+                answer=answer,
+                sources=sources,
+                query_embedding=query_embedding,
+                is_explicit=is_video_query,
+            )
+            if relevant_videos:
+                cards.append(create_video_card(relevant_videos, is_explicit=is_video_query))
 
     # 7. Student profile card (if board_score is known and user asked about eligibility or admission)
     if profile and profile.get("board_score"):

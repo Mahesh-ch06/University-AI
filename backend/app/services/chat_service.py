@@ -41,6 +41,7 @@ from app.services.video_service import (
     get_semantic_videos,
     is_explicit_video_query,
     sanitize_answer_video_prompts,
+    should_display_videos,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,27 +77,8 @@ def get_time_aware_greeting() -> str:
 
 
 def should_offer_video_tour(message: str) -> bool:
-    """Return True only if the user query naturally welcomes a visual or campus tour."""
-    if is_explicit_video_query(message):
-        return True
-
-    msg = message.lower()
-
-    # Disallow video offers on purely transactional, numerical, or regulatory queries
-    disallowed_keywords = (
-        "fee", "fees", "cost", "scholarship", "cutoff", "percentage", "marks", "rank",
-        "eligibility", "eligible", "syllabus", "curriculum",
-        "instagram", "attendance", "rules", "regulations", "mistake", "wrong",
-    )
-    if any(k in msg for k in disallowed_keywords):
-        return False
-
-    facility_keywords = (
-        "campus", "campus life", "hostel", "hostels", "hostel rooms", "dining", "mess",
-        "srix", "incubator", "sports", "grounds", "labs", "infrastructure",
-        "life at sru", "fest", "events", "activities",
-    )
-    return any(k in msg for k in facility_keywords)
+    """Return True only if the user query naturally welcomes visual video recommendations."""
+    return should_display_videos(message)
 
 
 def sanitize_staff_contact_numbers(text: str) -> str:
@@ -360,13 +342,7 @@ async def handle_chat(
         max_dist = EXPLICIT_MAX_SEMANTIC_DISTANCE if explicit_video else DEFAULT_MAX_SEMANTIC_DISTANCE
         if query_embedding:
             semantic_videos = get_semantic_videos(query_embedding, limit=2, max_distance=max_dist)
-            if semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message):
-                cat = semantic_videos[0].get("category", "our campus")
-                answer = format_video_offer_prompt(answer, cat)
-            else:
-                answer = sanitize_answer_video_prompts(answer)
-        else:
-            answer = sanitize_answer_video_prompts(answer)
+        answer = sanitize_answer_video_prompts(answer)
 
         # 6. Generate smart suggestion chips and rich cards
         suggestions = generate_suggestions(
@@ -377,8 +353,6 @@ async def handle_chat(
             profile=profile,
             flow_state=flow_info,
         )
-        if semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message):
-            suggestions = ["🎥 Yes, watch video", "❌ No, thanks"] + [s for s in suggestions if "video" not in s.lower()][:2]
 
         cards = generate_cards(
             user_message=request.message,
@@ -405,7 +379,7 @@ async def handle_chat(
             "cards": cards,
             "flow": flow_info,
             "matched_videos": semantic_videos if semantic_videos else None,
-            "video_offer": bool(semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message)),
+            "video_offer": False,
         },
     )
 
@@ -693,19 +667,8 @@ async def handle_chat_stream(
             max_dist = EXPLICIT_MAX_SEMANTIC_DISTANCE if explicit_video else DEFAULT_MAX_SEMANTIC_DISTANCE
             if query_embedding:
                 semantic_videos = get_semantic_videos(query_embedding, limit=2, max_distance=max_dist)
-                if semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message):
-                    cat = semantic_videos[0].get("category", "our campus")
-                    new_answer = format_video_offer_prompt(answer, cat)
-                    if new_answer != answer:
-                        delta_prompt = new_answer[len(answer):]
-                        if delta_prompt:
-                            for chunk in chunk_text_stream(delta_prompt):
-                                yield f"data: {json.dumps({'type': 'token', 'delta': chunk})}\n\n"
-                        answer = new_answer
-                else:
-                    answer = sanitize_answer_video_prompts(answer)
-            else:
-                answer = sanitize_answer_video_prompts(answer)
+
+            answer = sanitize_answer_video_prompts(answer)
 
             # Suggestions and rich cards
             suggestions = generate_suggestions(
@@ -716,8 +679,6 @@ async def handle_chat_stream(
                 profile=profile,
                 flow_state=flow_info,
             )
-            if semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message):
-                suggestions = ["🎥 Yes, watch video", "❌ No, thanks"] + [s for s in suggestions if "video" not in s.lower()][:2]
 
             cards = generate_cards(
                 user_message=request.message,
@@ -744,7 +705,7 @@ async def handle_chat_stream(
                 "cards": cards,
                 "flow": flow_info,
                 "matched_videos": semantic_videos if semantic_videos else None,
-                "video_offer": bool(semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message)),
+                "video_offer": False,
             },
         )
 

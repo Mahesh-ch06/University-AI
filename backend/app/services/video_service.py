@@ -196,6 +196,31 @@ def is_explicit_video_query(message: str) -> bool:
     return any(cue in msg_lower for cue in _EXPLICIT_VIDEO_CUES)
 
 
+def should_display_videos(message: str) -> bool:
+    """Return True if message naturally welcomes visual video recommendations (campus, hostel, fests, placements, facilities)."""
+    if is_explicit_video_query(message):
+        return True
+
+    msg = message.lower()
+
+    # Disallow video displays on purely transactional, numerical, or regulatory queries
+    disallowed_keywords = (
+        "fee", "fees", "cost", "scholarship", "cutoff", "percentage", "marks", "rank",
+        "eligibility", "eligible", "syllabus", "curriculum",
+        "instagram", "attendance", "rules", "regulations", "mistake", "wrong",
+    )
+    if any(k in msg for k in disallowed_keywords):
+        return False
+
+    facility_keywords = (
+        "campus", "campus life", "hostel", "hostels", "hostel rooms", "dining", "mess",
+        "srix", "incubator", "sports", "grounds", "labs", "infrastructure",
+        "life at sru", "fest", "events", "activities", "placement", "placements",
+        "about sru", "tell me about sru", "about sr university", "why sru",
+    )
+    return any(k in msg for k in facility_keywords)
+
+
 def get_semantic_videos(
     query_embedding: list[float] | None,
     limit: int = 2,
