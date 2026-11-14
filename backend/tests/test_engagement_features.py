@@ -242,6 +242,24 @@ def test_application_ad_card_on_discount_query():
     assert any(c.get("type") == "application_ad" for c in cards)
 
 
+def test_application_ad_on_interested_to_join_sru():
+    """Verify that asking general 'interested to join SRU' questions attaches the compact Ad Card."""
+    queries = [
+        "I am interested to join SR University",
+        "How can I join SRU?",
+        "I want to take admission in SRU",
+        "How do I apply to SRU for 2027-28?",
+    ]
+    for q in queries:
+        cards = generate_cards(user_message=q, answer="Welcome to SR University!")
+        types = [c.get("type") for c in cards]
+        assert "application_ad" in types, f"Expected application_ad card for query: {q}"
+        ad_card = next(c for c in cards if c.get("type") == "application_ad")
+        assert "50% Off" in ad_card["title"]
+        assert "https://apply.sru.edu.in" in ad_card["cta_url"]
+
+
+
 def test_btech_cse_semester_fee_structure():
     """Verify exact per-semester fee amounts for B.Tech CSE."""
     from app.services.card_service import BTECH_CSE_SEMESTER_FEE_CARD

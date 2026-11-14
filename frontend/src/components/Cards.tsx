@@ -824,13 +824,19 @@ export function AgentContactLinksCard({ card }: CardProps) {
 }
 
 export function ApplicationAdCard({ card }: CardProps) {
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) {
+    return null;
+  }
+
   const d = card.data || card;
   const sponsorName = d.sponsor_name || "SR University Admissions";
   const sponsorLogo = d.sponsor_logo || "/sru-logo.png";
-  const title = d.title || "Early Bird: Get 50% Off Online Application";
+  const title = d.title || "Early Bird: 50% Off Online Application";
   const description =
     d.description ||
-    "Apply early for 2027-28 admissions. Save 50% on official application processing (pay ₹550 instead of ₹1,100).";
+    "Apply early for 2027-28 admissions & save 50% on application fee (₹550 instead of ₹1,100).";
   const ctaText = d.cta_text || "Apply Now ↗";
   const ctaUrl = d.cta_url || "https://apply.sru.edu.in";
   const imageUrl = d.image_url || "/early-bird-offer.png";
@@ -858,19 +864,29 @@ export function ApplicationAdCard({ card }: CardProps) {
             </div>
             <div className="application-ad-header-right">
               <span className="application-ad-pill">Ad</span>
-              <span className="application-ad-dots" title="Sponsored admission partner">•••</span>
+              <button
+                type="button"
+                className="application-ad-remove-btn"
+                onClick={() => setDismissed(true)}
+                title="Remove ad"
+                aria-label="Remove ad"
+              >
+                ✕
+              </button>
             </div>
           </div>
           <h4 className="application-ad-title">{title}</h4>
           <p className="application-ad-desc">{description}</p>
-          <a
-            href={ctaUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="application-ad-cta-link"
-          >
-            {ctaText}
-          </a>
+          <div className="application-ad-footer-row">
+            <a
+              href={ctaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="application-ad-cta-link"
+            >
+              {ctaText}
+            </a>
+          </div>
         </div>
       </div>
     </div>

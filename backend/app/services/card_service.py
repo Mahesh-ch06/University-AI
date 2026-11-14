@@ -195,11 +195,10 @@ APPLICATION_AD_CARD = {
     "sponsor_name": "SR University Admissions",
     "sponsor_logo": "/sru-logo.png",
     "image_url": "/early-bird-offer.png",
-    "title": "Early Bird Offer: Get 50% Off Online Application",
+    "title": "Early Bird: 50% Off Online Application",
     "description": "Apply early for 2027-28 admissions. Save 50% on official application processing (pay ₹550 instead of ₹1,100).",
     "cta_text": "Apply Now ↗",
     "cta_url": "https://apply.sru.edu.in",
-    "intro_text": "For 2027-28 admissions, here is an exclusive application offer:",
 }
 
 
@@ -822,6 +821,26 @@ def generate_cards(
         and not any(k in msg_lower for k in ("transport", "bus", "hostel", "admission fee", "one-time", "enrollment fee"))
     )
 
+    is_join_interest_query = (
+        any(k in msg_lower for k in (
+            "interested to join", "interested in joining", "want to join", "how to join",
+            "how can i join", "like to join", "wishing to join", "planning to join",
+            "join sru", "join sr university", "join sr", "join the university",
+            "take admission in sru", "take admission at sru", "get admission in sru",
+            "admission in sru", "admissions in sru", "admission at sru", "admission process",
+            "how to get admission", "how do i get admission", "how can i get admission",
+            "apply to sru", "apply at sru", "how to apply to sru", "apply for sru",
+            "interested in admission", "interested in sru", "interested to study at sru",
+            "want to study at sru", "enroll at sru", "enrol at sru", "seat in sru",
+            "how to get a seat in sru", "admission open", "eligibility to join",
+            "can i join sru", "can i get admission in sru", "admission procedure",
+            "join btech", "join b.tech", "join mba", "join bba", "join mtech"
+        )) or is_cse_join_query or (
+            any(k in msg_lower for k in ("join", "take admission", "interested in joining", "want to join")) and
+            any(k in msg_lower for k in ("sru", "sr university", "here", "college", "campus", "this university"))
+        )
+    ) and not is_admission_fee_query
+
 
     is_fee_with_hostel_query = any(k in msg_lower for k in (
         "with hostel", "including hostel", "plus hostel", "hostel and tuition",
@@ -863,8 +882,8 @@ def generate_cards(
 
 
     # 2b. Sponsored Early Bird Application Ad Card (media_1794676975023.png reference)
-    # Attached whenever student queries joining B.Tech CSE, application discount, applying online, or early bird offers
-    if is_cse_join_query or is_ad_query or (is_cse_fee_query and any(k in msg_lower for k in ("join", "admission", "apply", "want", "breakdown"))):
+    # Attached whenever student is interested in joining SRU, querying application discount, applying online, or early bird offers
+    if (is_join_interest_query or is_ad_query or (is_cse_fee_query and any(k in msg_lower for k in ("join", "admission", "apply", "want", "breakdown")))) and not is_admission_fee_query:
         if APPLICATION_AD_CARD not in cards:
             cards.append(APPLICATION_AD_CARD)
 
