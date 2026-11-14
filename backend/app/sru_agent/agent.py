@@ -135,7 +135,19 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
     for piece in _chunks(final):
         yield {"type": "token", "delta": piece}
     await memory.append_history(session_id, message, final)
+
+    # Attach contextual cards (such as early bird application ad or fee breakdown)
+    try:
+        from app.services.card_service import generate_cards
+        contextual_cards = generate_cards(user_message=message, answer=final, profile=ctx.get("profile"))
+        for c in contextual_cards:
+            if c not in cards:
+                cards.append(c)
+    except Exception as card_err:
+        log.warning("Could not generate contextual cards for agent: %s", card_err)
+
     yield {"type": "done", "conversation_id": conversation_id, "answer": final,
            "tools_used": used, "model": config.AGENT_MODEL,
            # kept so the existing frontend 'done' handler does not break
            "sources": [], "suggestions": [], "cards": cards, "flow": None}
+

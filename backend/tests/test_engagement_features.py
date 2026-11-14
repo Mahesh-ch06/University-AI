@@ -206,3 +206,49 @@ def test_wizard_cancellation():
 def test_time_aware_greeting():
     greeting = get_conversational_response("GREETING", has_context=False)
     assert "SRU Buddy" in greeting or "SR University" in greeting
+
+
+def test_btech_cse_join_and_fee_card():
+    """Verify that asking to join B.Tech CSE yields both per-semester fee breakdown and the Early Bird Ad Card."""
+    cards = generate_cards(
+        user_message="I want to join B.Tech CSE",
+        answer="We would be delighted to have you join B.Tech CSE! Here is the per-semester fee breakdown.",
+    )
+    assert len(cards) >= 2
+    types = [c.get("type") for c in cards]
+    assert "fee_breakdown" in types
+    assert "application_ad" in types
+
+    # Check fee card details
+    fee_card = next(c for c in cards if c.get("type") == "fee_breakdown")
+    assert "B.Tech CSE" in fee_card["title"]
+    categories = [item["category"] for item in fee_card["items"]]
+    assert any("1st Semester" in cat for cat in categories)
+    assert any("Enrollment" in cat for cat in categories)
+
+    # Check Ad card details (media_1794676975023.png reference)
+    ad_card = next(c for c in cards if c.get("type") == "application_ad")
+    assert "SR University Admissions" in ad_card["sponsor_name"]
+    assert "50% Off" in ad_card["title"]
+    assert "https://apply.sru.edu.in" in ad_card["cta_url"]
+
+
+def test_application_ad_card_on_discount_query():
+    """Verify that asking for early bird application discount attaches the Ad Card."""
+    cards = generate_cards(
+        user_message="Is there any 50% off on online application early bird offer?",
+        answer="Yes, early applicants get a 50% waiver on the online application fee.",
+    )
+    assert any(c.get("type") == "application_ad" for c in cards)
+
+
+def test_btech_cse_semester_fee_structure():
+    """Verify exact per-semester fee amounts for B.Tech CSE."""
+    from app.services.card_service import BTECH_CSE_SEMESTER_FEE_CARD
+    items = {i["category"]: i["amount"] for i in BTECH_CSE_SEMESTER_FEE_CARD["items"]}
+    assert "1st Semester Tuition Fee (B.Tech CSE)" in items
+    assert items["1st Semester Tuition Fee (B.Tech CSE)"] == "₹1,70,000"
+    assert "One-Time Enrollment Fee" in items
+    assert items["One-Time Enrollment Fee"] == "₹5,000"
+
+

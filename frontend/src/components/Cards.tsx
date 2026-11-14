@@ -792,6 +792,60 @@ export function AgentContactLinksCard({ card }: CardProps) {
   );
 }
 
+export function ApplicationAdCard({ card }: CardProps) {
+  const d = card.data || card;
+  const sponsorName = d.sponsor_name || "SR University Admissions";
+  const sponsorLogo = d.sponsor_logo || "/sru-logo.png";
+  const title = d.title || "Early Bird: Get 50% Off Online Application";
+  const description =
+    d.description ||
+    "Apply early for 2027-28 admissions. Save 50% on official application processing (pay ₹550 instead of ₹1,100).";
+  const ctaText = d.cta_text || "Apply Now ↗";
+  const ctaUrl = d.cta_url || "https://apply.sru.edu.in";
+  const imageUrl = d.image_url || "/early-bird-offer.png";
+  const introText = d.intro_text;
+
+  return (
+    <div className="application-ad-container">
+      {introText && <div className="application-ad-intro">{introText}</div>}
+      <div className="application-ad-card">
+        <div className="application-ad-thumb-col">
+          <img
+            src={imageUrl}
+            alt={title}
+            className="application-ad-thumb-img"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "/sru-logo.png";
+            }}
+          />
+        </div>
+        <div className="application-ad-content-col">
+          <div className="application-ad-header-row">
+            <div className="application-ad-sponsor-info">
+              <img src={sponsorLogo} alt="Sponsor" className="application-ad-sponsor-icon" />
+              <span className="application-ad-sponsor-name">{sponsorName}</span>
+            </div>
+            <div className="application-ad-header-right">
+              <span className="application-ad-pill">Ad</span>
+              <span className="application-ad-dots" title="Sponsored admission partner">•••</span>
+            </div>
+          </div>
+          <h4 className="application-ad-title">{title}</h4>
+          <p className="application-ad-desc">{description}</p>
+          <a
+            href={ctaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="application-ad-cta-link"
+          >
+            {ctaText}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function RenderCard({ card }: { card: any }) {
   if (!card || !card.type) return null;
 
@@ -822,8 +876,12 @@ export function RenderCard({ card }: { card: any }) {
       return <SRUAdvantageCard card={card} />;
     case "programs_offered":
       return <ProgramsOfferedCard card={card} />;
+    case "application_ad":
+    case "ad":
+      return <ApplicationAdCard card={card} />;
     default:
       return null;
   }
 }
+
 
