@@ -1,7 +1,7 @@
 """Card service — detects and generates structured interactive cards for rich UI rendering."""
 
 import re
-from app.services.video_service import get_relevant_videos, create_video_card
+from app.services.video_service import get_relevant_videos, create_video_card, is_explicit_video_query
 
 COMPARISON_CSE_AIML = {
     "type": "comparison",
@@ -761,7 +761,7 @@ def generate_cards(
         cards.append(PLACEMENT_EXCELLENCE_CARD)
 
     # 5. Campus tour card (render static spot highlights if asking for about sru, campus walkthrough/tour, or facilities)
-    is_video_query = any(k in msg_lower for k in ("video", "videos", "watch", "youtube", "clip", "tour", "shorts"))
+    is_video_query = is_explicit_video_query(user_message)
     if not is_video_query and any(k in msg_lower for k in ("campus tour", "campus walkthrough", "see the campus", "visit the campus", "campus facilities", "about sru", "tell me about sru", "about sr university", "why sru", "why choose sru", "campus life", "overview of sru", "tell me about the university", "what is sru", "describe sru")):
         if not any(k in msg_lower for k in ("fee", "cost", "vs")):
             cards.append(CAMPUS_TOUR_CARD)

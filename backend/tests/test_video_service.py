@@ -249,3 +249,119 @@ def test_sanitize_answer_video_prompts():
     assert "Would you like to watch a short video tour" not in sanitized
     assert "Here are the transport details." in sanitized
     assert "> ⚠️ *May contain inaccuracies. Verify with official university sources.*" in sanitized
+
+
+def test_extended_affirmative_and_negative_detection():
+    """Verify natural-language affirmative and negative responses are correctly recognized."""
+    recent_offered = [
+        {"role": "user", "content": "Tell me about the hostel rooms."},
+        {
+            "role": "assistant",
+            "content": "Our hostels offer AC and non-AC rooms.\n\nWould you like to watch a short video tour of Hostels & Living? (Yes / No)",
+            "metadata": {"suggestions": ["🎥 Yes, watch video", "❌ No, thanks"]},
+        },
+    ]
+
+    affirmative_samples = [
+        "go ahead",
+        "sounds good",
+        "show me the video",
+        "i want to watch",
+        "why not",
+        "definitely",
+        "absolutely",
+        "let's watch",
+        "show it",
+    ]
+    for sample in affirmative_samples:
+        is_yes, is_no = check_video_affirmative_or_negative(sample, recent_offered)
+        assert is_yes is True, f"Expected affirmative for '{sample}'"
+        assert is_no is False
+
+    negative_samples = [
+        "not interested",
+        "i'm good",
+        "no need",
+        "pass",
+        "that's fine",
+        "not now",
+        "skip",
+    ]
+    for sample in negative_samples:
+        is_yes, is_no = check_video_affirmative_or_negative(sample, recent_offered)
+        assert is_yes is False
+        assert is_no is True, f"Expected negative for '{sample}'"
+
+
+def test_is_explicit_video_query():
+    """Verify explicit video intent detection across diverse user formulations."""
+    from app.services.video_service import is_explicit_video_query
+
+    assert is_explicit_video_query("show me a campus video") is True
+    assert is_explicit_video_query("can I see the hostel rooms?") is True
+    assert is_explicit_video_query("what does the campus look like?") is True
+    assert is_explicit_video_query("drone view of the university") is True
+    assert is_explicit_video_query("any youtube walkthrough?") is True
+    assert is_explicit_video_query("what is the fee structure for B.Tech CSE?") is False
+    assert is_explicit_video_query("how to apply for admission?") is False
+
+
+def test_video_content_hash():
+    """Verify video content hash detects modifications to video catalog metadata."""
+    from app.services.video_service import _compute_videos_hash
+
+    sample = [{"id": "vid1", "title": "Tour 1", "category": "Campus"}]
+    hash1 = _compute_videos_hash(sample)
+    assert isinstance(hash1, str) and len(hash1) == 64
+
+    # Identical content -> identical hash
+    assert _compute_videos_hash(sample) == hash1
+
+    # Modified content -> different hash
+    modified = [{"id": "vid1", "title": "Tour 1 Updated", "category": "Campus"}]
+    hash2 = _compute_videos_hash(modified)
+    assert hash1 != hash2
+
+
+def test_category_diversity_in_semantic_retrieval(monkeypatch):
+    """Verify semantic retrieval prioritizes diverse categories among top candidates."""
+    mock_results = {
+        "metadatas": [[
+            {"id": "v1", "title": "Hostel Tour 1", "category": "Hostels & Living", "url": "https://yt/v1"},
+            {"id": "v2", "title": "Hostel Tour 2", "category": "Hostels & Living", "url": "https://yt/v2"},
+            {"id": "v3", "title": "Campus Greenery", "category": "Campus Tour & Infrastructure", "url": "https://yt/v3"},
+        ]],
+        "distances": [[0.15, 0.16, 0.17]],
+    }
+
+    class MockCollection:
+        def count(self):
+            return 3
+
+        def query(self, **kwargs):
+            return mock_results
+
+    monkeypatch.setattr("app.services.video_service._get_video_collection", lambda: MockCollection())
+    results = get_semantic_videos(query_embedding=[0.01] * 768, limit=2, max_distance=0.25)
+
+    assert len(results) == 2
+    # Verify diverse categories are returned (one Hostel, one Campus)
+    categories = [r["category"] for r in results]
+    assert "Hostels & Living" in categories
+    assert "Campus Tour & Infrastructure" in categories
+
+
+def test_should_offer_video_tour():
+    """Verify should_offer_video_tour allows campus/facility queries and blocks purely transactional queries."""
+    from app.services.chat_service import should_offer_video_tour
+
+    assert should_offer_video_tour("tell me about the hostel rooms") is True
+    assert should_offer_video_tour("how is campus life at SRU?") is True
+    assert should_offer_video_tour("show me the sports grounds") is True
+    assert should_offer_video_tour("what does the campus look like?") is True
+
+    # Blocked transactional/numerical queries
+    assert should_offer_video_tour("what is the B.Tech CSE tuition fee?") is False
+    assert should_offer_video_tour("what is the cutoff percentage for scholarships?") is False
+    assert should_offer_video_tour("what are the exam attendance rules?") is False
+

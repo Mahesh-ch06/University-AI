@@ -6,6 +6,7 @@ attendance rules, exam grading, etc.) are governed strictly by ChromaDB dense co
 """
 
 from __future__ import annotations
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -19,10 +20,14 @@ _CACHED_VIDEOS: list[dict] | None = None
 VIDEO_SEMANTIC_COLLECTION = "university_videos_semantic"
 
 # Strict semantic distance thresholds for pure cosine similarity (1 - cosine_similarity)
-DEFAULT_MAX_SEMANTIC_DISTANCE = 0.25  # High-confidence semantic match
-EXPLICIT_MAX_SEMANTIC_DISTANCE = 0.30  # Slightly relaxed when user explicitly asks for video
+DEFAULT_MAX_SEMANTIC_DISTANCE = 0.28  # Slightly relaxed from 0.25 to improve recall
+EXPLICIT_MAX_SEMANTIC_DISTANCE = 0.33  # Relaxed when user explicitly asks for video
 
-# Explicit intent cues indicating the user wants to watch a video/tour
+# ---------------------------------------------------------------------------
+# Single source-of-truth for explicit video intent detection.
+# chat_service and card_service must import and call is_explicit_video_query()
+# rather than maintaining their own keyword lists.
+# ---------------------------------------------------------------------------
 _EXPLICIT_VIDEO_CUES = (
     "video",
     "videos",
@@ -36,10 +41,14 @@ _EXPLICIT_VIDEO_CUES = (
     "how does it look",
     "see the campus",
     "see the hostel",
+    "see the rooms",
+    "see the lab",
     "visual",
     "clip",
     "shorts",
     "short",
+    "show me",
+    "can i see",
 )
 
 _VIDEO_OFFER_REGEX = re.compile(
@@ -47,13 +56,27 @@ _VIDEO_OFFER_REGEX = re.compile(
     re.I,
 )
 
+# Broader affirmative regex — covers natural language affirmatives
 _AFFIRMATIVE_VIDEO_REGEX = re.compile(
-    r"^\s*(?:yes|yeah|yep|sure|show\s+me|yes[,\s]+please|please\s+show|definitely|ok|okay|why\s+not|🎥\s*yes[,\s]+(?:watch|show)\s+video|watch\s+video|show\s+video)[.!?\s]*$",
+    r"^\s*(?:"
+    r"yes|yeah|yep|sure|definitely|absolutely|ok|okay|"
+    r"show\s+me|yes[,\s]+please|please\s+show|why\s+not|"
+    r"go\s+ahead|sounds\s+good|let'?s\s+(?:go|see|watch)|"
+    r"yes\s+show|show\s+it|show\s+me\s+(?:the\s+)?video|"
+    r"i\s+want\s+to\s+(?:see|watch)|"
+    r"🎥\s*yes[,\s]+(?:watch|show)\s+video|watch\s+video|show\s+video"
+    r")[.!?\s]*$",
     re.I,
 )
 
+# Broader negative regex — covers natural language declines
 _NEGATIVE_VIDEO_REGEX = re.compile(
-    r"^\s*(?:no|nope|no[,\s]+thanks|nah|not\s+now|no\s+need|don'?t|❌\s*no[,\s]+thanks)[.!?\s]*$",
+    r"^\s*(?:"
+    r"no|nope|no[,\s]+thanks|nah|not\s+now|no\s+need|don'?t|"
+    r"skip|not\s+interested|i'?m\s+(?:good|fine|ok|alright)|"
+    r"pass|that'?s\s+(?:ok|okay|fine|alright)|"
+    r"❌\s*no[,\s]+thanks"
+    r")[.!?\s]*$",
     re.I,
 )
 
@@ -92,8 +115,18 @@ def _get_video_collection():
         return None
 
 
+def _compute_videos_hash(videos: list[dict]) -> str:
+    """Compute a stable SHA-256 hash of the full video catalog for change detection."""
+    canonical = json.dumps(videos, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
 async def sync_video_vectors(embedding_provider=None) -> int:
-    """Ensure all curated university videos are embedded and indexed in ChromaDB."""
+    """Ensure all curated university videos are embedded and indexed in ChromaDB.
+
+    Uses content-hash comparison instead of count-only check, so edits to
+    video titles/keywords in the JSON file trigger a full re-sync automatically.
+    """
     try:
         collection = _get_video_collection()
         if not collection:
@@ -101,9 +134,12 @@ async def sync_video_vectors(embedding_provider=None) -> int:
         videos = load_videos()
         if not videos:
             return 0
-        if collection.count() == len(videos):
+
+        new_hash = _compute_videos_hash(videos)
+        stored_hash = (collection.metadata or {}).get("content_hash", "")
+        if stored_hash == new_hash and collection.count() == len(videos):
             logger.info(
-                "ChromaDB '%s' collection has %d video vectors. Up to date.",
+                "ChromaDB '%s' collection has %d video vectors. Up to date (hash match).",
                 VIDEO_SEMANTIC_COLLECTION,
                 collection.count(),
             )
@@ -135,6 +171,11 @@ async def sync_video_vectors(embedding_provider=None) -> int:
             for v in videos
         ]
         collection.upsert(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
+        # Store the new hash in collection metadata so the next startup skips re-sync
+        try:
+            collection.modify(metadata={"content_hash": new_hash, "hnsw:space": "cosine"})
+        except Exception as meta_err:
+            logger.debug("Could not persist content_hash to ChromaDB metadata: %s", meta_err)
         logger.info(
             "Synced %d video vectors into ChromaDB collection '%s'.",
             len(ids),
@@ -171,15 +212,16 @@ def get_semantic_videos(
         if not collection or collection.count() == 0:
             return []
 
+        n_query = min(max(limit * 4, 8), collection.count())
         results = collection.query(
             query_embeddings=[query_embedding],
-            n_results=min(limit + 2, collection.count()),
+            n_results=n_query,
             include=["metadatas", "distances"],
         )
         if not results["metadatas"] or not results["metadatas"][0]:
             return []
 
-        matched = []
+        candidates = []
         seen_ids: set[str] = set()
         for meta, dist in zip(results["metadatas"][0], results["distances"][0]):
             if not isinstance(meta, dict):
@@ -188,7 +230,34 @@ def get_semantic_videos(
                 vid_id = meta.get("id") or meta.get("url", "")
                 if vid_id not in seen_ids:
                     seen_ids.add(vid_id)
+                    candidates.append((dist, meta))
+
+        if not candidates:
+            return []
+
+        # Sort strictly by cosine distance
+        candidates.sort(key=lambda x: x[0])
+
+        # Enforce category diversity when selecting top results
+        matched: list[dict] = []
+        seen_categories: set[str] = set()
+
+        # First pass: try selecting unique categories among top candidates
+        for _, meta in candidates:
+            cat = meta.get("category", "")
+            if cat not in seen_categories:
+                seen_categories.add(cat)
+                matched.append(meta)
+                if len(matched) == limit:
+                    break
+
+        # Second pass: fill remaining slots from candidates if not enough distinct categories
+        if len(matched) < limit:
+            for _, meta in candidates:
+                if meta not in matched:
                     matched.append(meta)
+                    if len(matched) == limit:
+                        break
 
         return matched[:limit]
     except Exception as e:

@@ -31,6 +31,8 @@ from app.services.rag_service import RAGService
 from app.services.reformulation_service import canonicalize_query, needs_reformulation, reformulate_query
 from app.services.suggestion_service import generate_suggestions
 from app.services.video_service import (
+    DEFAULT_MAX_SEMANTIC_DISTANCE,
+    EXPLICIT_MAX_SEMANTIC_DISTANCE,
     check_video_affirmative_or_negative,
     create_video_card,
     format_video_offer_prompt,
@@ -75,26 +77,25 @@ def get_time_aware_greeting() -> str:
 
 def should_offer_video_tour(message: str) -> bool:
     """Return True only if the user query naturally welcomes a visual or campus tour."""
-    msg = message.lower()
-    tour_keywords = (
-        "campus tour", "hostel tour", "see the campus", "see the hostel",
-        "how does it look", "how does the campus look", "look like", "drone",
-        "walkthrough", "virtual tour", "campus video", "hostel video", "watch video",
-        "video tour", "show video"
-    )
-    if any(k in msg for k in tour_keywords):
+    if is_explicit_video_query(message):
         return True
 
-    # If the user is asking about admissions, fees, ranks, marks, scholarships, or general evaluation, do NOT offer video
+    msg = message.lower()
+
+    # Disallow video offers on purely transactional, numerical, or regulatory queries
     disallowed_keywords = (
         "fee", "fees", "cost", "scholarship", "cutoff", "percentage", "marks", "rank",
-        "eligibility", "eligible", "syllabus", "curriculum", "apply", "good",
-        "why", "ad", "instagram", "rule", "regulations", "attendance", "mistake", "wrong"
+        "eligibility", "eligible", "syllabus", "curriculum",
+        "instagram", "attendance", "rules", "regulations", "mistake", "wrong",
     )
     if any(k in msg for k in disallowed_keywords):
         return False
 
-    facility_keywords = ("campus life", "hostel rooms", "srix", "incubator", "sports facilities")
+    facility_keywords = (
+        "campus", "campus life", "hostel", "hostels", "hostel rooms", "dining", "mess",
+        "srix", "incubator", "sports", "grounds", "labs", "infrastructure",
+        "life at sru", "fest", "events", "activities",
+    )
     return any(k in msg for k in facility_keywords)
 
 
@@ -349,8 +350,16 @@ async def handle_chat(
     query_embedding = getattr(rag_service, "last_query_embedding", None)
 
     if not is_video_yes and not is_video_no:
+        if not query_embedding and rag_service:
+            try:
+                canonical = canonicalize_query(request.message)
+                query_embedding = await rag_service.embeddings.embed_single(canonical)
+            except Exception:
+                query_embedding = None
+
+        max_dist = EXPLICIT_MAX_SEMANTIC_DISTANCE if explicit_video else DEFAULT_MAX_SEMANTIC_DISTANCE
         if query_embedding:
-            semantic_videos = get_semantic_videos(query_embedding, limit=2, max_distance=0.25)
+            semantic_videos = get_semantic_videos(query_embedding, limit=2, max_distance=max_dist)
             if semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message):
                 cat = semantic_videos[0].get("category", "our campus")
                 answer = format_video_offer_prompt(answer, cat)
@@ -396,7 +405,7 @@ async def handle_chat(
             "cards": cards,
             "flow": flow_info,
             "matched_videos": semantic_videos if semantic_videos else None,
-            "video_offer": bool(semantic_videos and not explicit_video and intent == "UNIVERSITY"),
+            "video_offer": bool(semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message)),
         },
     )
 
@@ -676,12 +685,14 @@ async def handle_chat_stream(
         if not is_video_yes and not is_video_no:
             if not query_embedding and rag_service:
                 try:
-                    query_embedding = await rag_service.embeddings.embed_single(request.message)
+                    canonical = canonicalize_query(request.message)
+                    query_embedding = await rag_service.embeddings.embed_single(canonical)
                 except Exception:
                     query_embedding = None
 
+            max_dist = EXPLICIT_MAX_SEMANTIC_DISTANCE if explicit_video else DEFAULT_MAX_SEMANTIC_DISTANCE
             if query_embedding:
-                semantic_videos = get_semantic_videos(query_embedding, limit=2, max_distance=0.25)
+                semantic_videos = get_semantic_videos(query_embedding, limit=2, max_distance=max_dist)
                 if semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message):
                     cat = semantic_videos[0].get("category", "our campus")
                     new_answer = format_video_offer_prompt(answer, cat)
@@ -733,7 +744,7 @@ async def handle_chat_stream(
                 "cards": cards,
                 "flow": flow_info,
                 "matched_videos": semantic_videos if semantic_videos else None,
-                "video_offer": bool(semantic_videos and not explicit_video and intent == "UNIVERSITY"),
+                "video_offer": bool(semantic_videos and not explicit_video and intent == "UNIVERSITY" and should_offer_video_tour(request.message)),
             },
         )
 
