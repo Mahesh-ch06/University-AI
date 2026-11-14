@@ -173,7 +173,10 @@ async def sync_video_vectors(embedding_provider=None) -> int:
         collection.upsert(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
         # Store the new hash in collection metadata so the next startup skips re-sync
         try:
-            collection.modify(metadata={"content_hash": new_hash, "hnsw:space": "cosine"})
+            curr_meta = dict(collection.metadata or {})
+            curr_meta["content_hash"] = new_hash
+            curr_meta.pop("hnsw:space", None)
+            collection.modify(metadata=curr_meta)
         except Exception as meta_err:
             logger.debug("Could not persist content_hash to ChromaDB metadata: %s", meta_err)
         logger.info(
