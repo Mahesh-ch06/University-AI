@@ -744,29 +744,14 @@ SR University has pioneered futuristic, multidisciplinary undergraduate engineer
 
 _FEE_TREE_TEXT = """### 💰 SR University Fee Structure (2027–28)
 
-Here is the **Program Category Directory**. Select or tap a program category to explore its branch fees and scholarship slabs:
+Here is the **Program Category Directory**. Select an academic school below or tap a category to explore its branch fees and scholarship slabs:
 
-```
-SR University (2027-28)
-├── 📘 B.Tech Engineering
-│   ├── CSE & Allied (AIML, Data Science, Cyber Security, Quantum AI)
-│   ├── AI & Robotics
-│   ├── ECE (VLSI & Embedded Systems)
-│   └── Core Engineering (Biotech, Civil, EEE, Mech, Food Tech)
-├── 🏢 Management & Commerce
-│   ├── BBA (General & Analytics)
-│   └── MBA (Finance, Marketing, HR, Analytics, Agri-Business)
-├── 🌾 Agriculture (ICAR-Accredited)
-│   └── B.Sc. (Hons) Agriculture
-├── 💻 Computer Applications & IT
-│   ├── BCA (Hons) / B.Sc Computer Science
-│   └── MCA
-├── 🎨 Design
-│   └── B.Des (Interior & Fashion Design)
-└── 🔬 Postgraduate & Sciences
-    ├── M.Tech (All Engineering Specializations)
-    └── M.Sc (Computer Science / Agriculture)
-```
+• **📘 B.Tech Engineering** — CSE & Allied, AI & Robotics, ECE, Core Engineering
+• **🏢 Management & Commerce** — BBA (General & Analytics), MBA (Finance, Marketing, HR, Analytics)
+• **🌾 Agriculture (ICAR-Accredited)** — B.Sc. (Hons) Agriculture
+• **💻 Computer Applications & IT** — BCA (Hons), B.Sc Computer Science, MCA
+• **🎨 Design** — B.Des (Interior & Fashion Design)
+• **🔬 Postgraduate & Sciences** — M.Tech, M.Sc (Computer Science / Agriculture)
 
 👉 **Which program category would you like to see the fee structure for?** Tap an option below or type your branch:"""
 
@@ -774,17 +759,10 @@ _BTECH_TREE_TEXT = """### 📘 B.Tech Fee Structure (2027–28)
 
 For **B.Tech (Bachelor of Technology)**, SR University offers several engineering streams. Which branch would you like to view the detailed fee structure for?
 
-```
-B.Tech Engineering Streams
-├── 1. B.Tech CSE & Allied (AIML, Data Science, Cyber, Quantum AI)
-│   └── ₹3,40,000 / yr  (₹1,70,000 / sem)
-├── 2. B.Tech AI & Robotics
-│   └── ₹4,00,000 / yr  (₹2,00,000 / sem)
-├── 3. B.Tech ECE (VLSI & Embedded)
-│   └── ₹2,70,000 / yr  (₹1,35,000 / sem)
-└── 4. B.Tech Core (Biotech, Civil, EEE, Mech, Food Tech)
-    └── ₹2,00,000 / yr  (₹1,00,000 / sem)
-```
+• **1. B.Tech CSE & Allied** (AIML, Data Science, Cyber, Quantum AI) — **₹3,40,000 / yr** (₹1,70,000 / sem)
+• **2. B.Tech AI & Robotics** — **₹4,00,000 / yr** (₹2,00,000 / sem)
+• **3. B.Tech ECE** (VLSI & Embedded) — **₹2,70,000 / yr** (₹1,35,000 / sem)
+• **4. B.Tech Core** (Biotech, Civil, EEE, Mech, Food Tech) — **₹2,00,000 / yr** (₹1,00,000 / sem)
 
 *All B.Tech programs offer **10% to 40% Merit Scholarships** based on your 10+2 marks or EAPCET rank.*
 
@@ -1156,7 +1134,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "FEE_TREE_QUERY":
         await set_state(fee_tree_step="category")
+        flow_card = fee_flow.build_school_selection_card()
         async for ev in _say(_FEE_TREE_TEXT, message, session_id, conversation_id,
+                             cards=[flow_card],
                              suggestions=["B.Tech Engineering", "Management (BBA / MBA)",
                                           "B.Sc (Hons) Agriculture", "Computer Applications (BCA / MCA)"]):
             yield ev
@@ -1164,7 +1144,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "BTECH_TREE_QUERY":
         await set_state(fee_tree_step="btech_branch")
+        flow_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0])
         async for ev in _say(_BTECH_TREE_TEXT, message, session_id, conversation_id,
+                             cards=[flow_card],
                              suggestions=["B.Tech CSE & Allied", "B.Tech AI & Robotics",
                                           "B.Tech ECE", "B.Tech Core Engineering"]):
             yield ev
@@ -1172,11 +1154,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "BTECH_CSE_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        cse_fee = fees.calculate_fee(program="btech_cse")
-        used = [{"name": "calculate_fee", "status": "ok", "is_action": False}]
-        cards = [{"type": "calculate_fee", "data": cse_fee}] if cse_fee.get("status") == "ok" else []
+        fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[0], "2027-28")
         async for ev in _say(_BTECH_CSE_FEE_TEXT, message, session_id, conversation_id,
-                             used=used, cards=cards,
+                             cards=[fee_card],
                              suggestions=["Calculate my scholarship", "Hostel fee details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
@@ -1184,11 +1164,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "BTECH_AI_ROBOTICS_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        airo_fee = fees.calculate_fee(program="btech_ai_robotics")
-        used = [{"name": "calculate_fee", "status": "ok", "is_action": False}]
-        cards = [{"type": "calculate_fee", "data": airo_fee}] if airo_fee.get("status") == "ok" else []
+        fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[0], "2027-28")
         async for ev in _say(_BTECH_AI_ROBOTICS_FEE_TEXT, message, session_id, conversation_id,
-                             used=used, cards=cards,
+                             cards=[fee_card],
                              suggestions=["Calculate my scholarship", "Hostel fee details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
@@ -1196,11 +1174,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "BTECH_ECE_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        ece_fee = fees.calculate_fee(program="btech_ece")
-        used = [{"name": "calculate_fee", "status": "ok", "is_action": False}]
-        cards = [{"type": "calculate_fee", "data": ece_fee}] if ece_fee.get("status") == "ok" else []
+        fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[1], "2027-28")
         async for ev in _say(_BTECH_ECE_FEE_TEXT, message, session_id, conversation_id,
-                             used=used, cards=cards,
+                             cards=[fee_card],
                              suggestions=["Calculate my scholarship", "Hostel fee details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
@@ -1208,11 +1184,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "BTECH_CORE_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        core_fee = fees.calculate_fee(program="btech_mech")
-        used = [{"name": "calculate_fee", "status": "ok", "is_action": False}]
-        cards = [{"type": "calculate_fee", "data": core_fee}] if core_fee.get("status") == "ok" else []
+        fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[1], "2027-28")
         async for ev in _say(_BTECH_CORE_FEE_TEXT, message, session_id, conversation_id,
-                             used=used, cards=cards,
+                             cards=[fee_card],
                              suggestions=["Calculate my scholarship", "Hostel fee details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
@@ -1220,11 +1194,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "MANAGEMENT_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        bba_fee = fees.calculate_fee(program="bba")
-        used = [{"name": "calculate_fee", "status": "ok", "is_action": False}]
-        cards = [{"type": "calculate_fee", "data": bba_fee}] if bba_fee.get("status") == "ok" else []
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[3])
         async for ev in _say(_MANAGEMENT_FEE_TEXT, message, session_id, conversation_id,
-                             used=used, cards=cards,
+                             cards=[course_card],
                              suggestions=["Calculate my fee with scholarship", "MBA specializations",
                                           "Hostel fees", "How do I apply?"]):
             yield ev
@@ -1232,11 +1204,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "AGRICULTURE_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        ag_fee = fees.calculate_fee(program="bsc_agriculture")
-        used = [{"name": "calculate_fee", "status": "ok", "is_action": False}]
-        cards = [{"type": "calculate_fee", "data": ag_fee}] if ag_fee.get("status") == "ok" else []
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2])
         async for ev in _say(_AGRICULTURE_FEE_TEXT, message, session_id, conversation_id,
-                             used=used, cards=cards,
+                             cards=[course_card],
                              suggestions=["Calculate my scholarship", "Hostel fee details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
@@ -1244,11 +1214,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "COMP_APP_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        bca_fee = fees.calculate_fee(program="bca")
-        used = [{"name": "calculate_fee", "status": "ok", "is_action": False}]
-        cards = [{"type": "calculate_fee", "data": bca_fee}] if bca_fee.get("status") == "ok" else []
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0])
         async for ev in _say(_COMP_APP_FEE_TEXT, message, session_id, conversation_id,
-                             used=used, cards=cards,
+                             cards=[course_card],
                              suggestions=["Calculate my scholarship", "Hostel fee details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
@@ -1256,11 +1224,9 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
 
     if intent == "DESIGN_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        bdes_fee = fees.calculate_fee(program="bdes")
-        used = [{"name": "calculate_fee", "status": "ok", "is_action": False}]
-        cards = [{"type": "calculate_fee", "data": bdes_fee}] if bdes_fee.get("status") == "ok" else []
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5])
         async for ev in _say(_DESIGN_FEE_TEXT, message, session_id, conversation_id,
-                             used=used, cards=cards,
+                             cards=[course_card],
                              suggestions=["Calculate my scholarship", "Hostel fee details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev

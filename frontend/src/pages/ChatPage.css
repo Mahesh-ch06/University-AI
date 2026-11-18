@@ -1792,7 +1792,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 16px;
+  padding: 16px 16px 28px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1900,6 +1900,24 @@
   width: fit-content !important;
   max-width: 100% !important;
   text-align: left !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  box-sizing: border-box !important;
+}
+
+.sru-widget-body .chat-code-card {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 8px 0 !important;
+}
+
+.sru-widget-body .chat-code-card pre {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  font-size: 0.78rem !important;
+  line-height: 1.4 !important;
+  padding: 10px 12px !important;
+  overflow-x: auto !important;
 }
 
 .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant p,
