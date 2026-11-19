@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
 import MessageBubble from "../components/MessageBubble";
 import ChatLeadForm from "../components/ChatLeadForm";
-import { CalculatorIcon, renderUniIcon } from "../components/Icons";
+import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
 import { applyServerProfile, cleanPhone, PROFILE_EVENT, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import {
@@ -38,32 +38,6 @@ const DEFAULT_WELCOME_MESSAGE: MessageData = {
   created_at: new Date().toISOString(),
 };
 
-const QUICK_STARTER_QUERIES = [
-  {
-    icon: "💰",
-    title: "Fee Structure 2027-28",
-    desc: "Interactive program & branch fee tree",
-    prompt: "What is the fee structure for 2027-28 across different programs?",
-  },
-  {
-    icon: "🎁",
-    title: "Special Concessions",
-    desc: "19 category fee waivers up to ₹50,000/yr",
-    prompt: "What are the special category fee concessions available at SR University?",
-  },
-  {
-    icon: "🤖",
-    title: "Next-Gen Tech Programs",
-    desc: "AI & Robotics, Quantum AI & Precision Ag",
-    prompt: "Tell me about the Next-Gen Technology programs at SR University like AI & Robotics, Quantum AI, and Precision Agriculture.",
-  },
-  {
-    icon: "🎓",
-    title: "Programs Available at SRU",
-    desc: "Explore all 6 schools & degree offerings",
-    prompt: "What are all the programs and courses available at SR University?",
-  },
-];
 const MESSAGE_RENDER_WINDOW = 60;
 
 export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
@@ -608,29 +582,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </div>
             )}
 
-            {messages.length <= 1 && !isLoading && (
-              <div className="sru-widget-starters">
-                <div className="sru-starters-heading">✨ Quick Inquiries</div>
-                <div className="sru-starters-grid">
-                  {QUICK_STARTER_QUERIES.map((q, i) => (
-                    <button
-                      key={i}
-                      className="sru-starter-card"
-                      onClick={() => {
-                        handleSendMessage(q.prompt);
-                      }}
-                    >
-                      <div className="sru-starter-icon">{renderUniIcon(q.icon, 20)}</div>
-                      <div className="sru-starter-info">
-                        <span className="sru-starter-title">{q.title}</span>
-                        <span className="sru-starter-desc">{q.desc}</span>
-                      </div>
-                      <span className="sru-starter-arrow">→</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Footer / Input Bar */}
@@ -1065,30 +1016,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   </div>
                 )}
 
-                {/* Quick starter chips when conversation is just starting */}
-                {messages.length <= 1 && !isLoading && (
-                  <div className="sru-widget-starters">
-                    <div className="sru-starters-heading">✨ Quick Inquiries</div>
-                    <div className="sru-starters-grid">
-                      {QUICK_STARTER_QUERIES.map((q, i) => (
-                        <button
-                          key={i}
-                          className="sru-starter-card"
-                          onClick={() => {
-                            handleSendMessage(q.prompt);
-                          }}
-                        >
-                          <div className="sru-starter-icon">{renderUniIcon(q.icon, 20)}</div>
-                          <div className="sru-starter-info">
-                            <span className="sru-starter-title">{q.title}</span>
-                            <span className="sru-starter-desc">{q.desc}</span>
-                          </div>
-                          <span className="sru-starter-arrow">→</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Footer / Input Bar */}
