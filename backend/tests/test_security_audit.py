@@ -89,6 +89,9 @@ class TestSecurityAudit(unittest.IsolatedAsyncioTestCase):
             "https://university-ai-companion.vercel.app",
             "https://sru.edu.in",
             "https://www.sru.edu.in",
+            "https://admissions.sru.edu.in",
+            "https://apply.sru.edu.in",
+            "https://portal.sru.edu.in",
         ]
         for origin in allowed:
             self.assertTrue(check_origin(origin), f"Legitimate origin rejected: {origin}")

@@ -52,9 +52,9 @@ class Settings(BaseSettings):
     APP_DEBUG: bool = True
     CORS_ORIGINS: str = "http://localhost:5173"
     # Other sites allowed to call this API (regular expression). The default allows local
-    # development and Vercel deployments. To embed SRU Buddy on sru.edu.in add it, e.g.
+    # development, Vercel deployments, and sru.edu.in along with any of its subdomains (*.sru.edu.in).
     CORS_ORIGIN_REGEX: str = (
-        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.vercel\.app$|^https://(www\.)?sru\.edu\.in$"
+        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.vercel\.app$|^https://([a-zA-Z0-9-]+\.)*sru\.edu\.in$"
     )
 
     # ---- Paths ----

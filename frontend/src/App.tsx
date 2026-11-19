@@ -6,14 +6,31 @@ import "./index.css";
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 
 /**
- * The admin console is for university staff only. Students never see a link to it.
- * Staff open it by adding #admin to the address (https://<site>/#admin); the console
- * still asks for the admin key. Once opened in a browser tab, the chat header shows
- * an "Admin console" button for that tab only.
+ * The secret admin slug used to access the university staff console.
+ * Can be overridden via VITE_ADMIN_PATH in Vercel / environment settings.
+ * Defaults to an unguessable randomized token so no one can guess `/#admin`.
  */
+const ADMIN_SECRET_SLUG = (
+  (import.meta.env.VITE_ADMIN_PATH as string | undefined) || "sru-ops-9f4a7c2e"
+)
+  .replace(/^#\/?/, "")
+  .trim();
+
+function isAdminRoute(): boolean {
+  try {
+    const hash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
+    const searchParams = new URLSearchParams(window.location.search);
+    const querySlug = (searchParams.get("admin") || searchParams.get("admin_key") || "").trim().toLowerCase();
+    const target = ADMIN_SECRET_SLUG.toLowerCase();
+    return (hash.length > 0 && hash === target) || (querySlug.length > 0 && querySlug === target);
+  } catch {
+    return false;
+  }
+}
+
 function staffMode(): boolean {
   try {
-    if (/^#\/?admin\b/i.test(window.location.hash) || new URLSearchParams(window.location.search).has("admin")) {
+    if (isAdminRoute()) {
       sessionStorage.setItem("sru_staff_mode", "1");
       return true;
     }
@@ -37,12 +54,12 @@ function App() {
   const widget = isWidgetMode();
   const [isStaff, setIsStaff] = useState<boolean>(staffMode);
   const [view, setView] = useState<"chat" | "admin">(() =>
-    /^#\/?admin\b/i.test(window.location.hash) ? "admin" : "chat"
+    isAdminRoute() ? "admin" : "chat"
   );
 
   useEffect(() => {
     const onHash = () => {
-      if (/^#\/?admin\b/i.test(window.location.hash)) {
+      if (isAdminRoute()) {
         setIsStaff(staffMode());
         setView("admin");
       }
@@ -52,7 +69,7 @@ function App() {
   }, []);
 
   const backToChat = () => {
-    if (/^#\/?admin\b/i.test(window.location.hash)) {
+    if (window.location.hash) {
       history.replaceState(null, "", window.location.pathname + window.location.search);
     }
     setView("chat");
