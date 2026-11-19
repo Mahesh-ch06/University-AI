@@ -125,6 +125,10 @@
   color: #172554;
 }
 
+[data-theme="light"] .chat-lead-form-error {
+  color: #dc2626 !important;
+}
+
 @media (max-width: 480px) {
   .chat-lead-form {
     width: calc(100% - 20px);

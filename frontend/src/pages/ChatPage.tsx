@@ -549,7 +549,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               <button
                 type="button"
                 onClick={() => setVisibleMessageCount((count) => Math.min(messages.length, count + MESSAGE_RENDER_WINDOW))}
-                style={{ alignSelf: "center", margin: "8px auto", color: "#bfdbfe", background: "transparent", border: "1px solid rgba(147, 197, 253, 0.35)", borderRadius: "999px", padding: "5px 12px", cursor: "pointer", fontSize: "0.75rem" }}
+                style={{ alignSelf: "center", margin: "8px auto", color: "#0055a4", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "999px", padding: "5px 12px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}
               >
                 Load older messages
               </button>
@@ -595,7 +595,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
             )}
 
             {error && (
-              <div style={{ color: "#f87171", fontSize: "0.82rem", padding: "8px 12px", background: "rgba(220, 38, 38, 0.15)", borderRadius: "8px" }}>
+              <div style={{ color: "#b91c1c", fontSize: "0.82rem", padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px" }}>
                 {error}
               </div>
             )}
@@ -1006,7 +1006,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   <button
                     type="button"
                     onClick={() => setVisibleMessageCount((count) => Math.min(messages.length, count + MESSAGE_RENDER_WINDOW))}
-                    style={{ alignSelf: "center", margin: "8px auto", color: "#bfdbfe", background: "transparent", border: "1px solid rgba(147, 197, 253, 0.35)", borderRadius: "999px", padding: "5px 12px", cursor: "pointer", fontSize: "0.75rem" }}
+                    style={{ alignSelf: "center", margin: "8px auto", color: "#0055a4", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "999px", padding: "5px 12px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}
                   >
                     Load older messages
                   </button>
@@ -1052,7 +1052,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 )}
 
                 {error && (
-                  <div style={{ color: "#f87171", fontSize: "0.82rem", padding: "8px 12px", background: "rgba(220, 38, 38, 0.15)", borderRadius: "8px" }}>
+                  <div style={{ color: "#b91c1c", fontSize: "0.82rem", padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px" }}>
                     {error}
                   </div>
                 )}
