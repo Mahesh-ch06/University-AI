@@ -104,25 +104,72 @@
 }
 
 [data-theme="light"] .chat-lead-form {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1e3a8a;
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  box-shadow: 0 4px 16px rgba(0, 50, 110, 0.08);
 }
 
 [data-theme="light"] .chat-lead-form h2 {
-  color: #172554;
+  color: #0a1b3a;
+  font-weight: 700;
 }
 
 [data-theme="light"] .chat-lead-form p,
-[data-theme="light"] .chat-lead-form label,
-[data-theme="light"] .chat-lead-form-actions .chat-lead-form-skip {
-  color: #1e40af;
+[data-theme="light"] .chat-lead-form label {
+  color: #334155;
 }
 
 [data-theme="light"] .chat-lead-form input {
-  border-color: #bfdbfe;
-  background: #fff;
-  color: #172554;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+[data-theme="light"] .chat-lead-form input:focus {
+  border-color: #0055a4;
+  box-shadow: 0 0 0 3px rgba(0, 85, 164, 0.15);
+}
+
+.chat-lead-tagline {
+  color: #0055a4 !important;
+  font-weight: 600 !important;
+  font-size: 0.78rem !important;
+  line-height: 1.4 !important;
+  margin-top: 4px !important;
+}
+
+.chat-lead-submit-btn {
+  background: linear-gradient(135deg, #0055a4 0%, #2979e2 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 9px 18px !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 4px 12px rgba(0, 85, 164, 0.3) !important;
+}
+
+.chat-lead-submit-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #004382 0%, #1c66c9 100%) !important;
+  transform: translateY(-1px) !important;
+}
+
+.chat-lead-back-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #64748b !important;
+  font-size: 0.76rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  text-decoration: underline !important;
+  padding: 6px 10px !important;
+}
+
+.chat-lead-back-btn:hover {
+  color: #0055a4 !important;
 }
 
 [data-theme="light"] .chat-lead-form-error {

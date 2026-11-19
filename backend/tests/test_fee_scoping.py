@@ -215,9 +215,7 @@ def test_about_sru_triggers_campus_tour_card():
 
 
 def test_sru_advantage_comparison_card_trigger():
-    """Verify comparison / 'why sru' queries trigger SRU_ADVANTAGE_CARD."""
-    from app.services.card_service import SRU_ADVANTAGE_CARD
-    
+    """Verify comparison / 'why sru' queries do NOT trigger sru_comparison (SRU Edge card completely removed)."""
     test_queries = [
         "why should I choose SRU over other colleges?",
         "how is sru different from other private universities?",
@@ -230,14 +228,7 @@ def test_sru_advantage_comparison_card_trigger():
             user_message=q,
             answer="SR University uniquely offers Tier-1 NBA accredited programs, NIRF Top-100 ranking, and 51 LPA highest placement.",
         )
-        assert any(c.get("type") == "sru_comparison" for c in cards), f"Failed for query: {q}"
-        sru_card = next(c for c in cards if c.get("type") == "sru_comparison")
-        assert sru_card == SRU_ADVANTAGE_CARD
-        assert len(sru_card["advantages"]) >= 8
-        categories = [adv["category"] for adv in sru_card["advantages"]]
-        assert "Rankings & Accreditations" in categories
-        assert "Placement Excellence" in categories
-        assert "Innovation & Startups (SRiX)" in categories
+        assert not any(c.get("type") == "sru_comparison" for c in cards), f"sru_comparison should not be generated for: {q}"
 
 
 def test_no_150_acres_in_cards_or_descriptions():

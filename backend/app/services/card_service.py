@@ -1007,18 +1007,8 @@ def generate_cards(
                 if session_id:
                     record_session_card(session_id, "campus_tour")
 
-    # 5b. SRU Advantage Comparison Card — triggered on comparison / "why SRU" intent
-    _comparison_triggers = (
-        "why sru", "why choose sru", "why should i choose sru", "is sru good",
-        "compare sru", "sru vs", "how is sru different", "is sru better",
-        "what makes sru unique", "sru better than", "sru special",
-        "advantages of sru", "benefits of sru", "sru advantage",
-        "what sru offers", "sru unique", "sru stand out", "sru stands out",
-        "compare with other", "how does sru compare", "sru worth it",
-        "is sru worth", "sru highlight", "sru highlights",
-    )
-    if any(k in msg_lower for k in _comparison_triggers):
-        cards.append(SRU_ADVANTAGE_CARD)
+    # 5b. SRU Advantage Comparison Card (Removed as per user request)
+    # Comparison triggers no longer emit SRU Edge card.
 
     # 6. University YouTube Media Recommendations (Dense Semantic Search via ChromaDB)
     # Zero keyword matching: relevance is governed purely by ChromaDB semantic cosine distance.

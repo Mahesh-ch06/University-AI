@@ -85,9 +85,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   };
 
   const [messages, setMessages] = useState<MessageData[]>([DEFAULT_WELCOME_MESSAGE]);
-  const [showInlineLeadForm, setShowInlineLeadForm] = useState<boolean>(
-    () => !hasValidContactDetails()
-  );
+  const [showInlineLeadForm, setShowInlineLeadForm] = useState<boolean>(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(MESSAGE_RENDER_WINDOW);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -102,7 +100,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
   useEffect(() => {
     const handleProfileChange = () => {
-      setShowInlineLeadForm(!hasValidContactDetails());
+      if (hasValidContactDetails()) {
+        setShowInlineLeadForm(false);
+      }
     };
     window.addEventListener(PROFILE_EVENT, handleProfileChange);
     return () => window.removeEventListener(PROFILE_EVENT, handleProfileChange);
@@ -114,7 +114,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     if (pendingQuestion) {
       const q = pendingQuestion;
       setPendingQuestion(null);
-      executeSendMessage(q);
+      executeSendMessage(q, true);
     }
   };
 
@@ -176,12 +176,25 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     ? messages.slice(-visibleMessageCount)
     : messages;
 
-  // Scroll to bottom of widget when messages update
+  const lastSentUserMsgIdRef = useRef<string | null>(null);
+
+  // Position newly sent user message at comfortable top reading view without jumping to bottom
   useEffect(() => {
-    if (messagesAreaRef.current) {
-      messagesAreaRef.current.scrollTop = messagesAreaRef.current.scrollHeight;
+    if (!messagesAreaRef.current) return;
+    const container = messagesAreaRef.current;
+
+    if (lastSentUserMsgIdRef.current) {
+      const msgId = lastSentUserMsgIdRef.current;
+      requestAnimationFrame(() => {
+        const userMsgEl = document.getElementById(`sru-msg-${msgId}`);
+        if (userMsgEl && container) {
+          const topOffset = userMsgEl.offsetTop - container.offsetTop - 12;
+          container.scrollTo({ top: Math.max(0, topOffset), behavior: "smooth" });
+          lastSentUserMsgIdRef.current = null;
+        }
+      });
     }
-  }, [messages, streamingMsgId, activeToolStatus]);
+  }, [messages, showInlineLeadForm]);
 
   // Voice typing toggle
   const toggleVoice = () => {
@@ -226,30 +239,32 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    if (!hasValidContactDetails()) {
-      setShowInlineLeadForm(true);
-      setPendingQuestion(trimmed);
-      setError("Please share your name and mobile number in the form above to start chatting with SRU Buddy.");
-      return;
-    }
-
     // Check for calculator trigger
     if (/^\s*(🧮\s*)?(scholarship\s*calculator|calculate\s*(?:my\s*)?scholarship|fee\s*calculator|open\s*calculator|calculator)\s*$/i.test(trimmed)) {
       setIsCalculatorOpen(true);
       return;
     }
 
-    await executeSendMessage(trimmed);
-  }
-
-  async function executeSendMessage(text: string) {
     if (!hasValidContactDetails()) {
+      const userMsgId = crypto.randomUUID();
+      const tempUserMsg: MessageData = {
+        id: userMsgId,
+        role: "user",
+        content: trimmed,
+        created_at: new Date().toISOString(),
+      };
+      lastSentUserMsgIdRef.current = userMsgId;
+      setMessages((prev) => [...prev, tempUserMsg]);
+      setPendingQuestion(trimmed);
       setShowInlineLeadForm(true);
-      setPendingQuestion(text);
-      setError("Please share your name and mobile number in the form above to get answers.");
+      setError(null);
       return;
     }
 
+    await executeSendMessage(trimmed, false);
+  }
+
+  async function executeSendMessage(text: string, skipAppendUserMsg = false) {
     if (isLoading && cancelStreamRef.current) {
       cancelStreamRef.current();
       cancelStreamRef.current = null;
@@ -262,14 +277,16 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     const assistantMsgId = crypto.randomUUID();
     setStreamingMsgId(assistantMsgId);
 
-    const tempUserMsg: MessageData = {
-      id: userMsgId,
-      role: "user",
-      content: text,
-      created_at: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, tempUserMsg]);
+    if (!skipAppendUserMsg) {
+      const tempUserMsg: MessageData = {
+        id: userMsgId,
+        role: "user",
+        content: text,
+        created_at: new Date().toISOString(),
+      };
+      lastSentUserMsgIdRef.current = userMsgId;
+      setMessages((prev) => [...prev, tempUserMsg]);
+    }
 
     let assistantAppended = false;
     let accumulatedContent = "";
@@ -426,7 +443,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     setMessages([DEFAULT_WELCOME_MESSAGE]);
     setVisibleMessageCount(MESSAGE_RENDER_WINDOW);
     setError(null);
-    setShowInlineLeadForm(!hasValidContactDetails());
+    setShowInlineLeadForm(false);
     setPendingQuestion(null);
   }
 
@@ -437,13 +454,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     if (!query) return;
     setIsWidgetOpen(true);
     setIsMinimized(false);
-    if (!hasValidContactDetails()) {
-      setShowInlineLeadForm(true);
-      setPendingQuestion(query);
-      setError("Please share your name and mobile number in the form above to start chatting with SRU Buddy.");
-      setDockQuery("");
-      return;
-    }
     handleSendMessage(query);
     setDockQuery("");
   };
@@ -453,13 +463,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     e.preventDefault();
     const input = widgetInput.trim();
     if (!input || isLoading) return;
-    if (!hasValidContactDetails()) {
-      setShowInlineLeadForm(true);
-      setPendingQuestion(input);
-      setError("Please share your name and mobile number in the form above to start chatting with SRU Buddy.");
-      setWidgetInput("");
-      return;
-    }
     handleSendMessage(input);
     setWidgetInput("");
   };
@@ -555,19 +558,24 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </button>
             )}
             {visibleMessages.map((msg, index) => (
-              <MessageBubble
+              <div
                 key={msg.id || index}
-                role={msg.role}
-                content={msg.content}
-                cards={msg.cards}
-                suggestions={msg.suggestions}
-                flow={msg.flow}
-                messageId={msg.id}
-                conversationId={activeConvId}
-                sessionId={sessionId}
-                isStreaming={msg.id === streamingMsgId}
-                onSuggestionClick={(prompt) => handleSendMessage(prompt)}
-              />
+                id={msg.id ? `sru-msg-${msg.id}` : undefined}
+                style={{ width: "100%" }}
+              >
+                <MessageBubble
+                  role={msg.role}
+                  content={msg.content}
+                  cards={msg.cards}
+                  suggestions={msg.suggestions}
+                  flow={msg.flow}
+                  messageId={msg.id}
+                  conversationId={activeConvId}
+                  sessionId={sessionId}
+                  isStreaming={msg.id === streamingMsgId}
+                  onSuggestionClick={(prompt) => handleSendMessage(prompt)}
+                />
+              </div>
             ))}
 
             {showInlineLeadForm && (
@@ -609,11 +617,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                       key={i}
                       className="sru-starter-card"
                       onClick={() => {
-                        if (showInlineLeadForm) {
-                          setPendingQuestion(q.prompt);
-                          setError("Please share your name and mobile number in the form above to start chatting.");
-                          return;
-                        }
                         handleSendMessage(q.prompt);
                       }}
                     >
@@ -1012,19 +1015,24 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   </button>
                 )}
                 {visibleMessages.map((msg, index) => (
-                  <MessageBubble
+                  <div
                     key={msg.id || index}
-                    role={msg.role}
-                    content={msg.content}
-                    cards={msg.cards}
-                    suggestions={msg.suggestions}
-                    flow={msg.flow}
-                    messageId={msg.id}
-                    conversationId={activeConvId}
-                    sessionId={sessionId}
-                    isStreaming={msg.id === streamingMsgId}
-                    onSuggestionClick={(prompt) => handleSendMessage(prompt)}
-                  />
+                    id={msg.id ? `sru-msg-${msg.id}` : undefined}
+                    style={{ width: "100%" }}
+                  >
+                    <MessageBubble
+                      role={msg.role}
+                      content={msg.content}
+                      cards={msg.cards}
+                      suggestions={msg.suggestions}
+                      flow={msg.flow}
+                      messageId={msg.id}
+                      conversationId={activeConvId}
+                      sessionId={sessionId}
+                      isStreaming={msg.id === streamingMsgId}
+                      onSuggestionClick={(prompt) => handleSendMessage(prompt)}
+                    />
+                  </div>
                 ))}
 
                 {showInlineLeadForm && (
@@ -1067,11 +1075,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                           key={i}
                           className="sru-starter-card"
                           onClick={() => {
-                            if (showInlineLeadForm) {
-                              setPendingQuestion(q.prompt);
-                              setError("Please share your name and mobile number in the form above to start chatting.");
-                              return;
-                            }
                             handleSendMessage(q.prompt);
                           }}
                         >
