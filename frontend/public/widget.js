@@ -4,7 +4,7 @@
  * Add SRU Buddy to any web page (for example the SR University admission page) with ONE line,
  * just before </body>:
  *
- *   <script src="https://university-ai-companion.vercel.app/widget.js" defer></script>
+ *   <script src="https://university-ai-companion.vercel.app/widget.js" defer><\/script>
  *
  * Optional settings on the same tag:
  *   data-position="left"            bubble on the left (default: right)
@@ -24,6 +24,7 @@
   "use strict";
   if (window.SRUBuddy && window.SRUBuddy.__loaded) return;
 
+  var PROD_BASE = "https://university-ai-companion.vercel.app";
   var script =
     document.currentScript ||
     (function () {
@@ -33,17 +34,32 @@
       }
       return null;
     })();
-  var base = script ? new URL(script.src, location.href).origin : location.origin;
   var opt = function (name, fallback) {
     var v = script && script.getAttribute("data-" + name);
     return v === null || v === undefined ? fallback : v;
   };
+  var base = opt("host", (function () {
+    if (script && script.src) {
+      try {
+        var origin = new URL(script.src, location.href).origin;
+        if (origin && origin !== "null" && origin.indexOf("sru.edu.in") === -1) {
+          return origin;
+        }
+      } catch (e) {}
+    }
+    if (typeof location !== "undefined") {
+      if (location.hostname === "localhost" || location.hostname === "127.0.0.1" || /vercel\.app$/.test(location.hostname)) {
+        return location.origin;
+      }
+    }
+    return PROD_BASE;
+  })());
   var side = opt("position", "right") === "left" ? "left" : "right";
   var color = opt("color", "#0055a4");
   var label = opt("label", "Ask SRU Buddy");
   var greeting = opt("greeting", "Hi! Questions about admissions 2027-28? Ask me.");
   var startOpen = opt("open", "false") === "true";
-  var appUrl = base + "/?mode=widget";
+  var appUrl = opt("app-url", base + "/?mode=widget");
 
   var host = document.createElement("div");
   host.id = "sru-buddy-widget";
@@ -162,7 +178,8 @@
     if (isOpen && e.key === "Escape") close();
   });
   window.addEventListener("message", function (e) {
-    if (e.origin !== base || !e.data || e.data.type !== "sru-buddy:close") return;
+    if (e.origin !== base && e.origin !== PROD_BASE) return;
+    if (!e.data || e.data.type !== "sru-buddy:close") return;
     close();
   });
 
