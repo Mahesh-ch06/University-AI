@@ -12,7 +12,10 @@ import re
 import urllib.parse
 from datetime import date, datetime, timedelta
 
-import httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None
 
 from . import config, fees, memory
 

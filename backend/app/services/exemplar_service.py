@@ -1,9 +1,13 @@
 """Exemplar service — manages verified Q&A pairs for dynamic few-shot learning and self-improvement."""
+from __future__ import annotations
 
 import asyncio
 import logging
 from uuid import UUID
-import chromadb
+try:
+    import chromadb
+except ImportError:
+    chromadb = None
 
 from app.config import settings
 from app.providers.embedding_base import EmbeddingProvider

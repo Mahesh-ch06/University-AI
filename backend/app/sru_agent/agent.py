@@ -23,8 +23,12 @@ import time
 import weakref
 from datetime import date, datetime
 
-from google import genai
-from google.genai import types
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
+    types = None
 
 from . import config, faculty, fee_flow, fee_intake, fees, intents, knowledge, memory, tools
 from .prompt import build_system_prompt
@@ -1091,6 +1095,13 @@ async def run_agent(
     yield {"type": "start", "conversation_id": conversation_id}
     if not message:
         yield {"type": "error", "detail": "Please type a question."}
+        return
+
+    # OWASP LLM01 / LLM06: Prompt injection and adversarial guardrail pre-screening
+    refusal = intents.check_adversarial_guardrail(message)
+    if refusal:
+        async for ev in _say(refusal, message, session_id, conversation_id):
+            yield ev
         return
 
     # Three independent reads, done together (each one may need a trip to Redis or the database).

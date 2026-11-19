@@ -1,6 +1,10 @@
 """Async SQLAlchemy engine and session factory."""
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+except ImportError:
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+    from sqlalchemy.orm import sessionmaker as async_sessionmaker
 
 from app.config import settings
 
@@ -22,22 +26,25 @@ if ":6543" in _db_url:
 elif _db_url.startswith("sqlite"):
     _connect_args["check_same_thread"] = False
 
-engine = create_async_engine(
-    _db_url,
-    echo=settings.APP_DEBUG,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    pool_timeout=30,
-    pool_recycle=1800,
-    connect_args=_connect_args,
-)
-
-async_session_factory = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+try:
+    engine = create_async_engine(
+        _db_url,
+        echo=settings.APP_DEBUG,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+        pool_recycle=1800,
+        connect_args=_connect_args,
+    )
+    async_session_factory = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+except Exception:
+    engine = None
+    async_session_factory = None
 
 
 async def get_db() -> AsyncSession:

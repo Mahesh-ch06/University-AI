@@ -125,13 +125,19 @@ async def get_conversation(
 
 
 async def get_shared_conversation(
-    db: AsyncSession, conversation_id: uuid.UUID
+    db: AsyncSession, conversation_id: uuid.UUID, session_id: str | None = None
 ) -> ConversationDetail | None:
-    """Get a conversation with all messages for public shared viewing (read-only snapshot)."""
+    """Get a conversation with all messages for shared viewing with session ownership validation."""
+    if not session_id:
+        return None
+
     stmt = (
         select(Conversation)
         .options(selectinload(Conversation.messages))
-        .where(Conversation.id == conversation_id)
+        .where(
+            Conversation.id == conversation_id,
+            Conversation.session_id == session_id,
+        )
     )
     result = await db.execute(stmt)
     conv = result.scalar_one_or_none()

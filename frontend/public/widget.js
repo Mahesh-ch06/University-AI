@@ -55,11 +55,24 @@
     return PROD_BASE;
   })());
   var side = opt("position", "right") === "left" ? "left" : "right";
-  var color = opt("color", "#0055a4");
+  var rawColor = opt("color", "#0055a4");
+  var color = /^#(?:[0-9a-fA-F]{3}){1,2}$/.test(rawColor) ? rawColor : "#0055a4";
   var label = opt("label", "Ask SRU Buddy 👋");
   var greeting = opt("greeting", "Hi! Questions about admissions 2027-28? Ask me.");
   var startOpen = opt("open", "false") === "true";
-  var appUrl = opt("app-url", base + "/?mode=widget");
+  var rawAppUrl = opt("app-url", base + "/?mode=widget");
+  var appUrl = (function () {
+    try {
+      var u = new URL(rawAppUrl, base);
+      if (
+        u.protocol === "https:" ||
+        (u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1"))
+      ) {
+        return u.href;
+      }
+    } catch (e) {}
+    return base + "/?mode=widget";
+  })();
 
   var host = document.createElement("div");
   host.id = "sru-buddy-widget";
@@ -115,7 +128,12 @@
   regBtn.className = "register-btn";
   regBtn.type = "button";
   regBtn.setAttribute("aria-label", "Register Now for SR University Admissions");
-  regBtn.innerHTML = "<span>REGISTER</span><span>NOW</span>";
+  var regSpan1 = document.createElement("span");
+  regSpan1.textContent = "REGISTER";
+  var regSpan2 = document.createElement("span");
+  regSpan2.textContent = "NOW";
+  regBtn.appendChild(regSpan1);
+  regBtn.appendChild(regSpan2);
 
   var launcher = document.createElement("button");
   launcher.className = "launcher";
@@ -123,9 +141,21 @@
   launcher.setAttribute("aria-label", "Open SRU Buddy, the SR University admissions assistant");
   launcher.setAttribute("aria-expanded", "false");
   launcher.setAttribute("aria-controls", "sru-buddy-panel");
-  launcher.innerHTML =
-    '<div class="tooltip">' + (label || "Ask SRU Buddy 👋") + '</div>' +
-    '<span class="dot"><img alt="SRU" src="' + base + '/sru-logo-white.png"></span>';
+
+  var tooltip = document.createElement("div");
+  tooltip.className = "tooltip";
+  tooltip.textContent = label || "Ask SRU Buddy 👋";
+
+  var dotSpan = document.createElement("span");
+  dotSpan.className = "dot";
+
+  var logoImg = document.createElement("img");
+  logoImg.alt = "SRU";
+  logoImg.src = base + "/sru-logo-white.png";
+
+  dotSpan.appendChild(logoImg);
+  launcher.appendChild(tooltip);
+  launcher.appendChild(dotSpan);
 
   cluster.appendChild(regBtn);
   cluster.appendChild(launcher);
@@ -145,6 +175,7 @@
     frame.title = "SRU Buddy, SR University admissions assistant";
     frame.src = appUrl;
     frame.allow = "microphone; clipboard-write";
+    frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups");
     frame.setAttribute("loading", "eager");
     panel.appendChild(frame);
   }
@@ -198,7 +229,7 @@
     setTimeout(function () {
       try {
         if (frame && frame.contentWindow) {
-          frame.contentWindow.postMessage({ type: "sru-buddy:register" }, "*");
+          frame.contentWindow.postMessage({ type: "sru-buddy:register" }, base);
         }
       } catch (err) {}
     }, 350);
@@ -233,9 +264,15 @@
         greet = document.createElement("div");
         greet.className = "greet";
         greet.setAttribute("role", "status");
-        greet.innerHTML = '<span></span><button type="button" aria-label="Dismiss">×</button>';
-        greet.querySelector("span").textContent = greeting;
-        greet.querySelector("button").addEventListener("click", function (e) {
+        var greetSpan = document.createElement("span");
+        greetSpan.textContent = greeting;
+        var dismissBtn = document.createElement("button");
+        dismissBtn.type = "button";
+        dismissBtn.setAttribute("aria-label", "Dismiss");
+        dismissBtn.textContent = "×";
+        greet.appendChild(greetSpan);
+        greet.appendChild(dismissBtn);
+        dismissBtn.addEventListener("click", function (e) {
           e.stopPropagation();
           hideGreeting();
         });

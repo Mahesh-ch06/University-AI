@@ -137,10 +137,11 @@ async def get_conversation(
 )
 async def get_shared_conversation(
     conversation_id: UUID,
+    session_id: str = Query(..., min_length=1, max_length=64),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationDetail:
-    """Get a shared conversation with all messages for public view without requiring owner session_id."""
-    detail = await conversation_service.get_shared_conversation(db, conversation_id)
+    """Get a conversation with all messages. Requires session_id verification to prevent IDOR data leakage."""
+    detail = await conversation_service.get_shared_conversation(db, conversation_id, session_id=session_id)
     if detail is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

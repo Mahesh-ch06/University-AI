@@ -553,3 +553,48 @@ def small_talk(message: str):
         if pattern.match(msg):
             return kind
     return None
+
+
+# ------------------------------------------------ OWASP LLM Guardrails ----
+_ADVERSARIAL_PROMPT_PATTERN = re.compile(
+    r"\b("
+    # Instruction bypass / override / jailbreak
+    r"ignore\s+(all\s+)?(previous|above|prior|system)\s+(instructions|prompts|rules|commands)|"
+    r"disregard\s+(all\s+)?(previous|above|prior|system)\s+(instructions|prompts|rules)|"
+    r"forget\s+(all\s+)?(previous|above|prior)\s+(instructions|prompts|rules)|"
+    r"you\s+are\s+now\s+(DAN|GPT|unrestricted|in\s+developer\s+mode|jailbroken|a\s+different\s+ai)|"
+    r"act\s+as\s+(DAN|an\s+unrestricted|a\s+jailbroken|developer\s+mode|an\s+ai\s+without)|"
+    r"enter\s+(developer\s+mode|DAN\s+mode|god\s+mode|unrestricted\s+mode)|"
+    r"enable\s+(developer\s+mode|DAN\s+mode|jailbreak)|"
+    r"jailbreak|"
+    # System prompt extraction / leaking
+    r"(reveal|tell\s+me|show\s+me|print|output|repeat|display|dump)\s+(your|the)\s+(?:system\s+prompt|context|hidden\s+prompt|raw\s+prompt|rules|(?:initial\s+|secret\s+|internal\s+)+(?:instructions?|prompt))|"
+    r"(what\s+(?:is|are)\s+your|what\s+were\s+your)\s+(?:system\s+prompt|(?:initial\s+|secret\s+|internal\s+)+(?:instructions?|prompt)|rules|context)|"
+    r"(repeat|output)\s+the\s+words\s+above|"
+    # Malicious cyber & exploit generation
+    r"write\s+(me\s+a?\s+)?.*?(code|script|program|exploit|tool)\s+(to|that|for)\s+(hack|crack|break|exploit|bypass|steal|ddos|phish)|"
+    r"\b(how\s+to\s+(?:create|make|write|build|develop|code|generate)|write\s+(?:me\s+)?(?:a\s+)?)\b.*?\b(malware|virus|ransomware|trojan|keylogger|exploit|payload|phishing|spyware)\b|"
+    r"\b(hack|crack|break\s+into|exploit|bypass|steal|ddos|phish)\b.*?\b(website|account|password|database|wifi|server|system)\b|"
+    r"\b(hacking|phishing|ddos|malware|ransomware|keylogger|exploit)\b.*?\b(tutorial|guide|how\s+to|script|code)\b"
+    r")\b",
+    re.IGNORECASE,
+)
+
+ADVERSARIAL_REFUSAL_RESPONSE = (
+    "I am SRU Buddy, the official AI assistant for SR University admissions and campus information. "
+    "I cannot alter my core instructions, disclose system prompts, or assist with unauthorized or malicious requests. "
+    "I would be glad to help you with SR University programs, admissions, merit scholarships, fee structures, or campus facilities!"
+)
+
+
+def check_adversarial_guardrail(message: str) -> str | None:
+    """Pre-execution guardrail check against prompt injections, system prompt extraction, and malicious queries.
+
+    Returns a deterministic refusal message if an adversarial pattern is detected, otherwise None.
+    """
+    if not message:
+        return None
+    if _ADVERSARIAL_PROMPT_PATTERN.search(message):
+        return ADVERSARIAL_REFUSAL_RESPONSE
+    return None
+

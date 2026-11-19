@@ -57,9 +57,12 @@ def _client():
         except RuntimeError:
             curr_loop = None
         if _redis is None or _redis_loop != curr_loop:
-            import redis.asyncio as redis  # imported only when needed
-            _redis = redis.from_url(config.REDIS_URL, decode_responses=True)
-            _redis_loop = curr_loop
+            try:
+                import redis.asyncio as redis  # imported only when needed
+                _redis = redis.from_url(config.REDIS_URL, decode_responses=True)
+                _redis_loop = curr_loop
+            except (ImportError, Exception):
+                _redis = None
     return _redis
 
 

@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import re
 
-import chromadb
+try:
+    import chromadb
+except ImportError:
+    chromadb = None
 
 from app.config import settings
 from app.providers.base import LLMProvider

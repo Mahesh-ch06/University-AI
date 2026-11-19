@@ -1,7 +1,10 @@
 """Application configuration loaded from environment variables."""
 
 from pathlib import Path
-from pydantic_settings import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    from pydantic import BaseModel as BaseSettings
 
 
 class Settings(BaseSettings):
@@ -50,8 +53,9 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173"
     # Other sites allowed to call this API (regular expression). The default allows local
     # development and Vercel deployments. To embed SRU Buddy on sru.edu.in add it, e.g.
-    # CORS_ORIGIN_REGEX=^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.vercel\.app$|^https://(www\.)?sru\.edu\.in$
-    CORS_ORIGIN_REGEX: str = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.vercel\.app$"
+    CORS_ORIGIN_REGEX: str = (
+        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.vercel\.app$|^https://(www\.)?sru\.edu\.in$"
+    )
 
     # ---- Paths ----
     PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent

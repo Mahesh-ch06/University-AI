@@ -9,7 +9,11 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.document import Document, DocumentVersion
+try:
+    from app.models.document import Document, DocumentVersion
+except Exception:
+    Document = None
+    DocumentVersion = None
 from app.providers.embedding_base import EmbeddingProvider
 from app.services.rag_service import COLLECTION_NAME
 
