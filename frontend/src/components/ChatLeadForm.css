@@ -1,0 +1,133 @@
+.chat-lead-form {
+  width: min(100% - 32px, 520px);
+  margin: 8px auto 16px;
+  padding: 16px;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 14px;
+  background: rgba(30, 64, 175, 0.18);
+  color: #e0f2fe;
+}
+
+.chat-lead-form-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.chat-lead-form-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.chat-lead-form h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #f8fafc;
+}
+
+.chat-lead-form p {
+  margin: 4px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: #bfdbfe;
+}
+
+.chat-lead-form form {
+  display: grid;
+  gap: 10px;
+}
+
+.chat-lead-form label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #dbeafe;
+}
+
+.chat-lead-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid rgba(191, 219, 254, 0.35);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.45);
+  color: #f8fafc;
+  font: inherit;
+  outline: none;
+}
+
+.chat-lead-form input:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.18);
+}
+
+.chat-lead-form input::placeholder {
+  color: #93a4bf;
+}
+
+.chat-lead-form-error {
+  color: #fecaca !important;
+}
+
+.chat-lead-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.chat-lead-form-actions button {
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  background: #2563eb;
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chat-lead-form-actions button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.chat-lead-form-actions .chat-lead-form-skip {
+  padding-inline: 4px;
+  background: transparent;
+  color: #bfdbfe;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+[data-theme="light"] .chat-lead-form {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+[data-theme="light"] .chat-lead-form h2 {
+  color: #172554;
+}
+
+[data-theme="light"] .chat-lead-form p,
+[data-theme="light"] .chat-lead-form label,
+[data-theme="light"] .chat-lead-form-actions .chat-lead-form-skip {
+  color: #1e40af;
+}
+
+[data-theme="light"] .chat-lead-form input {
+  border-color: #bfdbfe;
+  background: #fff;
+  color: #172554;
+}
+
+@media (max-width: 480px) {
+  .chat-lead-form {
+    width: calc(100% - 20px);
+    padding: 14px;
+  }
+}

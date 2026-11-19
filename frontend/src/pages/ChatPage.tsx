@@ -1,8 +1,9 @@
 import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
 import MessageBubble from "../components/MessageBubble";
+import ChatLeadForm from "../components/ChatLeadForm";
 import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
-import { applyServerProfile, syncStudentDetails } from "../utils/studentProfile";
+import { applyServerProfile, PROFILE_EVENT, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import {
   sendMessageStream,
   type MessageData,
@@ -33,7 +34,7 @@ function closeWidget() {
 const DEFAULT_WELCOME_MESSAGE: MessageData = {
   id: "welcome-sru-buddy",
   role: "assistant",
-  content: "Welcome to **SR University!** 👋\n\nI'm **SRU Buddy – Your AI Companion**, ready to help you explore everything happening at SRU.\n\nFrom academics and campus life to student activities, events, and opportunities, ask me anything about SR University.\n\n**What's on your mind today?**",
+  content: "Welcome to SR University! 👋\nI’m SRU Buddy, your AI companion at a Next-Gen Living and Learning Campus.\n\n🏆 Top Private University in Telangana & AP\n\nWhich program are you interested in? I’ll guide you on eligibility, fees, scholarships and campus life.\n\n🌐 Ask in English, हिंदी, తెలుగు or any language. ",
   created_at: new Date().toISOString(),
 };
 
@@ -79,6 +80,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
   // Chat message state
   const [messages, setMessages] = useState<MessageData[]>([DEFAULT_WELCOME_MESSAGE]);
+  const [showInlineLeadForm, setShowInlineLeadForm] = useState(
+    () => !readStudentDetails()?.name || !readStudentDetails()?.phone
+  );
   const [visibleMessageCount, setVisibleMessageCount] = useState(MESSAGE_RENDER_WINDOW);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const activeConvIdRef = useRef<string | null>(activeConvId);
@@ -86,6 +90,15 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   useEffect(() => {
     activeConvIdRef.current = activeConvId;
   }, [activeConvId]);
+
+  useEffect(() => {
+    const handleProfileChange = () => {
+      const details = readStudentDetails();
+      if (details?.name && details.phone) setShowInlineLeadForm(false);
+    };
+    window.addEventListener(PROFILE_EVENT, handleProfileChange);
+    return () => window.removeEventListener(PROFILE_EVENT, handleProfileChange);
+  }, []);
 
   const [isLoading, setIsLoading] = useState(false);
   const [activeToolStatus, setActiveToolStatus] = useState<string | null>(null);
@@ -506,6 +519,10 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 onSuggestionClick={(prompt) => handleSendMessage(prompt)}
               />
             ))}
+
+            {messages.length === 1 && showInlineLeadForm && (
+              <ChatLeadForm onComplete={() => setShowInlineLeadForm(false)} />
+            )}
 
             {isLoading && !messages.some((m) => m.id === streamingMsgId && ((m.content && m.content.trim().length > 0) || (m.cards && m.cards.length > 0))) && (
               <div className="message-bubble-row assistant sru-thinking-bubble-row">
@@ -950,6 +967,10 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     onSuggestionClick={(prompt) => handleSendMessage(prompt)}
                   />
                 ))}
+
+                {messages.length === 1 && showInlineLeadForm && (
+                  <ChatLeadForm onComplete={() => setShowInlineLeadForm(false)} />
+                )}
 
                 {isLoading && !messages.some((m) => m.id === streamingMsgId && ((m.content && m.content.trim().length > 0) || (m.cards && m.cards.length > 0))) && (
                   <div className="message-bubble-row assistant sru-thinking-bubble-row">
