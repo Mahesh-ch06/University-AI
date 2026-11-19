@@ -7,9 +7,86 @@ import "./ChatLeadForm.css";
 
 interface Props {
   onComplete: () => void;
+  pendingQuestion?: string | null;
 }
 
-export default function ChatLeadForm({ onComplete }: Props) {
+export function detectProgramInterest(text?: string | null): string {
+  const existing = readStudentDetails();
+  if (
+    existing?.program_interest &&
+    !["not specified", "unknown", "none", "null", "undefined"].includes(existing.program_interest.toLowerCase())
+  ) {
+    return existing.program_interest;
+  }
+  const q = (text || "").toLowerCase();
+  if (!q) return "B.Tech CSE";
+
+  if (q.includes("ai & robotics") || q.includes("ai and robotics") || q.includes("artificial intelligence and robotics")) {
+    return "B.Tech in AI and Robotics";
+  }
+  if (q.includes("ece") || q.includes("electronics") || q.includes("communication") || q.includes("vlsi")) {
+    return "B.Tech ECE";
+  }
+  if (q.includes("eee") || q.includes("electrical") || q.includes("electric vehicle")) {
+    return "B.Tech EEE";
+  }
+  if (q.includes("mech") || q.includes("mechanical") || q.includes("smart manufacturing")) {
+    return "B.Tech Mechanical";
+  }
+  if (q.includes("civil") || q.includes("construction") || q.includes("structural")) {
+    return "B.Tech Civil";
+  }
+  if (q.includes("biotech") || q.includes("biotechnology")) {
+    return "B.Tech Biotechnology";
+  }
+  if (q.includes("food tech") || q.includes("food technology")) {
+    return "B.Tech Food Technology";
+  }
+  if (q.includes("agri") || q.includes("agriculture") || q.includes("icar") || q.includes("farming")) {
+    return "B.Sc Agriculture";
+  }
+  if (q.includes("mba") || q.includes("business administration") || q.includes("management")) {
+    return "MBA";
+  }
+  if (q.includes("bba")) {
+    return "BBA";
+  }
+  if (q.includes("bca") || q.includes("computer application")) {
+    return "BCA";
+  }
+  if (q.includes("mca")) {
+    return "MCA";
+  }
+  if (q.includes("mtech") || q.includes("m.tech")) {
+    return "M.Tech";
+  }
+  if (q.includes("msc") || q.includes("m.sc")) {
+    return "M.Sc";
+  }
+  if (q.includes("bdes") || q.includes("design") || q.includes("fashion") || q.includes("interior")) {
+    return "B.Des";
+  }
+  if (q.includes("bcom") || q.includes("commerce") || q.includes("accounting")) {
+    return "B.Com";
+  }
+  if (
+    q.includes("cse") ||
+    q.includes("computer") ||
+    q.includes("software") ||
+    q.includes("coding") ||
+    q.includes("data science") ||
+    q.includes("aiml") ||
+    q.includes("ai & ml") ||
+    q.includes("ai and ml") ||
+    q.includes("cyber") ||
+    q.includes("quantum")
+  ) {
+    return "B.Tech CSE";
+  }
+  return "B.Tech CSE";
+}
+
+export default function ChatLeadForm({ onComplete, pendingQuestion }: Props) {
   const existing = readStudentDetails();
   const initialName = existing?.name?.trim() || "";
   const initialHasName = Boolean(initialName.length >= 2);
@@ -63,15 +140,24 @@ export default function ChatLeadForm({ onComplete }: Props) {
     setIsSubmitting(true);
 
     try {
-      await saveStudentDetails(getSessionId(), { name: cleanN, phone: validPhone });
+      const detectedProgram = detectProgramInterest(pendingQuestion);
+      await saveStudentDetails(getSessionId(), {
+        name: cleanN,
+        phone: validPhone,
+        program_interest: detectedProgram,
+      });
       const activeConv = sessionStorage.getItem("sru_active_conv_id");
       await createLead({
         name: cleanN,
         phone: validPhone,
-        program_interest: "Not specified",
+        program_interest: detectedProgram,
         source: "chat_inquiry",
         conversation_id: activeConv || undefined,
-        metadata: { consent_given: true, request_type: "conversational_lead" },
+        metadata: {
+          consent_given: true,
+          request_type: "conversational_lead",
+          pending_question: pendingQuestion || undefined,
+        },
       });
       onComplete();
     } catch (err) {

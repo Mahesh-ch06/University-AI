@@ -553,7 +553,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
             ))}
 
             {showInlineLeadForm && (
-              <ChatLeadForm onComplete={handleLeadFormComplete} />
+              <ChatLeadForm onComplete={handleLeadFormComplete} pendingQuestion={pendingQuestion} />
             )}
 
             {isLoading && !messages.some((m) => m.id === streamingMsgId && ((m.content && m.content.trim().length > 0) || (m.cards && m.cards.length > 0))) && (
@@ -987,7 +987,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 ))}
 
                 {showInlineLeadForm && (
-                  <ChatLeadForm onComplete={handleLeadFormComplete} />
+                  <ChatLeadForm onComplete={handleLeadFormComplete} pendingQuestion={pendingQuestion} />
                 )}
 
                 {isLoading && !messages.some((m) => m.id === streamingMsgId && ((m.content && m.content.trim().length > 0) || (m.cards && m.cards.length > 0))) && (

@@ -39,6 +39,78 @@ function plainPreview(text: string): string {
     .trim();
 }
 
+const PROGRAM_LABEL_MAP: Record<string, string> = {
+  btech_cse: "B.Tech CSE",
+  btech_ai_robotics: "B.Tech AI & Robotics",
+  btech_ece: "B.Tech ECE",
+  btech_eee: "B.Tech EEE",
+  btech_mech: "B.Tech Mechanical",
+  btech_civil: "B.Tech Civil",
+  btech_biotech: "B.Tech Biotechnology",
+  btech_food_tech: "B.Tech Food Technology",
+  btech_engg_physics: "B.Tech Engineering Physics",
+  btech_iep: "B.Tech IEP (International)",
+  bsc_agri: "B.Sc Agriculture",
+  bdes: "B.Des (Design)",
+  bba: "BBA",
+  bsc_hospitality: "B.Sc Hospitality",
+  bba_specialised: "BBA (Specialised)",
+  bca: "BCA",
+  bsc_cs: "B.Sc Computer Science",
+  bsc_maths_ai: "B.Sc Mathematics & AI",
+  bcom: "B.Com",
+  bsc_physics: "B.Sc Physics",
+  bsc_chemistry: "B.Sc Chemistry",
+  mba: "MBA",
+  mba_agri: "MBA Agri Business",
+  mca: "MCA",
+  mtech: "M.Tech",
+  msc: "M.Sc",
+};
+
+/** Formats program interest into clean, professional titles and resolves missing or raw slug values */
+function formatProgramInterest(raw?: string | null, meta?: any): string {
+  const val = (raw || "").trim();
+  const lower = val.toLowerCase();
+
+  // If known slug
+  if (PROGRAM_LABEL_MAP[lower]) {
+    return PROGRAM_LABEL_MAP[lower];
+  }
+
+  // If already a valid specific name and not an unhelpful placeholder
+  if (val && !["not specified", "unknown", "none", "null", "undefined", ""].includes(lower)) {
+    // If it has parenthesized specialisations (e.g. "B.Tech CSE (AIML, Data Science...)"), shorten to primary
+    if (val.includes(" (") && val.startsWith("B.Tech")) {
+      return val.split(" (")[0];
+    }
+    return val;
+  }
+
+  // Attempt resolution from metadata (pending_question, query, program)
+  const metaQ = meta?.pending_question || meta?.query || meta?.program_interest || meta?.program || "";
+  const q = String(metaQ).toLowerCase();
+  if (q) {
+    if (q.includes("ai & robotics") || q.includes("ai and robotics")) return "B.Tech in AI and Robotics";
+    if (q.includes("agri")) return "B.Sc Agriculture";
+    if (q.includes("ece") || q.includes("electronics")) return "B.Tech ECE";
+    if (q.includes("eee") || q.includes("electrical")) return "B.Tech EEE";
+    if (q.includes("mech")) return "B.Tech Mechanical";
+    if (q.includes("civil")) return "B.Tech Civil";
+    if (q.includes("biotech")) return "B.Tech Biotechnology";
+    if (q.includes("food tech")) return "B.Tech Food Technology";
+    if (q.includes("mba")) return "MBA";
+    if (q.includes("bba")) return "BBA";
+    if (q.includes("bca")) return "BCA";
+    if (q.includes("mca")) return "MCA";
+    if (q.includes("design") || q.includes("bdes")) return "B.Des";
+    if (q.includes("bcom") || q.includes("commerce")) return "B.Com";
+    if (q.includes("cse") || q.includes("computer") || q.includes("software") || q.includes("data science") || q.includes("aiml")) return "B.Tech CSE";
+  }
+
+  return "B.Tech CSE";
+}
+
 export default function AdminPage({ onBackToChat }: Props) {
   const [adminKey, setAdminKey] = useState<string>(
     () => sessionStorage.getItem("university_ai_admin_key") || ""
@@ -771,7 +843,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                 </td>
                                 <td className="col-program">
                                   <span className="program-badge">
-                                    {lead.program_interest || "B.Tech CSE"}
+                                    {formatProgramInterest(lead.program_interest, lead.metadata)}
                                   </span>
                                 </td>
                                 <td className="col-score">

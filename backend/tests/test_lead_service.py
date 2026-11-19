@@ -124,3 +124,80 @@ async def test_admin_lead_endpoints_security():
                 assert "today_leads" in stats
         except Exception:
             pytest.skip("Database not accessible for admin stats test")
+
+
+def test_resolve_clean_program():
+    """Verify that program interest values are properly normalized and resolved."""
+    from app.services.lead_service import resolve_clean_program
+
+    # 1. Slugs mapped to proper names
+    assert resolve_clean_program("btech_cse") == "B.Tech CSE"
+    assert resolve_clean_program("btech_ece") == "B.Tech ECE"
+    assert resolve_clean_program("bsc_agri") == "B.Sc Agriculture"
+    assert resolve_clean_program("mba") == "MBA"
+
+    # 2. Existing clean strings preserved / trimmed of long parentheses
+    assert resolve_clean_program("B.Tech CSE (AIML, Data Science...)") == "B.Tech CSE"
+    assert resolve_clean_program("BBA") == "BBA"
+
+    # 3. Unspecified values resolved from metadata
+    assert resolve_clean_program("Not specified", metadata={"pending_question": "What is the fee for MBA?"}) == "MBA"
+    assert resolve_clean_program("Not specified", metadata={"pending_question": "How to get admission in agriculture?"}) == "B.Sc Agriculture"
+    assert resolve_clean_program("Not specified", metadata={"pending_question": "tell me about ECE branch"}) == "B.Tech ECE"
+
+    # 4. Unspecified values resolved from conversation text
+    assert resolve_clean_program(None, conversation_text="I am looking for mechanical engineering") == "B.Tech Mechanical"
+
+    # 5. Default fallback to flagship B.Tech CSE when nothing is specified
+    assert resolve_clean_program("Not specified", metadata={}) == "B.Tech CSE"
+    assert resolve_clean_program(None) == "B.Tech CSE"
+    assert resolve_clean_program("") == "B.Tech CSE"
+
+
+@pytest.mark.asyncio
+async def test_list_leads_auto_repair():
+    """Verify list_leads repairs raw slugs and unspecified values."""
+    import uuid
+    from unittest.mock import AsyncMock, MagicMock
+    from app.services.lead_service import list_leads
+    from app.models.lead import ProspectiveLead
+
+    lead1 = ProspectiveLead(
+        id=uuid.uuid4(),
+        name="Suresh",
+        phone="9876543210",
+        program_interest="Not specified",
+        metadata_={"pending_question": "What is the fee for MBA program?"},
+    )
+    lead2 = ProspectiveLead(
+        id=uuid.uuid4(),
+        name="Nikhil",
+        phone="9876543211",
+        program_interest="btech_cse",
+        metadata_={},
+    )
+    lead3 = ProspectiveLead(
+        id=uuid.uuid4(),
+        name="Chitikeshi",
+        phone="9876543212",
+        program_interest=None,
+        metadata_={},
+    )
+
+    mock_db = AsyncMock()
+    mock_count_res = MagicMock()
+    mock_count_res.scalar.return_value = 3
+    mock_items_res = MagicMock()
+    mock_items_res.scalars.return_value.all.return_value = [lead1, lead2, lead3]
+
+    mock_db.execute.side_effect = [mock_count_res, mock_items_res]
+
+    total, leads = await list_leads(mock_db, page=1, page_size=10)
+    assert total == 3
+    assert len(leads) == 3
+    assert lead1.program_interest == "MBA"
+    assert lead2.program_interest == "B.Tech CSE"
+    assert lead3.program_interest == "B.Tech CSE"
+    mock_db.commit.assert_awaited_once()
+
+
