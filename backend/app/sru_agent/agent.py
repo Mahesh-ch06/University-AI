@@ -994,86 +994,17 @@ Official fee schedule for Design programs:
 
 _ALL_PROGRAMS_TEXT = """### 🎓 Programs Offered at SR University (2027–28)
 
-SR University offers comprehensive multidisciplinary undergraduate, postgraduate, and doctoral degrees across **6 specialized schools**:
+SR University offers multidisciplinary UG, PG, and Ph.D. programs across **6 specialized schools**:
 
----
+1. **School of Computer Science & Artificial Intelligence**: B.Tech CSE (Core, AIML, Data Science, Cyber Security, Quantum AI, Robotics), BCA, MCA, M.Tech, Ph.D.
+2. **School of Engineering**: B.Tech in ECE, EEE, Mechanical, Civil & 2+2 International Engineering Program (IEP); M.Tech, Ph.D.
+3. **Astra School of Business**: BBA (General & Specializations in Analytics, Finance, Marketing, HR), B.Com, MBA, Ph.D.
+4. **School of Agriculture (ICAR-Accredited)**: B.Sc. (Hons) Agriculture, B.Tech Food Technology, M.Sc. Agriculture, Ph.D.
+5. **School of Design**: B.Des in Interior Design & Fashion Design.
+6. **School of Sciences & Humanities**: B.Tech Biotechnology (with AI), B.Sc, M.Sc, M.A. English.
+7. **Doctoral Studies & Research (Ph.D.)**: Full-Time & Part-Time Ph.D. across all disciplines.
 
-#### 1. 💻 School of Computer Science & Artificial Intelligence (CS & AI)
-* **Undergraduate (UG)**:
-  - **B.Tech Computer Science & Engineering (Core)**
-  - **B.Tech CSE — Artificial Intelligence & Machine Learning (AIML)**
-  - **B.Tech CSE — Data Science**
-  - **B.Tech CSE — Cyber Security**
-  - **B.Tech CSE — Gaming, AR & VR**
-  - **B.Tech CSE — Robotics & Automation**
-  - **B.Tech CSE — Quantum AI**
-  - **B.Tech CSE — AI & Precision Agriculture**
-  - **B.Tech in Artificial Intelligence & Robotics**
-  - **BCA (Bachelor of Computer Applications)**
-  - **B.Sc Computer Science | B.Sc Mathematics | B.Sc (Hons) Mathematics & AI**
-* **Postgraduate (PG)**:
-  - **M.Tech CSE** (AIML, Data Science, Cyber Security)
-  - **MCA (Master of Computer Applications)**
-  - **M.Sc Computer Science | M.Sc Statistics**
-
----
-
-#### 2. ⚡ School of Engineering
-* **Undergraduate (UG)**:
-  - **B.Tech Electronics & Communication Engineering (ECE)** *(AIML / VLSI / Robotics)*
-  - **B.Tech Electrical & Electronics Engineering (EEE)** *(Renewable Energy / EV / Robotics)*
-  - **B.Tech Mechanical Engineering** *(Robotics & Automation / Smart Manufacturing)*
-  - **B.Tech Civil Engineering**
-  - **B.Tech International Engineering Program (IEP - 2+2 Study Abroad)**
-* **Postgraduate (PG)**:
-  - **M.Tech Embedded Systems | M.Tech VLSI System Design | M.Tech Electronic Design Technology**
-  - **M.Tech Power Electronics | M.Tech Advanced Manufacturing Systems | M.Tech Construction Technology (CTM)**
-
----
-
-#### 3. 🏢 Astra School of Business
-* **Undergraduate (UG)**:
-  - **BBA (General Management)**
-  - **BBA Specializations** *(Business Analytics, Finance, Marketing, HR, Operations, Event Management)*
-  - **B.Com (Bachelor of Commerce)**
-* **Postgraduate (PG)**:
-  - **MBA (Master of Business Administration)** *(Finance, Marketing, HR, Business Analytics)*
-  - **MBA in Agri-Business Management**
-
----
-
-#### 4. 🌾 School of Agriculture (ICAR-Accredited)
-* **Undergraduate (UG)**:
-  - **B.Sc. (Hons) Agriculture** *(1st private university in Telugu States with ICAR accreditation)*
-  - **B.Tech Food Technology**
-* **Postgraduate (PG)**:
-  - **M.Sc. Agriculture** *(Agronomy, Genetics & Plant Breeding, Soil Science, Horticulture, Plant Pathology, Agricultural Economics)*
-
----
-
-#### 5. 🎨 School of Design
-* **Undergraduate (UG)**:
-  - **B.Des Interior Design**
-  - **B.Des Fashion Design**
-
----
-
-#### 6. 🔬 School of Sciences & Humanities
-* **Undergraduate (UG)**:
-  - **B.Tech Biotechnology with AI**
-  - **B.Tech Engineering Physics** *(AI / Space Sciences)*
-  - **B.Sc (Physics, Chemistry, Maths)**
-* **Postgraduate (PG)**:
-  - **M.Sc Physics | M.Sc Chemistry | M.Sc Biotechnology & AI | M.A. English**
-
----
-
-#### 7. 🏛️ Doctoral Studies & Research (Ph.D.)
-* **Full-Time & Part-Time Ph.D.** across all Engineering, Computer Science, Agriculture, Business, and Science disciplines.
-
----
-
-👉 **Which program would you like to know more about (fee structure, eligibility, or syllabus)?**"""
+👉 **Which school or program would you like details on (eligibility, fees, or syllabus)?**"""
 
 
 def _cache_key(message: str) -> str:
