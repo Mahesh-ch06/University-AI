@@ -47,6 +47,30 @@ async def test_fee_question_runs_tool_and_returns_numbers():
 
 
 @pytest.mark.asyncio
+async def test_contact_gate_blocks_answers_until_name_and_phone_are_provided():
+    events = [
+        event async for event in run_agent(
+            "What are the B.Tech fees?",
+            "s-contact-gate",
+            require_contact_details=True,
+        )
+    ]
+    assert events[-1]["type"] == "done"
+    assert "Before I can help" in events[-1]["answer"]
+    assert not any(event["type"] == "error" for event in events)
+
+    events = [
+        event async for event in run_agent(
+            "Ravi Kumar 9876543210",
+            "s-contact-gate",
+            require_contact_details=True,
+        )
+    ]
+    assert events[-1]["type"] == "done"
+    assert (await memory.get_profile("s-contact-gate"))["phone"] == "9876543210"
+
+
+@pytest.mark.asyncio
 async def test_two_tools_in_a_row_and_memory():
     sid = "s-mem-fresh-test"
     await memory._set(f"sru:history:{sid}", [])

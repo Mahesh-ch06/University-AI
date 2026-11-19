@@ -1079,7 +1079,13 @@ def _cache_key(message: str) -> str:
 
 
 # -------------------------------------------------------------------- the agent ----
-async def run_agent(message: str, session_id: str, conversation_id=None, client=None):
+async def run_agent(
+    message: str,
+    session_id: str,
+    conversation_id=None,
+    client=None,
+    require_contact_details: bool = False,
+):
     """Async generator of events for one student message."""
     message = (message or "").strip()[:config.AGENT_MAX_MESSAGE_CHARS]
     yield {"type": "start", "conversation_id": conversation_id}
@@ -1092,6 +1098,29 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
         memory.get_profile(session_id), memory.get_history(session_id, conversation_id),
         memory.get_conversation_state(session_id, conversation_id))
     ctx = {"session_id": session_id, "conversation_id": conversation_id, "profile": profile}
+
+    if require_contact_details:
+        existing_phone = tools.clean_phone(profile.get("phone") or "")
+        extracted_phone = tools.find_phone(message)
+        extracted_name = intents.extract_name(message, bare_ok=not profile.get("name"))
+        if extracted_name and not profile.get("name"):
+            profile = await memory.update_profile(session_id, name=extracted_name)
+        if extracted_phone and not existing_phone:
+            profile = await memory.update_profile(session_id, phone=extracted_phone)
+        existing_name = str(profile.get("name") or "").strip()
+        existing_phone = tools.clean_phone(profile.get("phone") or "")
+
+        if not (existing_name and existing_phone):
+            if not existing_name and not existing_phone:
+                reply = "Before I can help, please provide your full name and 10-digit mobile number."
+            elif not existing_name:
+                reply = "Please provide your full name before I answer your question."
+            else:
+                reply = "Please provide your 10-digit mobile number before I answer your question."
+            async for ev in _say(reply, message, session_id, conversation_id):
+                yield ev
+            return
+
     intent = intents.classify_agent_intent(message, conv_state)
     used, cards = [], []
 

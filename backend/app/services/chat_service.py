@@ -244,6 +244,39 @@ async def handle_chat(
         db, conversation.id, role="user", content=request.message
     )
 
+    from app.sru_agent import memory as agent_memory
+    from app.sru_agent import tools as agent_tools
+    from app.sru_agent import intents as agent_intents
+
+    prof = await agent_memory.get_profile(request.session_id)
+    existing_phone = agent_tools.clean_phone(prof.get("phone") or "")
+    existing_name = str(prof.get("name") or "").strip()
+    extracted_phone = agent_tools.find_phone(request.message)
+    extracted_name = agent_intents.extract_name(request.message, bare_ok=not prof.get("name"))
+    if extracted_name and not prof.get("name"):
+        prof = await agent_memory.update_profile(request.session_id, name=extracted_name)
+        existing_name = str(prof.get("name") or "").strip()
+    if extracted_phone and not existing_phone:
+        prof = await agent_memory.update_profile(request.session_id, phone=extracted_phone)
+        existing_phone = agent_tools.clean_phone(prof.get("phone") or "")
+
+    if not (existing_name and existing_phone):
+        if not existing_name and not existing_phone:
+            prompt_reply = "Before I can help, please provide your full name and 10-digit mobile number."
+        elif not existing_name:
+            prompt_reply = "Please provide your full name before I answer your question."
+        else:
+            prompt_reply = "Please provide your 10-digit mobile number before I answer your question."
+        await conversation_service.add_message(
+            db, conversation.id, role="assistant", content=prompt_reply
+        )
+        return ChatResponse(
+            conversation_id=str(conversation.id),
+            answer=prompt_reply,
+            sources=[],
+            suggestions=["Share name & phone", "Apply to SRU", "Contact Admissions"],
+        )
+
     # 3. Build context from recent messages
     recent = await conversation_service.get_recent_messages(db, conversation.id)
     pending_task = await get_pending_task(db, conversation.id, request.session_id)
@@ -638,6 +671,43 @@ async def handle_chat_stream(
 
         # Send initial event
         yield f"data: {json.dumps({'type': 'start', 'conversation_id': str(conversation.id)})}\n\n"
+
+        from app.sru_agent import memory as agent_memory
+        from app.sru_agent import tools as agent_tools
+        from app.sru_agent import intents as agent_intents
+
+        prof = await agent_memory.get_profile(request.session_id)
+        existing_phone = agent_tools.clean_phone(prof.get("phone") or "")
+        existing_name = str(prof.get("name") or "").strip()
+        extracted_phone = agent_tools.find_phone(request.message)
+        extracted_name = agent_intents.extract_name(request.message, bare_ok=not prof.get("name"))
+        if extracted_name and not prof.get("name"):
+            prof = await agent_memory.update_profile(request.session_id, name=extracted_name)
+            existing_name = str(prof.get("name") or "").strip()
+        if extracted_phone and not existing_phone:
+            prof = await agent_memory.update_profile(request.session_id, phone=extracted_phone)
+            existing_phone = agent_tools.clean_phone(prof.get("phone") or "")
+
+        if not (existing_name and existing_phone):
+            if not existing_name and not existing_phone:
+                prompt_reply = "Before I can help, please provide your full name and 10-digit mobile number."
+            elif not existing_name:
+                prompt_reply = "Please provide your full name before I answer your question."
+            else:
+                prompt_reply = "Please provide your 10-digit mobile number before I answer your question."
+            await conversation_service.add_message(
+                db, conversation.id, role="assistant", content=prompt_reply
+            )
+            yield f"data: {json.dumps({'type': 'token', 'delta': prompt_reply})}\n\n"
+            done_payload = {
+                "type": "done",
+                "conversation_id": str(conversation.id),
+                "answer": prompt_reply,
+                "sources": [],
+                "suggestions": ["Share name & phone", "Apply to SRU", "Contact Admissions"],
+            }
+            yield f"data: {json.dumps(done_payload)}\n\n"
+            return
 
         # 3. Build context
         recent = await conversation_service.get_recent_messages(db, conversation.id)

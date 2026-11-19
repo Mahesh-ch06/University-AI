@@ -3,7 +3,7 @@ import MessageBubble from "../components/MessageBubble";
 import ChatLeadForm from "../components/ChatLeadForm";
 import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
-import { applyServerProfile, PROFILE_EVENT, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
+import { applyServerProfile, cleanPhone, PROFILE_EVENT, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import {
   sendMessageStream,
   type MessageData,
@@ -79,10 +79,16 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const [widgetInput, setWidgetInput] = useState("");
 
   // Chat message state
+  const hasValidContactDetails = (): boolean => {
+    const details = readStudentDetails();
+    return Boolean(details?.name?.trim() && cleanPhone(details?.phone || ""));
+  };
+
   const [messages, setMessages] = useState<MessageData[]>([DEFAULT_WELCOME_MESSAGE]);
-  const [showInlineLeadForm, setShowInlineLeadForm] = useState(
-    () => !readStudentDetails()?.name || !readStudentDetails()?.phone
+  const [showInlineLeadForm, setShowInlineLeadForm] = useState<boolean>(
+    () => !hasValidContactDetails()
   );
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(MESSAGE_RENDER_WINDOW);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const activeConvIdRef = useRef<string | null>(activeConvId);
@@ -93,12 +99,21 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
   useEffect(() => {
     const handleProfileChange = () => {
-      const details = readStudentDetails();
-      if (details?.name && details.phone) setShowInlineLeadForm(false);
+      setShowInlineLeadForm(!hasValidContactDetails());
     };
     window.addEventListener(PROFILE_EVENT, handleProfileChange);
     return () => window.removeEventListener(PROFILE_EVENT, handleProfileChange);
   }, []);
+
+  const handleLeadFormComplete = () => {
+    setShowInlineLeadForm(false);
+    setError(null);
+    if (pendingQuestion) {
+      const q = pendingQuestion;
+      setPendingQuestion(null);
+      executeSendMessage(q);
+    }
+  };
 
   const [isLoading, setIsLoading] = useState(false);
   const [activeToolStatus, setActiveToolStatus] = useState<string | null>(null);
@@ -208,6 +223,13 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    if (!hasValidContactDetails()) {
+      setShowInlineLeadForm(true);
+      setPendingQuestion(trimmed);
+      setError("Please share your name and mobile number in the form above to start chatting with SRU Buddy.");
+      return;
+    }
+
     // Check for calculator trigger
     if (/^\s*(🧮\s*)?(scholarship\s*calculator|calculate\s*(?:my\s*)?scholarship|fee\s*calculator|open\s*calculator|calculator)\s*$/i.test(trimmed)) {
       setIsCalculatorOpen(true);
@@ -218,6 +240,13 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   }
 
   async function executeSendMessage(text: string) {
+    if (!hasValidContactDetails()) {
+      setShowInlineLeadForm(true);
+      setPendingQuestion(text);
+      setError("Please share your name and mobile number in the form above to get answers.");
+      return;
+    }
+
     if (isLoading && cancelStreamRef.current) {
       cancelStreamRef.current();
       cancelStreamRef.current = null;
@@ -394,23 +423,41 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     setMessages([DEFAULT_WELCOME_MESSAGE]);
     setVisibleMessageCount(MESSAGE_RENDER_WINDOW);
     setError(null);
+    setShowInlineLeadForm(!hasValidContactDetails());
+    setPendingQuestion(null);
   }
 
   // Handle bottom floating dock input submit
   const handleDockSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dockQuery.trim()) return;
+    const query = dockQuery.trim();
+    if (!query) return;
     setIsWidgetOpen(true);
     setIsMinimized(false);
-    handleSendMessage(dockQuery.trim());
+    if (!hasValidContactDetails()) {
+      setShowInlineLeadForm(true);
+      setPendingQuestion(query);
+      setError("Please share your name and mobile number in the form above to start chatting with SRU Buddy.");
+      setDockQuery("");
+      return;
+    }
+    handleSendMessage(query);
     setDockQuery("");
   };
 
   // Handle widget input submit
   const handleWidgetSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!widgetInput.trim() || isLoading) return;
-    handleSendMessage(widgetInput.trim());
+    const input = widgetInput.trim();
+    if (!input || isLoading) return;
+    if (!hasValidContactDetails()) {
+      setShowInlineLeadForm(true);
+      setPendingQuestion(input);
+      setError("Please share your name and mobile number in the form above to start chatting with SRU Buddy.");
+      setWidgetInput("");
+      return;
+    }
+    handleSendMessage(input);
     setWidgetInput("");
   };
 
@@ -520,8 +567,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               />
             ))}
 
-            {messages.length === 1 && showInlineLeadForm && (
-              <ChatLeadForm onComplete={() => setShowInlineLeadForm(false)} />
+            {showInlineLeadForm && (
+              <ChatLeadForm onComplete={handleLeadFormComplete} />
             )}
 
             {isLoading && !messages.some((m) => m.id === streamingMsgId && ((m.content && m.content.trim().length > 0) || (m.cards && m.cards.length > 0))) && (
@@ -558,7 +605,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     <button
                       key={i}
                       className="sru-starter-card"
-                      onClick={() => handleSendMessage(q.prompt)}
+                      onClick={() => {
+                        if (showInlineLeadForm) {
+                          setPendingQuestion(q.prompt);
+                          setError("Please share your name and mobile number in the form above to start chatting.");
+                          return;
+                        }
+                        handleSendMessage(q.prompt);
+                      }}
                     >
                       <div className="sru-starter-icon">{q.icon}</div>
                       <div className="sru-starter-info">
@@ -578,9 +632,10 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
             <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
               <textarea
                 className="sru-widget-textarea"
-                placeholder="Type your message...."
+                placeholder={showInlineLeadForm ? "Please share your name & mobile number above to chat" : "Type your message...."}
                 rows={1}
                 value={widgetInput}
+                disabled={showInlineLeadForm || isLoading}
                 onChange={(e) => setWidgetInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -594,6 +649,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 type="button"
                 className={`sru-widget-voice-btn ${listening ? "listening" : ""}`}
                 onClick={toggleVoice}
+                disabled={showInlineLeadForm}
                 title="Voice Typing"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -607,7 +663,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               <button
                 type="submit"
                 className="sru-widget-send-btn"
-                disabled={!widgetInput.trim() || isLoading}
+                disabled={showInlineLeadForm || !widgetInput.trim() || isLoading}
                 title="Send Message"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -832,7 +888,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
             <input
               type="text"
               className="sru-dock-field"
-              placeholder="Ask anything about us...."
+              placeholder={showInlineLeadForm ? "Share your name & mobile number in chat to continue" : "Ask anything about us...."}
               value={dockQuery}
               onChange={(e) => setDockQuery(e.target.value)}
             />
@@ -968,8 +1024,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   />
                 ))}
 
-                {messages.length === 1 && showInlineLeadForm && (
-                  <ChatLeadForm onComplete={() => setShowInlineLeadForm(false)} />
+                {showInlineLeadForm && (
+                  <ChatLeadForm onComplete={handleLeadFormComplete} />
                 )}
 
                 {isLoading && !messages.some((m) => m.id === streamingMsgId && ((m.content && m.content.trim().length > 0) || (m.cards && m.cards.length > 0))) && (
@@ -1007,7 +1063,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                         <button
                           key={i}
                           className="sru-starter-card"
-                          onClick={() => handleSendMessage(q.prompt)}
+                          onClick={() => {
+                            if (showInlineLeadForm) {
+                              setPendingQuestion(q.prompt);
+                              setError("Please share your name and mobile number in the form above to start chatting.");
+                              return;
+                            }
+                            handleSendMessage(q.prompt);
+                          }}
                         >
                           <div className="sru-starter-icon">{q.icon}</div>
                           <div className="sru-starter-info">
@@ -1027,9 +1090,10 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
                   <textarea
                     className="sru-widget-textarea"
-                    placeholder="Type your message...."
+                    placeholder={showInlineLeadForm ? "Please share your name & mobile number above to chat" : "Type your message...."}
                     rows={1}
                     value={widgetInput}
+                    disabled={showInlineLeadForm || isLoading}
                     onChange={(e) => setWidgetInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
@@ -1043,6 +1107,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     type="button"
                     className={`sru-widget-voice-btn ${listening ? "listening" : ""}`}
                     onClick={toggleVoice}
+                    disabled={showInlineLeadForm}
                     title="Voice Typing"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1056,7 +1121,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   <button
                     type="submit"
                     className="sru-widget-send-btn"
-                    disabled={!widgetInput.trim() || isLoading}
+                    disabled={showInlineLeadForm || !widgetInput.trim() || isLoading}
                     title="Send Message"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

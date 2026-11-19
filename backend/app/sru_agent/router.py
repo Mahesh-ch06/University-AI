@@ -117,7 +117,12 @@ async def agent_stream(req: AgentRequest):
         started_at = datetime.now(timezone.utc)
         started_perf = time.perf_counter()
         first_token_perf = None
-        async for event in run_agent(req.message, req.session_id, conv_id):
+        async for event in run_agent(
+            req.message,
+            req.session_id,
+            conv_id,
+            require_contact_details=True,
+        ):
             if event["type"] == "token" and first_token_perf is None:
                 first_token_perf = time.perf_counter()
             if event["type"] == "done":
