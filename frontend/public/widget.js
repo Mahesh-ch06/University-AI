@@ -56,7 +56,7 @@
   })());
   var side = opt("position", "right") === "left" ? "left" : "right";
   var color = opt("color", "#0055a4");
-  var label = opt("label", "Ask SRU Buddy");
+  var label = opt("label", "Ask SRU Buddy 👋");
   var greeting = opt("greeting", "Hi! Questions about admissions 2027-28? Ask me.");
   var startOpen = opt("open", "false") === "true";
   var appUrl = opt("app-url", base + "/?mode=widget");
@@ -70,7 +70,7 @@
     ":host{all:initial}" +
     "*{box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}" +
     ".launcher-cluster{position:fixed;bottom:max(20px,env(safe-area-inset-bottom,20px));" + side + ":max(20px,env(safe-area-inset-" + side + ",20px));display:flex;align-items:center;gap:12px;" +
-    "flex-direction:" + (side === "left" ? "row" : "row-reverse") + ";z-index:2147483000;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
+    "flex-direction:" + (side === "left" ? "row-reverse" : "row") + ";z-index:2147483000;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
     ".register-btn{background:linear-gradient(135deg,#0055a4 0%,#2979e2 100%);color:#ffffff;border:none;border-radius:8px;padding:9px 13px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;box-shadow:0 4px 16px rgba(0,85,164,0.4);transition:all .2s ease;display:flex;flex-direction:column;align-items:center;line-height:1.15;user-select:none}" +
     ".register-btn:hover{background:linear-gradient(135deg,#004382 0%,#1c66c9 100%);transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,85,164,0.55)}" +
     ".launcher{position:relative;border:0;background:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
