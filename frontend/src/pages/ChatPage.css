@@ -2566,13 +2566,26 @@
     display: none !important;
   }
 
+  .sru-launcher-cluster {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
   .sru-dock-register-btn,
   .sru-launcher-cluster .sru-dock-register-btn {
-    display: none !important;
+    display: flex !important;
+    padding: 7px 11px !important;
+    font-size: 0.68rem !important;
+    border-radius: 6px !important;
   }
 
   .sru-launcher-tooltip {
-    display: none !important;
+    display: block !important;
+    font-size: 0.72rem !important;
+    padding: 4px 10px !important;
+    bottom: calc(100% + 8px) !important;
+    right: 0 !important;
   }
 
   .sru-launcher-avatar-btn {

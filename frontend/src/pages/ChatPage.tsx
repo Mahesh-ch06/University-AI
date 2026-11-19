@@ -123,6 +123,17 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     };
   }, [sessionId]);
 
+  // Listen for messages from parent window (e.g. public/widget.js register button)
+  useEffect(() => {
+    const handleWidgetMessage = (e: MessageEvent) => {
+      if (e.data?.type === "sru-buddy:register") {
+        setShowLeadAuthModal(true);
+      }
+    };
+    window.addEventListener("message", handleWidgetMessage);
+    return () => window.removeEventListener("message", handleWidgetMessage);
+  }, []);
+
   const currentStatus = isLoading
     ? { text: activeToolStatus || "Thinking...", type: "thinking" }
     : connStatus === "setting_up"

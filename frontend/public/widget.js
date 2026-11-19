@@ -69,16 +69,20 @@
   var css =
     ":host{all:initial}" +
     "*{box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}" +
-    ".launcher{position:fixed;bottom:max(20px,env(safe-area-inset-bottom,20px));" + side + ":max(20px,env(safe-area-inset-" + side + ",20px));display:flex;align-items:center;gap:10px;" +
-    "flex-direction:" + (side === "left" ? "row" : "row-reverse") + ";border:0;background:none;padding:0;cursor:pointer;z-index:2147483000;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
+    ".launcher-cluster{position:fixed;bottom:max(20px,env(safe-area-inset-bottom,20px));" + side + ":max(20px,env(safe-area-inset-" + side + ",20px));display:flex;align-items:center;gap:12px;" +
+    "flex-direction:" + (side === "left" ? "row" : "row-reverse") + ";z-index:2147483000;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
+    ".register-btn{background:linear-gradient(135deg,#0055a4 0%,#2979e2 100%);color:#ffffff;border:none;border-radius:8px;padding:9px 13px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;box-shadow:0 4px 16px rgba(0,85,164,0.4);transition:all .2s ease;display:flex;flex-direction:column;align-items:center;line-height:1.15;user-select:none}" +
+    ".register-btn:hover{background:linear-gradient(135deg,#004382 0%,#1c66c9 100%);transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,85,164,0.55)}" +
+    ".launcher{position:relative;border:0;background:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
     ".launcher .dot{width:62px;height:62px;border-radius:50%;background:" + color + ";border:3px solid #fff;display:flex;align-items:center;" +
     "justify-content:center;box-shadow:0 8px 24px rgba(0,85,164,.45);transition:transform .15s ease;" +
     "animation:sruPulse 2.5s infinite;padding:8px}" +
     "@keyframes sruPulse{0%{box-shadow:0 0 0 0 rgba(41,121,226,.7),0 8px 24px rgba(0,0,0,.3)}70%{box-shadow:0 0 0 16px rgba(41,121,226,0),0 8px 24px rgba(0,0,0,.3)}100%{box-shadow:0 0 0 0 rgba(41,121,226,0),0 8px 24px rgba(0,0,0,.3)}}" +
     ".launcher:hover .dot{transform:scale(1.08)}" +
     ".launcher .dot img{width:38px;height:auto;max-height:24px;object-fit:contain;display:block}" +
-    ".launcher .tag{background:#fff;color:#0f172a;font-size:14px;font-weight:600;padding:9px 14px;border-radius:999px;" +
-    "box-shadow:0 4px 16px rgba(15,23,42,.16);white-space:nowrap}" +
+    ".tooltip{position:absolute;bottom:calc(100% + 10px);right:0;background:#0f172a;color:#ffffff;font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;box-shadow:0 4px 18px rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.16);white-space:nowrap;animation:sruFloat 2.6s ease-in-out infinite alternate;pointer-events:auto;cursor:pointer;z-index:2;display:block!important}" +
+    ".tooltip::after{content:'';position:absolute;top:100%;right:24px;border-width:5px;border-style:solid;border-color:#0f172a transparent transparent transparent}" +
+    "@keyframes sruFloat{0%{transform:translateY(0)}100%{transform:translateY(-4px)}}" +
     ".launcher:focus-visible{outline:none}.launcher:focus-visible .dot{outline:3px solid #2979e2;outline-offset:3px}" +
     ".greet{position:fixed;bottom:calc(max(20px,env(safe-area-inset-bottom,20px)) + 74px);" + side + ":max(20px,env(safe-area-inset-" + side + ",20px));max-width:280px;background:#fff;color:#0f172a;font-size:14px;" +
     "line-height:1.4;padding:12px 34px 12px 14px;border-radius:14px;box-shadow:0 8px 28px rgba(15,23,42,.2);cursor:pointer;z-index:2147483000}" +
@@ -89,7 +93,12 @@
     ".panel.open{display:block}.panel iframe{width:100%;height:100%;border:0;display:block;background:#090d16}" +
     "@media (max-width:768px){" +
     ".panel{left:0!important;right:0!important;bottom:0!important;top:0!important;width:100%!important;width:100vw!important;height:100%!important;height:100dvh!important;height:-webkit-fill-available!important;max-width:none!important;max-height:none!important;border-radius:0!important;border:none!important;box-shadow:none!important;margin:0!important}" +
-    ".launcher .tag{display:none}.open-mobile .launcher,.open-mobile .greet{display:none}}" +
+    ".launcher-cluster{bottom:max(16px,env(safe-area-inset-bottom,16px));" + side + ":max(16px,env(safe-area-inset-" + side + ",16px));gap:8px}" +
+    ".register-btn{padding:7px 10px;font-size:10px;border-radius:6px;display:flex!important}" +
+    ".launcher .dot{width:58px;height:58px}" +
+    ".tooltip{display:block!important;font-size:11px;padding:4px 10px;bottom:calc(100% + 8px);right:0}" +
+    ".tooltip::after{right:20px}" +
+    ".open-mobile .launcher-cluster,.open-mobile .greet{display:none!important}}" +
     "@media (prefers-reduced-motion:reduce){.launcher .dot{transition:none}}";
 
   var style = document.createElement("style");
@@ -99,6 +108,15 @@
   var wrap = document.createElement("div");
   root.appendChild(wrap);
 
+  var cluster = document.createElement("div");
+  cluster.className = "launcher-cluster";
+
+  var regBtn = document.createElement("button");
+  regBtn.className = "register-btn";
+  regBtn.type = "button";
+  regBtn.setAttribute("aria-label", "Register Now for SR University Admissions");
+  regBtn.innerHTML = "<span>REGISTER</span><span>NOW</span>";
+
   var launcher = document.createElement("button");
   launcher.className = "launcher";
   launcher.type = "button";
@@ -106,10 +124,12 @@
   launcher.setAttribute("aria-expanded", "false");
   launcher.setAttribute("aria-controls", "sru-buddy-panel");
   launcher.innerHTML =
-    '<span class="dot"><img alt="SRU" src="' + base + '/sru-logo-white.png"></span>' +
-    (label ? '<span class="tag"></span>' : "");
-  if (label) launcher.querySelector(".tag").textContent = label;
-  wrap.appendChild(launcher);
+    '<div class="tooltip">' + (label || "Ask SRU Buddy 👋") + '</div>' +
+    '<span class="dot"><img alt="SRU" src="' + base + '/sru-logo-white.png"></span>';
+
+  cluster.appendChild(regBtn);
+  cluster.appendChild(launcher);
+  wrap.appendChild(cluster);
 
   var panel = document.createElement("div");
   panel.className = "panel";
@@ -171,9 +191,22 @@
   }
 
   launcher.addEventListener("click", toggle);
+  regBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    load();
+    open();
+    setTimeout(function () {
+      try {
+        if (frame && frame.contentWindow) {
+          frame.contentWindow.postMessage({ type: "sru-buddy:register" }, "*");
+        }
+      } catch (err) {}
+    }, 350);
+  });
   // Start loading as soon as the student shows interest: the chat is ready when they click.
   ["pointerenter", "focus", "touchstart"].forEach(function (ev) {
     launcher.addEventListener(ev, load, { passive: true, once: true });
+    regBtn.addEventListener(ev, load, { passive: true, once: true });
   });
   document.addEventListener("keydown", function (e) {
     if (isOpen && e.key === "Escape") close();
