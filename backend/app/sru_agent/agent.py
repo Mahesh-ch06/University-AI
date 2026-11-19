@@ -575,10 +575,10 @@ _LIMIT_REPLY = (f"Many students are using SRU Buddy right now and the free AI li
                 f"find a faculty member, or share the campus visit contacts. You can also call the Admissions Office at {config.ADMISSIONS_PHONE}.")
 
 _GREETING_ASK_NAME = [
-    "Hello! Welcome to SR University. 😊 Before we get started, may I know your name?",
+    "Hello! Welcome to SR University. Before we get started, may I know your name?",
     "Hello and welcome to SR University! Who do I have the pleasure of speaking with today?",
     "Hello there! Great to connect with you. Before we dive into SR University, may I know your name?",
-    "Hello! Welcome to SR University! 😊 May I know your name so I know who I'm chatting with?",
+    "Hello! Welcome to SR University! May I know your name so I know who I'm chatting with?",
     "Hello! Glad you reached out to SR University. What's your name before we get started?",
     "Hello! Welcome to SR University. What should I call you?",
 ]

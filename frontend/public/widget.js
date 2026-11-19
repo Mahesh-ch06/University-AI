@@ -57,7 +57,7 @@
   var side = opt("position", "right") === "left" ? "left" : "right";
   var rawColor = opt("color", "#0055a4");
   var color = /^#(?:[0-9a-fA-F]{3}){1,2}$/.test(rawColor) ? rawColor : "#0055a4";
-  var label = opt("label", "Ask SRU Buddy 👋");
+  var label = opt("label", "Ask SRU Buddy");
   var greeting = opt("greeting", "Hi! Questions about admissions 2027-28? Ask me.");
   var startOpen = opt("open", "false") === "true";
   var rawAppUrl = opt("app-url", base + "/?mode=widget");
@@ -144,7 +144,7 @@
 
   var tooltip = document.createElement("div");
   tooltip.className = "tooltip";
-  tooltip.textContent = label || "Ask SRU Buddy 👋";
+  tooltip.textContent = label || "Ask SRU Buddy";
 
   var dotSpan = document.createElement("span");
   dotSpan.className = "dot";

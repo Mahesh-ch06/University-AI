@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createLead } from "../services/api";
 import { getSessionId } from "../hooks/useSession";
 import { readStudentDetails, saveStudentDetails, cleanPhone } from "../utils/studentProfile";
+import { UserIcon, PhoneIcon } from "./Icons";
 import "./ChatLeadForm.css";
 
 interface Props {
@@ -85,7 +86,9 @@ export default function ChatLeadForm({ onComplete }: Props) {
       {step === 1 ? (
         <form onSubmit={handleStep1Submit} className="chat-lead-step">
           <div className="chat-lead-form-heading">
-            <span className="chat-lead-form-icon" aria-hidden="true">👋</span>
+            <span className="chat-lead-form-icon" aria-hidden="true">
+              <UserIcon size={20} color="#0055a4" />
+            </span>
             <div>
               <h2>How can I call you?</h2>
               <p>Please share your name to personalize your conversation with SRU Buddy.</p>
@@ -119,7 +122,9 @@ export default function ChatLeadForm({ onComplete }: Props) {
       ) : (
         <form onSubmit={handleStep2Submit} className="chat-lead-step">
           <div className="chat-lead-form-heading">
-            <span className="chat-lead-form-icon" aria-hidden="true">📱</span>
+            <span className="chat-lead-form-icon" aria-hidden="true">
+              <PhoneIcon size={20} color="#0055a4" />
+            </span>
             <div>
               <h2>Nice to meet you, {name}!</h2>
               <p className="chat-lead-tagline">

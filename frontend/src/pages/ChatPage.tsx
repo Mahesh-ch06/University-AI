@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
 import MessageBubble from "../components/MessageBubble";
 import ChatLeadForm from "../components/ChatLeadForm";
-import { CalculatorIcon } from "../components/Icons";
+import { CalculatorIcon, renderUniIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
 import { applyServerProfile, cleanPhone, PROFILE_EVENT, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import {
@@ -34,7 +34,7 @@ function closeWidget() {
 const DEFAULT_WELCOME_MESSAGE: MessageData = {
   id: "welcome-sru-buddy",
   role: "assistant",
-  content: "Welcome to SR University! 👋\nI’m SRU Buddy, your AI companion at a Next-Gen Living and Learning Campus.\n\n🏆 Top Private University in Telangana & AP\n\nWhich program are you interested in? I’ll guide you on eligibility, fees, scholarships and campus life.\n\n🌐 Ask in English, हिंदी, తెలుగు or any language. ",
+  content: "Welcome to SR University! \n\nI’m SRU Buddy, your AI companion at a Next-Gen Living and Learning Campus.\n\n🏆 Top Private University in Telangana & AP\n\nWhich program are you interested in? I’ll guide you on eligibility, fees, scholarships and campus life.\n\n🌐 Ask in English, हिंदी, తెలుగు or any language. ",
   created_at: new Date().toISOString(),
 };
 
@@ -620,7 +620,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                         handleSendMessage(q.prompt);
                       }}
                     >
-                      <div className="sru-starter-icon">{q.icon}</div>
+                      <div className="sru-starter-icon">{renderUniIcon(q.icon, 20)}</div>
                       <div className="sru-starter-info">
                         <span className="sru-starter-title">{q.title}</span>
                         <span className="sru-starter-desc">{q.desc}</span>
@@ -923,7 +923,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
             >
               <div className="sru-launcher-pulse" />
               <img src="/sru-logo-white.png" alt="SRU" className="sru-launcher-img" />
-              <div className="sru-launcher-tooltip">Ask SRU Buddy 👋</div>
+              <div className="sru-launcher-tooltip">Ask SRU Buddy</div>
             </button>
           </div>
         </div>
@@ -1078,7 +1078,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                             handleSendMessage(q.prompt);
                           }}
                         >
-                          <div className="sru-starter-icon">{q.icon}</div>
+                          <div className="sru-starter-icon">{renderUniIcon(q.icon, 20)}</div>
                           <div className="sru-starter-info">
                             <span className="sru-starter-title">{q.title}</span>
                             <span className="sru-starter-desc">{q.desc}</span>
