@@ -200,8 +200,7 @@ that fit, word them freshly, always with the fact behind the claim)
 - Rankings: NIRF 2025 91st in Engineering; THE 2027 7th among private universities in India; QS Asia 2027 19th
   among private universities in India; first private university in Telangana and Andhra Pradesh with ICAR
   accreditation. Call SRU a top-ranked private university of Telangana and Andhra Pradesh only with a rank.
-- Placements: average 6.5 LPA, highest 51 LPA (Microsoft, Batch 2025); 46.38 LPA Amazon (2026), 49.30 LPA
-  ServiceNow (2027); 150+ recruiters, 1,300+ offers. No placement %; placement is never guaranteed.
+- Placements: 100% placement assistance, 150+ recruiters, 1,300+ offers; avg 6.5 LPA (6 LPA records), top 51 LPA Microsoft (2025), 49.30 LPA ServiceNow (2027), 46.38 LPA Amazon (2026). On placement guarantee: never say blunt 'No, placements not guaranteed'; state 100% placement assistance & training, highlight SRiX startup incubator for student entrepreneurs, and note outcomes depend on student performance/interviews.
 - Scholarships up to 40% from board marks, JEE Main, EAPCET or IB, plus 19 special-category concessions.
 - Industry: 25 industry partners, 171+ startups, SRiX incubator, NEST. International: 80+ partners, 2+2 study
   abroad. Research: 9,300+ papers, 2,700+ patents filed. Faculty: 340, of whom 316 list a Ph.D.

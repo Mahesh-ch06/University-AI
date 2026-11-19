@@ -335,6 +335,8 @@ def _done(conversation_id, answer, used=(), cards=(), suggestions=()):
 
 async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=()):
     """Stream a reply the code wrote itself (no model call), remember it, and finish the turn."""
+    for c in cards:
+        yield {"type": "card", "card": c}
     for piece in _chunks(text):
         yield {"type": "token", "delta": piece}
     await memory.append_history(session_id, message, text, conversation_id)
@@ -672,6 +674,80 @@ def _is_first_interaction_name_query(message: str) -> bool:
 
 
 _SMALL_TALK_CHIPS = ["B.Tech CSE fees", "Scholarship for my marks", "Placements at SRU", "Plan a campus visit"]
+
+_PLACEMENT_ASSISTANCE_CHIPS = ["Top Recruiters & Packages", "Startup Incubator (SRiX)", "Placement Eligibility Rules", "Book a Campus Visit"]
+
+_PLACEMENT_ASSISTANCE_RESPONSES = [
+    """At **SR University**, we provide **100% placement assistance and career readiness support** to all eligible students across our undergraduate and postgraduate programs.
+
+While no university can unconditionally guarantee job offers—as final placement selections depend entirely on an individual student's academic standing, technical competence, interview clearance, and recruiter hiring criteria—SRU provides an end-to-end launchpad to prepare you for industry success.
+
+---
+
+### 🌟 How SRU Empowers Your Career & Ambitions:
+1. **💼 100% Placement & Career Support**:
+   - Structured preparation via the **Center for Student Services and Placements (CSSP)** and **Career Guidance Cell (CGC)**: competitive coding, full-stack assessments, aptitude coaching, and mock technical interviews.
+   - **3,500+ internships** completed with top stipends reaching up to ₹1.25 Lakh/month.
+   - Dedicated on-campus recruitment drives featuring **150+ marquee companies** (including Microsoft, Amazon, ServiceNow, Salesforce, PayPal, Cisco, TCS, Cognizant, Accenture, and Capgemini).
+
+2. **🚀 Explore Startups & Entrepreneurship (SRiX)**:
+   - For students passionate about entrepreneurship or building their own ventures, SRU houses **SRiX (SR Innovation Exchange)**—a premier, DST-supported technology business incubator on campus.
+   - Students gain access to **maker spaces, rapid prototyping labs, expert mentorship from venture leaders**, and **seed grant funding from a ₹76+ Crore startup ecosystem** with 171+ incubated startups.
+
+3. **📊 Verified Placement Track Record**:
+   - **1,300+ Total Job Offers** secured by students.
+   - **Average Package**: ~**6 to 6.5 LPA** across graduating engineering cohorts.
+   - **Top Milestone Packages**:
+     - 💎 **₹51.00 LPA** — Microsoft (*Batch 2025*)
+     - 💎 **₹49.30 LPA** — ServiceNow (*Batch 2027*)
+     - 💎 **₹46.38 LPA** — Amazon (*Batch 2026*)
+     - 💎 **₹44.00 LPA** — Salesforce & ServiceNow (*Batch 2025*)
+
+> [!TIP]
+> **Our Commitment**: We provide 100% institutional support, premium recruiters, and incubation backing—your dedication, skills, and preparation turn these opportunities into dream careers!""",
+
+    """**SR University provides 100% placement assistance** and an end-to-end career launchpad for every eligible student.
+
+Because final placement outcomes depend on individual student dedication, technical competence, academic consistency (CGPA and zero active backlogs), and company interview evaluations, placements cannot be unconditionally guaranteed by any institution. However, SRU equips every student with industry-grade skills, corporate drives, and entrepreneurial pathways.
+
+---
+
+### 💼 Comprehensive Career & Startup Ecosystem:
+- **🎯 100% Placement Guidance**: Tailored career counselling, full-stack coding assessments, and intensive interview preparation conducted by the **Center for Student Services and Placements (CSSP)** with **150+ hiring partners**.
+- **🚀 Passionate About Startups?**: If you want to pursue your own venture, SRU's on-campus incubator **SRiX (SR Innovation Exchange)**—recognized and supported by the Department of Science and Technology (DST)—provides seed funding, incubation labs, prototyping resources, and angel investor networking.
+- **🛠️ Industry Internships**: Over **3,500+ internships** completed with monthly stipends reaching up to ₹1.25 Lakh/month.
+
+### 📈 Verified Placement Benchmarks:
+- **Average Package**: ~**6 LPA** (with university portals citing 6.5 LPA across engineering streams).
+- **Highest Packages**: **₹51 LPA** at Microsoft, **₹49.30 LPA** at ServiceNow, and **₹46.38 LPA** at Amazon.
+- **Over 1,300+ Placement Offers** spanning global IT giants, product companies, and core engineering firms.""",
+
+    """At **SR University**, our core commitment is delivering **100% placement assistance, rigorous skill development, and diverse career pathways** for every student.
+
+While final job offers naturally depend on each student's academic performance, technical skills, and interview success—meaning no higher education institution can give an unconditional job guarantee—SRU leaves no stone unturned in ensuring you are career-ready:
+
+---
+
+- 🎯 **100% Placement Assistance**: Rigorous coaching in data structures, system design, aptitude, and soft skills from the 2nd year onwards, connecting students directly to **150+ national and multinational recruiters**.
+- 🚀 **Explore Startups & Innovation**: Have an entrepreneurial mindset? SRU’s **SRiX (SR Innovation Exchange)** incubator offers world-class maker spaces, seed capital, and mentorship to help students launch and scale their own startup ventures.
+- 💼 **Proven Placement Record**: Over **1,300+ job offers** with an average package of **6 to 6.5 LPA**. Top offers include **₹51 LPA (Microsoft)**, **₹49.30 LPA (ServiceNow)**, and **₹46.38 LPA (Amazon)**.
+
+Whether your aspiration is securing a dream role at a global technology leader or launching a disruptive startup, SR University provides the 100% mentorship, infrastructure, and opportunities to make it happen!""",
+
+    """**SR University assures 100% placement assistance and career guidance** to help every graduate succeed in the professional world.
+
+Rather than a passive "guarantee", SRU actively partners with you: final placement offers depend on your skills, consistency, and interview performance, while the university provides the entire launchpad—from industry certifications to campus drives.
+
+---
+
+### 🌟 What SRU Offers Every Student:
+1. **100% Placement Assistance**: Dedicated recruitment drives with **150+ top companies** (Microsoft, Amazon, ServiceNow, Salesforce, Accenture, Cognizant, TCS), comprehensive mock interviews, and 3,500+ internships.
+2. **Startup & Incubation Support (SRiX)**: Want to build your own company instead of a traditional corporate job? SRU's on-campus incubator **SRiX** offers seed funding, maker spaces, and startup mentoring to turn innovative ideas into commercial realities.
+3. **Stellar Placement Records**: 
+   - **Average Salary**: ~**6 – 6.5 LPA** across graduating engineering disciplines.
+   - **Highest Packages**: **₹51 LPA** (Microsoft), **₹49.30 LPA** (ServiceNow), and **₹46.38 LPA** (Amazon).
+   - **1,300+ Placement Offers** across global tech, fintech, core engineering, and consulting firms."""
+]
 
 _SPECIAL_CONCESSIONS_TEXT = """### 🎖️ Special Category Fee Concessions (2027–28)
 
@@ -1108,7 +1184,16 @@ async def run_agent(message: str, session_id: str, conversation_id=None, client=
             yield ev
         return
 
-    # ---- 1b. Deterministic quick responses (special concessions, next-gen tech, fee tree, all programs) ----
+    # ---- 1b. Deterministic quick responses (placement assistance, special concessions, next-gen tech, fee tree, all programs) ----
+    if intent == "PLACEMENT_GUARANTEE_QUERY":
+        from app.services.card_service import PLACEMENT_EXCELLENCE_CARD
+        reply = _select_variation(_PLACEMENT_ASSISTANCE_RESPONSES, session_id + str(len(history)))
+        async for ev in _say(reply, message, session_id, conversation_id,
+                             cards=[PLACEMENT_EXCELLENCE_CARD],
+                             suggestions=_PLACEMENT_ASSISTANCE_CHIPS):
+            yield ev
+        return
+
     if intent == "SPECIAL_CONCESSIONS_QUERY":
         async for ev in _say(_SPECIAL_CONCESSIONS_TEXT, message, session_id, conversation_id,
                              used=[{"name": "get_special_concessions", "status": "ok", "is_action": False}],

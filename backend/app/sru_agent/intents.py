@@ -11,6 +11,7 @@ AgentIntent = Literal[
     "CAMPUS_VISIT_BOOKING_WITH_DATE",
     "CAMPUS_VISIT_BOOKING",
     "CAMPUS_VISIT_INFO",
+    "PLACEMENT_GUARANTEE_QUERY",
     "SPECIAL_CONCESSIONS_QUERY",
     "NEXT_GEN_TECH_QUERY",
     "FEE_TREE_QUERY",
@@ -76,6 +77,21 @@ _VISIT_INFO_PATTERNS = (
     "visiting timings", "visit timings", "visiting rules", "visiting guidelines",
     "what to see on campus", "campus walkthrough", "campus tour info",
     "how to visit sru", "how to visit the campus", "directions to campus",
+)
+
+_PLACEMENT_GUARANTEE_PATTERN = re.compile(
+    r"(?:"
+    r"\b(?:guarantee|guaranteed|assure|assured|assurance|promise|promised)\b.*?\b(?:placements?|jobs?)\b|"
+    r"\b(?:placements?|jobs?)\b.*?\b(?:guarantee|guaranteed|assured?|assurance|promise|promised)\b|"
+    r"(?:\b100\s*%|\b100\s*percent\b).*?\b(?:placements?|jobs?)\b|"
+    r"\b(?:placements?|jobs?)\b.*?(?:\b100\s*%|\b100\s*percent\b)|"
+    r"\b(?:placement|job)\s+guarantee\b|"
+    r"\b(?:placement|job)\s+assurance\b|"
+    r"\bwill\s+i\s+(?:definitely\s+|surely\s+|for\s+sure\s+)?get\s+(?:a\s+)?(?:job|placement|placed)\b|"
+    r"\bcan\s+(?:you|sru)\s+(?:promise|guarantee)\s+(?:a\s+)?(?:job|placement)\b|"
+    r"\bjob\s+confirm\b"
+    r")",
+    re.IGNORECASE,
 )
 
 _SPECIAL_CONCESSIONS_PATTERN = re.compile(
@@ -215,6 +231,10 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
     # 6. General campus visit inquiry
     if any(pattern in msg for pattern in _VISIT_INFO_PATTERNS):
         return "CAMPUS_VISIT_INFO"
+
+    # 6b. Placement guarantee / 100% placement assistance inquiry
+    if _PLACEMENT_GUARANTEE_PATTERN.search(msg):
+        return "PLACEMENT_GUARANTEE_QUERY"
 
     # 7. Deterministic quick responses (when user hasn't provided a specific score/rank to calculate)
     if not _has_score_or_rank(msg):
