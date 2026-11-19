@@ -415,43 +415,49 @@ export default function AdminPage({ onBackToChat }: Props) {
   /**
    * Always handles viewing a student's chat:
    * 1. If lead.conversation_id is present, opens directly.
-   * 2. If missing, searches conversations by student phone / name and auto-selects match.
+   * 2. If missing, attempts matching existing conversations by phone or name.
+   * 3. If not yet loaded, searches conversations via API by phone/name and selects the first match.
    */
   const handleViewLeadChat = async (lead: ProspectiveLeadItem) => {
     setActiveTab("chats");
     if (lead.conversation_id) {
+      setSelectedConvId(lead.conversation_id);
       handleSelectConversation(lead.conversation_id);
       return;
     }
 
-    // Search query fallback using phone or name
-    const term = lead.phone || lead.name;
-    setChatSearch(term);
-    setCurrentPage(1);
-
-    const matched = conversations.find(
+    const cleanPhone = lead.phone ? lead.phone.replace(/\D/g, "").slice(-10) : "";
+    const matchedConv = conversations.find(
       (c) =>
-        (lead.phone && (c.title?.includes(lead.phone) || c.last_message_preview?.includes(lead.phone))) ||
+        (cleanPhone && (c.title?.includes(cleanPhone) || c.last_message_preview?.includes(cleanPhone))) ||
         (lead.name && c.title?.toLowerCase().includes(lead.name.toLowerCase()))
     );
 
-    if (matched) {
-      handleSelectConversation(matched.id);
-    } else {
-      try {
-        const res = await fetchAdminConversations(adminKey, {
-          page: 1,
-          pageSize,
-          search: term,
-        });
-        if (res.conversations.length > 0) {
-          setConversations(res.conversations);
-          setConversationsTotal(res.total);
-          handleSelectConversation(res.conversations[0].id);
-        }
-      } catch (e) {
-        console.error("Auto search on lead click failed:", e);
+    if (matchedConv) {
+      setSelectedConvId(matchedConv.id);
+      handleSelectConversation(matchedConv.id);
+      return;
+    }
+
+    // Fallback: search by phone or name
+    const searchTerm = cleanPhone || lead.name;
+    setChatSearch(searchTerm);
+    setCurrentPage(1);
+
+    try {
+      const res = await fetchAdminConversations(adminKey, {
+        page: 1,
+        pageSize,
+        search: searchTerm,
+      });
+      if (res.conversations.length > 0) {
+        setConversations(res.conversations);
+        setConversationsTotal(res.total);
+        setSelectedConvId(res.conversations[0].id);
+        handleSelectConversation(res.conversations[0].id);
       }
+    } catch (e) {
+      console.error("Auto search on lead click failed:", e);
     }
   };
 
@@ -732,14 +738,14 @@ export default function AdminPage({ onBackToChat }: Props) {
                       <table className="admin-clean-table">
                         <thead>
                           <tr>
-                            <th>Student Name</th>
-                            <th>Mobile Number</th>
-                            <th>Program Interest</th>
-                            <th>Score / Qualifying Exam</th>
-                            <th>Lead Source</th>
-                            <th>Captured On</th>
-                            <th>Admission Status</th>
-                            <th>Actions</th>
+                            <th className="col-name">Student Name</th>
+                            <th className="col-phone">Mobile Number</th>
+                            <th className="col-program">Program Interest</th>
+                            <th className="col-score">Score / Qualifying Exam</th>
+                            <th className="col-source">Lead Source</th>
+                            <th className="col-date">Captured On</th>
+                            <th className="col-status">Admission Status</th>
+                            <th className="col-actions">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -763,30 +769,30 @@ export default function AdminPage({ onBackToChat }: Props) {
                                     📞 {lead.phone}
                                   </a>
                                 </td>
-                                <td>
+                                <td className="col-program">
                                   <span className="program-badge">
                                     {lead.program_interest || "B.Tech CSE"}
                                   </span>
                                 </td>
-                                <td>
+                                <td className="col-score">
                                   {lead.score || lead.exam_type ? (
                                     <div className="score-cell">
                                       {lead.score && <span className="score-val">{lead.score}</span>}
                                       {lead.exam_type && (
-                                        <span className="exam-type-val"> ({lead.exam_type})</span>
+                                        <span className="exam-type-val">({lead.exam_type})</span>
                                       )}
                                     </div>
                                   ) : (
                                     <span className="cell-muted">—</span>
                                   )}
                                 </td>
-                                <td>
+                                <td className="col-source">
                                   <span className={`source-pill source-${lead.source}`}>
                                     {lead.source === "calculator" ? "🧮 Calculator" : "💬 Chat Inquiry"}
                                   </span>
                                 </td>
-                                <td className="cell-date">{formattedDate}</td>
-                                <td>
+                                <td className="col-date">{formattedDate}</td>
+                                <td className="col-status">
                                   <select
                                     className={`status-select status-${lead.status}`}
                                     value={lead.status}
@@ -802,7 +808,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                     <option value="do_not_contact">Do not contact</option>
                                   </select>
                                 </td>
-                                <td>
+                                <td className="col-actions">
                                   <button
                                     className="admin-btn-action-view"
                                     title="Inspect student chat conversation"
