@@ -4,7 +4,9 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 from app.services.cache_service import (
+    bump_index_version,
     get_cached_answer,
+    get_index_version,
     invalidate_cache,
     make_cache_key,
     set_cached_answer,
@@ -98,3 +100,48 @@ async def test_invalidate_cache():
 
     await invalidate_cache(mock_redis, "some query")
     mock_redis.delete.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_index_version_none_client():
+    assert await get_index_version(None) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_index_version_success():
+    mock_redis = MagicMock()
+    mock_redis.get = AsyncMock(return_value="5")
+    assert await get_index_version(mock_redis) == 5
+
+
+@pytest.mark.asyncio
+async def test_bump_index_version_none_client():
+    assert await bump_index_version(None) == 0
+
+
+@pytest.mark.asyncio
+async def test_bump_index_version_success():
+    mock_redis = MagicMock()
+    mock_redis.incr = AsyncMock(return_value=3)
+
+    async def fake_scan_iter(match=None, count=None):
+        for k in [b"sru:rag:v1:abc", b"sru:rag:v1:def"]:
+            yield k
+
+    mock_redis.scan_iter = fake_scan_iter
+    mock_redis.delete = AsyncMock(return_value=2)
+
+    version = await bump_index_version(mock_redis)
+    assert version == 3
+    mock_redis.incr.assert_called_once()
+    mock_redis.delete.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_bump_index_version_graceful_error():
+    mock_redis = MagicMock()
+    mock_redis.incr = AsyncMock(side_effect=ConnectionError("Redis down"))
+
+    version = await bump_index_version(mock_redis)
+    assert version == 0
+

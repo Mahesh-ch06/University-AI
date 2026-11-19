@@ -81,3 +81,54 @@ async def invalidate_cache(redis_client: Any, canonical_query: str) -> None:
         await redis_client.delete(key)
     except Exception as exc:
         logger.warning("Cache invalidate error: %s", exc)
+
+
+INDEX_VERSION_KEY = "sru:rag:index_version"
+
+
+async def get_index_version(redis_client: Any) -> int:
+    """Get current index version from Redis."""
+    if redis_client is None:
+        return 1
+    try:
+        val = await redis_client.get(INDEX_VERSION_KEY)
+        return int(val) if val else 1
+    except Exception:
+        return 1
+
+
+async def bump_index_version(redis_client: Any) -> int:
+    """Increment the index version in Redis and invalidate cached RAG answers.
+
+    Called during document ingestion to ensure stale cached answers are cleared.
+    """
+    if redis_client is None:
+        return 0
+    try:
+        new_version = await redis_client.incr(INDEX_VERSION_KEY)
+
+        # Invalidate existing cache keys matching the RAG prefix
+        try:
+            if hasattr(redis_client, "scan_iter"):
+                keys_to_delete = []
+                async for key in redis_client.scan_iter(match=f"{_KEY_PREFIX}*", count=100):
+                    keys_to_delete.append(key)
+                if keys_to_delete:
+                    await redis_client.delete(*keys_to_delete)
+            elif hasattr(redis_client, "scan"):
+                cursor = 0
+                while True:
+                    cursor, keys = await redis_client.scan(cursor=cursor, match=f"{_KEY_PREFIX}*", count=100)
+                    if keys:
+                        await redis_client.delete(*keys)
+                    if not cursor:
+                        break
+        except Exception as scan_exc:
+            logger.debug("Cache key scan/delete error (version counter still bumped): %s", scan_exc)
+
+        logger.info("bump_index_version: bumped index_version to %s", new_version)
+        return int(new_version)
+    except Exception as exc:
+        logger.warning("Could not bump index_version in Redis: %s", exc)
+        return 0
+
