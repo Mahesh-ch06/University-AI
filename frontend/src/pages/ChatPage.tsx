@@ -393,8 +393,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   // Render Widget View directly if variant === "widget" (used inside public/widget.js iframe)
   if (isWidget) {
     return (
-      <div className="sru-portal-root sru-portal--widget" style={{ minHeight: "100vh", height: "100vh", background: "var(--bg-main, #0f172a)" }}>
-        <div className="sru-widget-container" style={{ position: "fixed", inset: 0, width: "100%", height: "100%", maxHeight: "100%", maxWidth: "100%", borderRadius: 0, border: "none" }}>
+      <div className="sru-portal-root sru-portal--widget sru-widget-iframe-root">
+        <div className="sru-widget-container sru-widget-iframe-container">
           {/* Header */}
           <div className="sru-widget-header">
             <div className="sru-widget-header-left">

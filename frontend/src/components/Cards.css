@@ -3226,5 +3226,72 @@
   color: #38bdf8;
 }
 
+/* Cross-Device Widget Alignment & Responsiveness */
+.sru-widget-body .rich-card {
+  margin-top: 8px !important;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.sru-widget-body .school-selection-grid {
+  grid-template-columns: 1fr !important;
+  gap: 6px !important;
+}
+
+.sru-widget-body .school-card-choice-btn {
+  padding: 8px 10px !important;
+  min-height: 44px !important;
+}
+
+.sru-widget-body .school-card-choice-title {
+  font-size: 0.82rem !important;
+}
+
+.sru-widget-body .school-card-choice-desc {
+  font-size: 0.72rem !important;
+}
+
+.sru-widget-body .course-choice-pill {
+  padding: 8px 10px !important;
+  font-size: 0.82rem !important;
+  min-height: 44px !important;
+}
+
+.sru-widget-body .fee-tabs {
+  display: flex !important;
+  gap: 4px !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  flex-wrap: nowrap !important;
+  padding-bottom: 2px !important;
+}
+
+.sru-widget-body .fee-tabs::-webkit-scrollbar {
+  display: none !important;
+}
+
+.sru-widget-body .fee-tab-btn {
+  white-space: nowrap !important;
+  font-size: 0.74rem !important;
+  padding: 6px 10px !important;
+}
+
+.sru-widget-body .fee-breakdown-row {
+  padding: 6px 0 !important;
+  font-size: 0.78rem !important;
+}
+
+.sru-widget-body .fee-total-box {
+  padding: 8px 10px !important;
+}
+
+.sru-widget-body .fee-total-amount {
+  font-size: 1.15rem !important;
+}
+
+
 
 
