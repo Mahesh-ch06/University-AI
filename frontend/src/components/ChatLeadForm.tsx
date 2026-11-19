@@ -34,11 +34,13 @@ export default function ChatLeadForm({ onComplete }: Props) {
 
     try {
       await saveStudentDetails(getSessionId(), { name: cleanName, phone: cleanPhone });
+      const activeConv = sessionStorage.getItem("sru_active_conv_id");
       await createLead({
         name: cleanName,
         phone: cleanPhone,
         program_interest: "Not specified",
         source: "chat_inquiry",
+        conversation_id: activeConv || undefined,
         metadata: { consent_given: true, request_type: "details_shared" },
       });
       onComplete();

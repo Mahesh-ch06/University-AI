@@ -64,11 +64,13 @@ export default function LeadAuthModal({
       // One place for the student's details: this browser, the chat agent and "My details".
       await saveStudentDetails(getSessionId(), { name: cleanName, phone: phone.trim() });
 
+      const activeConv = sessionStorage.getItem("sru_active_conv_id");
       await createLead({
         name: cleanName,
         phone: phone.trim(),
         program_interest: programInterest || "B.Tech CSE",
         source: "chat_inquiry",
+        conversation_id: activeConv || undefined,
         metadata: { consent_given: true, request_type: "details_shared" },
       });
 

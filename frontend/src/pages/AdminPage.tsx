@@ -29,7 +29,7 @@ interface Props {
   onBackToChat: () => void;
 }
 
-/** Chat previews come as markdown; show them as plain text in the list. */
+/** Strips markdown formatting to display clean preview text */
 function plainPreview(text: string): string {
   return (text || "")
     .replace(/\*\*|__|`|#{1,6}\s/g, "")
@@ -44,7 +44,7 @@ export default function AdminPage({ onBackToChat }: Props) {
     () => sessionStorage.getItem("university_ai_admin_key") || ""
   );
   const [keyInput, setKeyInput] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"overview" | "chats" | "leads" | "documents" | "feedback">("chats");
+  const [activeTab, setActiveTab] = useState<"leads" | "chats" | "overview" | "documents" | "feedback">("leads");
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -91,7 +91,7 @@ export default function AdminPage({ onBackToChat }: Props) {
 
   const detailScrollRef = useRef<HTMLDivElement>(null);
 
-  const loadData = useCallback(async (key: string, page = 1, size = 50, search = "", filter = "all") => {
+  const loadData = useCallback(async (key: string) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -99,12 +99,7 @@ export default function AdminPage({ onBackToChat }: Props) {
         fetchAdminStats(key),
         fetchAdminDocuments(key),
         fetchAdminFeedback(key),
-        fetchAdminConversations(key, {
-          page,
-          pageSize: size,
-          search: search.trim() || undefined,
-          feedbackFilter: filter === "all" ? undefined : filter,
-        }),
+        fetchAdminConversations(key, { page: 1, pageSize: 50 }),
         fetchAdminLeadStats(key).catch(() => null),
         fetchAdminLeads(key, { page: 1, pageSize: 50 }).catch(() => ({ total: 0, items: [] })),
       ]);
@@ -127,20 +122,23 @@ export default function AdminPage({ onBackToChat }: Props) {
     }
   }, []);
 
-  const loadConversationsOnly = useCallback(async (key: string, page: number, size: number, search: string, filter: string) => {
-    try {
-      const res = await fetchAdminConversations(key, {
-        page,
-        pageSize: size,
-        search: search.trim() || undefined,
-        feedbackFilter: filter === "all" ? undefined : filter,
-      });
-      setConversations(res.conversations);
-      setConversationsTotal(res.total);
-    } catch (err: unknown) {
-      console.error("Failed to reload conversations:", err);
-    }
-  }, []);
+  const loadConversationsOnly = useCallback(
+    async (key: string, page: number, size: number, search: string, filter: string) => {
+      try {
+        const res = await fetchAdminConversations(key, {
+          page,
+          pageSize: size,
+          search: search.trim() || undefined,
+          feedbackFilter: filter === "all" ? undefined : filter,
+        });
+        setConversations(res.conversations);
+        setConversationsTotal(res.total);
+      } catch (err: unknown) {
+        console.error("Failed to reload conversations:", err);
+      }
+    },
+    []
+  );
 
   const loadLeadsOnly = useCallback(
     async (
@@ -164,7 +162,7 @@ export default function AdminPage({ onBackToChat }: Props) {
           }),
           fetchAdminLeadStats(key).catch(() => null),
         ]);
-        setLeads(leadsRes.items || leadsRes.leads || []);
+        setLeads(leadsRes.items || (leadsRes as any).leads || []);
         setLeadsTotal(leadsRes.total);
         if (statsRes) setLeadStats(statsRes);
       } catch (err: unknown) {
@@ -176,7 +174,7 @@ export default function AdminPage({ onBackToChat }: Props) {
 
   useEffect(() => {
     if (adminKey) {
-      loadData(adminKey, currentPage, pageSize, chatSearch, feedbackFilter);
+      loadData(adminKey);
     }
   }, [adminKey, loadData]);
 
@@ -289,7 +287,7 @@ export default function AdminPage({ onBackToChat }: Props) {
       setUploadTitle("");
       setUploadDept("");
       setUploadFile(null);
-      loadData(adminKey, currentPage, pageSize, chatSearch, feedbackFilter);
+      loadData(adminKey);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -301,7 +299,7 @@ export default function AdminPage({ onBackToChat }: Props) {
     if (!confirm("Are you sure you want to deactivate this document?")) return;
     try {
       await deactivateDocument(adminKey, docId);
-      loadData(adminKey, currentPage, pageSize, chatSearch, feedbackFilter);
+      loadData(adminKey);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Deactivation failed");
     }
@@ -314,7 +312,6 @@ export default function AdminPage({ onBackToChat }: Props) {
     try {
       const detail = await fetchAdminConversationDetail(adminKey, convId);
       setSelectedConvDetail(detail);
-      // Scroll to top of transcript
       setTimeout(() => {
         if (detailScrollRef.current) {
           detailScrollRef.current.scrollTop = 0;
@@ -351,7 +348,7 @@ export default function AdminPage({ onBackToChat }: Props) {
         feedbackFilter,
       });
       setActionNotice({
-        text: `📥 Complete dataset downloaded in Markdown (.md)! Ready to be fed into your AI model training / evaluation pipeline.`,
+        text: `📥 Complete dataset downloaded in Markdown (.md)! Ready for AI model training / evaluation.`,
         type: "success",
       });
     } catch (err: unknown) {
@@ -402,7 +399,7 @@ export default function AdminPage({ onBackToChat }: Props) {
         answer: msg.content,
       });
       setActionNotice({
-        text: `⭐ Exemplar Registered! "${question.slice(0, 45)}..." stored in ChromaDB verified_exemplars for dynamic few-shot learning.`,
+        text: `⭐ Exemplar Registered! Stored in ChromaDB verified_exemplars for dynamic few-shot learning.`,
         type: "success",
       });
     } catch (err: unknown) {
@@ -415,37 +412,87 @@ export default function AdminPage({ onBackToChat }: Props) {
     }
   };
 
+  /**
+   * Always handles viewing a student's chat:
+   * 1. If lead.conversation_id is present, opens directly.
+   * 2. If missing, searches conversations by student phone / name and auto-selects match.
+   */
+  const handleViewLeadChat = async (lead: ProspectiveLeadItem) => {
+    setActiveTab("chats");
+    if (lead.conversation_id) {
+      handleSelectConversation(lead.conversation_id);
+      return;
+    }
+
+    // Search query fallback using phone or name
+    const term = lead.phone || lead.name;
+    setChatSearch(term);
+    setCurrentPage(1);
+
+    const matched = conversations.find(
+      (c) =>
+        (lead.phone && (c.title?.includes(lead.phone) || c.last_message_preview?.includes(lead.phone))) ||
+        (lead.name && c.title?.toLowerCase().includes(lead.name.toLowerCase()))
+    );
+
+    if (matched) {
+      handleSelectConversation(matched.id);
+    } else {
+      try {
+        const res = await fetchAdminConversations(adminKey, {
+          page: 1,
+          pageSize,
+          search: term,
+        });
+        if (res.conversations.length > 0) {
+          setConversations(res.conversations);
+          setConversationsTotal(res.total);
+          handleSelectConversation(res.conversations[0].id);
+        }
+      } catch (e) {
+        console.error("Auto search on lead click failed:", e);
+      }
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(conversationsTotal / pageSize));
 
+  // Authentication Box
   if (!adminKey) {
     return (
       <div className="admin-container">
         <header className="admin-header">
-          <div className="admin-logo">
-            <span>🏛️</span> University AI Companion
-            <span className="admin-logo-badge">Admin</span>
+          <div className="admin-brand">
+            <span className="admin-brand-icon">🏛️</span>
+            <span className="admin-brand-name">SR University AI</span>
+            <span className="admin-badge">Admin</span>
           </div>
-          <button className="btn-secondary" onClick={onBackToChat}>
-            ← Back to Student Chat
+          <button className="admin-btn-secondary" onClick={onBackToChat}>
+            ← Student Portal
           </button>
         </header>
 
-        <div className="admin-auth-box">
-          <h2>Admin Authentication</h2>
-          <p>Enter the admin API key to manage documents, view stats, audit student chats, and train the model.</p>
-          <form onSubmit={handleLogin}>
-            <input
-              type="password"
-              placeholder="Enter Admin API Key"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              required
-            />
-            {error && <div style={{ color: "#f87171", marginBottom: "16px", fontSize: "0.85rem" }}>{error}</div>}
-            <button type="submit" className="btn-primary" style={{ width: "100%" }}>
-              Access Dashboard
-            </button>
-          </form>
+        <div className="admin-main-scroll admin-login-wrap">
+          <div className="admin-auth-card">
+            <div className="auth-card-icon">🔐</div>
+            <h2>Admin Authentication</h2>
+            <p>Enter the master admin key to access prospective admissions leads, student conversations, and knowledge management.</p>
+            <form onSubmit={handleLogin}>
+              <input
+                type="password"
+                className="admin-input"
+                placeholder="Enter Admin API Key"
+                value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)}
+                autoFocus
+                required
+              />
+              {error && <div className="admin-auth-error">{error}</div>}
+              <button type="submit" className="admin-btn-primary admin-btn-block">
+                Access Dashboard
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     );
@@ -453,69 +500,370 @@ export default function AdminPage({ onBackToChat }: Props) {
 
   return (
     <div className="admin-container">
+      {/* Sleek Minimal Header */}
       <header className="admin-header">
-        <div className="admin-logo">
-          <span>🏛️</span> University AI Companion
-          <span className="admin-logo-badge">Admin Console</span>
+        <div className="admin-brand">
+          <span className="admin-brand-icon">🏛️</span>
+          <span className="admin-brand-name">SRU Buddy</span>
+          <span className="admin-badge">Admin Console</span>
+          <span className="admin-status-indicator" title="System Online">
+            <span className="status-dot"></span> Live
+          </span>
         </div>
-        <div className="admin-nav-actions">
-          <button className="btn-secondary" onClick={onBackToChat}>
-            ← Student Chat
+
+        <div className="admin-header-actions">
+          <button className="admin-btn-secondary" onClick={onBackToChat}>
+            💬 Student Chat
           </button>
-          <button className="btn-secondary" onClick={handleLogout}>
-            Exit Admin
+          <button className="admin-btn-secondary" onClick={handleLogout}>
+            Exit
           </button>
         </div>
       </header>
 
-      <div className="admin-body">
-        <div className="admin-tabs">
+      {/* Segmented Minimal Navigation Tabs */}
+      <nav className="admin-nav-bar">
+        <div className="admin-tabs-list">
           <button
-            className={`admin-tab ${activeTab === "chats" ? "active" : ""}`}
-            onClick={() => setActiveTab("chats")}
-          >
-            💬 Student Chats ({conversationsTotal || conversations.length})
-          </button>
-          <button
-            className={`admin-tab ${activeTab === "leads" ? "active" : ""}`}
+            className={`admin-tab-btn ${activeTab === "leads" ? "active" : ""}`}
             onClick={() => setActiveTab("leads")}
           >
-            🎯 Prospective Leads ({leadStats?.total_leads || leadsTotal || leads.length})
+            🎯 Prospective Leads
+            <span className="tab-counter">{leadStats?.total_leads ?? leadsTotal}</span>
           </button>
           <button
-            className={`admin-tab ${activeTab === "overview" ? "active" : ""}`}
+            className={`admin-tab-btn ${activeTab === "chats" ? "active" : ""}`}
+            onClick={() => setActiveTab("chats")}
+          >
+            💬 Student Chats
+            <span className="tab-counter">{conversationsTotal || conversations.length}</span>
+          </button>
+          <button
+            className={`admin-tab-btn ${activeTab === "overview" ? "active" : ""}`}
             onClick={() => setActiveTab("overview")}
           >
             📊 Overview
           </button>
           <button
-            className={`admin-tab ${activeTab === "documents" ? "active" : ""}`}
+            className={`admin-tab-btn ${activeTab === "documents" ? "active" : ""}`}
             onClick={() => setActiveTab("documents")}
           >
-            📚 Knowledge Base ({documents.length})
+            📚 Knowledge Base
+            <span className="tab-counter">{documents.length}</span>
           </button>
           <button
-            className={`admin-tab ${activeTab === "feedback" ? "active" : ""}`}
+            className={`admin-tab-btn ${activeTab === "feedback" ? "active" : ""}`}
             onClick={() => setActiveTab("feedback")}
           >
-            ⭐ Feedback ({feedback.length})
+            ⭐ Feedback
+            <span className="tab-counter">{feedback.length}</span>
           </button>
         </div>
+      </nav>
 
+      {/* Action Notification Toast */}
+      {actionNotice && (
+        <div className={`admin-toast toast-${actionNotice.type}`}>
+          <span>{actionNotice.text}</span>
+          <button className="toast-close-btn" onClick={() => setActionNotice(null)}>
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Main Scrollable Content */}
+      <main className="admin-main-scroll">
         {isLoading ? (
-          <div style={{ textAlign: "center", padding: "48px", color: "var(--text-2)" }}>Loading dashboard data...</div>
+          <div className="admin-loading-state">
+            <div className="admin-spinner"></div>
+            <p>Loading dashboard data...</p>
+          </div>
         ) : (
           <>
-            {/* ---- USER CHATS AUDIT & MODEL IMPROVEMENT TAB ---- */}
-            {activeTab === "chats" && (
-              <div className="chat-audit-container">
-                {/* Search & Export Toolbar */}
-                <div className="chat-audit-toolbar">
-                  <div className="toolbar-left">
-                    <div className="chat-search-box">
+            {/* =========================================================================
+                TAB 1: PROSPECTIVE LEADS & ADMISSIONS CONVERSION
+                ========================================================================= */}
+            {activeTab === "leads" && (
+              <div className="tab-pane-container">
+                {/* Metric Quick Stats Ribbon */}
+                <div className="admin-metrics-grid">
+                  <div className="metric-box">
+                    <span className="metric-title">Total Verified Leads</span>
+                    <span className="metric-num num-indigo">{leadStats?.total_leads ?? leadsTotal}</span>
+                    <span className="metric-caption">Authenticated prospects</span>
+                  </div>
+                  <div className="metric-box">
+                    <span className="metric-title">Chat Inquiries</span>
+                    <span className="metric-num num-green">{leadStats?.chat_leads ?? 0}</span>
+                    <span className="metric-caption">Admissions & fee questions</span>
+                  </div>
+                  <div className="metric-box">
+                    <span className="metric-title">Calculator Submissions</span>
+                    <span className="metric-num num-amber">{leadStats?.calculator_leads ?? 0}</span>
+                    <span className="metric-caption">Scholarship & merit inquiries</span>
+                  </div>
+                  <div className="metric-box">
+                    <span className="metric-title">Today's Leads</span>
+                    <span className="metric-num num-pink">{leadStats?.today_leads ?? 0}</span>
+                    <span className="metric-caption">Fresh high-intent inquiries</span>
+                  </div>
+                </div>
+
+                {/* Search & Filter Toolbar */}
+                <div className="admin-toolbar-card">
+                  <div className="toolbar-filters">
+                    <div className="admin-search-wrap">
                       <input
                         type="text"
-                        placeholder="🔍 Search all questions, answers, topics, or session IDs..."
+                        className="admin-input-search"
+                        placeholder="🔍 Search student name or mobile number..."
+                        value={leadSearch}
+                        onChange={(e) => {
+                          setLeadSearch(e.target.value);
+                          setLeadPage(1);
+                        }}
+                      />
+                      {leadSearch && (
+                        <button
+                          className="search-clear-btn"
+                          onClick={() => {
+                            setLeadSearch("");
+                            setLeadPage(1);
+                          }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <select
+                      className="admin-select"
+                      value={leadProgramFilter}
+                      onChange={(e) => {
+                        setLeadProgramFilter(e.target.value);
+                        setLeadPage(1);
+                      }}
+                    >
+                      <option value="all">All Programs</option>
+                      <option value="B.Tech CSE">B.Tech CSE</option>
+                      <option value="B.Tech ECE">B.Tech ECE</option>
+                      <option value="B.Tech AI & Data Science">B.Tech AI & Data Science</option>
+                      <option value="B.Tech Mechanical">B.Tech Mechanical</option>
+                      <option value="B.Tech Civil">B.Tech Civil</option>
+                      <option value="B.Tech EEE">B.Tech EEE</option>
+                      <option value="BBA">BBA</option>
+                      <option value="MBA">MBA</option>
+                    </select>
+
+                    <select
+                      className="admin-select"
+                      value={leadSourceFilter}
+                      onChange={(e) => {
+                        setLeadSourceFilter(e.target.value);
+                        setLeadPage(1);
+                      }}
+                    >
+                      <option value="all">All Sources</option>
+                      <option value="chat_inquiry">💬 Chat Inquiry</option>
+                      <option value="calculator">🧮 Calculator</option>
+                    </select>
+
+                    <select
+                      className="admin-select"
+                      value={leadStatusFilter}
+                      onChange={(e) => {
+                        setLeadStatusFilter(e.target.value);
+                        setLeadPage(1);
+                      }}
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="new">New</option>
+                      <option value="contacted">Contacted</option>
+                      <option value="counselled">Counselled</option>
+                      <option value="applied">Applied</option>
+                      <option value="enrolled">Enrolled</option>
+                      <option value="lost">Lost</option>
+                      <option value="do_not_contact">Do not contact</option>
+                    </select>
+                  </div>
+
+                  <div className="toolbar-actions">
+                    <button
+                      className="admin-btn-secondary"
+                      onClick={() =>
+                        loadLeadsOnly(
+                          adminKey,
+                          leadPage,
+                          leadPageSize,
+                          leadSearch,
+                          leadProgramFilter,
+                          leadSourceFilter,
+                          leadStatusFilter
+                        )
+                      }
+                      title="Refresh Leads Table"
+                    >
+                      ↻ Refresh
+                    </button>
+                    <button
+                      className="admin-btn-primary"
+                      onClick={handleExportLeads}
+                      disabled={isExportingLeads}
+                    >
+                      {isExportingLeads ? "Exporting..." : "📥 Export CSV"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Leads Data Table */}
+                <div className="admin-table-card">
+                  {leads.length === 0 ? (
+                    <div className="admin-empty-state">
+                      <div className="empty-icon">🎯</div>
+                      <h3>No Prospective Leads Found</h3>
+                      <p>
+                        {leadSearch || leadProgramFilter !== "all" || leadStatusFilter !== "all" || leadSourceFilter !== "all"
+                          ? "No leads matched your current filters. Try resetting the search or filter criteria."
+                          : "Leads captured via Chat Fee Inquiries or Scholarship Calculator will appear here automatically."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="admin-table-wrapper">
+                      <table className="admin-clean-table">
+                        <thead>
+                          <tr>
+                            <th>Student Name</th>
+                            <th>Mobile Number</th>
+                            <th>Program Interest</th>
+                            <th>Score / Qualifying Exam</th>
+                            <th>Lead Source</th>
+                            <th>Captured On</th>
+                            <th>Admission Status</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {leads.map((lead) => {
+                            const formattedDate = new Date(lead.created_at).toLocaleString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            });
+
+                            return (
+                              <tr key={lead.id} className="lead-row">
+                                <td className="col-name">
+                                  <div className="student-name-text">{lead.name}</div>
+                                  {lead.email && <div className="student-sub-email">{lead.email}</div>}
+                                </td>
+                                <td className="col-phone">
+                                  <a href={`tel:${lead.phone}`} className="student-phone-link">
+                                    📞 {lead.phone}
+                                  </a>
+                                </td>
+                                <td>
+                                  <span className="program-badge">
+                                    {lead.program_interest || "B.Tech CSE"}
+                                  </span>
+                                </td>
+                                <td>
+                                  {lead.score || lead.exam_type ? (
+                                    <div className="score-cell">
+                                      {lead.score && <span className="score-val">{lead.score}</span>}
+                                      {lead.exam_type && (
+                                        <span className="exam-type-val"> ({lead.exam_type})</span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="cell-muted">—</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <span className={`source-pill source-${lead.source}`}>
+                                    {lead.source === "calculator" ? "🧮 Calculator" : "💬 Chat Inquiry"}
+                                  </span>
+                                </td>
+                                <td className="cell-date">{formattedDate}</td>
+                                <td>
+                                  <select
+                                    className={`status-select status-${lead.status}`}
+                                    value={lead.status}
+                                    disabled={updatingLeadId === lead.id}
+                                    onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                                  >
+                                    <option value="new">New</option>
+                                    <option value="contacted">Contacted</option>
+                                    <option value="counselled">Counselled</option>
+                                    <option value="applied">Applied</option>
+                                    <option value="enrolled">Enrolled</option>
+                                    <option value="lost">Lost</option>
+                                    <option value="do_not_contact">Do not contact</option>
+                                  </select>
+                                </td>
+                                <td>
+                                  <button
+                                    className="admin-btn-action-view"
+                                    title="Inspect student chat conversation"
+                                    onClick={() => handleViewLeadChat(lead)}
+                                  >
+                                    View Chat ↗
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Pagination Footer */}
+                  {leadsTotal > leadPageSize && (
+                    <div className="admin-pagination-footer">
+                      <span className="pagination-info">
+                        Showing {Math.min((leadPage - 1) * leadPageSize + 1, leadsTotal)}–
+                        {Math.min(leadPage * leadPageSize, leadsTotal)} of {leadsTotal} leads
+                      </span>
+                      <div className="pagination-ctrls">
+                        <button
+                          className="admin-btn-secondary"
+                          disabled={leadPage <= 1}
+                          onClick={() => setLeadPage((p) => Math.max(1, p - 1))}
+                        >
+                          ← Previous
+                        </button>
+                        <span className="pagination-page-label">
+                          Page {leadPage} of {Math.ceil(leadsTotal / leadPageSize)}
+                        </span>
+                        <button
+                          className="admin-btn-secondary"
+                          disabled={leadPage >= Math.ceil(leadsTotal / leadPageSize)}
+                          onClick={() => setLeadPage((p) => p + 1)}
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* =========================================================================
+                TAB 2: STUDENT CHATS AUDIT & MODEL IMPROVEMENT
+                ========================================================================= */}
+            {activeTab === "chats" && (
+              <div className="tab-pane-container chats-pane">
+                {/* Search & Export Toolbar */}
+                <div className="admin-toolbar-card">
+                  <div className="toolbar-filters">
+                    <div className="admin-search-wrap">
+                      <input
+                        type="text"
+                        className="admin-input-search"
+                        placeholder="🔍 Search questions, answers, topics, mobile numbers, or session IDs..."
                         value={chatSearch}
                         onChange={(e) => {
                           setChatSearch(e.target.value);
@@ -524,7 +872,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                       />
                       {chatSearch && (
                         <button
-                          className="btn-clear-search"
+                          className="search-clear-btn"
                           onClick={() => {
                             setChatSearch("");
                             setCurrentPage(1);
@@ -535,7 +883,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                       )}
                     </div>
 
-                    <div className="chat-filter-group">
+                    <div className="filter-chips-list">
                       <button
                         className={`filter-chip ${feedbackFilter === "all" ? "active" : ""}`}
                         onClick={() => {
@@ -575,33 +923,29 @@ export default function AdminPage({ onBackToChat }: Props) {
                     </div>
                   </div>
 
-                  {/* Bulk AI Training Export Button */}
-                  <div className="toolbar-right">
+                  <div className="toolbar-actions">
                     <button
-                      className="btn-export-bulk"
+                      className="admin-btn-primary"
                       disabled={isExportingAll || conversationsTotal === 0}
                       onClick={handleExportAllMarkdown}
-                      title="Download ALL conversations in a single formatted Markdown file to train/fine-tune the AI model"
+                      title="Download ALL conversations in Markdown (.md) to train or evaluate the AI model"
                     >
-                      {isExportingAll ? "Generating Dataset..." : `📥 Export All Chats (.md for AI Training)`}
+                      {isExportingAll ? "Generating Dataset..." : "📥 Export All Chats (.md for AI Training)"}
                     </button>
                   </div>
                 </div>
 
-                {actionNotice && (
-                  <div className={`action-notice notice-${actionNotice.type}`}>
-                    {actionNotice.text}
-                  </div>
-                )}
-
-                <div className="chat-audit-workspace">
-                  {/* Left Column: Conversation List with Pagination */}
-                  <div className="chat-conv-list">
-                    <div className="chat-conv-list-header">
-                      <span>Conversations ({conversations.length} shown of {conversationsTotal})</span>
+                {/* Dual Pane Audit Workspace */}
+                <div className="chat-audit-layout">
+                  {/* Left Column: Conversation List */}
+                  <div className="chat-audit-sidebar">
+                    <div className="sidebar-head">
+                      <span>Conversations ({conversations.length} of {conversationsTotal})</span>
                       <button
-                        className="btn-refresh"
-                        onClick={() => loadConversationsOnly(adminKey, currentPage, pageSize, chatSearch, feedbackFilter)}
+                        className="btn-link-action"
+                        onClick={() =>
+                          loadConversationsOnly(adminKey, currentPage, pageSize, chatSearch, feedbackFilter)
+                        }
                         title="Refresh conversations list"
                       >
                         ↻ Refresh
@@ -609,47 +953,46 @@ export default function AdminPage({ onBackToChat }: Props) {
                     </div>
 
                     {conversations.length === 0 ? (
-                      <div className="chat-conv-empty">
-                        <div style={{ fontSize: "2rem", marginBottom: "8px" }}>🔍</div>
+                      <div className="sidebar-empty">
+                        <div style={{ fontSize: "1.8rem", marginBottom: "8px" }}>🔍</div>
                         <p>No conversations found matching filters.</p>
                       </div>
                     ) : (
-                      <div className="chat-conv-scroll">
+                      <div className="sidebar-scroll-list">
                         {conversations.map((c) => {
                           const isSelected = selectedConvId === c.id;
                           return (
                             <div
                               key={c.id}
-                              className={`chat-conv-card ${isSelected ? "selected" : ""}`}
+                              className={`conv-list-item ${isSelected ? "selected" : ""}`}
                               onClick={() => handleSelectConversation(c.id)}
                             >
-                              <div className="conv-card-top">
-                                <span className="conv-card-title">{c.title || "Untitled Conversation"}</span>
-                                <span className="conv-card-time">
-                                  {new Date(c.updated_at).toLocaleDateString([], { month: "short", day: "numeric" })}
+                              <div className="conv-item-top">
+                                <span className="conv-item-title">{c.title || "Untitled Conversation"}</span>
+                                <span className="conv-item-time">
+                                  {new Date(c.updated_at).toLocaleDateString([], {
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
                                 </span>
                               </div>
 
                               {c.last_message_preview && (
-                                <p className="conv-card-preview">{plainPreview(c.last_message_preview)}</p>
+                                <p className="conv-item-preview">{plainPreview(c.last_message_preview)}</p>
                               )}
 
-                              <div className="conv-card-footer">
-                                <span className="conv-badge-msgs">{c.message_count} msgs</span>
-                                <div className="conv-feedback-badges">
+                              <div className="conv-item-footer">
+                                <span className="conv-msg-tag">{c.message_count} msgs</span>
+                                <div className="conv-feedback-tags">
                                   {c.positive_feedback_count > 0 && (
-                                    <span className="badge-fb-pos" title="Helpful feedback">
-                                      👍 {c.positive_feedback_count}
-                                    </span>
+                                    <span className="fb-tag-pos">👍 {c.positive_feedback_count}</span>
                                   )}
                                   {c.negative_feedback_count > 0 && (
-                                    <span className="badge-fb-neg" title="Inaccurate feedback">
-                                      👎 {c.negative_feedback_count}
-                                    </span>
+                                    <span className="fb-tag-neg">👎 {c.negative_feedback_count}</span>
                                   )}
                                 </div>
-                                <span className="conv-session-id" title={c.session_id}>
-                                  Session: {c.session_id.slice(0, 8)}...
+                                <span className="conv-session-tag" title={c.session_id}>
+                                  {c.session_id.slice(0, 8)}...
                                 </span>
                               </div>
                             </div>
@@ -659,20 +1002,20 @@ export default function AdminPage({ onBackToChat }: Props) {
                     )}
 
                     {/* Pagination Bar */}
-                    <div className="chat-pagination-bar">
-                      <div className="pagination-pages">
+                    <div className="sidebar-pagination">
+                      <div className="page-nav-btns">
                         <button
-                          className="btn-page-nav"
+                          className="admin-btn-secondary btn-icon"
                           disabled={currentPage <= 1}
                           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                         >
                           ◀
                         </button>
-                        <span>
+                        <span className="page-number-text">
                           {currentPage} / {totalPages}
                         </span>
                         <button
-                          className="btn-page-nav"
+                          className="admin-btn-secondary btn-icon"
                           disabled={currentPage >= totalPages}
                           onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                         >
@@ -680,9 +1023,10 @@ export default function AdminPage({ onBackToChat }: Props) {
                         </button>
                       </div>
 
-                      <div className="pagination-size">
-                        <label>Show:</label>
+                      <div className="page-size-selector">
+                        <span>Show:</span>
                         <select
+                          className="admin-select select-compact"
                           value={pageSize}
                           onChange={(e) => {
                             setPageSize(Number(e.target.value));
@@ -699,44 +1043,39 @@ export default function AdminPage({ onBackToChat }: Props) {
                   </div>
 
                   {/* Right Column: Full Conversation Transcript */}
-                  <div className="chat-conv-detail">
+                  <div className="chat-audit-content">
                     {isLoadingDetail ? (
-                      <div className="detail-placeholder">
+                      <div className="admin-loading-state">
+                        <div className="admin-spinner"></div>
                         <p>Loading full conversation thread...</p>
                       </div>
                     ) : selectedConvDetail ? (
-                      <div className="transcript-wrapper">
-                        {/* Transcript Header */}
-                        <div className="transcript-header">
-                          <div className="transcript-title-area">
+                      <div className="transcript-box">
+                        {/* Header */}
+                        <div className="transcript-top-header">
+                          <div className="transcript-headline">
                             <h3>{selectedConvDetail.title}</h3>
-                            <div className="transcript-meta">
-                              <span>Session ID: <code>{selectedConvDetail.session_id}</code></span>
+                            <div className="transcript-meta-row">
+                              <span>Session: <code>{selectedConvDetail.session_id}</code></span>
                               <span>•</span>
                               <span>Started: {new Date(selectedConvDetail.created_at).toLocaleString()}</span>
                               <span>•</span>
                               <span>{selectedConvDetail.messages.length} Messages</span>
                             </div>
                           </div>
-                          <div className="transcript-actions">
-                            <button
-                              className="btn-secondary"
-                              onClick={handlePrintPdf}
-                              title="Print conversation or save as PDF"
-                            >
+                          <div className="transcript-toolbar-btns">
+                            <button className="admin-btn-secondary" onClick={handlePrintPdf}>
                               📄 Print / PDF
                             </button>
                             <button
-                              className="btn-secondary"
+                              className="admin-btn-secondary"
                               onClick={() => handleExportSingleJson(selectedConvDetail)}
-                              title="Export chat as JSON"
                             >
                               📥 JSON
                             </button>
                             <button
-                              className="btn-danger"
+                              className="admin-btn-danger"
                               onClick={() => handleDeleteConversation(selectedConvDetail.id)}
-                              title="Delete this conversation"
                             >
                               🗑️ Delete
                             </button>
@@ -744,9 +1083,9 @@ export default function AdminPage({ onBackToChat }: Props) {
                         </div>
 
                         {/* Dialogue Thread */}
-                        <div className="transcript-messages" ref={detailScrollRef}>
+                        <div className="transcript-scroll-area" ref={detailScrollRef}>
                           {selectedConvDetail.messages.length === 0 ? (
-                            <p style={{ color: "var(--text-2)", textAlign: "center", padding: "32px" }}>
+                            <p className="transcript-empty-text">
                               No messages recorded in this conversation.
                             </p>
                           ) : (
@@ -755,14 +1094,14 @@ export default function AdminPage({ onBackToChat }: Props) {
                               return (
                                 <div
                                   key={m.id}
-                                  className={`transcript-bubble-container ${isUser ? "user" : "assistant"}`}
+                                  className={`transcript-message-bubble ${isUser ? "role-user" : "role-assistant"}`}
                                 >
-                                  <div className="transcript-bubble-header">
-                                    <span className="role-badge">
-                                      {isUser ? "👤 Student" : "🤖 University AI"}
+                                  <div className="msg-header-row">
+                                    <span className="msg-role-badge">
+                                      {isUser ? "👤 Student" : "🤖 SRU Buddy"}
                                     </span>
-                                    {m.model && <span className="model-badge">{m.model}</span>}
-                                    <span className="msg-time">
+                                    {m.model && <span className="msg-model-tag">{m.model}</span>}
+                                    <span className="msg-timestamp">
                                       {new Date(m.created_at).toLocaleTimeString([], {
                                         hour: "2-digit",
                                         minute: "2-digit",
@@ -771,24 +1110,22 @@ export default function AdminPage({ onBackToChat }: Props) {
                                     </span>
                                   </div>
 
-                                  <div className="transcript-bubble-content">
-                                    {m.content}
-                                  </div>
+                                  <div className="msg-body-content">{m.content}</div>
 
-                                  {/* Sources / Citations used */}
+                                  {/* Grounded Sources */}
                                   {m.sources && m.sources.length > 0 && (
-                                    <div className="transcript-sources">
-                                      <div className="sources-title">
+                                    <div className="msg-sources-box">
+                                      <div className="sources-headline">
                                         📚 Grounded Sources ({m.sources.length}):
                                       </div>
-                                      <div className="sources-list">
+                                      <div className="sources-tags-list">
                                         {m.sources.map((src, i) => (
-                                          <div key={i} className="source-item">
-                                            <span className="source-bullet">📄</span>
-                                            <span className="source-doc-title">{src.title}</span>
-                                            {src.page && <span className="source-page">(Page {src.page})</span>}
+                                          <div key={i} className="source-citation-chip">
+                                            <span>📄</span>
+                                            <span className="src-title">{src.title}</span>
+                                            {src.page && <span className="src-page">(Page {src.page})</span>}
                                             {src.department && (
-                                              <span className="source-dept">[{src.department}]</span>
+                                              <span className="src-dept">[{src.department}]</span>
                                             )}
                                           </div>
                                         ))}
@@ -799,15 +1136,17 @@ export default function AdminPage({ onBackToChat }: Props) {
                                   {/* User Feedback */}
                                   {m.feedback && (
                                     <div
-                                      className={`transcript-feedback ${
-                                        m.feedback.rating === 1 ? "fb-pos" : "fb-neg"
+                                      className={`msg-feedback-alert ${
+                                        m.feedback.rating === 1 ? "fb-positive" : "fb-negative"
                                       }`}
                                     >
                                       <span>
-                                        {m.feedback.rating === 1 ? "👍 Student rated helpful" : "👎 Student rated inaccurate"}
+                                        {m.feedback.rating === 1
+                                          ? "👍 Student rated helpful"
+                                          : "👎 Student rated inaccurate"}
                                       </span>
                                       {m.feedback.comment && (
-                                        <span className="fb-comment">
+                                        <span className="feedback-comment-quote">
                                           — "{m.feedback.comment}"
                                         </span>
                                       )}
@@ -816,9 +1155,9 @@ export default function AdminPage({ onBackToChat }: Props) {
 
                                   {/* Model Improvement Action on Assistant Responses */}
                                   {!isUser && (
-                                    <div className="transcript-improvement-tools">
+                                    <div className="msg-exemplar-action">
                                       <button
-                                        className="btn-promote-exemplar"
+                                        className="btn-exemplar-promote"
                                         disabled={promotingMessageId === m.id}
                                         onClick={() => handlePromoteExemplar(m, selectedConvDetail.messages)}
                                         title="Store this verified Q&A in ChromaDB verified_exemplars to train the AI model"
@@ -836,14 +1175,11 @@ export default function AdminPage({ onBackToChat }: Props) {
                         </div>
                       </div>
                     ) : (
-                      <div className="detail-placeholder">
-                        <div className="placeholder-icon">💬</div>
+                      <div className="admin-empty-state transcript-placeholder">
+                        <div className="empty-icon">💬</div>
                         <h3>Select a Conversation to Inspect</h3>
                         <p>
                           Click any conversation on the left to review student questions, AI responses, grounded citations, and feedback ratings.
-                        </p>
-                        <p style={{ marginTop: "12px", fontSize: "0.8rem", color: "var(--text-2)" }}>
-                          💡 <strong>Tip for Model Training:</strong> Click <em>"Export All Chats (.md for AI Training)"</em> in the toolbar to export every conversation in a single file.
                         </p>
                       </div>
                     )}
@@ -852,335 +1188,46 @@ export default function AdminPage({ onBackToChat }: Props) {
               </div>
             )}
 
-            {/* ---- PROSPECTIVE LEADS & ADMISSIONS CONVERSION TAB ---- */}
-            {activeTab === "leads" && (
-              <div className="leads-dashboard">
-                {/* Action notice toast */}
-                {actionNotice && (
-                  <div className={`action-notice ${actionNotice.type}`} style={{ marginBottom: "16px" }}>
-                    <span>{actionNotice.text}</span>
-                    <button
-                      onClick={() => setActionNotice(null)}
-                      style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", marginLeft: "12px" }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-
-                {/* Lead Metric Cards */}
-                <div className="stats-grid" style={{ marginBottom: "24px" }}>
-                  <div className="stat-card">
-                    <div className="stat-label">Total Verified Leads</div>
-                    <div className="stat-value" style={{ color: "#818cf8" }}>
-                      {leadStats?.total_leads ?? leadsTotal}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-2)", marginTop: "4px" }}>
-                      Authenticated prospects
-                    </div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Chat Inquiries</div>
-                    <div className="stat-value" style={{ color: "#10b981" }}>
-                      {leadStats?.chat_leads ?? 0}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-2)", marginTop: "4px" }}>
-                      Fee & admission questions
-                    </div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Calculator Submissions</div>
-                    <div className="stat-value" style={{ color: "#f59e0b" }}>
-                      {leadStats?.calculator_leads ?? 0}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-2)", marginTop: "4px" }}>
-                      Score & scholarship calculations
-                    </div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Today's New Leads</div>
-                    <div className="stat-value" style={{ color: "#ec4899" }}>
-                      {leadStats?.today_leads ?? 0}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-2)", marginTop: "4px" }}>
-                      High-intent prospective students
-                    </div>
-                  </div>
-                </div>
-
-                {/* Leads Filter & Action Toolbar */}
-                <div className="leads-toolbar">
-                  <div className="leads-toolbar-left">
-                    <input
-                      type="text"
-                      className="leads-search-input"
-                      placeholder="🔍 Search student name or mobile number..."
-                      value={leadSearch}
-                      onChange={(e) => {
-                        setLeadSearch(e.target.value);
-                        setLeadPage(1);
-                      }}
-                    />
-
-                    <select
-                      className="leads-filter-select"
-                      value={leadProgramFilter}
-                      onChange={(e) => {
-                        setLeadProgramFilter(e.target.value);
-                        setLeadPage(1);
-                      }}
-                    >
-                      <option value="all">All Programs</option>
-                      <option value="B.Tech CSE">B.Tech CSE</option>
-                      <option value="B.Tech ECE">B.Tech ECE</option>
-                      <option value="B.Tech AI & Data Science">B.Tech AI & Data Science</option>
-                      <option value="B.Tech Mechanical">B.Tech Mechanical</option>
-                      <option value="B.Tech Civil">B.Tech Civil</option>
-                      <option value="B.Tech EEE">B.Tech EEE</option>
-                      <option value="BBA">BBA</option>
-                      <option value="MBA">MBA</option>
-                    </select>
-
-                    <select
-                      className="leads-filter-select"
-                      value={leadSourceFilter}
-                      onChange={(e) => {
-                        setLeadSourceFilter(e.target.value);
-                        setLeadPage(1);
-                      }}
-                    >
-                      <option value="all">All Sources</option>
-                      <option value="calculator">🧮 Calculator</option>
-                      <option value="chat_inquiry">💬 Chat Inquiry</option>
-                    </select>
-
-                    <select
-                      className="leads-filter-select"
-                      value={leadStatusFilter}
-                      onChange={(e) => {
-                        setLeadStatusFilter(e.target.value);
-                        setLeadPage(1);
-                      }}
-                    >
-                      <option value="all">All Statuses</option>
-                      <option value="new">New</option>
-                      <option value="contacted">Contacted</option>
-                      <option value="counselled">Counselled</option>
-                      <option value="applied">Applied</option>
-                      <option value="enrolled">Enrolled</option>
-                      <option value="lost">Lost</option>
-                                    <option value="do_not_contact">Do not contact</option>
-                    </select>
-                  </div>
-
-                  <div className="leads-toolbar-right">
-                    <button
-                      className="btn-secondary"
-                      onClick={() =>
-                        loadLeadsOnly(
-                          adminKey,
-                          leadPage,
-                          leadPageSize,
-                          leadSearch,
-                          leadProgramFilter,
-                          leadSourceFilter,
-                          leadStatusFilter
-                        )
-                      }
-                      title="Refresh Leads Table"
-                    >
-                      ↻ Refresh
-                    </button>
-                    <button
-                      className="btn-primary"
-                      onClick={handleExportLeads}
-                      disabled={isExportingLeads}
-                      title="Export prospective student leads as CSV"
-                    >
-                      {isExportingLeads ? "Exporting..." : "📥 Export CSV"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Leads Table Card */}
-                <div className="leads-table-card">
-                  {leads.length === 0 ? (
-                    <div className="leads-empty-state">
-                      <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>🎯</div>
-                      <h3 style={{ margin: "0 0 6px 0", fontSize: "1.1rem" }}>No Prospective Leads Found</h3>
-                      <p style={{ margin: 0, color: "var(--text-2)", fontSize: "0.9rem" }}>
-                        {leadSearch || leadProgramFilter !== "all" || leadStatusFilter !== "all" || leadSourceFilter !== "all"
-                          ? "No leads matched your current filters. Try resetting the search or filter criteria."
-                          : "Leads captured via the Scholarship Calculator or Chat Fee Inquiries will appear here automatically."}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="table-responsive">
-                      <table className="leads-data-table">
-                        <thead>
-                          <tr>
-                            <th>Student Name</th>
-                            <th>Mobile Number</th>
-                            <th>Program Interest</th>
-                            <th>Score / Qualifying Exam</th>
-                            <th>Lead Source</th>
-                            <th>Captured On</th>
-                            <th>Admission Status</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {leads.map((lead) => {
-                            const formattedDate = new Date(lead.created_at).toLocaleString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            });
-
-                            return (
-                              <tr key={lead.id} className="lead-row">
-                                <td className="lead-name-col">
-                                  <strong>{lead.name}</strong>
-                                  {lead.email && <div className="lead-subtext">{lead.email}</div>}
-                                </td>
-                                <td className="lead-phone-col">
-                                  <a href={`tel:${lead.phone}`} className="lead-phone-link">
-                                    📞 {lead.phone}
-                                  </a>
-                                </td>
-                                <td>
-                                  <span className="lead-program-tag">{lead.program_interest || "B.Tech CSE"}</span>
-                                </td>
-                                <td>
-                                  {lead.score || lead.exam_type ? (
-                                    <div className="lead-score-pill">
-                                      {lead.score ? <strong>{lead.score}</strong> : null}
-                                      {lead.exam_type ? <span className="lead-subtext"> ({lead.exam_type})</span> : null}
-                                    </div>
-                                  ) : (
-                                    <span style={{ color: "var(--text-3)", fontSize: "0.85rem" }}>—</span>
-                                  )}
-                                </td>
-                                <td>
-                                  <span className={`lead-source-badge ${lead.source}`}>
-                                    {lead.source === "calculator" ? "🧮 Calculator" : "💬 Chat Inquiry"}
-                                  </span>
-                                </td>
-                                <td style={{ fontSize: "0.85rem", color: "var(--text-2)", whiteSpace: "nowrap" }}>
-                                  {formattedDate}
-                                </td>
-                                <td>
-                                  <select
-                                    className={`lead-status-dropdown status-${lead.status}`}
-                                    value={lead.status}
-                                    disabled={updatingLeadId === lead.id}
-                                    onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
-                                  >
-                                    <option value="new">New</option>
-                                    <option value="contacted">Contacted</option>
-                                    <option value="counselled">Counselled</option>
-                                    <option value="applied">Applied</option>
-                                    <option value="enrolled">Enrolled</option>
-                                    <option value="lost">Lost</option>
-                                    <option value="do_not_contact">Do not contact</option>
-                                  </select>
-                                </td>
-                                <td>
-                                  {lead.conversation_id ? (
-                                    <button
-                                      className="btn-conv-link"
-                                      title="Inspect student chat conversation"
-                                      onClick={() => {
-                                        setActiveTab("chats");
-                                        setSelectedConvId(lead.conversation_id!);
-                                      }}
-                                    >
-                                      View Chat ↗
-                                    </button>
-                                  ) : (
-                                    <span style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>Direct</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {/* Pagination Footer */}
-                  {leadsTotal > leadPageSize && (
-                    <div className="leads-pagination-bar">
-                      <div style={{ fontSize: "0.85rem", color: "var(--text-2)" }}>
-                        Showing {Math.min((leadPage - 1) * leadPageSize + 1, leadsTotal)}–
-                        {Math.min(leadPage * leadPageSize, leadsTotal)} of {leadsTotal} leads
-                      </div>
-                      <div className="leads-pagination-btns">
-                        <button
-                          className="btn-secondary"
-                          disabled={leadPage <= 1}
-                          onClick={() => setLeadPage((p) => Math.max(1, p - 1))}
-                        >
-                          ← Previous
-                        </button>
-                        <span style={{ fontSize: "0.85rem", padding: "0 8px" }}>
-                          Page {leadPage} of {Math.ceil(leadsTotal / leadPageSize)}
-                        </span>
-                        <button
-                          className="btn-secondary"
-                          disabled={leadPage >= Math.ceil(leadsTotal / leadPageSize)}
-                          onClick={() => setLeadPage((p) => p + 1)}
-                        >
-                          Next →
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ---- OVERVIEW STATS TAB ---- */}
+            {/* =========================================================================
+                TAB 3: OVERVIEW STATS & AI TRAINING GUIDE
+                ========================================================================= */}
             {activeTab === "overview" && stats && (
-              <div>
-                <div className="stats-grid">
-                  <div className="stat-card">
-                    <div className="stat-label">Total Student Conversations</div>
-                    <div className="stat-value" style={{ color: "#818cf8" }}>{stats.total_conversations}</div>
+              <div className="tab-pane-container">
+                <div className="admin-metrics-grid">
+                  <div className="metric-box">
+                    <span className="metric-title">Total Student Conversations</span>
+                    <span className="metric-num num-indigo">{stats.total_conversations}</span>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Total Messages Exchanged</div>
-                    <div className="stat-value">{stats.total_messages}</div>
+                  <div className="metric-box">
+                    <span className="metric-title">Total Messages Exchanged</span>
+                    <span className="metric-num">{stats.total_messages}</span>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Active Documents</div>
-                    <div className="stat-value">{stats.active_documents}</div>
+                  <div className="metric-box">
+                    <span className="metric-title">Active Knowledge Documents</span>
+                    <span className="metric-num">{stats.active_documents}</span>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Total Knowledge Base Docs</div>
-                    <div className="stat-value">{stats.total_documents}</div>
+                  <div className="metric-box">
+                    <span className="metric-title">Total Knowledge Base Docs</span>
+                    <span className="metric-num">{stats.total_documents}</span>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Positive Feedback 👍</div>
-                    <div className="stat-value" style={{ color: "#4ade80" }}>{stats.positive_feedback}</div>
+                  <div className="metric-box">
+                    <span className="metric-title">Positive Feedback 👍</span>
+                    <span className="metric-num num-green">{stats.positive_feedback}</span>
                   </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Negative Feedback 👎</div>
-                    <div className="stat-value" style={{ color: "#f87171" }}>{stats.negative_feedback}</div>
+                  <div className="metric-box">
+                    <span className="metric-title">Negative Feedback 👎</span>
+                    <span className="metric-num num-red">{stats.negative_feedback}</span>
                   </div>
                 </div>
 
-                <div className="admin-panel">
-                  <div className="admin-panel-title">Model Improvement & AI Training Guide</div>
-                  <p style={{ color: "var(--text-2)", fontSize: "0.9rem", lineHeight: "1.6" }}>
-                    To train and improve your companion model:
+                <div className="admin-card-panel">
+                  <h3 className="panel-headline">Model Improvement & AI Training Guide</h3>
+                  <p className="panel-subtext">
+                    Follow these steps to continuously align and fine-tune your SRU Companion:
                   </p>
-                  <ol style={{ color: "var(--text-2)", fontSize: "0.88rem", lineHeight: "1.8", paddingLeft: "20px", marginTop: "8px" }}>
+                  <ol className="guide-steps-list">
                     <li>
-                      <strong>Audit Real Student Queries:</strong> Go to the <strong>Student Chats</strong> tab to review the exact queries students are asking and where the model succeeded or struggled.
+                      <strong>Audit Real Student Queries:</strong> Go to the <strong>Student Chats</strong> tab to review the exact queries students are asking and identify knowledge gaps.
                     </li>
                     <li>
                       <strong>One-Click Few-Shot Learning:</strong> Click <strong>"⭐ Promote to Verified Exemplar"</strong> on any verified high-quality response to immediately embed it in ChromaDB's <code>verified_exemplars</code> collection.
@@ -1193,31 +1240,38 @@ export default function AdminPage({ onBackToChat }: Props) {
               </div>
             )}
 
-            {/* ---- DOCUMENTS TAB ---- */}
+            {/* =========================================================================
+                TAB 4: KNOWLEDGE BASE DOCUMENTS
+                ========================================================================= */}
             {activeTab === "documents" && (
-              <div>
-                <div className="admin-panel">
-                  <div className="admin-panel-title">Upload & Ingest Document</div>
+              <div className="tab-pane-container">
+                <div className="admin-card-panel">
+                  <h3 className="panel-headline">Upload & Ingest Document</h3>
                   {uploadSuccess && (
-                    <div style={{ background: "rgba(34, 197, 94, 0.15)", color: "#4ade80", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "0.85rem" }}>
-                      {uploadSuccess}
+                    <div className="admin-toast toast-success" style={{ marginBottom: "16px" }}>
+                      <span>{uploadSuccess}</span>
                     </div>
                   )}
                   <form onSubmit={handleUpload}>
-                    <div className="form-grid">
-                      <div className="form-group">
+                    <div className="form-responsive-grid">
+                      <div className="form-field-group">
                         <label>Document Title *</label>
                         <input
                           type="text"
+                          className="admin-input"
                           placeholder="e.g. Examination Regulations 2026"
                           value={uploadTitle}
                           onChange={(e) => setUploadTitle(e.target.value)}
                           required
                         />
                       </div>
-                      <div className="form-group">
+                      <div className="form-field-group">
                         <label>Document Type *</label>
-                        <select value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
+                        <select
+                          className="admin-select"
+                          value={uploadType}
+                          onChange={(e) => setUploadType(e.target.value)}
+                        >
                           <option value="policy">Policy</option>
                           <option value="calendar">Academic Calendar</option>
                           <option value="regulation">Regulations / Rules</option>
@@ -1225,127 +1279,146 @@ export default function AdminPage({ onBackToChat }: Props) {
                           <option value="circular">Notice / Circular</option>
                         </select>
                       </div>
-                      <div className="form-group">
+                      <div className="form-field-group">
                         <label>Department</label>
                         <input
                           type="text"
+                          className="admin-input"
                           placeholder="e.g. Office of Academic Affairs"
                           value={uploadDept}
                           onChange={(e) => setUploadDept(e.target.value)}
                         />
                       </div>
-                      <div className="form-group">
+                      <div className="form-field-group">
                         <label>File (PDF, DOCX, TXT, MD) *</label>
                         <input
                           type="file"
+                          className="admin-input-file"
                           accept=".pdf,.docx,.txt,.md"
                           onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                           required
                         />
                       </div>
                     </div>
-                    <button type="submit" className="btn-primary" disabled={isUploading}>
+                    <button
+                      type="submit"
+                      className="admin-btn-primary"
+                      disabled={isUploading}
+                      style={{ marginTop: "16px" }}
+                    >
                       {isUploading ? "Extracting & Embedding..." : "Ingest Document"}
                     </button>
                   </form>
                 </div>
 
-                <div className="admin-panel">
-                  <div className="admin-panel-title">Knowledge Base Documents</div>
+                <div className="admin-table-card">
+                  <h3 className="card-headline">Knowledge Base Documents</h3>
                   {documents.length === 0 ? (
-                    <p style={{ color: "var(--text-2)" }}>No documents indexed yet.</p>
+                    <div className="admin-empty-state">
+                      <p>No documents indexed yet.</p>
+                    </div>
                   ) : (
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>Title</th>
-                          <th>Type</th>
-                          <th>Department</th>
-                          <th>Status</th>
-                          <th>Date</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {documents.map((doc) => (
-                          <tr key={doc.id}>
-                            <td style={{ fontWeight: 500 }}>{doc.title}</td>
-                            <td>{doc.document_type}</td>
-                            <td>{doc.department || "—"}</td>
-                            <td>
-                              <span className={`badge-${doc.status}`}>
-                                {doc.status}
-                              </span>
-                            </td>
-                            <td>{new Date(doc.created_at).toLocaleDateString()}</td>
-                            <td>
-                              {doc.status === "active" && (
-                                <button
-                                  className="btn-danger"
-                                  onClick={() => handleDeactivate(doc.id)}
-                                >
-                                  Deactivate
-                                </button>
-                              )}
-                            </td>
+                    <div className="admin-table-wrapper">
+                      <table className="admin-clean-table">
+                        <thead>
+                          <tr>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Department</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Action</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {documents.map((doc) => (
+                            <tr key={doc.id}>
+                              <td style={{ fontWeight: 600 }}>{doc.title}</td>
+                              <td>{doc.document_type}</td>
+                              <td>{doc.department || "—"}</td>
+                              <td>
+                                <span className={`status-pill pill-${doc.status}`}>
+                                  {doc.status}
+                                </span>
+                              </td>
+                              <td className="cell-date">{new Date(doc.created_at).toLocaleDateString()}</td>
+                              <td>
+                                {doc.status === "active" && (
+                                  <button
+                                    className="admin-btn-danger"
+                                    onClick={() => handleDeactivate(doc.id)}
+                                  >
+                                    Deactivate
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               </div>
             )}
 
-            {/* ---- FEEDBACK TAB ---- */}
+            {/* =========================================================================
+                TAB 5: STUDENT FEEDBACK
+                ========================================================================= */}
             {activeTab === "feedback" && (
-              <div className="admin-panel">
-                <div className="admin-panel-title">Student & User Feedback</div>
-                {feedback.length === 0 ? (
-                  <p style={{ color: "var(--text-2)" }}>No feedback submitted yet.</p>
-                ) : (
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Rating</th>
-                        <th>User Question</th>
-                        <th>AI Response</th>
-                        <th>Comment</th>
-                        <th>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {feedback.map((f) => (
-                        <tr key={f.id}>
-                          <td style={{ whiteSpace: "nowrap" }}>
-                            {f.rating === 1 ? (
-                              <span style={{ color: "#4ade80", fontWeight: 600 }}>👍 Helpful</span>
-                            ) : (
-                              <span style={{ color: "#f87171", fontWeight: 600 }}>👎 Inaccurate</span>
-                            )}
-                          </td>
-                          <td style={{ maxWidth: "240px", wordBreak: "break-word" }}>
-                            {f.question || <span style={{ color: "var(--text-2)" }}>—</span>}
-                          </td>
-                          <td style={{ maxWidth: "320px", wordBreak: "break-word", fontSize: "0.85rem" }}>
-                            {f.answer ? (
-                              <span>{f.answer.length > 150 ? `${f.answer.slice(0, 150)}...` : f.answer}</span>
-                            ) : (
-                              <span style={{ color: "var(--text-2)" }}>—</span>
-                            )}
-                          </td>
-                          <td>{f.comment || <span style={{ color: "var(--text-2)" }}>—</span>}</td>
-                          <td style={{ whiteSpace: "nowrap" }}>{new Date(f.created_at).toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+              <div className="tab-pane-container">
+                <div className="admin-table-card">
+                  <h3 className="card-headline">Student & User Feedback</h3>
+                  {feedback.length === 0 ? (
+                    <div className="admin-empty-state">
+                      <p>No feedback submitted yet.</p>
+                    </div>
+                  ) : (
+                    <div className="admin-table-wrapper">
+                      <table className="admin-clean-table">
+                        <thead>
+                          <tr>
+                            <th>Rating</th>
+                            <th>User Question</th>
+                            <th>AI Response</th>
+                            <th>Comment</th>
+                            <th>Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {feedback.map((f) => (
+                            <tr key={f.id}>
+                              <td>
+                                {f.rating === 1 ? (
+                                  <span className="rating-tag rating-pos">👍 Helpful</span>
+                                ) : (
+                                  <span className="rating-tag rating-neg">👎 Inaccurate</span>
+                                )}
+                              </td>
+                              <td style={{ maxWidth: "260px", wordBreak: "break-word" }}>
+                                {f.question || <span className="cell-muted">—</span>}
+                              </td>
+                              <td style={{ maxWidth: "340px", wordBreak: "break-word", fontSize: "0.85rem" }}>
+                                {f.answer ? (
+                                  <span>{f.answer.length > 160 ? `${f.answer.slice(0, 160)}...` : f.answer}</span>
+                                ) : (
+                                  <span className="cell-muted">—</span>
+                                )}
+                              </td>
+                              <td>{f.comment || <span className="cell-muted">—</span>}</td>
+                              <td className="cell-date">{new Date(f.created_at).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </>
         )}
-      </div>
+      </main>
     </div>
   );
 }

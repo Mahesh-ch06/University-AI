@@ -209,6 +209,7 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
       /* private mode: fall through and save once for this click */
     }
     try {
+      const activeConv = sessionStorage.getItem("sru_active_conv_id");
       await createLead({
         name: savedLead.name,
         phone: savedLead.phone,
@@ -216,6 +217,7 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
         score: parsed.display,
         exam_type: exam.label,
         source: "scholarship_calculator",
+        conversation_id: activeConv || undefined,
         metadata: {
           calculated_discount: Math.round(estimate.savingYear / 2),
           scholarship_percent: pct,
@@ -250,6 +252,7 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
     try {
       await saveStudentDetails(getSessionId(), { name: cleanName, phone: cleanPhone });
       setIsVerified(true);
+      const activeConv = sessionStorage.getItem("sru_active_conv_id");
       await createLead({
         name: cleanName,
         phone: cleanPhone,
@@ -257,6 +260,7 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
         score: parsed.display || "Direct Inquiry",
         exam_type: exam.label,
         source: "scholarship_calculator_callback",
+        conversation_id: activeConv || undefined,
         metadata: {
           consent_given: true,
           request_type: "callback",

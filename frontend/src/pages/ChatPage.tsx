@@ -95,6 +95,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
   useEffect(() => {
     activeConvIdRef.current = activeConvId;
+    if (activeConvId) {
+      sessionStorage.setItem("sru_active_conv_id", activeConvId);
+    }
   }, [activeConvId]);
 
   useEffect(() => {

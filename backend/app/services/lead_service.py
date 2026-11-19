@@ -78,6 +78,27 @@ async def list_leads(
     result = await db.execute(stmt)
     leads = list(result.scalars().all())
 
+    # Auto-resolve conversation_id for leads that arrived without one
+    for lead in leads:
+        if not lead.conversation_id and lead.phone:
+            clean_digits = "".join(filter(str.isdigit, lead.phone))
+            if len(clean_digits) >= 10:
+                last10 = clean_digits[-10:]
+                try:
+                    from app.models.message import Message
+                    conv_q = (
+                        select(Message.conversation_id)
+                        .where(Message.content.contains(last10))
+                        .order_by(Message.created_at.desc())
+                        .limit(1)
+                    )
+                    res = await db.execute(conv_q)
+                    conv_id = res.scalar_one_or_none()
+                    if conv_id:
+                        lead.conversation_id = conv_id
+                except Exception:
+                    pass
+
     return total, leads
 
 
