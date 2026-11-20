@@ -514,7 +514,7 @@ def campus_visit_contacts() -> dict:
     text = urllib.parse.quote("Hi, I would like to visit the SR University campus.")
     return {"phone": config.CAMPUS_VISIT_PHONE, "mobile": config.CAMPUS_VISIT_PHONE,
             "whatsapp": f"https://wa.me/{config.CAMPUS_VISIT_WHATSAPP}?text={text}",
-            "email": config.ADMISSIONS_EMAIL, "visit_page": config.CAMPUS_VISIT_URL,
+            "visit_page": config.CAMPUS_VISIT_URL,
             "address": config.CAMPUS_ADDRESS}
 
 

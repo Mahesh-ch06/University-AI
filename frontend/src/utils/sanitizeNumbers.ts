@@ -25,6 +25,9 @@ export function sanitizeHelplineNumbers(text: string): string {
   if (/campus\s*visit|visit\s+us|visit\s+the\s+campus|planning\s+a\s+visit/i.test(out)) {
     out = out.replace(/0870[\s-]?2818333(?:\s*(?:\/|or)\s*0870[\s-]?2818311)?/g, "833 100 4040");
     out = out.replace(/0870[\s-]?2818311/g, "833 100 4040");
+    // Remove email lines for campus visits
+    out = out.replace(/(?:-\s*)?Email:\s*info@sru\.edu\.in\s*\n?/gi, "");
+    out = out.replace(/(?:-\s*)?Email\s+info@sru\.edu\.in\s*\n?/gi, "");
   } else {
     out = out.replace(/0870[\s-]?2818333(?:\s*(?:\/|or)\s*0870[\s-]?2818311)?/g, "833 100 3030");
     out = out.replace(/0870[\s-]?2818311/g, "833 100 3030");

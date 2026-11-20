@@ -810,9 +810,6 @@ export function VisitContactCard({ card }: CardProps) {
           <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="agent-contact-pill wa">
             WhatsApp {campusVisitNum}
           </a>
-          <a href={`mailto:${d.email || "info@sru.edu.in"}`} className="agent-contact-pill">
-            Email {d.email || "info@sru.edu.in"}
-          </a>
         </div>
         <div className="agent-action-meta">
           <div>

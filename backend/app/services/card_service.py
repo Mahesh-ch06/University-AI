@@ -503,7 +503,6 @@ CAMPUS_VISIT_CONTACT_CARD = {
     "phone": "833 100 4040",
     "mobile": "833 100 4040",
     "whatsapp": "https://wa.me/918331004040?text=Hi%2C%20I%20would%20like%20to%20visit%20the%20SR%20University%20campus.",
-    "email": "info@sru.edu.in",
     "visit_page": "https://sru.edu.in/visit-us",
 }
 # Older name, kept so existing imports keep working.
