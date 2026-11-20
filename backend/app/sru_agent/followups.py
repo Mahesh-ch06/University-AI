@@ -12,7 +12,8 @@ from . import fees
 
 # (topic, pattern on the student's message), checked in order; the first match wins.
 _TOPICS = [
-    ("visit", r"\b(?:visit|visiting|campus\s+tour|come\s+to\s+(?:the\s+)?campus)\b"),
+    ("tour_choice", r"\b(?:campus\s+tour|college\s+tour|walkthrough|see\s+the\s+campus)\b"),
+    ("visit", r"\b(?:visit|visiting|come\s+to\s+(?:the\s+)?campus)\b"),
     ("faculty", r"\b(?:faculty|faculties|professors?|lecturers?|teachers?|hod|dean|deans|head\s+of)\b"),
     ("next_gen", r"\b(?:next[\s-]?gen|ai\s+(?:&|and)\s+robotics|quantum\s+ai|precision\s+agric\w*|robotics\s+(?:&|and)\s+automation)\b"),
     ("concessions", r"\b(?:concessions?|sibling|defen[cs]e|single\s+parent|orphan|sports\s+quota|girl\s+child|"
@@ -40,7 +41,7 @@ _TOOL_TOPIC = {"calculate_fee": "fee_personal", "share_fee_estimate": "fee_perso
                "check_eligibility": "eligibility", "get_program_info": "programs", "compare_programs": "compare",
                "get_special_concessions": "concessions", "find_faculty": "faculty",
                "request_counsellor_callback": "after_request", "request_campus_visit_callback": "after_request",
-               "get_university_videos": "campus"}
+               "get_university_videos": "virtual_tour"}
 
 
 def _short_program(profile: dict) -> str | None:
@@ -83,7 +84,9 @@ def _chips(topic: str, program: str | None, department: str | None) -> list[str]
                        "Why choose SRU?"],
         "hostel": ["Hostel fee (AC / Non-AC)", "Hostel in-time rules", "Mess and food", "Hostel safety and wardens"],
         "transport": ["Bus routes and stops", "Transport fee", "Hostel options", "How to reach the campus"],
-        "visit": ["Ask counsellor to call me", "How to reach the campus", "Hostel details", "Why choose SRU?"],
+        "tour_choice": ["🎥 Virtual Tour (Videos & Info)", "🏛️ In-Person Campus Visit"],
+        "virtual_tour": ["🏛️ In-Person Campus Visit", "Hostel details", "Why choose SRU?"],
+        "visit": ["Ask counsellor to call me", "How to reach the campus", "🎥 Virtual Tour (Videos & Info)", "Hostel details"],
         "apply": ["Documents needed for admission", "Application fee", "Scholarship for my marks", "Talk to a counsellor"],
         "documents": ["How do I apply for 2027-28?", "Scholarship for my marks", "Talk to a counsellor"],
         "about": ["Placement record", "Faculty and research", "International partnerships", "Scholarship for my marks"],
@@ -91,7 +94,7 @@ def _chips(topic: str, program: str | None, department: str | None) -> list[str]
                           "How do I apply for 2027-28?"],
         "research": ["SRiX startup incubator", "Research centres at SRU", "Faculty research areas", "Placement record"],
         "academics": ["Attendance rule", "Exams and grading", "Minors and honours", "Placement record"],
-        "campus": ["Watch a campus tour video", "Labs and research centres", "Sports facilities", "Hostel details"],
+        "campus": ["🎥 Virtual Tour (Videos & Info)", "🏛️ In-Person Campus Visit", "Sports facilities", "Hostel details"],
         "after_request": ["Scholarship for my marks", "Documents needed for admission", "How to reach the campus",
                           "Hostel details"],
         "default": ["Fee and scholarship for my marks", "Placement record", "Why choose SRU?", "Plan a campus visit"],

@@ -8,6 +8,8 @@ AgentIntent = Literal[
     "CONFUSION_QUERY",
     "DATE_CONFIRMATION_YES",
     "DATE_CONFIRMATION_NO",
+    "CAMPUS_TOUR_DISPATCH",
+    "CAMPUS_TOUR_VIRTUAL",
     "CAMPUS_VISIT_BOOKING_WITH_DATE",
     "CAMPUS_VISIT_BOOKING",
     "CAMPUS_VISIT_INFO",
@@ -75,8 +77,28 @@ _VISIT_INFO_PATTERNS = (
     "campus visit", "visit campus", "visit sru", "visit the campus",
     "can i visit", "can we visit", "can parents visit", "visiting hours",
     "visiting timings", "visit timings", "visiting rules", "visiting guidelines",
-    "what to see on campus", "campus walkthrough", "campus tour info",
-    "how to visit sru", "how to visit the campus", "directions to campus",
+    "what to see on campus", "how to visit sru", "how to visit the campus", "directions to campus",
+)
+
+_VIRTUAL_TOUR_PATTERN = re.compile(
+    r"\b(?:virtual(?:\s+tour)?|videos?|watch\s+video|youtube|online\s+tour|video\s+tour|campus\s+videos?)\b",
+    re.IGNORECASE,
+)
+
+_IN_PERSON_TOUR_PATTERN = re.compile(
+    r"\b(?:in[\s-]?person(?:\s+(?:campus\s+)?visit)?|physical(?:\s+campus)?\s+visit|visit\s+in\s+person|come\s+to\s+campus)\b",
+    re.IGNORECASE,
+)
+
+_CAMPUS_TOUR_DISPATCH_PATTERN = re.compile(
+    r"^\s*(?:campus\s+tour|college\s+tour|university\s+tour|campus\s+walkthrough|campus\s+tour\s+info|"
+    r"see\s+(?:the\s+)?campus|show\s+me\s+(?:the\s+)?campus|explore\s+(?:the\s+)?campus)[.!?\s]*$"
+    r"|\b(?:(?:tell\s+me\s+about|details\s+(?:of|for|about))\s+(?:the\s+)?(?:campus\s+)?tour)\b"
+    r"|\b(?:(?:can|could)\s+(?:i|we)|how\s+(?:can\s+i|to))\s+(?:see|tour|explore|walkthrough)\s+(?:the\s+)?campus\b"
+    r"|\b(?:is\s+there\s+a\s+(?:campus\s+)?tour|take\s+a\s+(?:campus\s+)?tour)\b"
+    r"|\b(?:want\s+to\s+see\s+(?:the\s+)?campus|like\s+to\s+see\s+(?:the\s+)?campus|want\s+a\s+campus\s+tour)\b"
+    r"|\b(?:campus\s+(?:chudali|dekhna\s+hai))\b",
+    re.IGNORECASE,
 )
 
 _PLACEMENT_GUARANTEE_PATTERN = re.compile(
@@ -228,6 +250,18 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
     if any(phrase in msg for phrase in _EXPLICIT_BOOKING_PHRASES):
         return "CAMPUS_VISIT_BOOKING"
 
+    # 5b. Explicit Virtual Tour / Video inquiry
+    if _VIRTUAL_TOUR_PATTERN.search(msg) and any(k in msg for k in ("tour", "campus", "walkthrough", "info", "sru")):
+        return "CAMPUS_TOUR_VIRTUAL"
+
+    # 5c. Explicit In-Person Campus Visit inquiry
+    if _IN_PERSON_TOUR_PATTERN.search(msg):
+        return "CAMPUS_VISIT_INFO"
+
+    # 5d. General Campus Tour inquiry (presents both Virtual and In-Person options)
+    if _CAMPUS_TOUR_DISPATCH_PATTERN.search(msg):
+        return "CAMPUS_TOUR_DISPATCH"
+
     # 6. General campus visit inquiry
     if any(pattern in msg for pattern in _VISIT_INFO_PATTERNS):
         return "CAMPUS_VISIT_INFO"
@@ -309,7 +343,7 @@ _PROCESS_QUESTION = re.compile(r"^\s*(?:will|would|does|do|did|is|are|when|why|h
 
 _VISIT_REQUEST_PATTERN = re.compile(
     r"\b(?:book|schedule|arrange|plan|register|reserve|fix)\b.{0,30}\b(?:visit|tour|slot)\b"
-    r"|\b(?:want|wish|like|planning|plan|coming|come)\b.{0,25}\b(?:visit|see\s+the\s+campus|campus\s+tour)\b"
+    r"|\b(?:want|wish|like|planning|plan|coming|come)\b.{0,25}\b(?:visit(?:\s+the\s+campus)?|come\s+to\s+(?:the\s+)?campus|visit\s+in\s+person)\b"
     r"|\bvisit\b.{0,20}\b(?:book|schedule|arrange)\b",
     re.IGNORECASE,
 )

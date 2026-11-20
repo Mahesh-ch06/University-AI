@@ -34,6 +34,21 @@ def test_intent_classification_campus_visit_info_vs_booking():
     assert classify_agent_intent("what's today's date") == "DATE_QUERY"
     assert classify_agent_intent("today's date") == "DATE_QUERY"
 
+    # General campus tour inquiry -> CAMPUS_TOUR_DISPATCH (offers virtual vs in-person)
+    assert classify_agent_intent("campus tour") == "CAMPUS_TOUR_DISPATCH"
+    assert classify_agent_intent("tell me about the tour") == "CAMPUS_TOUR_DISPATCH"
+    assert classify_agent_intent("can I see the campus") == "CAMPUS_TOUR_DISPATCH"
+    assert classify_agent_intent("show me the campus") == "CAMPUS_TOUR_DISPATCH"
+
+    # Explicit virtual tour inquiry -> CAMPUS_TOUR_VIRTUAL
+    assert classify_agent_intent("campus tour videos") == "CAMPUS_TOUR_VIRTUAL"
+    assert classify_agent_intent("virtual tour") == "CAMPUS_TOUR_VIRTUAL"
+    assert classify_agent_intent("🎥 Virtual Tour (Videos & Info)") == "CAMPUS_TOUR_VIRTUAL"
+
+    # In-person visit choice
+    assert classify_agent_intent("🏛️ In-Person Campus Visit") == "CAMPUS_VISIT_INFO"
+    assert classify_agent_intent("in person campus visit") == "CAMPUS_VISIT_INFO"
+
     # Confusion query
     assert classify_agent_intent("What are you talking about?") == "CONFUSION_QUERY"
     assert classify_agent_intent("what do you mean") == "CONFUSION_QUERY"

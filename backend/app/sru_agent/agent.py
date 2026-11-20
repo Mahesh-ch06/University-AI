@@ -58,7 +58,30 @@ def _visit_guide(date_text: str | None = None) -> str:
             f"10-digit mobile number and I will ask the admissions team to call you back about the visit.")
 
 
-_VISIT_CHIPS = ["Ask counsellor to call me", "How to reach the campus", "Hostel details"]
+_CAMPUS_TOUR_CHOICE_CHIPS = ["🎥 Virtual Tour (Videos & Info)", "🏛️ In-Person Campus Visit"]
+_CAMPUS_TOUR_CHOICE_TEXT = (
+    "We offer two ways to explore our 170-acre campus:\n\n"
+    "1. 🎥 **Virtual Tour** – Watch official video walkthroughs and explore our smart classrooms, central library, "
+    "AI & robotics centers, and student life online.\n"
+    "2. 🏛️ **In-Person Visit** – Visit our Warangal campus in person, meet faculty, and take a guided tour "
+    "arranged by our admissions team.\n\n"
+    "Which one would you prefer?"
+)
+
+_VIRTUAL_TOUR_CHIPS = ["🏛️ In-Person Campus Visit", "Hostel details", "Why choose SRU?"]
+_VIRTUAL_TOUR_TEXT = (
+    "Here is the virtual walkthrough of our 170-acre Warangal campus!\n\n"
+    "Key highlights you can explore:\n"
+    "• **Smart Infrastructure**: Modern IoT-enabled classrooms and high-tech academic blocks.\n"
+    "• **Central Library & Research**: Comprehensive digital repository and advanced research labs.\n"
+    "• **Innovation & Incubation**: SRiX (SR Innovation Exchange) startup incubator fostering student ventures.\n"
+    "• **Sports & Student Life**: Multi-sport indoor stadium, cricket grounds, athletic tracks, and cultural spaces.\n"
+    "• **Living Facilities**: Separate secure AC & Non-AC hostels with 24/7 security, WiFi, and hygienic dining.\n\n"
+    "Watch the official 4K walkthrough and student reaction videos in the card below. "
+    f"If you'd like to visit in person, our admissions team at {config.CAMPUS_VISIT_PHONE} will be happy to host you!"
+)
+
+_VISIT_CHIPS = ["Ask counsellor to call me", "How to reach the campus", "🎥 Virtual Tour (Videos & Info)"]
 _VISIT_DETAIL = re.compile(r"\b(?:parents?|timings?|hours?|allowed|dress|bring|documents?|reach|directions?|route|"
                            r"bus|train|far|distance|weekends?|sundays?|holidays?|accompan\w*|stay|guest|lunch|"
                            r"free|cost|charge)\b", re.IGNORECASE)
@@ -1438,14 +1461,33 @@ async def run_agent(
     else:
         canned_action_text = None
 
-    # ---- 4. Campus visits: guide to the admissions team; never book or confirm -----------------
+    # ---- 4. Campus tour dispatch & in-person visit guidance -----------------
     if conv_state.get("awaiting_date_confirmation") or conv_state.get("pending_visit_date"):
         await set_state(awaiting_date_confirmation=False, pending_visit_date=None, confirmed_visit_date=None)
+
+    # 4a. Ambiguous / General Campus Tour -> Directly offer the two options
+    if intent == "CAMPUS_TOUR_DISPATCH" and not action:
+        await set_state(active_topic="campus_tour")
+        async for ev in _say(_CAMPUS_TOUR_CHOICE_TEXT, message, session_id, conversation_id,
+                             used, cards, _CAMPUS_TOUR_CHOICE_CHIPS):
+            yield ev
+        return
+
+    # 4b. Explicit Virtual Tour / Videos & Info
+    if intent == "CAMPUS_TOUR_VIRTUAL" and not action:
+        await set_state(active_topic="campus_tour_virtual")
+        video_result = await _run_action("get_university_videos", {"topic": "campus tour"}, ctx, used, cards)
+        for ev in _tool_events("get_university_videos", video_result):
+            yield ev
+        async for ev in _say(_VIRTUAL_TOUR_TEXT, message, session_id, conversation_id,
+                             used, cards, _VIRTUAL_TOUR_CHIPS):
+            yield ev
+        return
+
+    # 4c. In-Person Campus Visit
     asks_to_visit = intents.is_visit_request(message)
     visit = (tools.resolve_campus_visit_date(message, today=date.today())
              if intent.startswith("CAMPUS_VISIT") or asks_to_visit else {})
-    # A detailed question about visiting (parents, timings, directions...) goes to the model, which
-    # follows the same never-book rules; a plain "I want to visit" gets the guide at once.
     detail_question = bool(_VISIT_DETAIL.search(message))
     wants_visit = not detail_question and (
         intent == "CAMPUS_VISIT_BOOKING" or asks_to_visit
