@@ -247,7 +247,7 @@ export default function ChatLeadForm({ onComplete, pendingQuestion }: Props) {
 
           <div className="chat-lead-form-actions">
             <button type="submit" className="chat-lead-submit-btn" disabled={isSubmitting}>
-              {isSubmitting ? "Connecting..." : "Get Answer →"}
+              {isSubmitting ? "Connecting..." : "Continue →"}
             </button>
             <button
               type="button"
