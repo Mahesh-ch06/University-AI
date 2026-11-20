@@ -909,20 +909,24 @@ async def handle_chat_stream(
                     await asyncio.sleep(0.012)
 
             elif intent == "UNIVERSITY" and rag_service:
-                search_query = canonicalize_query(request.message)
-                if needs_reformulation(request.message, conversation_context):
-                    search_query = await reformulate_query(
-                        request.message,
-                        conversation_context=conversation_context,
-                        llm_provider=llm_provider,
-                    )
+                async def _resolve_search_query() -> str:
+                    if needs_reformulation(request.message, conversation_context):
+                        return await reformulate_query(
+                            request.message,
+                            conversation_context=conversation_context,
+                            llm_provider=llm_provider,
+                        )
+                    return canonicalize_query(request.message)
 
-                # Run embedding/retrieval and user-message fetch in parallel — no dependency between them
-                (chunks, query_embedding), all_user_messages = await asyncio.gather(
-                    rag_service.retrieve_with_embedding(search_query),
+                # Parallel execution: run query reformulation and DB user-messages fetch concurrently
+                search_query, all_user_messages = await asyncio.gather(
+                    _resolve_search_query(),
                     conversation_service.get_all_user_messages(db, conversation.id),
                 )
                 profile = extract_student_profile(all_user_messages)
+
+                # Run retrieval with the resolved search query
+                chunks, query_embedding = await rag_service.retrieve_with_embedding(search_query)
 
                 clean_q = request.message.lower().strip(" .!?,")
                 effective_q = request.message

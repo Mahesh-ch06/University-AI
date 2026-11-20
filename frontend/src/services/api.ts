@@ -354,17 +354,47 @@ export function sendMessageStream(
   return () => controller.abort();
 }
 
+const CONV_CACHE_TTL_MS = 30_000; // 30 seconds
+
+export function invalidateConversationCache(sessionId: string): void {
+  try {
+    sessionStorage.removeItem(`conv_list_${sessionId}`);
+  } catch {
+    // Ignore storage quota / privacy mode exceptions
+  }
+}
+
 /**
- * List all conversations for a session.
+ * List all conversations for a session with sessionStorage caching (30s TTL)
+ * to avoid duplicate network latency on sidebar navigation.
  */
 export async function listConversations(
   sessionId: string
 ): Promise<ConversationSummary[]> {
+  const cacheKey = `conv_list_${sessionId}`;
+  try {
+    const raw = sessionStorage.getItem(cacheKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.data) && Date.now() - parsed.timestamp < CONV_CACHE_TTL_MS) {
+        return parsed.data as ConversationSummary[];
+      }
+    }
+  } catch {
+    // sessionStorage not available or parsing failed, proceed to network fetch
+  }
+
   try {
     const res = await fetch(
       `${API_BASE}/api/v1/conversations?session_id=${encodeURIComponent(sessionId)}`
     );
-    return await handleResponse<ConversationSummary[]>(res, "Failed to load conversations");
+    const data = await handleResponse<ConversationSummary[]>(res, "Failed to load conversations");
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+    } catch {
+      // sessionStorage quota exceeded, silent ignore
+    }
+    return data;
   } catch (err) {
     handleNetworkError(err, "Failed to load conversations");
   }
@@ -420,6 +450,7 @@ export async function deleteConversation(
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || "Failed to delete conversation");
     }
+    invalidateConversationCache(sessionId);
   } catch (err) {
     handleNetworkError(err, "Failed to delete conversation");
   }

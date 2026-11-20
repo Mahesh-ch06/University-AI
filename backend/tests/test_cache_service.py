@@ -72,13 +72,14 @@ async def test_get_cached_answer_graceful_error_handling():
 
 @pytest.mark.asyncio
 async def test_set_cached_answer_success():
+    from app.services.cache_service import _CACHE_TTL_SECONDS
     mock_redis = MagicMock()
     mock_redis.set = AsyncMock(return_value=True)
 
     await set_cached_answer(mock_redis, "hostel rules", "Curfew is 9:30 PM", [{"section": "Hostel"}])
     mock_redis.set.assert_called_once()
     args, kwargs = mock_redis.set.call_args
-    assert kwargs.get("ex") == 3600
+    assert kwargs.get("ex") == _CACHE_TTL_SECONDS
     payload = json.loads(args[1])
     assert payload["answer"] == "Curfew is 9:30 PM"
 
