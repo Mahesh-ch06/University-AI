@@ -214,7 +214,7 @@ async def test_visit_guidance_never_books_and_gives_the_official_contacts():
     assert client.requests == []
     for item in ("can't book or confirm", "833 100 4040", "Hasanparthy"):
         assert item in done["answer"], item
-    assert "Ask admissions to call me" in done["suggestions"]
+    assert ("Ask counsellor to call me" in done["suggestions"] or "Ask admissions to call me" in done["suggestions"])
     contact = next(c for c in done["cards"] if c["type"] == "get_contact_and_apply_links")
     assert contact["data"]["campus_visit"]["visit_page"] == "https://sru.edu.in/visit-us"
 

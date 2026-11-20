@@ -58,7 +58,7 @@ def _visit_guide(date_text: str | None = None) -> str:
             f"10-digit mobile number and I will ask the admissions team to call you back about the visit.")
 
 
-_VISIT_CHIPS = ["Ask admissions to call me", "How to reach the campus", "Hostel details"]
+_VISIT_CHIPS = ["Ask counsellor to call me", "How to reach the campus", "Hostel details"]
 _VISIT_DETAIL = re.compile(r"\b(?:parents?|timings?|hours?|allowed|dress|bring|documents?|reach|directions?|route|"
                            r"bus|train|far|distance|weekends?|sundays?|holidays?|accompan\w*|stay|guest|lunch|"
                            r"free|cost|charge)\b", re.IGNORECASE)
@@ -1367,7 +1367,7 @@ async def run_agent(
 
     action = None
     if asked_for_call:
-        # "Ask admissions to call me" right after visit guidance is a visit callback.
+        # "Ask counsellor to call me" / "Ask admissions to call me" right after visit guidance is a visit callback.
         action = "campus_visit" if (pending == "campus_visit" or visit_words) else "callback"
     elif visit_words and (phone or bad_phone or pending == "campus_visit"):
         action = "campus_visit"

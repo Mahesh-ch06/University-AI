@@ -194,12 +194,13 @@ function MessageBubble({
           <div className="suggestion-chips-wrapper">
             <div className="suggestion-chips-list">
               {suggestions.map((suggestion, idx) => {
-                const { icon, label } = parseSuggestionChip(suggestion);
+                const cleanSuggestion = suggestion.replace(/Ask admissions to call me/gi, "Ask counsellor to call me");
+                const { icon, label } = parseSuggestionChip(cleanSuggestion);
                 return (
                   <button
                     key={idx}
                     className="suggestion-chip"
-                    onClick={() => onSuggestionClick?.(suggestion)}
+                    onClick={() => onSuggestionClick?.(cleanSuggestion)}
                     type="button"
                   >
                     {icon && <span className="suggestion-chip-icon">{icon}</span>}

@@ -83,7 +83,7 @@ def _chips(topic: str, program: str | None, department: str | None) -> list[str]
                        "Why choose SRU?"],
         "hostel": ["Hostel fee (AC / Non-AC)", "Hostel in-time rules", "Mess and food", "Hostel safety and wardens"],
         "transport": ["Bus routes and stops", "Transport fee", "Hostel options", "How to reach the campus"],
-        "visit": ["Ask admissions to call me", "How to reach the campus", "Hostel details", "Why choose SRU?"],
+        "visit": ["Ask counsellor to call me", "How to reach the campus", "Hostel details", "Why choose SRU?"],
         "apply": ["Documents needed for admission", "Application fee", "Scholarship for my marks", "Talk to a counsellor"],
         "documents": ["How do I apply for 2027-28?", "Scholarship for my marks", "Talk to a counsellor"],
         "about": ["Placement record", "Faculty and research", "International partnerships", "Scholarship for my marks"],
