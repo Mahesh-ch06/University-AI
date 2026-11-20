@@ -787,12 +787,12 @@ export function AgentCampusVisitCard({ card }: CardProps) {
  * ("campus_visit_form") when an older chat is reopened. */
 export function VisitContactCard({ card }: CardProps) {
   const d = card?.data?.campus_visit || card?.data || card || {};
-  const phone = (d.phone || "833 100 3030") as string;
+  const phone = (d.phone || "833 100 4040") as string;
   const firstPhone = phone.split("/")[0].replace(/[^\d+]/g, "");
-  const mobile = (d.mobile || "833 100 3030") as string;
+  const mobile = (d.mobile || "833 100 4040") as string;
   const whatsapp =
     d.whatsapp ||
-    "https://wa.me/918331003030?text=Hi%2C%20I%20would%20like%20to%20visit%20the%20SR%20University%20campus.";
+    "https://wa.me/918331004040?text=Hi%2C%20I%20would%20like%20to%20visit%20the%20SR%20University%20campus.";
   return (
     <div className="rich-card agent-action-card visit-contact-card">
       <div className="card-header">
@@ -874,7 +874,7 @@ export function VisitRequestCard({ card }: CardProps) {
             </div>
           )}
           <div>
-            <strong>Admissions:</strong> 833 100 3030 (call or WhatsApp)
+            <strong>Campus Visit:</strong> 833 100 4040 (call or WhatsApp)
           </div>
         </div>
       </div>

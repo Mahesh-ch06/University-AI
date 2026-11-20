@@ -106,7 +106,7 @@ async def test_end_to_end_conversation_sequence():
     # Step 1: "campus visit" -> whom to contact, no booking form
     events_1 = [e async for e in agent.run_agent("campus visit", session_id, conversation_id)]
     done_1 = next(e for e in events_1 if e["type"] == "done")
-    assert "can't book or confirm a visit" in done_1["answer"] and "833 100 3030" in done_1["answer"]
+    assert "can't book or confirm a visit" in done_1["answer"] and "833 100 4040" in done_1["answer"]
     assert not any(c.get("type") == "campus_visit_form" for c in done_1["cards"])
 
     # Step 2: "What are you talking about?"

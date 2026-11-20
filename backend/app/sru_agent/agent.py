@@ -52,7 +52,7 @@ def _visit_guide(date_text: str | None = None) -> str:
     asked = f" for {date_text}" if date_text else ""
     return (f"Campus visits{asked} are arranged by the SR University admissions team. I can't book or confirm a "
             f"visit myself, but they will help you plan it:\n"
-            f"- Call or WhatsApp: {config.ADMISSIONS_PHONE}\n"
+            f"- Call or WhatsApp: {config.CAMPUS_VISIT_PHONE}\n"
             f"- Email: {config.ADMISSIONS_EMAIL}\n"
             f"- Campus: {config.CAMPUS_ADDRESS}\n\n"
             f"Please confirm the day and time with them before you travel. If you like, share your name and "

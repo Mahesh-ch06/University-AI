@@ -66,7 +66,7 @@
     - Under 50% (e.g. under 500 marks): Falls below the published cutoff; applicants are encouraged to contact the admissions desk for alternative academic options.
   - **Branch Uniformity**: Applies uniformly to B.Tech CSE, AI&ML, Data Science, Cyber Security, ECE, EEE, and Mechanical Engineering.
   - **Direct / Management Quota**: Admission is based on 10+2 marks and seat availability. Entrance ranks determine merit scholarship slabs.
-  - **Official Admissions Contacts**: Phone / Mobile: **833 100 3030** (+91 833 100 3030), Email: `admissions@sru.edu.in` / `info@sru.edu.in`, Portal: `https://apply.sru.edu.in`.
+  - **Official Admissions Contacts**: Admissions: **833 100 3030**, Campus Visit: **833 100 4040**, Email: `admissions@sru.edu.in` / `info@sru.edu.in`, Portal: `https://apply.sru.edu.in`.
 
 ---
 

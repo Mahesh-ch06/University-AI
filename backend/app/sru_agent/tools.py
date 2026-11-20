@@ -512,7 +512,7 @@ def parse_flexible_visit_date(date_str: str, today: date | None = None) -> date 
 def campus_visit_contacts() -> dict:
     """Who arranges a campus visit (SRU Buddy never books or confirms one)."""
     text = urllib.parse.quote("Hi, I would like to visit the SR University campus.")
-    return {"phone": config.ADMISSIONS_PHONE, "mobile": config.CAMPUS_VISIT_PHONE,
+    return {"phone": config.CAMPUS_VISIT_PHONE, "mobile": config.CAMPUS_VISIT_PHONE,
             "whatsapp": f"https://wa.me/{config.CAMPUS_VISIT_WHATSAPP}?text={text}",
             "email": config.ADMISSIONS_EMAIL, "visit_page": config.CAMPUS_VISIT_URL,
             "address": config.CAMPUS_ADDRESS}

@@ -90,8 +90,8 @@ ADMISSIONS_EMAIL = os.getenv("ADMISSIONS_EMAIL", "info@sru.edu.in")
 ADMISSIONS_WHATSAPP = os.getenv("ADMISSIONS_WHATSAPP", "918331003030")
 # Campus visits are arranged by the admissions team (sru.edu.in/visit-us, checked 17 Nov 2026).
 # SRU Buddy never books or confirms a visit; it shares these contacts or passes on a callback request.
-CAMPUS_VISIT_PHONE = os.getenv("CAMPUS_VISIT_PHONE", "833 100 3030")
-CAMPUS_VISIT_WHATSAPP = os.getenv("CAMPUS_VISIT_WHATSAPP", "918331003030")
+CAMPUS_VISIT_PHONE = os.getenv("CAMPUS_VISIT_PHONE", "833 100 4040")
+CAMPUS_VISIT_WHATSAPP = os.getenv("CAMPUS_VISIT_WHATSAPP", "918331004040")
 CAMPUS_VISIT_URL = os.getenv("CAMPUS_VISIT_URL", "https://sru.edu.in/visit-us")
 CAMPUS_ADDRESS = os.getenv("CAMPUS_ADDRESS", "SR University, Ananthasagar, Hasanparthy, Warangal Urban 506371, Telangana")
 FEE_PORTAL_URL = os.getenv("FEE_PORTAL_URL", "https://sru.edu.in/fee-scholarship/")

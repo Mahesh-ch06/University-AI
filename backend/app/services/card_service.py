@@ -500,9 +500,9 @@ CAMPUS_VISIT_CONTACT_CARD = {
     "subtitle": "Visits are arranged and confirmed by the SR University admissions team. Please contact them "
                 "before you travel.",
     "address": "SR University, Ananthasagar, Hasanparthy, Warangal Urban 506371, Telangana",
-    "phone": "833 100 3030",
-    "mobile": "833 100 3030",
-    "whatsapp": "https://wa.me/918331003030?text=Hi%2C%20I%20would%20like%20to%20visit%20the%20SR%20University%20campus.",
+    "phone": "833 100 4040",
+    "mobile": "833 100 4040",
+    "whatsapp": "https://wa.me/918331004040?text=Hi%2C%20I%20would%20like%20to%20visit%20the%20SR%20University%20campus.",
     "email": "info@sru.edu.in",
     "visit_page": "https://sru.edu.in/visit-us",
 }
