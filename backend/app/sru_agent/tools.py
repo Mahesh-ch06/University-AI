@@ -141,7 +141,7 @@ async def _save_lead(args: dict, ctx: dict, request_type: str, extra: dict) -> d
     ctx["profile"] = await memory.update_profile(
         ctx["session_id"], name=name, phone=phone, phone_saved=True, last_lead_id=lead_id,
         last_lead_type=request_type, last_lead_key=lead_key,
-        open_request=f"{label} request saved, reference {lead_id[:8]}")
+        open_request=f"{label} request saved")
     return {"status": "saved", "reference": lead_id[:8], "name": name,
             "phone_last4": phone[-4:], **extra}
 

@@ -712,7 +712,6 @@ export function AgentCallbackCard({ card }: CardProps) {
         </p>
         <div className="agent-action-meta">
           {d.preferred_time && <div><strong>Preferred Time:</strong> {d.preferred_time}</div>}
-          {d.reference && <div><strong>Reference ID:</strong> #{d.reference}</div>}
           <div><strong>Admissions Helpline:</strong> 833 100 3030</div>
         </div>
       </div>
@@ -756,7 +755,6 @@ export function AgentCampusVisitCard({ card }: CardProps) {
         <div className="agent-action-meta">
           {d.name && <div><strong>Visitor:</strong> {d.name}</div>}
           <div><strong>Location:</strong> 170-Acre Lush Campus, Ananthasagar, Hasanparthy, Warangal, Telangana</div>
-          {d.reference && <div><strong>Reference ID:</strong> #{d.reference}</div>}
         </div>
         <div className="agent-card-footer">
           <span className="agent-card-source-tag">Visits are arranged and confirmed by the admissions team by phone.</span>
@@ -859,11 +857,6 @@ export function VisitRequestCard({ card }: CardProps) {
           {d.preferred_date && (
             <div>
               <strong>Day you mentioned:</strong> {d.preferred_date} (not confirmed)
-            </div>
-          )}
-          {d.reference && (
-            <div>
-              <strong>Reference:</strong> #{d.reference}
             </div>
           )}
           <div>

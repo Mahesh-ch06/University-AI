@@ -2,6 +2,7 @@
  * Ensures legacy university numbers in assistant text are normalized to current official numbers:
  * - Admissions Helpline: 833 100 3030
  * - Campus Visit Helpline: 833 100 4040
+ * And removes internal reference numbers/IDs so students are never shown a reference number.
  */
 export function sanitizeHelplineNumbers(text: string): string {
   if (!text) return text;
@@ -33,6 +34,21 @@ export function sanitizeHelplineNumbers(text: string): string {
     out = out.replace(/0870[\s-]?2818311/g, "833 100 3030");
     out = out.replace(/0870[\s-]?2818333/g, "833 100 3030");
   }
+
+  // 4. Strip reference numbers/IDs completely
+  // Handle (reference **654144b1**), (reference #654144b1), etc.
+  out = out.replace(/\s*\(\s*reference\s*(?:\*\*)?[#]?[a-z0-9]+(?:\*\*)?\s*\)/gi, "");
+  // Handle standalone lines like "Reference: #654144b1" or "Reference ID: #654144b1"
+  out = out.replace(/(?:^|\n)\s*Reference(?:\s*ID)?:\s*#?[a-z0-9]+\s*(?:\n|$)/gi, "\n");
+  // Handle inline "Reference: #654144b1"
+  out = out.replace(/\s*\bReference(?:\s*ID)?:\s*#?[a-z0-9]+\b/gi, "");
+  // Handle phrase like "and quote that reference, and they will remove it" -> "and they will remove it"
+  out = out.replace(/\s*and quote that reference,?\s*/gi, " ");
+  // Handle "with the reference"
+  out = out.replace(/\s*with the reference\b/gi, "");
+
+  // Clean up any double spaces before punctuation
+  out = out.replace(/[ \t]{2,}/g, " ").replace(/\s+\./g, ".");
 
   return out;
 }

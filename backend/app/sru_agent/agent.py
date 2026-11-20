@@ -374,14 +374,14 @@ def _cancel_text(result: dict) -> str:
     status, ref = result.get("status"), result.get("reference")
     label = "campus visit" if result.get("request_type") == "campus_visit" else "callback"
     if status == "cancelled":
-        return (f"Done. I have cancelled your {label} request (reference **{ref}**). The admissions team "
+        return (f"Done. I have cancelled your {label} request. The admissions team "
                 f"will not contact you about it. If you change your mind, just tell me.")
     if status == "nothing_to_cancel":
         return ("There is no callback or visit request saved from this chat, so there is nothing to cancel "
                 "and nobody will call you because of this chat. If you shared your number through another "
                 f"form, please call the Admissions Office at {config.ADMISSIONS_PHONE} to have it removed.")
-    return (f"I could not cancel your {label} request (reference **{ref}**) from here. Please call the "
-            f"Admissions Office at {config.ADMISSIONS_PHONE} and quote that reference, and they will remove it.")
+    return (f"I could not cancel your {label} request from here. Please call the "
+            f"Admissions Office at {config.ADMISSIONS_PHONE}, and they will remove it.")
 
 
 def _saved_text(kind: str, result: dict, preferred_time: str | None = None) -> str:
@@ -391,13 +391,13 @@ def _saved_text(kind: str, result: dict, preferred_time: str | None = None) -> s
         again = "is already saved" if result.get("already_saved") else "is saved"
         if kind == "campus_visit":
             wish = f" (you mentioned {result['preferred_date']})" if result.get("preferred_date") else ""
-            return (f"Thank you, {first}. I have passed your wish to visit the campus{wish} to the admissions team "
-                    f"(reference **{ref}**). This is not a booking: the admissions team will call you on the "
+            return (f"Thank you, {first}. I have passed your wish to visit the campus{wish} to the admissions team. "
+                    f"This is not a booking: the admissions team will call you on the "
                     f"number ending {last4} to arrange the visit and confirm the day and time. You can also reach "
                     f"them directly on {config.CAMPUS_VISIT_PHONE} (call or WhatsApp). To withdraw the request, "
                     f"just say \"cancel my visit request\".")
         when = f" (preferred time: {preferred_time})" if preferred_time else ""
-        return (f"Thank you, {first}. Your callback request {again} (reference **{ref}**). An admissions "
+        return (f"Thank you, {first}. Your callback request {again}. An admissions "
                 f"counsellor will call you on the number ending {last4}{when}. "
                 f"To cancel it, say \"cancel the callback\"; if the number is wrong, say \"change my number\".")
     if status == "invalid":
@@ -1332,7 +1332,7 @@ async def run_agent(
             if result.get("status") == "updated":
                 text = f"Done. Your mobile number is now the one ending {last4}."
                 if result.get("saved_request_updated"):
-                    text += f" Your saved request (reference **{result.get('reference')}**) has the new number too."
+                    text += " Your saved request has the new number too."
                 text += " You can see or change it any time from the menu under My details."
             elif result.get("status") == "unchanged":
                 text = f"That is already the number I have for you (ending {last4}). Nothing needed to change."
@@ -1422,8 +1422,8 @@ async def run_agent(
                 if _has_other_question(message, name):
                     # The request is saved; let the model answer the rest of the message too.
                     action_note = (f"The system has ALREADY saved this student's {what} request in this turn: "
-                                   f"reference {result.get('reference')}, name {result.get('name')}, phone ending "
-                                   f"{result.get('phone_last4')}. Confirm that in one line with the reference, then "
+                                   f"name {result.get('name')}, phone ending "
+                                   f"{result.get('phone_last4')}. Confirm that in one line, then "
                                    f"answer their other question. Do not call the {tool_name} tool again.")
         if text and not action_note:
             async for ev in _say(text, message, session_id, conversation_id, used, cards,
