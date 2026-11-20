@@ -787,12 +787,11 @@ export function AgentCampusVisitCard({ card }: CardProps) {
  * ("campus_visit_form") when an older chat is reopened. */
 export function VisitContactCard({ card }: CardProps) {
   const d = card?.data?.campus_visit || card?.data || card || {};
-  const phone = (d.phone || "833 100 4040") as string;
-  const firstPhone = phone.split("/")[0].replace(/[^\d+]/g, "");
-  const mobile = (d.mobile || "833 100 4040") as string;
-  const whatsapp =
-    d.whatsapp ||
-    "https://wa.me/918331004040?text=Hi%2C%20I%20would%20like%20to%20visit%20the%20SR%20University%20campus.";
+  const campusVisitNum = "833 100 4040";
+  const campusVisitClean = "8331004040";
+  const whatsapp = `https://wa.me/91${campusVisitClean}?text=${encodeURIComponent(
+    "Hi, I would like to visit the SR University campus."
+  )}`;
   return (
     <div className="rich-card agent-action-card visit-contact-card">
       <div className="card-header">
@@ -805,14 +804,11 @@ export function VisitContactCard({ card }: CardProps) {
             "Visits are arranged and confirmed by the SR University admissions team. Please contact them before you travel."}
         </p>
         <div className="agent-contacts-row">
-          <a href={`tel:${firstPhone}`} className="agent-contact-pill">
-            Call {phone}
-          </a>
-          <a href={`tel:${mobile.replace(/[^\d+]/g, "")}`} className="agent-contact-pill">
-            Call {mobile}
+          <a href={`tel:${campusVisitClean}`} className="agent-contact-pill">
+            Call {campusVisitNum}
           </a>
           <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="agent-contact-pill wa">
-            WhatsApp {mobile}
+            WhatsApp {campusVisitNum}
           </a>
           <a href={`mailto:${d.email || "info@sru.edu.in"}`} className="agent-contact-pill">
             Email {d.email || "info@sru.edu.in"}

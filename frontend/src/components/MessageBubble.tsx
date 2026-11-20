@@ -4,6 +4,7 @@ import { RenderCard } from "./Cards";
 import MarkdownContent from "./MarkdownContent";
 import { copyCleanText } from "../utils/cleanCopy";
 import { renderUniIcon } from "./Icons";
+import { sanitizeHelplineNumbers } from "../utils/sanitizeNumbers";
 import "./MessageBubble.css";
 
 function parseSuggestionChip(text: string): { icon: React.ReactNode; label: string } {
@@ -52,8 +53,17 @@ function MessageBubble({
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const hasPlacementCard = cards?.some(
+    (c) => c.type === "placement_highlights" || c.image_url === "/placements-three-years.png"
+  );
+  const displayContent = sanitizeHelplineNumbers(
+    hasPlacementCard
+      ? content.replace(/!\[.*?\]\(\/placements-three-years\.png\)/g, "").trim()
+      : content
+  );
+
   const handleCopy = async () => {
-    const success = await copyCleanText(content);
+    const success = await copyCleanText(displayContent);
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -114,15 +124,7 @@ function MessageBubble({
         {/* Message Content Bubble */}
         {content && content.trim().length > 0 && (
           <div className={`message-text-bubble ${role}`}>
-            {(() => {
-              const hasPlacementCard = cards?.some(
-                (c) => c.type === "placement_highlights" || c.image_url === "/placements-three-years.png"
-              );
-              const displayContent = hasPlacementCard
-                ? content.replace(/!\[.*?\]\(\/placements-three-years\.png\)/g, "").trim()
-                : content;
-              return <MarkdownContent content={displayContent} isStreaming={isStreaming} />;
-            })()}
+            <MarkdownContent content={displayContent} isStreaming={isStreaming} />
           </div>
         )}
 
