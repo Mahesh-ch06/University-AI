@@ -129,7 +129,7 @@ def should_offer_video_tour(message: str) -> bool:
 
 def sanitize_staff_contact_numbers(text: str) -> str:
     """Scrub personal mobile phone numbers of internal staff members from student-facing output.
-    Keeps official university helpline numbers (0870-2818333, 0870-2818311, etc.).
+    Keeps official university helpline numbers (833 100 3030, etc.).
     """
     if not text:
         return text
@@ -137,14 +137,14 @@ def sanitize_staff_contact_numbers(text: str) -> str:
     # 1. Staff names followed by mobile numbers (e.g. 'Mr. A. Bala Krishna at 8886522500'):
     cleaned = re.sub(
         r"(?:Mr\.|Ms\.|Dr\.)\s+[A-Za-z\.\s]+\s*(?:at|on|:|-)?\s*(?:\+91[\s-]?)?[6-9]\d{9}\b",
-        "the IT & Campus Helpdesk (helpdesk@sru.edu.in / 0870-2818333)",
+        "the IT & Campus Helpdesk (helpdesk@sru.edu.in / 833 100 3030)",
         text,
         flags=re.IGNORECASE,
     )
     # 2. Known individual staff mobiles if mentioned standalone:
     known_staff_mobiles = ["8886522500", "8008917297"]
     for num in known_staff_mobiles:
-        cleaned = cleaned.replace(num, "0870-2818333 (Ext. Helpdesk)")
+        cleaned = cleaned.replace(num, "833 100 3030 (Ext. Helpdesk)")
     return cleaned
 
 
@@ -267,11 +267,12 @@ async def handle_chat(
             prompt_reply = "Please provide your full name before I answer your question."
         else:
             prompt_reply = "Please provide your 10-digit mobile number before I answer your question."
-        await conversation_service.add_message(
+        prompt_msg = await conversation_service.add_message(
             db, conversation.id, role="assistant", content=prompt_reply
         )
         return ChatResponse(
-            conversation_id=str(conversation.id),
+            conversation_id=conversation.id,
+            message_id=prompt_msg.id,
             answer=prompt_reply,
             sources=[],
             suggestions=["Share name & phone", "Apply to SRU", "Contact Admissions"],

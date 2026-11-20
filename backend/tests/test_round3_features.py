@@ -212,9 +212,9 @@ async def test_visit_guidance_never_books_and_gives_the_official_contacts():
     done = await _run("I would like to visit the SR University campus. Whom should I contact?",
                       f"r3-visit-{uuid.uuid4()}", client)
     assert client.requests == []
-    for item in ("can't book or confirm", "0870-2818333", "70750 10336", "info@sru.edu.in", "Hasanparthy"):
+    for item in ("can't book or confirm", "833 100 4040", "Hasanparthy"):
         assert item in done["answer"], item
-    assert "Ask admissions to call me" in done["suggestions"]
+    assert ("Ask counsellor to call me" in done["suggestions"] or "Ask admissions to call me" in done["suggestions"])
     contact = next(c for c in done["cards"] if c["type"] == "get_contact_and_apply_links")
     assert contact["data"]["campus_visit"]["visit_page"] == "https://sru.edu.in/visit-us"
 

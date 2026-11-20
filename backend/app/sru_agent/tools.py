@@ -141,7 +141,7 @@ async def _save_lead(args: dict, ctx: dict, request_type: str, extra: dict) -> d
     ctx["profile"] = await memory.update_profile(
         ctx["session_id"], name=name, phone=phone, phone_saved=True, last_lead_id=lead_id,
         last_lead_type=request_type, last_lead_key=lead_key,
-        open_request=f"{label} request saved, reference {lead_id[:8]}")
+        open_request=f"{label} request saved")
     return {"status": "saved", "reference": lead_id[:8], "name": name,
             "phone_last4": phone[-4:], **extra}
 
@@ -528,9 +528,9 @@ def parse_flexible_visit_date(date_str: str, today: date | None = None) -> date 
 def campus_visit_contacts() -> dict:
     """Who arranges a campus visit (SRU Buddy never books or confirms one)."""
     text = urllib.parse.quote("Hi, I would like to visit the SR University campus.")
-    return {"phone": f"{config.ADMISSIONS_PHONE} / 0870-2818311", "mobile": config.CAMPUS_VISIT_PHONE,
+    return {"phone": config.CAMPUS_VISIT_PHONE, "mobile": config.CAMPUS_VISIT_PHONE,
             "whatsapp": f"https://wa.me/{config.CAMPUS_VISIT_WHATSAPP}?text={text}",
-            "email": config.ADMISSIONS_EMAIL, "visit_page": config.CAMPUS_VISIT_URL,
+            "visit_page": config.CAMPUS_VISIT_URL,
             "address": config.CAMPUS_ADDRESS}
 
 

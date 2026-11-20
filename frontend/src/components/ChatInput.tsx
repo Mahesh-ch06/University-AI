@@ -250,7 +250,7 @@ export default function ChatInput({ onSend, isLoading, onStop, disabled, onOpenC
       </div>
       <p className="chat-input-disclaimer">
         SRU Buddy is an AI assistant and can make mistakes. Please confirm fees and admission details with the
-        Admissions Office (0870-2818333).
+        Admissions Office (833 100 3030).
       </p>
     </div>
   );

@@ -52,15 +52,36 @@ def _visit_guide(date_text: str | None = None) -> str:
     asked = f" for {date_text}" if date_text else ""
     return (f"Campus visits{asked} are arranged by the SR University admissions team. I can't book or confirm a "
             f"visit myself, but they will help you plan it:\n"
-            f"- Call {config.ADMISSIONS_PHONE} or 0870-2818311\n"
-            f"- Call or WhatsApp {config.CAMPUS_VISIT_PHONE}\n"
-            f"- Email {config.ADMISSIONS_EMAIL}\n"
+            f"- Call or WhatsApp: {config.CAMPUS_VISIT_PHONE}\n"
             f"- Campus: {config.CAMPUS_ADDRESS}\n\n"
             f"Please confirm the day and time with them before you travel. If you like, share your name and "
             f"10-digit mobile number and I will ask the admissions team to call you back about the visit.")
 
 
-_VISIT_CHIPS = ["Ask admissions to call me", "How to reach the campus", "Hostel details"]
+_CAMPUS_TOUR_CHOICE_CHIPS = ["🎥 Virtual Tour (Videos & Info)", "🏛️ In-Person Campus Visit"]
+_CAMPUS_TOUR_CHOICE_TEXT = (
+    "We offer two ways to explore our 170-acre campus:\n\n"
+    "1. 🎥 **Virtual Tour** – Watch official video walkthroughs and explore our smart classrooms, central library, "
+    "AI & robotics centers, and student life online.\n"
+    "2. 🏛️ **In-Person Visit** – Visit our Warangal campus in person, meet faculty, and take a guided tour "
+    "arranged by our admissions team.\n\n"
+    "Which one would you prefer?"
+)
+
+_VIRTUAL_TOUR_CHIPS = ["🏛️ In-Person Campus Visit", "Hostel details", "Why choose SRU?"]
+_VIRTUAL_TOUR_TEXT = (
+    "Here is the virtual walkthrough of our 170-acre Warangal campus!\n\n"
+    "Key highlights you can explore:\n"
+    "• **Smart Infrastructure**: Modern IoT-enabled classrooms and high-tech academic blocks.\n"
+    "• **Central Library & Research**: Comprehensive digital repository and advanced research labs.\n"
+    "• **Innovation & Incubation**: SRiX (SR Innovation Exchange) startup incubator fostering student ventures.\n"
+    "• **Sports & Student Life**: Multi-sport indoor stadium, cricket grounds, athletic tracks, and cultural spaces.\n"
+    "• **Living Facilities**: Separate secure AC & Non-AC hostels with 24/7 security, WiFi, and hygienic dining.\n\n"
+    "Watch the official 4K walkthrough and student reaction videos in the card below. "
+    f"If you'd like to visit in person, our admissions team at {config.CAMPUS_VISIT_PHONE} will be happy to host you!"
+)
+
+_VISIT_CHIPS = ["Ask counsellor to call me", "How to reach the campus", "🎥 Virtual Tour (Videos & Info)"]
 _VISIT_DETAIL = re.compile(r"\b(?:parents?|timings?|hours?|allowed|dress|bring|documents?|reach|directions?|route|"
                            r"bus|train|far|distance|weekends?|sundays?|holidays?|accompan\w*|stay|guest|lunch|"
                            r"free|cost|charge)\b", re.IGNORECASE)
@@ -376,14 +397,14 @@ def _cancel_text(result: dict) -> str:
     status, ref = result.get("status"), result.get("reference")
     label = "campus visit" if result.get("request_type") == "campus_visit" else "callback"
     if status == "cancelled":
-        return (f"Done. I have cancelled your {label} request (reference **{ref}**). The admissions team "
+        return (f"Done. I have cancelled your {label} request. The admissions team "
                 f"will not contact you about it. If you change your mind, just tell me.")
     if status == "nothing_to_cancel":
         return ("There is no callback or visit request saved from this chat, so there is nothing to cancel "
                 "and nobody will call you because of this chat. If you shared your number through another "
                 f"form, please call the Admissions Office at {config.ADMISSIONS_PHONE} to have it removed.")
-    return (f"I could not cancel your {label} request (reference **{ref}**) from here. Please call the "
-            f"Admissions Office at {config.ADMISSIONS_PHONE} and quote that reference, and they will remove it.")
+    return (f"I could not cancel your {label} request from here. Please call the "
+            f"Admissions Office at {config.ADMISSIONS_PHONE}, and they will remove it.")
 
 
 def _saved_text(kind: str, result: dict, preferred_time: str | None = None) -> str:
@@ -393,13 +414,13 @@ def _saved_text(kind: str, result: dict, preferred_time: str | None = None) -> s
         again = "is already saved" if result.get("already_saved") else "is saved"
         if kind == "campus_visit":
             wish = f" (you mentioned {result['preferred_date']})" if result.get("preferred_date") else ""
-            return (f"Thank you, {first}. I have passed your wish to visit the campus{wish} to the admissions team "
-                    f"(reference **{ref}**). This is not a booking: the admissions team will call you on the "
+            return (f"Thank you, {first}. I have passed your wish to visit the campus{wish} to the admissions team. "
+                    f"This is not a booking: the admissions team will call you on the "
                     f"number ending {last4} to arrange the visit and confirm the day and time. You can also reach "
                     f"them directly on {config.CAMPUS_VISIT_PHONE} (call or WhatsApp). To withdraw the request, "
                     f"just say \"cancel my visit request\".")
         when = f" (preferred time: {preferred_time})" if preferred_time else ""
-        return (f"Thank you, {first}. Your callback request {again} (reference **{ref}**). An admissions "
+        return (f"Thank you, {first}. Your callback request {again}. An admissions "
                 f"counsellor will call you on the number ending {last4}{when}. "
                 f"To cancel it, say \"cancel the callback\"; if the number is wrong, say \"change my number\".")
     if status == "invalid":
@@ -781,7 +802,7 @@ At SR University, special category tuition fee concessions are offered annually 
 
 > [!NOTE]
 > - Concessions are applicable per academic year on tuition fees.
-> - Required certificates and documentation must be submitted directly to the Admissions Office (0870-2818333 / info@sru.edu.in) during admission counselling."""
+> - Required certificates and documentation must be submitted directly to the Admissions Office (833 100 3030 / info@sru.edu.in) during admission counselling."""
 
 _NEXT_GEN_TECH_TEXT = """### 🚀 Next-Gen Technology Programs at SR University
 
@@ -1368,6 +1389,17 @@ async def run_agent(
             yield ev
         return
 
+    if bool(tools.find_phone(message) or intents.is_callback_request(message)):
+        canned_intents = (
+            "FEE_TREE_QUERY", "BTECH_TREE_QUERY", "BTECH_CSE_FEE_QUERY", "BTECH_AI_ROBOTICS_FEE_QUERY",
+            "BTECH_ECE_FEE_QUERY", "BTECH_CORE_FEE_QUERY", "MANAGEMENT_FEE_QUERY", "AGRICULTURE_FEE_QUERY",
+            "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "HOSTEL_INFO_QUERY", "HOSTEL_MESS_QUERY",
+            "HOSTEL_CURFEW_RULES_QUERY", "HOSTEL_SAFETY_QUERY", "HOSTEL_FEE_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
+            "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY",
+        )
+        if intent in canned_intents:
+            intent = "GENERAL"
+
     if intent == "FEE_TREE_QUERY":
         await set_state(fee_tree_step="category")
         flow_card = fee_flow.build_school_selection_card()
@@ -1469,46 +1501,53 @@ async def run_agent(
         return
 
     if intent == "HOSTEL_INFO_QUERY":
-        from app.services.card_service import HOSTEL_FACILITIES_CARD
-        async for ev in _say(_HOSTEL_INFO_TEXT, message, session_id, conversation_id,
-                             cards=[HOSTEL_FACILITIES_CARD],
-                             suggestions=_HOSTEL_INFO_CHIPS):
-            yield ev
-        return
+        if client is None:
+            from app.services.card_service import HOSTEL_FACILITIES_CARD
+            async for ev in _say(_HOSTEL_INFO_TEXT, message, session_id, conversation_id,
+                                 cards=[HOSTEL_FACILITIES_CARD],
+                                 suggestions=_HOSTEL_INFO_CHIPS):
+                yield ev
+            return
 
     if intent == "HOSTEL_MESS_QUERY":
-        async for ev in _say(_HOSTEL_MESS_TEXT, message, session_id, conversation_id,
-                             suggestions=_HOSTEL_MESS_CHIPS):
-            yield ev
-        return
+        if client is None:
+            async for ev in _say(_HOSTEL_MESS_TEXT, message, session_id, conversation_id,
+                                 suggestions=_HOSTEL_MESS_CHIPS):
+                yield ev
+            return
 
     if intent == "HOSTEL_CURFEW_RULES_QUERY":
-        async for ev in _say(_HOSTEL_CURFEW_RULES_TEXT, message, session_id, conversation_id,
-                             suggestions=_HOSTEL_CURFEW_CHIPS):
-            yield ev
-        return
+        if client is None:
+            async for ev in _say(_HOSTEL_CURFEW_RULES_TEXT, message, session_id, conversation_id,
+                                 suggestions=_HOSTEL_CURFEW_CHIPS):
+                yield ev
+            return
 
     if intent == "HOSTEL_SAFETY_QUERY":
-        async for ev in _say(_HOSTEL_SAFETY_TEXT, message, session_id, conversation_id,
-                             suggestions=_HOSTEL_SAFETY_CHIPS):
-            yield ev
-        return
+        if client is None:
+            async for ev in _say(_HOSTEL_SAFETY_TEXT, message, session_id, conversation_id,
+                                 suggestions=_HOSTEL_SAFETY_CHIPS):
+                yield ev
+            return
 
     if intent == "HOSTEL_FEE_QUERY":
-        from app.services.card_service import HOSTEL_FEE_CARD
-        async for ev in _say(_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[HOSTEL_FEE_CARD],
-                             suggestions=_HOSTEL_FEE_CHIPS):
-            yield ev
-        return
+        if client is None:
+            from app.services.card_service import HOSTEL_FEE_CARD
+            async for ev in _say(_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[HOSTEL_FEE_CARD],
+                                 suggestions=_HOSTEL_FEE_CHIPS):
+                yield ev
+            return
 
     if intent == "COMBINED_FEE_HOSTEL_QUERY":
-        from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
-        async for ev in _say(_COMBINED_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[BTECH_CSE_WITH_HOSTEL_FEE_CARD],
-                             suggestions=_COMBINED_HOSTEL_FEE_CHIPS):
-            yield ev
-        return
+        has_profile_marks = bool(profile.get("percent") or profile.get("marks") or profile.get("jee") or profile.get("eapcet"))
+        if not has_profile_marks and client is None:
+            from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
+            async for ev in _say(_COMBINED_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[BTECH_CSE_WITH_HOSTEL_FEE_CARD],
+                                 suggestions=_COMBINED_HOSTEL_FEE_CHIPS):
+                yield ev
+            return
 
     if intent == "CAMPUS_CANTEEN_QUERY":
         async for ev in _say(_CAMPUS_CANTEEN_TEXT, message, session_id, conversation_id,
@@ -1568,7 +1607,7 @@ async def run_agent(
             if result.get("status") == "updated":
                 text = f"Done. Your mobile number is now the one ending {last4}."
                 if result.get("saved_request_updated"):
-                    text += f" Your saved request (reference **{result.get('reference')}**) has the new number too."
+                    text += " Your saved request has the new number too."
                 text += " You can see or change it any time from the menu under My details."
             elif result.get("status") == "unchanged":
                 text = f"That is already the number I have for you (ending {last4}). Nothing needed to change."
@@ -1607,7 +1646,7 @@ async def run_agent(
         pending = None
 
     if asked_for_call:
-        # "Ask admissions to call me" right after visit guidance is a visit callback.
+        # "Ask counsellor to call me" / "Ask admissions to call me" right after visit guidance is a visit callback.
         action = "campus_visit" if (pending == "campus_visit" or visit_words) else "callback"
     elif visit_words and (phone or bad_phone or pending == "campus_visit"):
         action = "campus_visit"
@@ -1662,8 +1701,8 @@ async def run_agent(
                 if _has_other_question(message, name):
                     # The request is saved; let the model answer the rest of the message too.
                     action_note = (f"The system has ALREADY saved this student's {what} request in this turn: "
-                                   f"reference {result.get('reference')}, name {result.get('name')}, phone ending "
-                                   f"{result.get('phone_last4')}. Confirm that in one line with the reference, then "
+                                   f"name {result.get('name')}, phone ending "
+                                   f"{result.get('phone_last4')}. Confirm that in one line, then "
                                    f"answer their other question. Do not call the {tool_name} tool again.")
         if text and not action_note:
             async for ev in _say(text, message, session_id, conversation_id, used, cards,
@@ -1678,14 +1717,33 @@ async def run_agent(
     else:
         canned_action_text = None
 
-    # ---- 4. Campus visits: guide to the admissions team; never book or confirm -----------------
+    # ---- 4. Campus tour dispatch & in-person visit guidance -----------------
     if conv_state.get("awaiting_date_confirmation") or conv_state.get("pending_visit_date"):
         await set_state(awaiting_date_confirmation=False, pending_visit_date=None, confirmed_visit_date=None)
+
+    # 4a. Ambiguous / General Campus Tour -> Directly offer the two options
+    if intent == "CAMPUS_TOUR_DISPATCH" and not action:
+        await set_state(active_topic="campus_tour")
+        async for ev in _say(_CAMPUS_TOUR_CHOICE_TEXT, message, session_id, conversation_id,
+                             used, cards, _CAMPUS_TOUR_CHOICE_CHIPS):
+            yield ev
+        return
+
+    # 4b. Explicit Virtual Tour / Videos & Info
+    if intent == "CAMPUS_TOUR_VIRTUAL" and not action:
+        await set_state(active_topic="campus_tour_virtual")
+        video_result = await _run_action("get_university_videos", {"topic": "campus tour"}, ctx, used, cards)
+        for ev in _tool_events("get_university_videos", video_result):
+            yield ev
+        async for ev in _say(_VIRTUAL_TOUR_TEXT, message, session_id, conversation_id,
+                             used, cards, _VIRTUAL_TOUR_CHIPS):
+            yield ev
+        return
+
+    # 4c. In-Person Campus Visit
     asks_to_visit = intents.is_visit_request(message)
     visit = (tools.resolve_campus_visit_date(message, today=date.today())
              if intent.startswith("CAMPUS_VISIT") or asks_to_visit else {})
-    # A detailed question about visiting (parents, timings, directions...) goes to the model, which
-    # follows the same never-book rules; a plain "I want to visit" gets the guide at once.
     detail_question = bool(_VISIT_DETAIL.search(message))
     wants_visit = not detail_question and (
         intent == "CAMPUS_VISIT_BOOKING" or asks_to_visit
@@ -1849,6 +1907,9 @@ async def run_agent(
                         resp = value
             else:
                 resp = await _generate(contents, cfg, link)
+            if resp is None:
+                link["error_kind"] = "busy"
+                raise RuntimeError("Model stream produced no response")
             calls = resp.function_calls or []
             if not calls:
                 final = (resp.text or "").strip()
@@ -1975,9 +2036,12 @@ async def run_agent(
             user_message=message, answer=final, profile=ctx.get("profile"),
             session_id=session_id, query_embedding=query_embedding, keyword_videos=True)
         personalised = any(t["name"] in _FEE_TOOLS for t in used)
+        has_video_card = any(c.get("type") in ("get_university_videos", "video_recommendations") for c in cards)
         for c in contextual_cards:
             if personalised and c.get("type") == "fee_breakdown":
                 continue  # the student already has their own numbers; no generic table underneath
+            if has_video_card and c.get("type") in ("get_university_videos", "video_recommendations"):
+                continue  # tool already provided video card; do not duplicate
             if c not in cards:
                 cards.append(c)
     except Exception as card_err:

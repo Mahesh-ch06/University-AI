@@ -207,7 +207,7 @@ async def test_done_reaches_the_browser_before_the_chat_is_saved():
     async def resolver(session_id, conversation_id, message):
         return "conv-speed-1"
 
-    async def fake_run_agent(message, session_id, conversation_id=None):
+    async def fake_run_agent(message, session_id, conversation_id=None, **kw):
         yield {"type": "start", "conversation_id": conversation_id}
         yield {"type": "token", "delta": "Answer"}
         yield {"type": "done", "conversation_id": conversation_id, "answer": "Answer", "tools_used": []}

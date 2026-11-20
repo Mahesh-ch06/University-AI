@@ -68,7 +68,7 @@
 * **Key Campus Locations & Portals**:
   - **Main Residential Campus**: Ananthasagar, Hasanparthy, Warangal, Telangana - 506371.
   - **Corporate Office**: 604, 6th Floor, Sonthalia Emerald, Raj Bhavan Road, Somajiguda, Hyderabad, Telangana - 500082.
-  - **Official Phone Lines**: **+91 8331004040**, **0870-2818333**, **0870-2818311**.
+  - **Official Phone Lines**: **833 100 3030** (**+91 833 100 3030**).
   - **Official Email**: `info@sru.edu.in` / `admissions@sru.edu.in`.
   - **Key Online Portals**:
     * Main University: `https://sru.edu.in/`

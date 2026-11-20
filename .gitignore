@@ -30,4 +30,8 @@ node_modules/
 
 # Database and vector storage
 *.rdb
+*.db
+*.log
+/chroma_data/
 backend/chroma_data/*/
+!backend/chroma_data/handbook.sha256

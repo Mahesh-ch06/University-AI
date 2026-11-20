@@ -1,9 +1,10 @@
 import { memo, useState } from "react";
 import { submitFeedback } from "../services/api";
-import { RenderCard } from "./Cards";
+import { RenderCard, deduplicateCards } from "./Cards";
 import MarkdownContent from "./MarkdownContent";
 import { copyCleanText } from "../utils/cleanCopy";
 import { renderUniIcon } from "./Icons";
+import { sanitizeHelplineNumbers } from "../utils/sanitizeNumbers";
 import "./MessageBubble.css";
 
 function parseSuggestionChip(text: string): { icon: React.ReactNode; label: string } {
@@ -52,8 +53,17 @@ function MessageBubble({
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const hasPlacementCard = cards?.some(
+    (c) => c.type === "placement_highlights" || c.image_url === "/placements-three-years.png"
+  );
+  const displayContent = sanitizeHelplineNumbers(
+    hasPlacementCard
+      ? content.replace(/!\[.*?\]\(\/placements-three-years\.png\)/g, "").trim()
+      : content
+  );
+
   const handleCopy = async () => {
-    const success = await copyCleanText(content);
+    const success = await copyCleanText(displayContent);
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -114,15 +124,7 @@ function MessageBubble({
         {/* Message Content Bubble */}
         {content && content.trim().length > 0 && (
           <div className={`message-text-bubble ${role}`}>
-            {(() => {
-              const hasPlacementCard = cards?.some(
-                (c) => c.type === "placement_highlights" || c.image_url === "/placements-three-years.png"
-              );
-              const displayContent = hasPlacementCard
-                ? content.replace(/!\[.*?\]\(\/placements-three-years\.png\)/g, "").trim()
-                : content;
-              return <MarkdownContent content={displayContent} isStreaming={isStreaming} />;
-            })()}
+            <MarkdownContent content={displayContent} isStreaming={isStreaming} />
           </div>
         )}
 
@@ -181,7 +183,7 @@ function MessageBubble({
         {/* Rich Interactive Cards (e.g. branch comparison, fee breakdown, academic flow) */}
         {!isStreaming && role === "assistant" && cards && cards.length > 0 && (
           <div className="message-cards-container">
-            {cards.map((card, idx) => (
+            {deduplicateCards(cards).map((card, idx) => (
               <RenderCard key={idx} card={card} onSelect={onSuggestionClick} />
             ))}
           </div>
@@ -192,12 +194,13 @@ function MessageBubble({
           <div className="suggestion-chips-wrapper">
             <div className="suggestion-chips-list">
               {suggestions.map((suggestion, idx) => {
-                const { icon, label } = parseSuggestionChip(suggestion);
+                const cleanSuggestion = suggestion.replace(/Ask admissions to call me/gi, "Ask counsellor to call me");
+                const { icon, label } = parseSuggestionChip(cleanSuggestion);
                 return (
                   <button
                     key={idx}
                     className="suggestion-chip"
-                    onClick={() => onSuggestionClick?.(suggestion)}
+                    onClick={() => onSuggestionClick?.(cleanSuggestion)}
                     type="button"
                   >
                     {icon && <span className="suggestion-chip-icon">{icon}</span>}

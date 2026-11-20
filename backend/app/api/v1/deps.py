@@ -59,10 +59,14 @@ async def verify_admin_key(
     """
     from app.sru_agent import memory
 
-    client_ip = (
-        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        or (request.client.host if request.client else "unknown")
-    )[:64]
+    if isinstance(request, str):
+        x_admin_key = request
+        client_ip = "unknown"
+    else:
+        client_ip = (
+            request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            or (request.client.host if request.client else "unknown")
+        )[:64]
 
     if settings.admin_key_is_default() and not settings.APP_DEBUG:
         raise HTTPException(

@@ -153,7 +153,7 @@ async def test_agent_stream_invokes_conversation_resolver_and_propagates_conv_id
     set_conversation_resolver(fake_resolver)
     set_turn_logger(fake_logger)
 
-    async def fake_run_agent(message, session_id, conversation_id=None):
+    async def fake_run_agent(message, session_id, conversation_id=None, **kw):
         yield {"type": "start", "conversation_id": conversation_id}
         yield {"type": "token", "delta": "Answer text"}
         yield {"type": "done", "conversation_id": conversation_id, "answer": "Answer text", "tools_used": []}

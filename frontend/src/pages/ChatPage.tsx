@@ -3,7 +3,8 @@ import MessageBubble from "../components/MessageBubble";
 import ChatLeadForm from "../components/ChatLeadForm";
 import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
-import { applyServerProfile, cleanPhone, PROFILE_EVENT, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
+import { applyServerProfile, cleanPhone, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
+import { deduplicateCards } from "../components/Cards";
 import {
   sendMessageStream,
   type MessageData,
@@ -61,6 +62,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const [messages, setMessages] = useState<MessageData[]>([DEFAULT_WELCOME_MESSAGE]);
   const [showInlineLeadForm, setShowInlineLeadForm] = useState<boolean>(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const pendingQuestionRef = useRef<string | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(MESSAGE_RENDER_WINDOW);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const activeConvIdRef = useRef<string | null>(activeConvId);
@@ -72,22 +74,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     }
   }, [activeConvId]);
 
-  useEffect(() => {
-    const handleProfileChange = () => {
-      if (hasValidContactDetails()) {
-        setShowInlineLeadForm(false);
-      }
-    };
-    window.addEventListener(PROFILE_EVENT, handleProfileChange);
-    return () => window.removeEventListener(PROFILE_EVENT, handleProfileChange);
-  }, []);
-
   const handleLeadFormComplete = () => {
     setShowInlineLeadForm(false);
     setError(null);
-    if (pendingQuestion) {
-      const q = pendingQuestion;
-      setPendingQuestion(null);
+    const q = pendingQuestionRef.current || pendingQuestion;
+    // Clear immediately so that it can never be submitted more than once
+    pendingQuestionRef.current = null;
+    setPendingQuestion(null);
+    if (q) {
       executeSendMessage(q, true);
     }
   };
@@ -230,6 +224,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       lastSentUserMsgIdRef.current = userMsgId;
       setMessages((prev) => [...prev, tempUserMsg]);
       setPendingQuestion(trimmed);
+      pendingQuestionRef.current = trimmed;
       setShowInlineLeadForm(true);
       setError(null);
       return;
@@ -325,6 +320,11 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         }
       },
       onCard: (card) => {
+        const isVideo = card?.type === "get_university_videos" || card?.type === "video_recommendations";
+        const alreadyHasVideo = accumulatedCards.some(
+          (c) => c?.type === "get_university_videos" || c?.type === "video_recommendations"
+        );
+        if (isVideo && alreadyHasVideo) return;
         accumulatedCards.push(card);
         scheduleAssistantRender();
       },
@@ -352,7 +352,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           triggerConfetti();
         }
 
-        const finalCards = data.cards?.length ? data.cards : accumulatedCards;
+        const rawCards = data.cards?.length ? data.cards : accumulatedCards;
+        const finalCards = deduplicateCards(rawCards);
 
         if (!assistantAppended) {
           assistantAppended = true;
@@ -454,7 +455,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </div>
               <div className="sru-widget-title-col">
                 <div className="sru-widget-title-row">
-                  <span className="sru-widget-title">SRU Assistant</span>
+                  <span className="sru-widget-title">SRU Buddy</span>
                   <span className="sru-version-pill" title={`SR University AI Companion v${APP_VERSION}`}>v{APP_VERSION}</span>
                 </div>
                 <span className="sru-widget-status">
@@ -736,11 +737,11 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
             WhatsApp
           </a>
 
-          <a href="tel:08702818333" className="sru-ribbon-link">
+          <a href="tel:8331003030" className="sru-ribbon-link">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
-            Call Us
+            833 100 3030
           </a>
 
           <div className="sru-ribbon-socials">
@@ -891,7 +892,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </div>
               <div className="sru-widget-title-col">
                 <div className="sru-widget-title-row">
-                  <span className="sru-widget-title">SRU Assistant</span>
+                  <span className="sru-widget-title">SRU Buddy</span>
                   <span className="sru-version-pill" title={`SR University AI Companion v${APP_VERSION}`}>v{APP_VERSION}</span>
                 </div>
                 <span className="sru-widget-status">

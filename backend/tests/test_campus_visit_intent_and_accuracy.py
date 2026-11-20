@@ -34,6 +34,21 @@ def test_intent_classification_campus_visit_info_vs_booking():
     assert classify_agent_intent("what's today's date") == "DATE_QUERY"
     assert classify_agent_intent("today's date") == "DATE_QUERY"
 
+    # General campus tour inquiry -> CAMPUS_TOUR_DISPATCH (offers virtual vs in-person)
+    assert classify_agent_intent("campus tour") == "CAMPUS_TOUR_DISPATCH"
+    assert classify_agent_intent("tell me about the tour") == "CAMPUS_TOUR_DISPATCH"
+    assert classify_agent_intent("can I see the campus") == "CAMPUS_TOUR_DISPATCH"
+    assert classify_agent_intent("show me the campus") == "CAMPUS_TOUR_DISPATCH"
+
+    # Explicit virtual tour inquiry -> CAMPUS_TOUR_VIRTUAL
+    assert classify_agent_intent("campus tour videos") == "CAMPUS_TOUR_VIRTUAL"
+    assert classify_agent_intent("virtual tour") == "CAMPUS_TOUR_VIRTUAL"
+    assert classify_agent_intent("🎥 Virtual Tour (Videos & Info)") == "CAMPUS_TOUR_VIRTUAL"
+
+    # In-person visit choice
+    assert classify_agent_intent("🏛️ In-Person Campus Visit") == "CAMPUS_VISIT_INFO"
+    assert classify_agent_intent("in person campus visit") == "CAMPUS_VISIT_INFO"
+
     # Confusion query
     assert classify_agent_intent("What are you talking about?") == "CONFUSION_QUERY"
     assert classify_agent_intent("what do you mean") == "CONFUSION_QUERY"
@@ -106,7 +121,7 @@ async def test_end_to_end_conversation_sequence():
     # Step 1: "campus visit" -> whom to contact, no booking form
     events_1 = [e async for e in agent.run_agent("campus visit", session_id, conversation_id)]
     done_1 = next(e for e in events_1 if e["type"] == "done")
-    assert "can't book or confirm a visit" in done_1["answer"] and "70750 10336" in done_1["answer"]
+    assert "can't book or confirm a visit" in done_1["answer"] and "833 100 4040" in done_1["answer"]
     assert not any(c.get("type") == "campus_visit_form" for c in done_1["cards"])
 
     # Step 2: "What are you talking about?"

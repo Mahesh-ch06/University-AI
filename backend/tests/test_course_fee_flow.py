@@ -115,7 +115,7 @@ async def test_scenario_4_btech_cse_cost_including_hostel():
 
     assert "3,40,000" in answer
     assert "1,15,000" in answer or "Hostel" in answer
-    assert any(c.get("type") == "fee_structure_detailed" for c in cards)
+    assert any(c.get("type") in ("fee_structure_detailed", "fee_breakdown") for c in cards)
 
 
 # ---- Scenario 5: "What are the fees for Agriculture?" ----

@@ -174,8 +174,8 @@ Hostel room fees are not printed on the {year} fee card. These amounts are from 
 
 ## 7. Official admissions contacts
 
-- **Admissions Helpline**: 0870-2818333 / 0870-2818311
-- **Direct Admissions Mobile**: +91 8331003030 / +91 8331004040
+- **Admissions Helpline**: 833 100 3030 (+91 833 100 3030)
+- **Campus Visit Number**: 833 100 4040 (+91 833 100 4040)
 - **Email**: `admissions@sru.edu.in` / `info@sru.edu.in`
 - **Application Portal**: [https://apply.sru.edu.in](https://apply.sru.edu.in)
 - **Official Website**: [https://www.sru.edu.in](https://www.sru.edu.in)

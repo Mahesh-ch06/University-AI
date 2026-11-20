@@ -1054,8 +1054,9 @@ def process_fee_flow(
             return _build_combined_hostel_payload(prog_dict, saved_year, user_name, conv_state)
 
         # Follow-up: Hostel specific fee/cost query only (strictly standalone)
-        is_hostel_cost_q = any(k in low for k in ("hostel", "accommodation", "room", "mess", "boarding")) and any(
-            k in low for k in ("fee", "fees", "cost", "costs", "charge", "charges", "price", "how much", "rate", "rent", "package", "deposit")
+        is_hostel_cost_q = any(k in low for k in ("hostel", "accommodation", "room", "mess", "boarding")) and (
+            any(k in low for k in ("fee", "fees", "cost", "costs", "charge", "charges", "price", "how much", "rate", "rent", "package", "deposit", "about"))
+            or low in ("what about hostel?", "what about hostel", "hostel?")
         )
         if is_hostel_cost_q:
             school = next((s for s in SCHOOLS_DATA if s["id"] == saved_school_id), SCHOOLS_DATA[0])

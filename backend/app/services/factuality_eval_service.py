@@ -70,7 +70,7 @@ BENCHMARK_POLICIES: dict[str, FactualityBenchmarkItem] = {
                 "Hallucination: Marks below 500/1000 claimed as unconditionally eligible",
             ),
         ],
-        allowed_numbers=["50%", "500", "58%", "52%", "1000", "10+2", "12th", "0870-2818333", "0870-2818311"],
+        allowed_numbers=["50%", "500", "58%", "52%", "1000", "10+2", "12th", "833 100 3030", "8331003030"],
     ),
     "direct_admission_entrance_exam": FactualityBenchmarkItem(
         policy_id="direct_admission_entrance_exam",

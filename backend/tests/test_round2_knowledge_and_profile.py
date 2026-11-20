@@ -257,7 +257,7 @@ async def test_new_number_in_chat_updates_profile_and_saved_request(lead_store):
     done = await _run("change my number to 9876501234", sid, client)
     assert client.requests == []
     assert done["tools_used"][0] == {"name": "update_contact_details", "status": "updated", "is_action": True}
-    assert "ending 1234" in done["answer"] and "lead0001" in done["answer"]
+    assert "ending 1234" in done["answer"]
     assert lead_store["updated"] == [("lead0001-aaaa", None, "9876501234")]
     profile = await memory.get_profile(sid)
     assert profile["phone"] == "9876501234" and memory.public_profile(profile)["name"] == "Dinesh Kumar"

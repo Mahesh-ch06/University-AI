@@ -43,7 +43,7 @@
   - **Location & Offices**:
     * Main Campus: Ananthasagar, Hasanparthy Mandal, Warangal, Telangana 506371 (14 km from Hanumakonda, 16 km from Kazipet Junction).
     * Corporate Office: 604, 6th Floor, Sonthalia Emerald, Raj Bhavan Road, Somajiguda, Hyderabad, Telangana 500082.
-  - **Official Helpline & Portals**: Phone: **+91 8331004040**, **0870-2818333 / 2818311**; Email: `info@sru.edu.in` / `admissions@sru.edu.in`; Web: `https://sru.edu.in/`, `https://admission.sru.edu.in/`, `https://sraap.in/`, `https://alumni.sru.edu.in/`.
+  - **Official Helpline & Portals**: Phone: **833 100 3030**; Email: `info@sru.edu.in` / `admissions@sru.edu.in`; Web: `https://sru.edu.in/`, `https://admission.sru.edu.in/`, `https://sraap.in/`, `https://alumni.sru.edu.in/`.
   - **Leadership at SR University**:
     * **Chancellor**: **Sri A. Varada Reddy** — Educational visionary since 1976.
     * **Pro-Chancellor**: **Sri A. Madhukar Reddy** — General Secretary of Sri Rajeshwara Educational Society, championed 170-acre campus and SRiX.
@@ -66,7 +66,7 @@
     - Under 50% (e.g. under 500 marks): Falls below the published cutoff; applicants are encouraged to contact the admissions desk for alternative academic options.
   - **Branch Uniformity**: Applies uniformly to B.Tech CSE, AI&ML, Data Science, Cyber Security, ECE, EEE, and Mechanical Engineering.
   - **Direct / Management Quota**: Admission is based on 10+2 marks and seat availability. Entrance ranks determine merit scholarship slabs.
-  - **Official Admissions Contacts**: Phone: **0870-2818333** / **0870-2818311** (Mobile: **833 100 3030** / **833 100 4040**), Email: `admissions@sru.edu.in` / `info@sru.edu.in`, Portal: `https://apply.sru.edu.in`.
+  - **Official Admissions Contacts**: Admissions: **833 100 3030**, Campus Visit: **833 100 4040**, Email: `admissions@sru.edu.in` / `info@sru.edu.in`, Portal: `https://apply.sru.edu.in`.
 
 ---
 

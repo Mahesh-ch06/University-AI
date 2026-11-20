@@ -137,14 +137,16 @@ export default function SettingsModal({ isOpen, sessionId, onClose }: Props) {
               id="settings-phone-input"
               type="tel"
               inputMode="numeric"
+              autoComplete="tel"
               className="lead-input"
               placeholder="10-digit mobile number"
               value={phone}
               onChange={(e) => {
-                setPhone(e.target.value);
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setPhone(digits);
                 setError(null);
               }}
-              maxLength={15}
+              maxLength={10}
             />
           </div>
 

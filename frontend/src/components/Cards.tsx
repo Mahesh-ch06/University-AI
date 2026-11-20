@@ -715,8 +715,7 @@ export function AgentCallbackCard({ card }: CardProps) {
         </p>
         <div className="agent-action-meta">
           {d.preferred_time && <div><strong>Preferred Time:</strong> {d.preferred_time}</div>}
-          {d.reference && <div><strong>Reference ID:</strong> #{d.reference}</div>}
-          <div><strong>Admissions Helpline:</strong> 0870-2818333 / +91 8331003030</div>
+          <div><strong>Admissions Helpline:</strong> 833 100 3030</div>
         </div>
       </div>
     </div>
@@ -759,7 +758,6 @@ export function AgentCampusVisitCard({ card }: CardProps) {
         <div className="agent-action-meta">
           {d.name && <div><strong>Visitor:</strong> {d.name}</div>}
           <div><strong>Location:</strong> 170-Acre Lush Campus, Ananthasagar, Hasanparthy, Warangal, Telangana</div>
-          {d.reference && <div><strong>Reference ID:</strong> #{d.reference}</div>}
         </div>
         <div className="agent-card-footer">
           <span className="agent-card-source-tag">Visits are arranged and confirmed by the admissions team by phone.</span>
@@ -773,7 +771,7 @@ export function AgentCampusVisitCard({ card }: CardProps) {
               📍 Open in Google Maps
             </a>
             <a
-              href="tel:08702818333"
+              href="tel:8331003030"
               className="agent-card-call-btn"
             >
               📞 Call Admissions
@@ -790,12 +788,11 @@ export function AgentCampusVisitCard({ card }: CardProps) {
  * ("campus_visit_form") when an older chat is reopened. */
 export function VisitContactCard({ card }: CardProps) {
   const d = card?.data?.campus_visit || card?.data || card || {};
-  const phone = (d.phone || "0870-2818333 / 0870-2818311") as string;
-  const firstPhone = phone.split("/")[0].replace(/[^\d+]/g, "");
-  const mobile = (d.mobile || "+91 70750 10336") as string;
-  const whatsapp =
-    d.whatsapp ||
-    "https://wa.me/917075010336?text=Hi%2C%20I%20would%20like%20to%20visit%20the%20SR%20University%20campus.";
+  const campusVisitNum = "833 100 4040";
+  const campusVisitClean = "8331004040";
+  const whatsapp = `https://wa.me/91${campusVisitClean}?text=${encodeURIComponent(
+    "Hi, I would like to visit the SR University campus."
+  )}`;
   return (
     <div className="rich-card agent-action-card visit-contact-card">
       <div className="card-header">
@@ -808,17 +805,11 @@ export function VisitContactCard({ card }: CardProps) {
             "Visits are arranged and confirmed by the SR University admissions team. Please contact them before you travel."}
         </p>
         <div className="agent-contacts-row">
-          <a href={`tel:${firstPhone}`} className="agent-contact-pill">
-            Call {phone}
-          </a>
-          <a href={`tel:${mobile.replace(/[^\d+]/g, "")}`} className="agent-contact-pill">
-            Call {mobile}
+          <a href={`tel:${campusVisitClean}`} className="agent-contact-pill">
+            Call {campusVisitNum}
           </a>
           <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="agent-contact-pill wa">
-            WhatsApp {mobile}
-          </a>
-          <a href={`mailto:${d.email || "info@sru.edu.in"}`} className="agent-contact-pill">
-            Email {d.email || "info@sru.edu.in"}
+            WhatsApp {campusVisitNum}
           </a>
         </div>
         <div className="agent-action-meta">
@@ -871,13 +862,8 @@ export function VisitRequestCard({ card }: CardProps) {
               <strong>Day you mentioned:</strong> {d.preferred_date} (not confirmed)
             </div>
           )}
-          {d.reference && (
-            <div>
-              <strong>Reference:</strong> #{d.reference}
-            </div>
-          )}
           <div>
-            <strong>Admissions:</strong> 0870-2818333 · +91 70750 10336 (call or WhatsApp)
+            <strong>Campus Visit:</strong> 833 100 4040 (call or WhatsApp)
           </div>
         </div>
       </div>
@@ -973,6 +959,13 @@ export function FacultyCard({ card }: CardProps) {
 export function AgentContactLinksCard({ card }: CardProps) {
   const d = card.data || {};
   if (d.campus_visit) return <VisitContactCard card={card} />;
+  const admissionsNum = "833 100 3030";
+  const admissionsClean = "8331003030";
+  const rawWa = d.whatsapp || "";
+  const whatsappUrl = rawWa
+    ? rawWa.replace(/wa\.me\/(?:\+?91)?\d+/g, `wa.me/91${admissionsClean}`)
+    : `https://wa.me/91${admissionsClean}?text=${encodeURIComponent("Hi, I have a question about SR University admissions.")}`;
+
   return (
     <div className="rich-card agent-action-card contact-card">
       <div className="card-header">
@@ -982,16 +975,12 @@ export function AgentContactLinksCard({ card }: CardProps) {
         <h4 className="card-title">SR University Admissions Office</h4>
       </div>
       <div className="agent-contacts-row">
-        {d.phone && (
-          <a href={`tel:${d.phone}`} className="agent-contact-pill">
-            📞 Call {d.phone}
-          </a>
-        )}
-        {d.whatsapp && (
-          <a href={d.whatsapp} target="_blank" rel="noopener noreferrer" className="agent-contact-pill wa">
-            💬 WhatsApp Us
-          </a>
-        )}
+        <a href={`tel:${admissionsClean}`} className="agent-contact-pill">
+          📞 Call {admissionsNum}
+        </a>
+        <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="agent-contact-pill wa">
+          💬 WhatsApp Us
+        </a>
         {d.apply_online && (
           <a href={d.apply_online} target="_blank" rel="noopener noreferrer" className="agent-contact-pill primary">
             📝 Apply Online 2027-28
@@ -1418,6 +1407,35 @@ export function HostelFacilitiesCard({ card, onSelect }: { card: any; onSelect?:
       </div>
     </div>
   );
+}
+
+/**
+ * Deduplicates cards so the user is never shown duplicate cards (e.g. multiple video cards or repeated contact cards).
+ */
+export function deduplicateCards(cards: any[] | undefined | null): any[] {
+  if (!cards || !Array.isArray(cards) || cards.length <= 1) return cards || [];
+  const result: any[] = [];
+  const seenCategories = new Set<string>();
+
+  for (const card of cards) {
+    if (!card) continue;
+    const type = card.type || "";
+    let category = type;
+    if (type === "get_university_videos" || type === "video_recommendations") {
+      category = "video_recommendations";
+    } else if (type === "campus_visit_contact" || type === "get_contact_and_apply_links") {
+      category = `contact_${Boolean(card.data?.campus_visit)}`;
+    } else if (type === "calculate_fee" || type === "fee_breakdown") {
+      category = "fee_card";
+    }
+
+    if (seenCategories.has(category)) {
+      continue;
+    }
+    seenCategories.add(category);
+    result.push(card);
+  }
+  return result;
 }
 
 export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
