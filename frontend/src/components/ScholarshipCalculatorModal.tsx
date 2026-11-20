@@ -741,12 +741,15 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
                         type="tel"
                         className="calc-input"
                         placeholder="e.g. 9876543210"
+                        inputMode="numeric"
+                        autoComplete="tel"
                         value={studentPhone}
                         onChange={(e) => {
-                          setStudentPhone(e.target.value);
+                          const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                          setStudentPhone(digits);
                           if (callbackError) setCallbackError(null);
                         }}
-                        maxLength={15}
+                        maxLength={10}
                       />
                     </div>
                   </div>

@@ -108,7 +108,7 @@ function formatProgramInterest(raw?: string | null, meta?: any): string {
     if (q.includes("cse") || q.includes("computer") || q.includes("software") || q.includes("data science") || q.includes("aiml")) return "B.Tech CSE";
   }
 
-  return "B.Tech CSE";
+  return "General Admissions";
 }
 
 export default function AdminPage({ onBackToChat }: Props) {

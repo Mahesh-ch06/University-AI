@@ -68,7 +68,7 @@ export default function LeadAuthModal({
       await createLead({
         name: cleanName,
         phone: phone.trim(),
-        program_interest: programInterest || "B.Tech CSE",
+        program_interest: programInterest || undefined,
         source: "chat_inquiry",
         conversation_id: activeConv || undefined,
         metadata: { consent_given: true, request_type: "details_shared" },
@@ -135,10 +135,11 @@ export default function LeadAuthModal({
               autoComplete="tel"
               value={phone}
               onChange={(e) => {
-                setPhone(e.target.value);
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setPhone(digits);
                 if (error) setError(null);
               }}
-              maxLength={15}
+              maxLength={10}
               required
             />
           </div>

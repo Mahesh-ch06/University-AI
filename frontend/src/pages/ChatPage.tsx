@@ -454,7 +454,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </div>
               <div className="sru-widget-title-col">
                 <div className="sru-widget-title-row">
-                  <span className="sru-widget-title">SRU Assistant</span>
+                  <span className="sru-widget-title">SRU Buddy</span>
                   <span className="sru-version-pill" title={`SR University AI Companion v${APP_VERSION}`}>v{APP_VERSION}</span>
                 </div>
                 <span className="sru-widget-status">
@@ -891,7 +891,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </div>
               <div className="sru-widget-title-col">
                 <div className="sru-widget-title-row">
-                  <span className="sru-widget-title">SRU Assistant</span>
+                  <span className="sru-widget-title">SRU Buddy</span>
                   <span className="sru-version-pill" title={`SR University AI Companion v${APP_VERSION}`}>v{APP_VERSION}</span>
                 </div>
                 <span className="sru-widget-status">

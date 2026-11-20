@@ -10,7 +10,7 @@ interface Props {
   pendingQuestion?: string | null;
 }
 
-export function detectProgramInterest(text?: string | null): string {
+export function detectProgramInterest(text?: string | null): string | undefined {
   const existing = readStudentDetails();
   if (
     existing?.program_interest &&
@@ -18,8 +18,8 @@ export function detectProgramInterest(text?: string | null): string {
   ) {
     return existing.program_interest;
   }
-  const q = (text || "").toLowerCase();
-  if (!q) return "B.Tech CSE";
+  const q = (text || "").toLowerCase().trim();
+  if (!q) return undefined;
 
   if (q.includes("ai & robotics") || q.includes("ai and robotics") || q.includes("artificial intelligence and robotics")) {
     return "B.Tech in AI and Robotics";
@@ -71,19 +71,20 @@ export function detectProgramInterest(text?: string | null): string {
   }
   if (
     q.includes("cse") ||
-    q.includes("computer") ||
-    q.includes("software") ||
-    q.includes("coding") ||
+    q.includes("computer science") ||
+    q.includes("software engineering") ||
     q.includes("data science") ||
     q.includes("aiml") ||
     q.includes("ai & ml") ||
     q.includes("ai and ml") ||
+    q.includes("cyber security") ||
+    q.includes("cybersecurity") ||
     q.includes("cyber") ||
     q.includes("quantum")
   ) {
     return "B.Tech CSE";
   }
-  return "B.Tech CSE";
+  return undefined;
 }
 
 export default function ChatLeadForm({ onComplete, pendingQuestion }: Props) {
@@ -122,7 +123,7 @@ export default function ChatLeadForm({ onComplete, pendingQuestion }: Props) {
   const handleStep2Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanN = name.trim();
-    const rawP = phone.trim();
+    const rawP = phone.replace(/\D/g, "").slice(0, 10);
     const validPhone = cleanPhone(rawP);
 
     if (!cleanN || cleanN.length < 2) {
@@ -226,13 +227,14 @@ export default function ChatLeadForm({ onComplete, pendingQuestion }: Props) {
               type="tel"
               value={phone}
               onChange={(e) => {
-                setPhone(e.target.value);
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setPhone(digits);
                 setError(null);
               }}
               placeholder="10-digit mobile number"
               inputMode="numeric"
               autoComplete="tel"
-              maxLength={15}
+              maxLength={10}
               required
             />
           </label>
