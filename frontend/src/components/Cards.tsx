@@ -956,6 +956,13 @@ export function FacultyCard({ card }: CardProps) {
 export function AgentContactLinksCard({ card }: CardProps) {
   const d = card.data || {};
   if (d.campus_visit) return <VisitContactCard card={card} />;
+  const admissionsNum = "833 100 3030";
+  const admissionsClean = "8331003030";
+  const rawWa = d.whatsapp || "";
+  const whatsappUrl = rawWa
+    ? rawWa.replace(/wa\.me\/(?:\+?91)?\d+/g, `wa.me/91${admissionsClean}`)
+    : `https://wa.me/91${admissionsClean}?text=${encodeURIComponent("Hi, I have a question about SR University admissions.")}`;
+
   return (
     <div className="rich-card agent-action-card contact-card">
       <div className="card-header">
@@ -965,16 +972,12 @@ export function AgentContactLinksCard({ card }: CardProps) {
         <h4 className="card-title">SR University Admissions Office</h4>
       </div>
       <div className="agent-contacts-row">
-        {d.phone && (
-          <a href={`tel:${d.phone}`} className="agent-contact-pill">
-            📞 Call {d.phone}
-          </a>
-        )}
-        {d.whatsapp && (
-          <a href={d.whatsapp} target="_blank" rel="noopener noreferrer" className="agent-contact-pill wa">
-            💬 WhatsApp Us
-          </a>
-        )}
+        <a href={`tel:${admissionsClean}`} className="agent-contact-pill">
+          📞 Call {admissionsNum}
+        </a>
+        <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="agent-contact-pill wa">
+          💬 WhatsApp Us
+        </a>
         {d.apply_online && (
           <a href={d.apply_online} target="_blank" rel="noopener noreferrer" className="agent-contact-pill primary">
             📝 Apply Online 2027-28
