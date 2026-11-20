@@ -1006,6 +1006,119 @@ SR University offers multidisciplinary UG, PG, and Ph.D. programs across **6 spe
 
 👉 **Which school or program would you like details on (eligibility, fees, or syllabus)?**"""
 
+_HOSTEL_INFO_TEXT = """### 🏢 Residential Campus Living at SR University
+
+SR University offers a secure, vibrant, and disciplined residential experience with **dedicated separate hostel blocks** for Boys and Girls on campus:
+
+• **Hostel Blocks**:
+  - **Boys Hostels**: Dr. Sarvepalli Radhakrishnan Bhavan & APJ Abdul Kalam Bhavan
+  - **Girls Hostels**: Kalpana Chawla Bhavan & Sarojini Naidu Bhavan
+• **Room Options & Furnishings**:
+  - **Air-Conditioned (AC)**: 3-Sharing & 4-Sharing
+  - **Non-AC**: 3-Sharing & 4-Sharing
+  - Every resident receives a dedicated bed, comfortable mattress, individual study desk, ergonomic chair, personal wardrobe, and 24/7 Wi-Fi.
+• **Mega Dining Hall**:
+  - 4,000 seating capacity serving 4 fresh, hygienic, unlimited meals daily (Breakfast, Lunch, Evening Snacks, Dinner) with balanced vegetarian and non-vegetarian menus.
+• **Key Amenities & Utilities**:
+  - 24/7 power backup and commercial RO-purified water dispensers on every floor.
+  - Solar hot water supply (7:00–9:00 AM & 7:00–9:00 PM).
+  - Modern gymnasium with fitness trainers, indoor sports (table tennis, carroms, chess, shuttle badminton) and recreation lounges.
+  - On-campus health clinic, resident nurses, 24/7 stationed ambulance, and institutional tie-up with Aaditya Hospital.
+• **Safety & Security**:
+  - 100% CCTV surveillance, biometric access checkpoints, dedicated security personnel at all gates, and resident wardens in every block.
+
+*Hostel accommodation is optional. Would you like to check the room fee breakdown, dining timings, or curfew rules?*"""
+
+_HOSTEL_MESS_TEXT = """### 🍽️ Dining & Mess Facilities at SR University
+
+The university features a state-of-the-art **4,000-seat Mega Dining Hall** providing nutritious, wholesome meals in an ultra-hygienic environment:
+
+• **4 Wholesome Meals Daily Schedule**:
+  - 🍳 **Breakfast (7:30 AM – 8:30 AM)**: Nutritious South & North Indian breakfast items (idli, dosa, puri, upma, poha), boiled eggs/sprouts, tea, coffee, and fresh milk.
+  - 🍛 **Lunch (12:00 PM – 2:00 PM)**: Complete balanced meal — steamed rice, roti/chapati, seasonal vegetable curries, dal/sambar, rasam, fresh curd/buttermilk, and papad.
+  - ☕ **Evening Snacks (5:00 PM – 6:00 PM)**: Freshly made evening refreshments (samosas, cutlets, pakoras, or bajji) with hot tea and coffee.
+  - 🍲 **Dinner (7:30 PM – 8:30 PM)**: Wholesome dinner with vegetarian dishes and non-vegetarian curries served on designated days, followed by desserts or seasonal fruits.
+• **Dining Features**:
+  - **Unlimited Self-Service**: Students enjoy unlimited servings during meal timings.
+  - **Hygiene & Safety**: Steam-cooking boilers, commercial RO water for cooking and drinking, and regular health checkups of catering staff.
+  - **Sick Diet**: Special light diet (khichdi, clear soup, boiled milk/eggs) provided upon resident doctor or hostel nurse recommendation.
+  - **Festive Dinners**: Special grand feasts organized on major festivals and institutional celebrations.
+
+*Would you like to know more about hostel room options, rules, or fees?*"""
+
+_HOSTEL_CURFEW_RULES_TEXT = """### ⏰ Hostel Curfew, Timings & Discipline Regulations
+
+SR University maintains a secure and disciplined campus environment with strict curfew and movement policies:
+
+• **Hostel In-Time (Night Curfew)**:
+  - **Weekdays (Monday to Friday)**: Students must be inside the hostel premises by **9:00 PM**.
+  - **Weekends & Holidays (Saturday & Sunday)**: Students must be inside by **9:30 PM**.
+  - **Biometric Roll Call**: Mandatory nightly biometric attendance between **9:00 PM and 9:30 PM** (weekdays) / before **10:00 PM** (weekends).
+  - **Morning Exit**: Students can leave the hostel in the morning after **5:30 AM** by signing the movement register.
+• **Curfew Extensions**:
+  - Extensions up to **11:00 PM** are granted for hackathons, club activities, festival preparations, or library study.
+  - Requests must be submitted via the online **Sruniv portal** before 4:00 PM on the day and approved by the Warden.
+• **Digital Out-Pass System**:
+  - Resident students wishing to leave campus must apply via the online **Sruniv portal**.
+  - Automated SMS notifications are sent to parents/guardians for approval before gate clearance is issued.
+• **Silence Hours & Code of Conduct**:
+  - **Silence Hours**: **10:00 PM to 7:00 AM** daily (strictly enforced for quiet study and rest).
+  - **Cross-Gender Entry Policy**: Strictly prohibited. Male students/visitors cannot enter female blocks, and female students/visitors cannot enter male blocks.
+  - **Prohibited Appliances**: Electric stoves, induction cooktops, immersion heaters, and electric irons are strictly forbidden in rooms.
+  - **Substance Policy**: 100% zero-tolerance policy against ragging, bullying, alcohol, smoking, or unauthorized absences.
+
+*Would you like to review safety and warden details, mess food, or room fees?*"""
+
+_HOSTEL_SAFETY_TEXT = """### 🛡️ Campus Safety, Security & Hostel Wardens
+
+The safety and well-being of residential students are our highest priorities:
+
+• **Round-the-Clock Security**:
+  - Gated campus with 24/7 professional uniformed security personnel at all hostel and campus gates.
+  - Comprehensive CCTV surveillance covering all hostel corridors, staircases, common lounges, and perimeter grounds.
+  - Biometric checkpoints for entry and roll call.
+• **Dedicated Residential Wardens**:
+  - **Girls Hostels Warden**: Ms. Anitha GP (📞 **+91 9599042878** | ✉️ `stu.girlshostel@sru.edu.in`)
+  - **Boys Hostels Wardens**: Dr. Rupesh Mishra (📞 **+91 9716935695**) & Dr. Anshu Kumar (📞 **+91 6394355001**)
+• **Student Counsellors**:
+  - **Boys Counsellor**: Mr. Benson (📞 **+91 7893525257**)
+  - **Girls Counsellor**: Ms. Swapna (📞 **+91 7207672300**)
+• **Medical & Emergency Infrastructure**:
+  - On-campus Health Centre with qualified resident nurse and visiting physicians.
+  - Stationed 24/7 emergency ambulance on campus.
+  - Direct tie-up with **Aaditya Hospital** for tertiary and emergency healthcare.
+• **Zero-Tolerance Anti-Ragging**:
+  - Fully compliant with Supreme Court & UGC Anti-Ragging Regulations 2009.
+  - Active Anti-Ragging Committee and flying squads (`stu.antiraggingcell@sru.edu.in`).
+
+*Would you like details on hostel living facilities, mess food, or room fees?*"""
+
+_HOSTEL_FEE_TEXT = """### 💰 SR University Residential Hostel Fee Structure (2027–28)
+
+Hostel accommodation is optional. Annual fees cover both **room accommodation and all 4 daily meals** in the 4,000-seat mega dining hall:
+
+| Room Type | Sharing | Annual Fee (Room + Mess) | Notes |
+| :--- | :--- | :--- | :--- |
+| **Non-AC** | **4-Sharing** | **₹1,15,000 / year** | 4 meals/day, Wi-Fi, study desk, power backup |
+| **Non-AC** | **3-Sharing** | **₹1,25,000 / year** | 4 meals/day, Wi-Fi, study desk, power backup |
+| **Air-Conditioned (AC)** | **4-Sharing** | **₹1,25,000 / year** | AC room, 4 meals/day, Wi-Fi, study desk |
+| **Air-Conditioned (AC)** | **3-Sharing** | **₹1,35,000 / year** | AC room, 4 meals/day, Wi-Fi, study desk |
+
+#### 📋 Additional Deposits & Charges:
+• **Caution Deposit**: **₹5,000** (one-time, refundable at end of degree)
+• **Laundry Services**: **₹5,000 / year** (in-house mechanized laundry)
+• **Electricity Deposit (AC Rooms)**: **₹10,000 / year** (Non-AC: **₹5,000 / year**)
+
+> [!NOTE]
+> - Hostel fees are billed annually at the beginning of each academic year.
+> - Separate hostel blocks are provided for Boys and Girls on campus."""
+
+_HOSTEL_INFO_CHIPS = ["Mess Food & Timings", "Hostel Rules & Curfew", "Safety & Wardens", "Hostel Fee Breakdown"]
+_HOSTEL_MESS_CHIPS = ["Hostel Facilities & Rooms", "Curfew & In-Time Rules", "Hostel Room Fees", "Safety & Security"]
+_HOSTEL_CURFEW_CHIPS = ["Mess & Dining timings", "Hostel Facilities & Rooms", "Hostel Wardens & Contacts", "Hostel Fees"]
+_HOSTEL_SAFETY_CHIPS = ["Hostel Facilities & Rooms", "Mess Food & Timings", "Curfew & Rules", "Hostel Fees"]
+_HOSTEL_FEE_CHIPS = ["Hostel Facilities & Rooms", "Mess Food & Timings", "Curfew & Rules", "Calculate B.Tech Fee"]
+
 
 def _cache_key(message: str) -> str:
     import hashlib
@@ -1213,7 +1326,7 @@ async def run_agent(
         fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[0], "2027-28")
         async for ev in _say(_BTECH_CSE_FEE_TEXT, message, session_id, conversation_id,
                              cards=[fee_card],
-                             suggestions=["Calculate my scholarship", "Hostel fee details",
+                             suggestions=["Calculate my scholarship", "Hostel details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
         return
@@ -1223,7 +1336,7 @@ async def run_agent(
         fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[0], "2027-28")
         async for ev in _say(_BTECH_AI_ROBOTICS_FEE_TEXT, message, session_id, conversation_id,
                              cards=[fee_card],
-                             suggestions=["Calculate my scholarship", "Hostel fee details",
+                             suggestions=["Calculate my scholarship", "Hostel details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
         return
@@ -1233,7 +1346,7 @@ async def run_agent(
         fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[1], "2027-28")
         async for ev in _say(_BTECH_ECE_FEE_TEXT, message, session_id, conversation_id,
                              cards=[fee_card],
-                             suggestions=["Calculate my scholarship", "Hostel fee details",
+                             suggestions=["Calculate my scholarship", "Hostel details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
         return
@@ -1243,7 +1356,7 @@ async def run_agent(
         fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[1], "2027-28")
         async for ev in _say(_BTECH_CORE_FEE_TEXT, message, session_id, conversation_id,
                              cards=[fee_card],
-                             suggestions=["Calculate my scholarship", "Hostel fee details",
+                             suggestions=["Calculate my scholarship", "Hostel details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
         return
@@ -1254,7 +1367,7 @@ async def run_agent(
         async for ev in _say(_MANAGEMENT_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
                              suggestions=["Calculate my fee with scholarship", "MBA specializations",
-                                          "Hostel fees", "How do I apply?"]):
+                                          "Hostel details", "How do I apply?"]):
             yield ev
         return
 
@@ -1263,7 +1376,7 @@ async def run_agent(
         course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2])
         async for ev in _say(_AGRICULTURE_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
-                             suggestions=["Calculate my scholarship", "Hostel fee details",
+                             suggestions=["Calculate my scholarship", "Hostel details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
         return
@@ -1273,7 +1386,7 @@ async def run_agent(
         course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0])
         async for ev in _say(_COMP_APP_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
-                             suggestions=["Calculate my scholarship", "Hostel fee details",
+                             suggestions=["Calculate my scholarship", "Hostel details",
                                           "Special category concessions", "How do I apply?"]):
             yield ev
         return
@@ -1283,8 +1396,42 @@ async def run_agent(
         course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5])
         async for ev in _say(_DESIGN_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
-                             suggestions=["Calculate my scholarship", "Hostel fee details",
+                             suggestions=["Calculate my scholarship", "Hostel details",
                                           "Special category concessions", "How do I apply?"]):
+            yield ev
+        return
+
+    if intent == "HOSTEL_INFO_QUERY":
+        from app.services.card_service import HOSTEL_FACILITIES_CARD
+        async for ev in _say(_HOSTEL_INFO_TEXT, message, session_id, conversation_id,
+                             cards=[HOSTEL_FACILITIES_CARD],
+                             suggestions=_HOSTEL_INFO_CHIPS):
+            yield ev
+        return
+
+    if intent == "HOSTEL_MESS_QUERY":
+        async for ev in _say(_HOSTEL_MESS_TEXT, message, session_id, conversation_id,
+                             suggestions=_HOSTEL_MESS_CHIPS):
+            yield ev
+        return
+
+    if intent == "HOSTEL_CURFEW_RULES_QUERY":
+        async for ev in _say(_HOSTEL_CURFEW_RULES_TEXT, message, session_id, conversation_id,
+                             suggestions=_HOSTEL_CURFEW_CHIPS):
+            yield ev
+        return
+
+    if intent == "HOSTEL_SAFETY_QUERY":
+        async for ev in _say(_HOSTEL_SAFETY_TEXT, message, session_id, conversation_id,
+                             suggestions=_HOSTEL_SAFETY_CHIPS):
+            yield ev
+        return
+
+    if intent == "HOSTEL_FEE_QUERY":
+        from app.services.card_service import HOSTEL_FEE_CARD
+        async for ev in _say(_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
+                             cards=[HOSTEL_FEE_CARD],
+                             suggestions=_HOSTEL_FEE_CHIPS):
             yield ev
         return
 

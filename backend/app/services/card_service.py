@@ -336,9 +336,85 @@ def _build_admission_fee_card() -> dict:
     }
 
 
+def _build_hostel_facilities_card() -> dict:
+    return {
+        "type": "hostel_facilities",
+        "title": "SR University Residential Living & Campus Hostels",
+        "subtitle": "Safe, vibrant, and disciplined residential living on campus",
+        "blocks": [
+            {
+                "type": "Boys Hostels",
+                "blocks": "Dr. Sarvepalli Radhakrishnan Bhavan & APJ Abdul Kalam Bhavan",
+                "warden": "Dr. Rupesh Mishra (9716935695) & Dr. Anshu Kumar (6394355001)",
+            },
+            {
+                "type": "Girls Hostels",
+                "blocks": "Kalpana Chawla Bhavan & Sarojini Naidu Bhavan",
+                "warden": "Ms. Anitha GP (9599042878, stu.girlshostel@sru.edu.in)",
+            },
+        ],
+        "room_types": [
+            {
+                "name": "3-Sharing & 4-Sharing AC",
+                "amenities": "Air-conditioned comfort, dedicated study desk, ergonomic chair, personal wardrobe & power backup",
+            },
+            {
+                "name": "3-Sharing & 4-Sharing Non-AC",
+                "amenities": "Well-ventilated spacious rooms, dedicated study desk, ergonomic chair, personal wardrobe & 24/7 Wi-Fi",
+            },
+        ],
+        "amenities": [
+            {
+                "icon": "wifi",
+                "title": "High-Speed Wi-Fi",
+                "desc": "24/7 campus fiber internet access across all rooms and study lounges",
+            },
+            {
+                "icon": "dining",
+                "title": "4,000-Seat Mega Dining",
+                "desc": "4 wholesome meals/day (Breakfast, Lunch, Snacks, Dinner) with unlimited veg/non-veg buffet",
+            },
+            {
+                "icon": "security",
+                "title": "24/7 Security & CCTV",
+                "desc": "Complete CCTV coverage, biometric attendance & dedicated security personnel",
+            },
+            {
+                "icon": "medical",
+                "title": "Health Center & Ambulance",
+                "desc": "On-campus health clinic, resident nurses, 24/7 stationed ambulance & tie-up with Aaditya Hospital",
+            },
+            {
+                "icon": "water",
+                "title": "Purified RO & Hot Water",
+                "desc": "RO stations on every floor; solar hot water supply (7:00–9:00 AM & 7:00–9:00 PM)",
+            },
+            {
+                "icon": "sports",
+                "title": "Gym & Indoor Sports",
+                "desc": "Fitness center, indoor gymnasium, badminton, table tennis & recreation halls",
+            },
+        ],
+        "rules_summary": [
+            "Curfew In-Time: 9:00 PM (Mon–Fri) | 9:30 PM (Weekends & Holidays)",
+            "Biometric Roll Call: 9:00 PM – 9:30 PM nightly across all blocks",
+            "Digital Out-Pass: Required via Sruniv portal with parent SMS verification",
+            "Zero Tolerance: 100% ragging-free campus, anti-substance policy & 10:00 PM silence hours",
+        ],
+        "contacts": {
+            "girls_warden": "Ms. Anitha GP (9599042878, stu.girlshostel@sru.edu.in)",
+            "boys_wardens": "Dr. Rupesh Mishra (9716935695) & Dr. Anshu Kumar (6394355001)",
+            "boys_counsellor": "Mr. Benson (7893525257)",
+            "girls_counsellor": "Ms. Swapna (7207672300)",
+        },
+    }
+
+
 TRANSPORT_FEE_CARD = _build_transport_fee_card()
 
 HOSTEL_FEE_CARD = _build_hostel_fee_card()
+
+HOSTEL_FACILITIES_CARD = _build_hostel_facilities_card()
 
 EXAM_FEE_CARD = {
     "type": "fee_breakdown",
@@ -852,6 +928,7 @@ def generate_cards(
     is_hostel_fee_query = any(k in msg_lower for k in ("hostel", "mess", "boarding", "room rent")) and any(
         k in msg_lower for k in ("fee", "fees", "cost", "charge", "price", "how much", "rate", "package")
     )
+    is_hostel_facilities_query = any(k in msg_lower for k in ("hostel", "hostels", "dorm", "accommodation", "boarding", "residential")) and not is_hostel_fee_query
     is_exam_fee_query = any(k in msg_lower for k in ("exam", "examination", "supply", "supplementary", "revaluation")) and any(
         k in msg_lower for k in ("fee", "fees", "cost", "charge", "how much")
     )
@@ -926,6 +1003,9 @@ def generate_cards(
     elif is_hostel_fee_query and not (is_cse_fee_query or is_btech_fee_query):
         # User asked purely for hostel fees
         cards.append(HOSTEL_FEE_CARD)
+    elif is_hostel_facilities_query and not (is_cse_fee_query or is_btech_fee_query):
+        # User asked for hostel facilities / living details
+        cards.append(HOSTEL_FACILITIES_CARD)
     elif is_exam_fee_query:
         cards.append(EXAM_FEE_CARD)
     elif is_admission_fee_query:

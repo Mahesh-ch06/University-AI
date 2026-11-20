@@ -31,6 +31,8 @@ _SYNONYMS = {
     "discount": ["scholarship"], "waiver": ["scholarship"],
     "eamcet": ["eapcet"], "emcet": ["eapcet"], "emact": ["eapcet"], "eamect": ["eapcet"],
     "curfew": ["in-time", "intime", "timings", "hostel"], "intime": ["in-time", "hostel"],
+    "hostel": ["hostels", "accommodation", "residential", "living", "rooms", "amenities", "mess", "warden", "curfew"],
+    "hostels": ["hostel", "accommodation", "residential", "living", "rooms"],
     "timing": ["timings"], "outing": ["hostel", "outings"],
     "placements": ["placement", "package", "lpa"], "placement": ["package", "lpa", "recruiters"],
     "package": ["lpa", "placement"], "salary": ["lpa", "package", "placement"], "job": ["placement"],

@@ -956,8 +956,11 @@ def process_fee_flow(
     # State: completed (Handling follow-ups on the same course)
     # -------------------------------------------------------------------------
     if current_state == "completed":
-        # Follow-up: Hostel specific query
-        if any(k in low for k in ("hostel", "accommodation", "room", "mess", "food")):
+        # Follow-up: Hostel specific fee/cost query only
+        is_hostel_cost_q = any(k in low for k in ("hostel", "accommodation", "room", "mess", "boarding")) and any(
+            k in low for k in ("fee", "fees", "cost", "costs", "charge", "charges", "price", "how much", "rate", "rent", "package", "deposit")
+        )
+        if is_hostel_cost_q:
             school = next((s for s in SCHOOLS_DATA if s["id"] == saved_school_id), SCHOOLS_DATA[0])
             prog_dict = fees.load_data()["programs"].get(saved_prog_key or "btech_cse", {})
             prog_name = prog_dict.get("name", "B.Tech CSE")

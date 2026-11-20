@@ -12,6 +12,9 @@ import {
   FileTextIcon,
   BoltIcon,
   VideoIcon,
+  BedIcon,
+  ClockIcon,
+  SruHostelIcon,
 } from "./Icons";
 import "./Cards.css";
 
@@ -1304,6 +1307,119 @@ export function DetailedFeeStructureCard({ card, onSelect }: { card: any; onSele
   );
 }
 
+export function HostelFacilitiesCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
+  const blocks = card.blocks || [];
+  const roomTypes = card.room_types || [];
+  const amenities = card.amenities || [];
+  const rules = card.rules_summary || [];
+
+  return (
+    <div className="rich-card hostel-facilities-card">
+      <div className="card-header">
+        <span className="card-badge hostel-badge">
+          <SruHostelIcon size={14} /> Campus Hostels
+        </span>
+        <h4 className="card-title">{card.title || "SR University Residential Living & Campus Hostels"}</h4>
+        {card.subtitle && <p className="card-subtitle">{card.subtitle}</p>}
+      </div>
+
+      {/* Residential Blocks */}
+      <div className="hostel-section">
+        <div className="hostel-section-title">
+          <BuildingIcon size={14} /> Residential Blocks
+        </div>
+        <div className="hostel-blocks-grid">
+          {blocks.map((b: any, idx: number) => (
+            <div key={idx} className="hostel-block-card">
+              <div className="hostel-block-type">{b.type}</div>
+              <div className="hostel-block-name">{b.blocks}</div>
+              {b.warden && (
+                <div className="hostel-block-warden">
+                  <span className="warden-label">Warden:</span> {b.warden}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Room Configurations */}
+      <div className="hostel-section">
+        <div className="hostel-section-title">
+          <BedIcon size={14} /> Room Types & Sharing
+        </div>
+        <div className="hostel-rooms-grid">
+          {roomTypes.map((r: any, idx: number) => (
+            <div key={idx} className="hostel-room-item">
+              <span className="room-type-badge">{r.name}</span>
+              <p className="room-amenities-text">{r.amenities}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Key Living Amenities */}
+      <div className="hostel-section">
+        <div className="hostel-section-title">
+          <SparklesIcon size={14} /> Campus Amenities & Facilities
+        </div>
+        <div className="hostel-amenities-grid">
+          {amenities.map((a: any, idx: number) => (
+            <div key={idx} className="hostel-amenity-card">
+              <div className="amenity-title">
+                <span className="amenity-bullet">•</span> {a.title}
+              </div>
+              <div className="amenity-desc">{a.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Discipline & Curfew Highlights */}
+      {rules.length > 0 && (
+        <div className="hostel-section">
+          <div className="hostel-section-title">
+            <ClockIcon size={14} /> Timings & Discipline Guidelines
+          </div>
+          <div className="hostel-rules-box">
+            {rules.map((rule: string, idx: number) => (
+              <div key={idx} className="hostel-rule-row">
+                <span className="rule-check">✓</span>
+                <span>{rule}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Quick Inquiries */}
+      <div className="hostel-action-buttons">
+        <button
+          type="button"
+          className="hostel-action-btn fee-btn"
+          onClick={() => onSelect?.("Hostel fee breakdown")}
+        >
+          <RupeeIcon size={13} /> View Room & Mess Fees
+        </button>
+        <button
+          type="button"
+          className="hostel-action-btn"
+          onClick={() => onSelect?.("Tell me about mess food and timings")}
+        >
+          Mess Menu & Timings
+        </button>
+        <button
+          type="button"
+          className="hostel-action-btn"
+          onClick={() => onSelect?.("What are the hostel rules and curfew?")}
+        >
+          Curfew & Rules
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
   if (!card || !card.type) return null;
 
@@ -1318,6 +1434,8 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
       return <ComparisonCard card={card} />;
     case "fee_breakdown":
       return <FeeBreakdownCard card={card} />;
+    case "hostel_facilities":
+      return <HostelFacilitiesCard card={card} onSelect={onSelect} />;
     case "calculate_fee":
       return <AgentFeeCard card={card} />;
     case "request_counsellor_callback":

@@ -25,6 +25,11 @@ AgentIntent = Literal[
     "AGRICULTURE_FEE_QUERY",
     "COMP_APP_FEE_QUERY",
     "DESIGN_FEE_QUERY",
+    "HOSTEL_FEE_QUERY",
+    "HOSTEL_MESS_QUERY",
+    "HOSTEL_CURFEW_RULES_QUERY",
+    "HOSTEL_SAFETY_QUERY",
+    "HOSTEL_INFO_QUERY",
     "GENERAL",
 ]
 
@@ -177,6 +182,47 @@ _DESIGN_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_HOSTEL_FEE_PATTERN = re.compile(
+    r"\b(?:hostel|mess|boarding)\b.*?\b(?:fee|fees|cost|costs|charge|charges|price|prices|how\s+much|rate|rates|rent|package|deposit|deposits)\b|"
+    r"\b(?:fee|fees|cost|costs|charge|charges|price|prices|how\s+much|rate|rates|rent|package)\b.*?\b(?:hostel|mess|boarding)\b|"
+    r"^\s*(?:hostel\s*fee|hostel\s*fees|mess\s*fee|hostel\s*cost|hostel\s*charges|hostel\s*rent|hostel\s*pricing|hostel\s*room\s*fees?)\s*$",
+    re.IGNORECASE,
+)
+
+_HOSTEL_MESS_PATTERN = re.compile(
+    r"\b(?:mess\s+food|hostel\s+food|food\s+in\s+hostel|food\s+in\s+mess|mess\s+menu|dining\s+hall|mega\s+dining|"
+    r"food\s+timings?|mess\s+timings?|dining\s+timings?|dining\s+hours?|breakfast|lunch|dinner|evening\s+snacks?|canteen\s+food|"
+    r"veg\s+and\s+non[\s-]*veg|non[\s-]*veg|veg[\s-]*food|food\s+quality|how\s+is\s+(?:the\s+)?food|"
+    r"what\s+food\s+is\s+served|food\s+menu|mess\s+facility|mess\s+facilities|dining\s+facility|dining\s+facilities)\b",
+    re.IGNORECASE,
+)
+
+_HOSTEL_CURFEW_RULES_PATTERN = re.compile(
+    r"\b(?:curfew|in[- ]?time|out[- ]?pass|outing\s+rules?|hostel\s+rules?|rules\s+in\s+hostel|"
+    r"biometric\s+attendance|roll\s+call|silence\s+hours?|gate\s+timings?|night\s+timings?|"
+    r"can\s+we\s+go\s+out|permission\s+to\s+leave|late\s+permission|curfew\s+timings?|"
+    r"in[- ]?time\s+for\s+(?:first\s+years?|girls|boys|students?)|hostel\s+discipline|"
+    r"prohibited\s+items?|cross[- ]?gender)\b",
+    re.IGNORECASE,
+)
+
+_HOSTEL_SAFETY_PATTERN = re.compile(
+    r"\b(?:hostels?\s+safety|is\s+hostels?\s+safe|security\s+in\s+(?:campus\s+)?hostels?|cctv\s+in\s+(?:campus\s+)?hostels?|"
+    r"ragging\s+in\s+(?:campus\s+)?hostels?|wardens?|hostels?\s+in[- ]?charge|girls\s+hostels?\s+warden|"
+    r"boys\s+hostels?\s+warden|counsellors?\s+in\s+hostels?|anti[- ]?ragging\s+in\s+hostels?|"
+    r"medical\s+support\s+in\s+hostels?|ambulance\s+in\s+hostels?)\b",
+    re.IGNORECASE,
+)
+
+_HOSTEL_INFO_PATTERN = re.compile(
+    r"\b(?:hostels?|hostel\s+facilities|hostel\s+life|hostel\s+accommodation|campus\s+hostels?|"
+    r"hostel\s+details|tell\s+me\s+about\s+(?:the\s+)?hostels?|living\s+on\s+campus|stay\s+in\s+hostel|"
+    r"hostel\s+rooms?|ac\s+rooms?\s+in\s+hostel|room\s+sharing\s+in\s+hostel|boys\s+hostels?|"
+    r"girls\s+hostels?|wifi\s+in\s+hostel|hot\s+water\s+in\s+hostel|gym\s+in\s+hostel|laundry\s+in\s+hostel|"
+    r"hostel\s+options?|explore\s+hostels?|hostel\s+amenities|residential\s+(?:campus\s+)?living|campus\s+accommodation)\b|^\s*(?:hostel|hostels|hostel\s+details|hostel\s+info)\s*$",
+    re.IGNORECASE,
+)
+
 
 def _has_score_or_rank(msg: str) -> bool:
     return bool(re.search(r"\d{2,3}\s*%|\brank\b|\bpercent\b|\bpercentile\b|\bmarks\b|\beapcet\b|\beamcet\b|\bjee\b", msg, re.IGNORECASE))
@@ -206,19 +252,15 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
             return "DATE_CONFIRMATION_NO"
 
     # 4. Check if message is asking to visit on a specific date
-    # E.g. "I want to visit on 17th", "visit on tomorrow", "can I visit on next Monday"
     if _VISIT_WITH_DATE_PATTERN.search(msg) or any(k in msg for k in ("visit on", "visit tomorrow", "visit today")):
         return "CAMPUS_VISIT_BOOKING_WITH_DATE"
 
-    # Also detect if the message is simply a date in response to a visit discussion
     if state.get("active_topic") == "campus_visit":
         from .tools import resolve_campus_visit_date
         res = resolve_campus_visit_date(msg)
         if res.get("date"):
             return "CAMPUS_VISIT_BOOKING_WITH_DATE"
 
-    # 4b. "I want to visit campus on 2026-11-25" / "visit campus tomorrow": a visit with a date
-    #     anywhere in the sentence (the patterns above only catch "visit on ...").
     if re.search(r"\b(?:visit|come|tour)\b", msg) and not re.search(r"\b(?:timings?|hours?|rules?|allowed|can\s+parents)\b", msg):
         from .tools import resolve_campus_visit_date
         if resolve_campus_visit_date(msg).get("date"):
@@ -235,6 +277,18 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
     # 6b. Placement guarantee / 100% placement assistance inquiry
     if _PLACEMENT_GUARANTEE_PATTERN.search(msg):
         return "PLACEMENT_GUARANTEE_QUERY"
+
+    # 6c. Dedicated Hostel Inquiries (Categorized before fee calculations)
+    if _HOSTEL_FEE_PATTERN.search(msg):
+        return "HOSTEL_FEE_QUERY"
+    if _HOSTEL_MESS_PATTERN.search(msg):
+        return "HOSTEL_MESS_QUERY"
+    if _HOSTEL_CURFEW_RULES_PATTERN.search(msg):
+        return "HOSTEL_CURFEW_RULES_QUERY"
+    if _HOSTEL_SAFETY_PATTERN.search(msg):
+        return "HOSTEL_SAFETY_QUERY"
+    if _HOSTEL_INFO_PATTERN.search(msg):
+        return "HOSTEL_INFO_QUERY"
 
     # 7. Deterministic quick responses (when user hasn't provided a specific score/rank to calculate)
     if not _has_score_or_rank(msg):
