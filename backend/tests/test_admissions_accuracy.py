@@ -8,7 +8,7 @@ Verified against official SR University figures (Academic Year 2026-27 / 2027-28
 - MBA: 50% eligibility, ₹1,50,000/semester (+ 10% PG scholarship)
 - Merit Scholarships: 92% to 97.99% in Inter = 40% scholarship for CSE
 - Girls Hostel AC: ₹1,25,000 (4-sharing) / ₹1,35,000 (3-sharing)
-- Official Contacts: 0870-2818333 / 2818311, info@sru.edu.in
+- Official Contacts: 833 100 3030, info@sru.edu.in
 """
 
 import pytest
@@ -102,10 +102,10 @@ def test_mba_and_bba_eligibility_and_fees():
 
 def test_official_admissions_contacts():
     """Verify official admissions contact details."""
-    official_contacts = ["0870-2818333", "0870-2818311", "info@sru.edu.in", "https://apply.sru.edu.in"]
-    unverified_contacts = ["8331003030", "8331004040", "9701578799"]
+    official_contacts = ["833 100 3030", "8331003030", "info@sru.edu.in", "https://apply.sru.edu.in"]
+    unverified_contacts = ["9701578799"]
 
-    text = "Please reach out to the admissions office at 0870-2818333 or info@sru.edu.in."
+    text = "Please reach out to the admissions office at 833 100 3030 or info@sru.edu.in."
     assert any(c in text for c in official_contacts)
     assert not any(c in text for c in unverified_contacts)
 

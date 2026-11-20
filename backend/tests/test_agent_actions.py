@@ -260,7 +260,7 @@ async def test_visit_request_gets_the_admissions_contacts_and_no_booking(leads):
     visit = _next_weekday(5)
     _, done = await _run(f"I want to visit on {visit.isoformat()}", sid, conversation_id=conv)
     answer = done["answer"]
-    assert "can't book or confirm" in answer and "70750 10336" in answer and "0870-2818333" in answer
+    assert "can't book or confirm" in answer and "833 100 3030" in answer
     assert visit.strftime("%B %d, %Y") in answer
     assert not any(c.get("type") == "campus_visit_form" for c in done["cards"])
     assert any(c.get("type") == "get_contact_and_apply_links" for c in done["cards"])

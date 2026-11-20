@@ -65,7 +65,7 @@ async def test_visit_wish_is_passed_on_with_the_preferred_date_not_booked():
         meta = saved[0]["metadata"]
         assert meta["request_type"] == "campus_visit" and meta["preferred_date"] == "tomorrow"
         assert "visit_date" not in meta and "NOT booked" in meta["note"]
-        assert r["contacts"]["mobile"] == "+91 70750 10336"
+        assert r["contacts"]["mobile"] == "833 100 3030"
     finally:
         tools.set_lead_saver(None)
 
@@ -96,7 +96,7 @@ def test_campus_visit_question_shows_whom_to_contact_not_a_booking_form():
     assert not any(c.get("type") == "campus_visit_form" for c in cards)
     visit_card = next(c for c in cards if c.get("type") == "campus_visit_contact")
     assert visit_card == CAMPUS_VISIT_FORM_CARD
-    assert "Warangal" in visit_card["address"] and visit_card["mobile"] == "+91 70750 10336"
+    assert "Warangal" in visit_card["address"] and visit_card["mobile"] == "833 100 3030"
     assert "timings" not in visit_card
     # Static tour card should be suppressed in favour of the visit contacts
     assert not any(c.get("type") == "campus_tour" for c in cards)

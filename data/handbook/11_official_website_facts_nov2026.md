@@ -44,7 +44,7 @@ Astra School of Business; School of Agriculture; School of Computer Science & Ar
 3. **Submit scores:** JEE Main or EAPCET result where available; Intermediate / 10+2 marks are used for merit scholarships.
 4. **Confirm the seat:** accept the offer and pay the fee.
 
-The website's admission page does **not** list the documents to upload, the important dates or the refund policy. For these, the student must contact the Admissions Office (0870-2818333 / 0870-2818311, info@sru.edu.in).
+The website's admission page does **not** list the documents to upload, the important dates or the refund policy. For these, the student must contact the Admissions Office (833 100 3030, info@sru.edu.in).
 
 ## 6. Placements (from sru.edu.in/placements, no batch year given on the page)
 
@@ -54,7 +54,7 @@ The website's admission page does **not** list the documents to upload, the impo
 
 ## 7. Contact (from sru.edu.in)
 
-- Phone: 0870-2818333 / 0870-2818311. Email: info@sru.edu.in. WhatsApp: +91 8331004040.
+- Phone: 833 100 3030. Email: info@sru.edu.in. WhatsApp: +91 8331003030.
 - Visit: https://sru.edu.in/visit-us
 
 ## 8. Things the official sources do not state (do not guess these)

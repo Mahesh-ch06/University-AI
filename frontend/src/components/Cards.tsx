@@ -713,7 +713,7 @@ export function AgentCallbackCard({ card }: CardProps) {
         <div className="agent-action-meta">
           {d.preferred_time && <div><strong>Preferred Time:</strong> {d.preferred_time}</div>}
           {d.reference && <div><strong>Reference ID:</strong> #{d.reference}</div>}
-          <div><strong>Admissions Helpline:</strong> 0870-2818333 / +91 8331003030</div>
+          <div><strong>Admissions Helpline:</strong> 833 100 3030</div>
         </div>
       </div>
     </div>
@@ -770,7 +770,7 @@ export function AgentCampusVisitCard({ card }: CardProps) {
               📍 Open in Google Maps
             </a>
             <a
-              href="tel:08702818333"
+              href="tel:8331003030"
               className="agent-card-call-btn"
             >
               📞 Call Admissions
@@ -787,12 +787,12 @@ export function AgentCampusVisitCard({ card }: CardProps) {
  * ("campus_visit_form") when an older chat is reopened. */
 export function VisitContactCard({ card }: CardProps) {
   const d = card?.data?.campus_visit || card?.data || card || {};
-  const phone = (d.phone || "0870-2818333 / 0870-2818311") as string;
+  const phone = (d.phone || "833 100 3030") as string;
   const firstPhone = phone.split("/")[0].replace(/[^\d+]/g, "");
-  const mobile = (d.mobile || "+91 70750 10336") as string;
+  const mobile = (d.mobile || "833 100 3030") as string;
   const whatsapp =
     d.whatsapp ||
-    "https://wa.me/917075010336?text=Hi%2C%20I%20would%20like%20to%20visit%20the%20SR%20University%20campus.";
+    "https://wa.me/918331003030?text=Hi%2C%20I%20would%20like%20to%20visit%20the%20SR%20University%20campus.";
   return (
     <div className="rich-card agent-action-card visit-contact-card">
       <div className="card-header">
@@ -874,7 +874,7 @@ export function VisitRequestCard({ card }: CardProps) {
             </div>
           )}
           <div>
-            <strong>Admissions:</strong> 0870-2818333 · +91 70750 10336 (call or WhatsApp)
+            <strong>Admissions:</strong> 833 100 3030 (call or WhatsApp)
           </div>
         </div>
       </div>

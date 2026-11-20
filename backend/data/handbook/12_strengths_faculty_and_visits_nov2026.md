@@ -50,7 +50,7 @@
 
 - SR University has one campus: Ananthasagar, Hasanparthy, Warangal Urban 506371, Telangana.
 - Campus visits are arranged by the admissions team. SRU Buddy does not book or confirm visits.
-- For a campus visit: 0870-2818333 / 0870-2818311, info@sru.edu.in, +91 70750 10336 (also on WhatsApp).
+- For a campus visit: 833 100 3030 (call or WhatsApp), info@sru.edu.in.
 - Getting here: Warangal Railway Station and Kazipet Junction are the nearest major stations; Rajiv Gandhi International Airport, Hyderabad is the nearest major airport (about 140 km), then by road or rail.
 - The visit page does not list visiting hours: ask the admissions team for timings.
 

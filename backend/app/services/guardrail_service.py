@@ -106,11 +106,11 @@ def sanitize_hallucinated_urls(answer: str, unsupported_urls: list[str]) -> str:
         # If preceded by at/via/on/visit/portal, replace gracefully
         prep_pattern = re.compile(rf"\b(?:at|on|via|through|visit|portal)\s+{re.escape(url)}", re.I)
         if prep_pattern.search(sanitized):
-            sanitized = prep_pattern.sub("the Admissions Office (0870-2818333 / info@sru.edu.in)", sanitized)
+            sanitized = prep_pattern.sub("the Admissions Office (833 100 3030 / info@sru.edu.in)", sanitized)
         else:
             sanitized = re.sub(
                 re.escape(url),
-                "the Admissions Office (0870-2818333 / info@sru.edu.in)",
+                "the Admissions Office (833 100 3030 / info@sru.edu.in)",
                 sanitized,
                 flags=re.I,
             )

@@ -58,14 +58,14 @@ def test_sanitize_staff_contact_numbers():
     raw = (
         "Our campus has 100% Wi-Fi. For assistance, reach out to our network support team members "
         "Mr. A. Bala Krishna at 8886522500 or Mr. E. Manikanta at 8008917297. "
-        "For admissions, contact 0870-2818333."
+        "For admissions, contact 833 100 3030."
     )
     cleaned = sanitize_staff_contact_numbers(raw)
 
     assert "8886522500" not in cleaned
     assert "8008917297" not in cleaned
     assert "helpdesk@sru.edu.in" in cleaned
-    assert "0870-2818333" in cleaned
+    assert "833 100 3030" in cleaned
 
 
 def test_should_offer_video_tour_scoping():

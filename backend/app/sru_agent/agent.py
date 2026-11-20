@@ -52,9 +52,8 @@ def _visit_guide(date_text: str | None = None) -> str:
     asked = f" for {date_text}" if date_text else ""
     return (f"Campus visits{asked} are arranged by the SR University admissions team. I can't book or confirm a "
             f"visit myself, but they will help you plan it:\n"
-            f"- Call {config.ADMISSIONS_PHONE} or 0870-2818311\n"
-            f"- Call or WhatsApp {config.CAMPUS_VISIT_PHONE}\n"
-            f"- Email {config.ADMISSIONS_EMAIL}\n"
+            f"- Call or WhatsApp: {config.ADMISSIONS_PHONE}\n"
+            f"- Email: {config.ADMISSIONS_EMAIL}\n"
             f"- Campus: {config.CAMPUS_ADDRESS}\n\n"
             f"Please confirm the day and time with them before you travel. If you like, share your name and "
             f"10-digit mobile number and I will ask the admissions team to call you back about the visit.")
@@ -781,7 +780,7 @@ At SR University, special category tuition fee concessions are offered annually 
 
 > [!NOTE]
 > - Concessions are applicable per academic year on tuition fees.
-> - Required certificates and documentation must be submitted directly to the Admissions Office (0870-2818333 / info@sru.edu.in) during admission counselling."""
+> - Required certificates and documentation must be submitted directly to the Admissions Office (833 100 3030 / info@sru.edu.in) during admission counselling."""
 
 _NEXT_GEN_TECH_TEXT = """### 🚀 Next-Gen Technology Programs at SR University
 

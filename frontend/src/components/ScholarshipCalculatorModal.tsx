@@ -274,7 +274,7 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
     } catch (err) {
       console.warn("Lead registration note:", err);
       setLeadSuccessMsg(null);
-      setCallbackError("We could not save your request just now. Please try again, or call 0870-2818333.");
+      setCallbackError("We could not save your request just now. Please try again, or call 833 100 3030.");
     }
   };
 
@@ -447,7 +447,7 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
                 <InfoIcon size={14} />
                 <span>
                   This course normally needs at least {program.minimum_percent}%. Please confirm your eligibility with
-                  the Admissions Office (0870-2818333) before applying.
+                  the Admissions Office (833 100 3030) before applying.
                 </span>
               </div>
             )}
