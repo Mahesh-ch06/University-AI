@@ -91,8 +91,8 @@ _IN_PERSON_TOUR_PATTERN = re.compile(
 )
 
 _CAMPUS_TOUR_DISPATCH_PATTERN = re.compile(
-    r"^\s*(?:campus?|college?|university)\s+(?:tour|walkthrough|info|"
-    r"see\s+(?:the\s+)?campus?|show\s+me\s+(?:the\s+)?campus?|explore\s+(?:the\s+)?campus?)[.!?\s]*$"
+    r"^\s*(?:(?:campus?|college?|university)\s+(?:tour|walkthrough|info)|"
+    r"(?:see|show\s+me|explore|view)\s+(?:the\s+)?(?:campus?|college?|university))[.!?\s]*$"
     r"|\b(?:(?:tell\s+me\s+about|details\s+(?:of|for|about))\s+(?:the\s+)?(?:campus?\s+)?tour)\b"
     r"|\b(?:(?:can|could)\s+(?:i|we)|how\s+(?:can\s+i|to))\s+(?:see|tour|explore|walkthrough)\s+(?:the\s+)?campus?\b"
     r"|\b(?:is\s+there\s+a\s+(?:campus?\s+)?tour|take\s+a\s+(?:campus?\s+)?tour)\b"

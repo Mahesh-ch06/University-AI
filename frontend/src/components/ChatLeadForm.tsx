@@ -148,18 +148,22 @@ export default function ChatLeadForm({ onComplete, pendingQuestion }: Props) {
         program_interest: detectedProgram,
       });
       const activeConv = sessionStorage.getItem("sru_active_conv_id");
-      await createLead({
-        name: cleanN,
-        phone: validPhone,
-        program_interest: detectedProgram,
-        source: "chat_inquiry",
-        conversation_id: activeConv || undefined,
-        metadata: {
-          consent_given: true,
-          request_type: "conversational_lead",
-          pending_question: pendingQuestion || undefined,
-        },
-      });
+      try {
+        await createLead({
+          name: cleanN,
+          phone: validPhone,
+          program_interest: detectedProgram,
+          source: "chat_inquiry",
+          conversation_id: activeConv || undefined,
+          metadata: {
+            consent_given: true,
+            request_type: "conversational_lead",
+            pending_question: pendingQuestion || undefined,
+          },
+        });
+      } catch (leadErr) {
+        console.warn("Could not sync lead to CRM database (non-blocking):", leadErr);
+      }
       onComplete();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save details. Please try again.");

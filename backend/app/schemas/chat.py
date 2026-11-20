@@ -36,7 +36,7 @@ class ChatResponse(BaseModel):
     """Response to a chat message."""
 
     conversation_id: UUID
-    message_id: UUID
+    message_id: UUID | None = None
     answer: str
     sources: list[SourceReference] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)

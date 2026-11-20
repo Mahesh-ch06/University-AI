@@ -267,11 +267,12 @@ async def handle_chat(
             prompt_reply = "Please provide your full name before I answer your question."
         else:
             prompt_reply = "Please provide your 10-digit mobile number before I answer your question."
-        await conversation_service.add_message(
+        prompt_msg = await conversation_service.add_message(
             db, conversation.id, role="assistant", content=prompt_reply
         )
         return ChatResponse(
-            conversation_id=str(conversation.id),
+            conversation_id=conversation.id,
+            message_id=prompt_msg.id,
             answer=prompt_reply,
             sources=[],
             suggestions=["Share name & phone", "Apply to SRU", "Contact Admissions"],

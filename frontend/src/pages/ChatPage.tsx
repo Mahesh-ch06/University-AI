@@ -3,7 +3,7 @@ import MessageBubble from "../components/MessageBubble";
 import ChatLeadForm from "../components/ChatLeadForm";
 import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
-import { applyServerProfile, cleanPhone, PROFILE_EVENT, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
+import { applyServerProfile, cleanPhone, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import { deduplicateCards } from "../components/Cards";
 import {
   sendMessageStream,
@@ -62,6 +62,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const [messages, setMessages] = useState<MessageData[]>([DEFAULT_WELCOME_MESSAGE]);
   const [showInlineLeadForm, setShowInlineLeadForm] = useState<boolean>(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const pendingQuestionRef = useRef<string | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(MESSAGE_RENDER_WINDOW);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const activeConvIdRef = useRef<string | null>(activeConvId);
@@ -73,22 +74,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     }
   }, [activeConvId]);
 
-  useEffect(() => {
-    const handleProfileChange = () => {
-      if (hasValidContactDetails()) {
-        setShowInlineLeadForm(false);
-      }
-    };
-    window.addEventListener(PROFILE_EVENT, handleProfileChange);
-    return () => window.removeEventListener(PROFILE_EVENT, handleProfileChange);
-  }, []);
-
   const handleLeadFormComplete = () => {
     setShowInlineLeadForm(false);
     setError(null);
-    if (pendingQuestion) {
-      const q = pendingQuestion;
-      setPendingQuestion(null);
+    const q = pendingQuestionRef.current || pendingQuestion;
+    // Clear immediately so that it can never be submitted more than once
+    pendingQuestionRef.current = null;
+    setPendingQuestion(null);
+    if (q) {
       executeSendMessage(q, true);
     }
   };
@@ -231,6 +224,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       lastSentUserMsgIdRef.current = userMsgId;
       setMessages((prev) => [...prev, tempUserMsg]);
       setPendingQuestion(trimmed);
+      pendingQuestionRef.current = trimmed;
       setShowInlineLeadForm(true);
       setError(null);
       return;
