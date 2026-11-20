@@ -40,6 +40,9 @@ class GeminiProvider(LLMProvider):
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(15.0, connect=5.0),
+            # Keep a small pool of persistent connections so successive Gemini calls
+            # (reformulate → generate → guardrail) reuse the same TCP connection.
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
         )
 
     @property

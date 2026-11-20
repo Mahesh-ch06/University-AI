@@ -20,7 +20,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-_CACHE_TTL_SECONDS = 3600  # 1 hour
+_CACHE_TTL_SECONDS = 86400  # 24 hours — university facts change at most once a semester;
+                            # document uploads call bump_index_version() which invalidates stale keys
 _MAX_ANSWER_LEN = 4000     # don't cache abnormally long answers
 _KEY_PREFIX = f"sru:rag:v{settings.RAG_CACHE_VERSION}:"
 

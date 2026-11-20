@@ -64,6 +64,10 @@ from app.services.video_service import (
     should_retrieve_video_matches,
     should_display_videos,
 )
+# sru_agent modules imported at module level to avoid per-request import overhead
+from app.sru_agent import memory as agent_memory
+from app.sru_agent import tools as agent_tools
+from app.sru_agent import intents as agent_intents
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +262,6 @@ async def handle_chat(
         existing_name = str(prof.get("name") or "").strip()
     if extracted_phone and not existing_phone:
         prof = await agent_memory.update_profile(request.session_id, phone=extracted_phone)
-        existing_phone = agent_tools.clean_phone(prof.get("phone") or "")
 
     if not (existing_name and existing_phone):
         if not existing_name and not existing_phone:
@@ -672,10 +675,6 @@ async def handle_chat_stream(
 
         # Send initial event
         yield f"data: {json.dumps({'type': 'start', 'conversation_id': str(conversation.id)})}\n\n"
-
-        from app.sru_agent import memory as agent_memory
-        from app.sru_agent import tools as agent_tools
-        from app.sru_agent import intents as agent_intents
 
         prof = await agent_memory.get_profile(request.session_id)
         existing_phone = agent_tools.clean_phone(prof.get("phone") or "")
@@ -1124,13 +1123,6 @@ async def handle_chat_stream(
                 "video_offer": bool(semantic_videos and contextual_offer_allowed and not explicit_video),
             },
         )
-        await memory_service.save_summary(
-            db,
-            conversation.id,
-            memory_service.build_extractive_summary(
-                await conversation_service.get_recent_messages(db, conversation.id)
-            ),
-        )
         if agent_trace:
             await record_agent_run(
                 db,
@@ -1157,8 +1149,25 @@ async def handle_chat_stream(
                 db, conversation.id, title
             )
 
-        # Final completion event
+        # Final completion event — yield BEFORE the background memory write so the
+        # client receives the answer immediately without waiting for DB summary work.
         yield f"data: {json.dumps({'type': 'done', 'conversation_id': str(conversation.id), 'message_id': str(assistant_msg.id), 'answer': answer, 'sources': sources, 'suggestions': suggestions, 'cards': cards, 'flow': flow_info, 'agent': agent_trace, 'model': settings.LLM_MODEL})}\n\n"
+
+        # Background: save extractive memory summary after the response is already streamed.
+        # Fire-and-forget; errors are caught inside save_summary and are non-critical.
+        async def _save_memory_summary() -> None:
+            try:
+                await memory_service.save_summary(
+                    db,
+                    conversation.id,
+                    memory_service.build_extractive_summary(
+                        await conversation_service.get_recent_messages(db, conversation.id)
+                    ),
+                )
+            except Exception as _mem_err:
+                logger.warning("Background memory summary failed (non-critical): %s", _mem_err)
+
+        asyncio.create_task(_save_memory_summary())
 
     except Exception as e:
         logger.error("Chat stream error: %s", e, exc_info=True)
