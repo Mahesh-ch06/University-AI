@@ -4,6 +4,7 @@ import ChatLeadForm from "../components/ChatLeadForm";
 import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
 import { applyServerProfile, cleanPhone, PROFILE_EVENT, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
+import { deduplicateCards } from "../components/Cards";
 import {
   sendMessageStream,
   type MessageData,
@@ -325,6 +326,11 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         }
       },
       onCard: (card) => {
+        const isVideo = card?.type === "get_university_videos" || card?.type === "video_recommendations";
+        const alreadyHasVideo = accumulatedCards.some(
+          (c) => c?.type === "get_university_videos" || c?.type === "video_recommendations"
+        );
+        if (isVideo && alreadyHasVideo) return;
         accumulatedCards.push(card);
         scheduleAssistantRender();
       },
@@ -352,7 +358,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           triggerConfetti();
         }
 
-        const finalCards = data.cards?.length ? data.cards : accumulatedCards;
+        const rawCards = data.cards?.length ? data.cards : accumulatedCards;
+        const finalCards = deduplicateCards(rawCards);
 
         if (!assistantAppended) {
           assistantAppended = true;

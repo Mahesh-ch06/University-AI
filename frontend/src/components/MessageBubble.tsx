@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { submitFeedback } from "../services/api";
-import { RenderCard } from "./Cards";
+import { RenderCard, deduplicateCards } from "./Cards";
 import MarkdownContent from "./MarkdownContent";
 import { copyCleanText } from "../utils/cleanCopy";
 import { renderUniIcon } from "./Icons";
@@ -183,7 +183,7 @@ function MessageBubble({
         {/* Rich Interactive Cards (e.g. branch comparison, fee breakdown, academic flow) */}
         {!isStreaming && role === "assistant" && cards && cards.length > 0 && (
           <div className="message-cards-container">
-            {cards.map((card, idx) => (
+            {deduplicateCards(cards).map((card, idx) => (
               <RenderCard key={idx} card={card} onSelect={onSuggestionClick} />
             ))}
           </div>

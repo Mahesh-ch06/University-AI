@@ -1735,9 +1735,12 @@ async def run_agent(
             user_message=message, answer=final, profile=ctx.get("profile"),
             session_id=session_id, query_embedding=query_embedding, keyword_videos=True)
         personalised = any(t["name"] in _FEE_TOOLS for t in used)
+        has_video_card = any(c.get("type") in ("get_university_videos", "video_recommendations") for c in cards)
         for c in contextual_cards:
             if personalised and c.get("type") == "fee_breakdown":
                 continue  # the student already has their own numbers; no generic table underneath
+            if has_video_card and c.get("type") in ("get_university_videos", "video_recommendations"):
+                continue  # tool already provided video card; do not duplicate
             if c not in cards:
                 cards.append(c)
     except Exception as card_err:

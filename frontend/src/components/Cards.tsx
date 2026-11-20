@@ -1293,6 +1293,35 @@ export function DetailedFeeStructureCard({ card, onSelect }: { card: any; onSele
   );
 }
 
+/**
+ * Deduplicates cards so the user is never shown duplicate cards (e.g. multiple video cards or repeated contact cards).
+ */
+export function deduplicateCards(cards: any[] | undefined | null): any[] {
+  if (!cards || !Array.isArray(cards) || cards.length <= 1) return cards || [];
+  const result: any[] = [];
+  const seenCategories = new Set<string>();
+
+  for (const card of cards) {
+    if (!card) continue;
+    const type = card.type || "";
+    let category = type;
+    if (type === "get_university_videos" || type === "video_recommendations") {
+      category = "video_recommendations";
+    } else if (type === "campus_visit_contact" || type === "get_contact_and_apply_links") {
+      category = `contact_${Boolean(card.data?.campus_visit)}`;
+    } else if (type === "calculate_fee" || type === "fee_breakdown") {
+      category = "fee_card";
+    }
+
+    if (seenCategories.has(category)) {
+      continue;
+    }
+    seenCategories.add(category);
+    result.push(card);
+  }
+  return result;
+}
+
 export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
   if (!card || !card.type) return null;
 
