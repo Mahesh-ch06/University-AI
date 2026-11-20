@@ -362,8 +362,15 @@ _DATE_NOISE = (
     re.compile(r"\b\d+(?:\.\d+)?\s*(?:%|percent(?:age|ile)?\b|marks?\b|lpa\b|lakhs?\b|k\b)"),
     re.compile(r"\b(?:rank|age|class|grade|room)\s*(?:is|of|:)?\s*\d+\b"),
     re.compile(r"\b\d+(?:st|nd|rd|th)?\s*(?:rank|class|grade|std|standard|year|sem(?:ester)?)\b"),
+    re.compile(r"\b(?:in|i\.?|for|my|after|passed|from)\s*(?:10th|12th|inter|intermediate|ssc|cbse|icse|ib)\b"),
+    re.compile(r"\b(?:10th|12th|inter|intermediate|ssc|cbse|icse|ib)\s*(?:class|grade|std|standard|board|marks?|inter|intermediate|percent|percentage)?\b"),
     re.compile(r"\b\d+\s*(?:people|persons?|members?|friends?|of\s+us|visitors?|students?|"
                r"parents?|adults?|kids?|guests?)\b"),
+)
+
+_ACADEMIC_OR_FEE_TERMS = re.compile(
+    r"\b(?:scholarship|marks?|rank|fee|fees|tuition|inter|intermediate|cutoff|cut-off|percent|percentage|exam|exams|passmarks|pass\s+marks)\b",
+    re.I
 )
 
 
@@ -376,7 +383,13 @@ def _safe_date(year: int, month: int, day: int):
 
 def _find_visit_date(text: str, today: date):
     """Pull a date out of free text ('17th', 'next Monday', 'on 2026-11-20, my number is 98...')."""
-    s = " " + str(text).lower() + " "
+    raw_lower = str(text).lower()
+    # Guard: If query is asking about marks, scholarships, exams, or fees without any visit intent,
+    # do NOT parse academic grades or ranks as visit dates.
+    if _ACADEMIC_OR_FEE_TERMS.search(raw_lower) and not re.search(r"\b(?:visit|come|tour|appointment|reach)\b", raw_lower):
+        return None
+
+    s = " " + raw_lower + " "
     for noise in _DATE_NOISE:
         s = noise.sub(" ", s)
     s = re.sub(r"[,;!?()]", " ", s)
@@ -443,6 +456,9 @@ def _find_visit_date(text: str, today: date):
                          r"(?:the\s+)?(\d{1,2})\s*\.?\s*", s))
     if m:
         day = int(m.group(1))
+        # Extra guard: bare 10th or 12th without explicit visit context shouldn't be parsed as dates
+        if day in (10, 12) and not re.search(r"\b(?:visit|come|tour|on|reach|date)\b", raw_lower):
+            return None
         if 1 <= day <= 31:
             if day >= today.day:
                 d = _safe_date(today.year, today.month, day)

@@ -10,7 +10,7 @@ from . import config
 
 # Change this whenever the wording below changes, so a chat log can be matched to the prompt
 # that produced it (AGENTS.md rule 13: prompts are versioned).
-PROMPT_VERSION = "2026-11-18.1"
+PROMPT_VERSION = "2026-11-20.1"
 
 _HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee")
 
@@ -142,6 +142,13 @@ The details above belong to the person you are chatting with, unless they said t
 someone else (a brother, a daughter). Never move them onto another person. "What is my number / my marks?"
 -> answer from the details above.
 {persona_note}{parent_note}{pending_note}{looked_up}
+FIRST THINK WHAT THE USER IS ASKING (CRITICAL)
+- Always identify the user's immediate question and answer it directly FIRST.
+- Never hijack the topic: if the student moves on to clubs, canteen, faculty, campus life, attendance, or exams, do NOT repeatedly append unwanted fee or scholarship prompts.
+- When an inquiry is about exam marks, evaluation, or passing grades, do not confuse it with fee totals or entrance ranks.
+- When an inquiry asks for food stalls, cafeterias, or snacking options on campus, answer about the Central Cafeteria (8:30 AM-6:00 PM) and campus food kiosks (Tasty Treat, Meet and Eat, Bharat Foods 9:00 AM-7:00 PM), not residential hostel mess fees.
+- When an inquiry asks to combine hostel fees with tuition, or asks for total fee including hostel, calculate and present the COMBINED total breakdown (tuition + hostel + academic charges), not just standalone hostel fees.
+
 ANTI-REPETITION & CONVERSATIONAL INTELLIGENCE RULES (CRITICAL)
 - NEVER start responses with generic canned openers like "Sure!", "Certainly!", "Absolutely!", "Of course!", "How can I help you?".
 - NEVER end responses with boilerplate closers like "How can I assist you today?" or "Please let me know if you need anything else.".

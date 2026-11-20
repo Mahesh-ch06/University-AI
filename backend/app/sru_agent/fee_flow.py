@@ -618,6 +618,65 @@ def build_detailed_fee_card(prog: dict, school: dict, year: str, spec: str | Non
 # 4. State Machine Execution & Transition Engine
 # -----------------------------------------------------------------------------
 
+def _is_fee_exit_or_offtopic(low: str) -> bool:
+    return any(k in low for k in (
+        "cancel", "stop", "exit", "no need", "nevermind", "later", "quit", "close", "back",
+        "vc", "vice chancellor", "chancellor", "who is", "tell about", "about sru", "about sr",
+        "faculty", "dean", "hod", "canteen", "cafeteria", "sports", "library", "exam", "passmarks",
+        "pass marks", "marks", "placement", "placements", "highest package", "average package",
+        "founder", "location", "address", "how to reach", "bus", "transport", "cie", "ese"
+    )) or len(low.split()) > 5
+
+
+def _build_combined_hostel_payload(
+    prog_dict: dict,
+    saved_year: str,
+    user_name: str | None,
+    conv_state: dict,
+) -> dict:
+    from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
+    prog_name = prog_dict.get("name", "B.Tech Computer Science & Engineering (Core)")
+    tuition = prog_dict.get("tuition_per_year", 340000)
+    sem_tuition = tuition // 2
+    one_time = 6100
+    annual_academic = 20000
+    sem_academic = 10000
+    hostel_annual = 125000  # AC 4-Sharing
+    hostel_sem = 62500
+
+    combined_sem = sem_tuition + sem_academic + hostel_sem
+    combined_annual_y1 = tuition + annual_academic + one_time + hostel_annual
+
+    name_str = f", {user_name}" if user_name else ""
+    reply_text = (
+        f"Here is the complete combined fee breakdown for **{prog_name}** including **Residential Hostel & Mess (AC 4-Sharing)** for Academic Year **{saved_year}**{name_str}:\n\n"
+        f"**Per-Semester Breakdown (Regular)**:\n"
+        f"• **Tuition Fee**: {fees.inr(sem_tuition)} / semester ({fees.inr(tuition)} / year)\n"
+        f"• **Hostel & Mess (AC 4-Sharing)**: {fees.inr(hostel_sem)} / semester ({fees.inr(hostel_annual)} / year; includes 4 daily meals, Wi-Fi & laundry)\n"
+        f"• **Academic & Exam Fee**: {fees.inr(sem_academic)} / semester ({fees.inr(annual_academic)} / year)\n"
+        f"👉 **Combined Per-Semester Total**: **{fees.inr(combined_sem)} / semester**\n\n"
+        f"**First-Year Total Outlay**:\n"
+        f"• **Year 1 Combined Total**: **{fees.inr(combined_annual_y1)}** (Tuition + Hostel + Academic + ₹6,100 one-time admission/enrolment)\n\n"
+        f"*(Note: Non-AC 4-Sharing reduces hostel fee to ₹1,15,000/yr; AC 3-Sharing is ₹1,35,000/yr. Merit scholarships up to 40% apply to tuition.)*"
+    )
+    return {
+        "text": reply_text,
+        "cards": [BTECH_CSE_WITH_HOSTEL_FEE_CARD],
+        "suggestions": [
+            "Calculate scholarship for my marks",
+            "Hostel room options",
+            "Placement records for this course",
+            "Change school / programme",
+        ],
+        "new_state": {
+            **conv_state,
+            "fee_flow_state": "completed",
+            "fee_flow_prog": prog_dict.get("key", "btech_cse"),
+            "fee_flow_year": saved_year,
+        },
+    }
+
+
 def process_fee_flow(
     message: str,
     session_id: str,
@@ -662,6 +721,15 @@ def process_fee_flow(
     # Initial Trigger: Not in flow yet
     # -------------------------------------------------------------------------
     if not current_state:
+        # If user is asking about exam evaluation, passing marks, or CIE/ESE,
+        # pass through to the dedicated academic evaluation handler.
+        is_exam_q = any(k in low for k in (
+            "marks and passmarks", "passmarks", "pass marks", "cie and ese",
+            "cie marks", "ese marks", "grading scale", "10-point scale", "continuous internal evaluation"
+        ))
+        if is_exam_q:
+            return None
+
         # If user provides personal entrance/board scores (e.g. 85%, EAPCET rank),
         # pass through to the dedicated scholarship calculation tools/model.
         has_scores = bool(
@@ -699,6 +767,13 @@ def process_fee_flow(
         matched_prog = detect_program_under_school(msg, matched_school) if (has_specific_prog_word or not matched_school) else None
 
         if matched_prog:
+            is_combined_hostel_q = any(k in low for k in (
+                "add hostel", "include hostel", "including hostel", "with hostel", "hostel fee too",
+                "hostel also", "hostel and college", "both hostel and", "fee + hostel", "hostel + fee",
+                "combine my entire", "total fee including hostel", "total cost with hostel"
+            )) or ("hostel" in low and any(k in low for k in ("combine", "both", "include", "together", "plus", "along with", "with college", "with tuition")))
+            if is_combined_hostel_q:
+                return _build_combined_hostel_payload(matched_prog, saved_year, user_name, conv_state)
             # User named a specific program (e.g. "B.Tech CSE fee for 2027-28" or "hostel fee for B.Tech")
             # Find the school of this program
             sch = matched_school
@@ -864,7 +939,12 @@ def process_fee_flow(
                 },
             }
 
-        # If user typed something not matching any school or course, politely prompt again with options
+        # If user typed something not matching any school or course:
+        # Check if user wants to exit/cancel or is asking an off-topic question
+        if _is_fee_exit_or_offtopic(low):
+            conv_state["fee_flow_state"] = None
+            return None
+
         return {
             "text": (
                 f"I'd love to help you find the exact fee details{', ' + user_name if user_name else ''}. "
@@ -943,7 +1023,12 @@ def process_fee_flow(
                 },
             }
 
-        # Otherwise re-prompt with the current school's course card
+        # Otherwise check if user is asking an off-topic question or wants to exit
+        if _is_fee_exit_or_offtopic(low):
+            conv_state["fee_flow_state"] = None
+            return None
+
+        # Re-prompt with the current school's course card
         if school:
             return {
                 "text": f"Please select one of the programmes offered under **{school['display_name']}** below, or type your preferred degree:",
@@ -956,7 +1041,19 @@ def process_fee_flow(
     # State: completed (Handling follow-ups on the same course)
     # -------------------------------------------------------------------------
     if current_state == "completed":
-        # Follow-up: Hostel specific fee/cost query only
+        # Follow-up: Combined Hostel + College / Tuition / Total fee including hostel
+        is_combined_hostel_q = any(k in low for k in (
+            "add hostel", "include hostel", "including hostel", "with hostel", "hostel fee too",
+            "hostel also", "hostel and college", "both hostel and", "fee + hostel", "hostel + fee",
+            "combine my entire", "total fee including hostel", "total cost with hostel"
+        )) or ("hostel" in low and any(k in low for k in ("combine", "both", "include", "together", "plus", "along with", "with college", "with tuition")))
+
+        if is_combined_hostel_q:
+            fee_data = fees.load_data()
+            prog_dict = fee_data["programs"].get(saved_prog_key or "btech_cse", {})
+            return _build_combined_hostel_payload(prog_dict, saved_year, user_name, conv_state)
+
+        # Follow-up: Hostel specific fee/cost query only (strictly standalone)
         is_hostel_cost_q = any(k in low for k in ("hostel", "accommodation", "room", "mess", "boarding")) and any(
             k in low for k in ("fee", "fees", "cost", "costs", "charge", "charges", "price", "how much", "rate", "rent", "package", "deposit")
         )
@@ -990,8 +1087,16 @@ def process_fee_flow(
                 "new_state": conv_state,
             }
 
-        # Follow-up: Total fee query
-        if any(k in low for k in ("total", "total cost", "total fee", "overall")):
+        # Follow-up: Total fee query (strict, excluding exam evaluation & marks questions)
+        is_exam_evaluation_q = any(k in low for k in (
+            "marks", "passmarks", "pass marks", "passing marks", "grade", "grades",
+            "grading", "credit", "credits", "evaluation", "cie", "ese", "exam", "exams"
+        ))
+        is_total_fee_q = not is_exam_evaluation_q and (
+            any(k in low for k in ("total fee", "total cost", "overall fee", "total expense", "total tuition"))
+            or ("total" in low and any(k in low for k in ("fee", "fees", "cost", "costs", "tuition", "package", "payable", "expense")))
+        )
+        if is_total_fee_q:
             fee_data = fees.load_data()
             prog_dict = fee_data["programs"].get(saved_prog_key or "btech_cse", {})
             tuition = prog_dict.get("tuition_per_year", 340000)

@@ -30,6 +30,9 @@ AgentIntent = Literal[
     "HOSTEL_CURFEW_RULES_QUERY",
     "HOSTEL_SAFETY_QUERY",
     "HOSTEL_INFO_QUERY",
+    "CAMPUS_CANTEEN_QUERY",
+    "ACADEMIC_EVALUATION_QUERY",
+    "COMBINED_FEE_HOSTEL_QUERY",
     "GENERAL",
 ]
 
@@ -224,6 +227,33 @@ _HOSTEL_INFO_PATTERN = re.compile(
 )
 
 
+_COMBINED_HOSTEL_FEE_PATTERN = re.compile(
+    r"\b(?:add\s+hostel|include\s+hostel|combine\s+.*hostel|hostel\s+.*(?:add|included?)|"
+    r"total\s+fee\s+including\s+hostel|fee\s+with\s+hostel|tuition\s+and\s+hostel|"
+    r"college\s+and\s+hostel|fee\s*\+\s*hostel|hostel\s*\+\s*fee|hostel\s*\+\s*tuition|"
+    r"total\s+cost\s+with\s+hostel|both\s+hostel\s+and\s+(?:college|tuition))\b",
+    re.IGNORECASE,
+)
+
+_CAMPUS_CANTEEN_PATTERN = re.compile(
+    r"\b(?:food\s+stalls?|food\s+options?|cafeteria|central\s+cafeteria|canteen|canteens|"
+    r"food\s+kiosks?|kiosks?\s+in\s+campus|tasty\s+treat|meet\s+and\s+eat|bharat\s+foods|"
+    r"campus\s+canteen|campus\s+cafeteria|snacks?\s+(?:on|in)\s+campus|coffee\s+shop|tea\s+stalls?|"
+    r"eating\s+options?|places?\s+to\s+eat)\b",
+    re.IGNORECASE,
+)
+
+_ACADEMIC_EVALUATION_PATTERN = re.compile(
+    r"\b(?:(?:exam|exams|semester)\s+total\s+marks|passmarks|pass\s+marks|passing\s+marks|"
+    r"cie\s+and\s+ese|cie\s+marks|ese\s+marks|continuous\s+internal\s+evaluation|"
+    r"end\s+semester\s+exams?|grading\s+system|grading\s+scale|10[- ]point\s+scale|"
+    r"minimum\s+pass\s+grade|grade\s+points?|how\s+are\s+marks\s+evaluated|"
+    r"academic\s+progression|promotion\s+rules?|condonation\s+rules?|"
+    r"cgpa\s+calculation|sgpa\s+calculation|percentage\s+conversion)\b",
+    re.IGNORECASE,
+)
+
+
 def _has_score_or_rank(msg: str) -> bool:
     return bool(re.search(r"\d{2,3}\s*%|\brank\b|\bpercent\b|\bpercentile\b|\bmarks\b|\beapcet\b|\beamcet\b|\bjee\b", msg, re.IGNORECASE))
 
@@ -251,15 +281,34 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
         if _NO_CONFIRM_PATTERN.match(msg):
             return "DATE_CONFIRMATION_NO"
 
+    # 3b. Academic evaluation & exam criteria
+    if _ACADEMIC_EVALUATION_PATTERN.search(msg):
+        return "ACADEMIC_EVALUATION_QUERY"
+
+    # 3c. Combined fee (Hostel + College/Tuition)
+    if _COMBINED_HOSTEL_FEE_PATTERN.search(msg):
+        return "COMBINED_FEE_HOSTEL_QUERY"
+
+    # 3d. Campus canteen & food stalls (before hostel mess)
+    if _CAMPUS_CANTEEN_PATTERN.search(msg):
+        return "CAMPUS_CANTEEN_QUERY"
+
     # 4. Check if message is asking to visit on a specific date
     if _VISIT_WITH_DATE_PATTERN.search(msg) or any(k in msg for k in ("visit on", "visit tomorrow", "visit today")):
         return "CAMPUS_VISIT_BOOKING_WITH_DATE"
 
     if state.get("active_topic") == "campus_visit":
-        from .tools import resolve_campus_visit_date
-        res = resolve_campus_visit_date(msg)
-        if res.get("date"):
-            return "CAMPUS_VISIT_BOOKING_WITH_DATE"
+        # Guard: If user asks an academic, fee, scholarship, canteen, or general question, do not hijack into campus visit!
+        has_off_topic_context = bool(re.search(
+            r"\b(?:scholarship|marks?|rank|fee|fees|tuition|canteen|cafeteria|food|stalls?|exam|passmarks|"
+            r"faculty|dean|hod|hostel|placements?|package|vc|vice\s+chancellor|chancellor|sports|library)\b",
+            msg
+        ))
+        if not has_off_topic_context:
+            from .tools import resolve_campus_visit_date
+            res = resolve_campus_visit_date(msg)
+            if res.get("date"):
+                return "CAMPUS_VISIT_BOOKING_WITH_DATE"
 
     if re.search(r"\b(?:visit|come|tour)\b", msg) and not re.search(r"\b(?:timings?|hours?|rules?|allowed|can\s+parents)\b", msg):
         from .tools import resolve_campus_visit_date
@@ -279,7 +328,7 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
         return "PLACEMENT_GUARANTEE_QUERY"
 
     # 6c. Dedicated Hostel Inquiries (Categorized before fee calculations)
-    if _HOSTEL_FEE_PATTERN.search(msg):
+    if _HOSTEL_FEE_PATTERN.search(msg) and not _COMBINED_HOSTEL_FEE_PATTERN.search(msg):
         return "HOSTEL_FEE_QUERY"
     if _HOSTEL_MESS_PATTERN.search(msg):
         return "HOSTEL_MESS_QUERY"

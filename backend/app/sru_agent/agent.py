@@ -1119,6 +1119,73 @@ _HOSTEL_CURFEW_CHIPS = ["Mess & Dining timings", "Hostel Facilities & Rooms", "H
 _HOSTEL_SAFETY_CHIPS = ["Hostel Facilities & Rooms", "Mess Food & Timings", "Curfew & Rules", "Hostel Fees"]
 _HOSTEL_FEE_CHIPS = ["Hostel Facilities & Rooms", "Mess Food & Timings", "Curfew & Rules", "Calculate B.Tech Fee"]
 
+_COMBINED_HOSTEL_FEE_TEXT = """### 🎓 B.Tech CSE Fee + Hostel Combined Breakdown (Academic Year 2027–28)
+
+Here is the complete combined fee breakdown for **B.Tech Computer Science & Engineering (Core)** including **Residential Hostel & Mess (AC 4-Sharing)**:
+
+#### 📅 Per-Semester Breakdown (Regular):
+• **Tuition Fee**: **₹1,70,000 / sem** (Annual base ₹3,40,000; up to 40% merit scholarship applies)
+• **Hostel & Dining (AC 4-Sharing)**: **₹62,500 / sem** (Annual ₹1,25,000; includes 4 daily meals, Wi-Fi & laundry)
+• **Academic & Exam Fee**: **₹10,000 / sem** (Annual ₹20,000)
+👉 **Combined Regular Semester Fee**: **₹2,42,500 / semester**
+
+#### 📋 First-Year Total Outlay:
+• **Year 1 Combined Total**: **₹4,91,100** (Tuition ₹3.40L + Hostel ₹1.25L + Academic ₹20k + One-time admission/enrolment ₹6,100)
+*(With Non-AC 4-Sharing, the combined total is **₹4,81,100 / year** or **₹2,37,500 / semester**).*
+
+> [!NOTE]
+> Merit scholarships (up to 40% waiver based on 10+2 marks or entrance ranks) directly reduce the tuition portion!"""
+
+_COMBINED_HOSTEL_FEE_CHIPS = ["Calculate scholarship for my marks", "Hostel room options", "Placement records for this course", "Hostel Rules & Curfew"]
+
+_CAMPUS_CANTEEN_TEXT = """### ☕ Campus Cafeteria, Food Stalls & Dining Options at SR University
+
+SR University offers vibrant on-campus dining and snacking spots for students, faculty, and visitors across its 170-acre campus:
+
+#### 1. 🍽️ Central Cafeteria
+• **Timings**: **8:30 AM to 6:00 PM** (Monday to Saturday)
+• **Offerings**: Fresh breakfast, hot South & North Indian lunch platters, fresh juices, teas, coffees, and wholesome snacks in a spacious indoor seating setting.
+
+#### 2. 🥪 Campus Food Kiosks & Stalls
+Open **9:00 AM to 7:00 PM** across campus plazas:
+• **Tasty Treat**: Quick bites, grilled sandwiches, rolls, patties, and cool beverages.
+• **Meet and Eat**: Fast-food varieties, noodles, wraps, and quick evening snacks.
+• **Bharat Foods**: Traditional snacks, chaat, samosas, and refreshing hot drinks.
+
+#### 3. 🍱 4,000-Seat Mega Dining Hall (Residential Mess)
+• Four nutritious, hygienic daily meals (Breakfast, Lunch, Evening Snacks, Dinner) for hostel residents with rotating South & North Indian multi-cuisine menus.
+
+> [!TIP]
+> All food kiosks and the central cafeteria accept digital payments (UPI/cards). The Canara Bank 24/7 ATM is conveniently located at the Main Gate."""
+
+_CAMPUS_CANTEEN_CHIPS = ["Hostel Mess & Dining", "Hostel Facilities & Rooms", "Campus Tour & Visit", "B.Tech CSE Fees"]
+
+_ACADEMIC_EVALUATION_TEXT = """### 📊 Academic Regulations & Examination Evaluation at SR University (R22/R23)
+
+SR University follows a comprehensive Credit-Based Semester System (CBSS) governed by the Academic Council:
+
+#### 📝 Evaluation Structure
+• **Continuous Internal Evaluation (CIE)**: Conducted during the semester through mid-term examinations, quizzes, assignments, and laboratory assessments.
+• **End Semester Examination (ESE)**: Comprehensive university examinations conducted at the conclusion of each semester.
+
+#### 🎯 10-Point Letter Grading Scale
+| Letter Grade | Performance | Grade Point | Remarks |
+| :--- | :--- | :--- | :--- |
+| **O** | Outstanding | **10** | Exceptional performance |
+| **A** | Excellent | **10** | Pass grade |
+| **B** | Very Good | **8** | Pass grade |
+| **C** | Good | **6** | Pass grade |
+| **D** | Average | **4** | **Minimum Pass Grade (40% aggregate for UG)** |
+| **F** | Fail | **0** | Backlog course; must appear in supplementary |
+| **R** | Detained | **0** | Attendance < 75%; must re-register in Summer/Winter |
+
+#### 📈 Percentage Conversion & Progression
+• **Percentage Formula**: $\\text{Percentage of Marks} = 10 \\times \\text{CGPA}$
+• **Attendance Requirement**: Minimum **75% aggregate** in each course (condonation board waiver up to 10–25% for verified medical emergencies).
+• **Progression Criteria**: To promote to 2nd year: CGPA $\\ge 3.50$ (or 40% of 1st-year credits); to 3rd & 4th year: CGPA $\\ge 4.00$ (or 50% credits)."""
+
+_ACADEMIC_EVALUATION_CHIPS = ["Attendance & Condonation Rules", "Honours & Minor Degrees", "B.Tech CSE Fees", "Placement Records"]
+
 
 def _cache_key(message: str) -> str:
     import hashlib
@@ -1435,6 +1502,26 @@ async def run_agent(
             yield ev
         return
 
+    if intent == "COMBINED_FEE_HOSTEL_QUERY":
+        from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
+        async for ev in _say(_COMBINED_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
+                             cards=[BTECH_CSE_WITH_HOSTEL_FEE_CARD],
+                             suggestions=_COMBINED_HOSTEL_FEE_CHIPS):
+            yield ev
+        return
+
+    if intent == "CAMPUS_CANTEEN_QUERY":
+        async for ev in _say(_CAMPUS_CANTEEN_TEXT, message, session_id, conversation_id,
+                             suggestions=_CAMPUS_CANTEEN_CHIPS):
+            yield ev
+        return
+
+    if intent == "ACADEMIC_EVALUATION_QUERY":
+        async for ev in _say(_ACADEMIC_EVALUATION_TEXT, message, session_id, conversation_id,
+                             suggestions=_ACADEMIC_EVALUATION_CHIPS):
+            yield ev
+        return
+
     # First interaction direct question name collection:
     has_replied = any(h.get("role") in ("model", "assistant") for h in history)
     if not has_replied and client is None and not profile.get("name") and not conv_state.get("name_asked"):
@@ -1515,6 +1602,10 @@ async def run_agent(
     visit_words = intent in ("CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_BOOKING_WITH_DATE") or intents.is_visit_request(message)
 
     action = None
+    if pending == "campus_visit" and not visit_words and not phone and not bad_phone and not asked_for_call:
+        await set_state(pending_action=None, active_topic=None)
+        pending = None
+
     if asked_for_call:
         # "Ask admissions to call me" right after visit guidance is a visit callback.
         action = "campus_visit" if (pending == "campus_visit" or visit_words) else "callback"
@@ -1567,7 +1658,7 @@ async def run_agent(
             text = _saved_text(action, result, args.get("preferred_time"))
             if result.get("status") == "saved":
                 await clear_pending()
-                await set_state(awaiting_date_confirmation=False, pending_visit_date=None, confirmed_visit_date=None)
+                await set_state(awaiting_date_confirmation=False, pending_visit_date=None, confirmed_visit_date=None, active_topic=None)
                 if _has_other_question(message, name):
                     # The request is saved; let the model answer the rest of the message too.
                     action_note = (f"The system has ALREADY saved this student's {what} request in this turn: "
