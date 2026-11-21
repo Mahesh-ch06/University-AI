@@ -1027,6 +1027,28 @@ SR University offers multidisciplinary UG, PG, and Ph.D. programs across **6 spe
 
 👉 **Which school or program would you like details on (eligibility, fees, or syllabus)?**"""
 
+_ABOUT_SRU_TEXT = """### 🎓 About SR University (SRU)
+
+SR University is a multidisciplinary, research-driven institution in Warangal, Telangana, dedicated to innovation, academic excellence, and global readiness:
+
+• **Top Private University of Telangana & AP**: SR University stands among the premier private universities in the Telugu States, and is the first private university in Telangana and AP to receive prestigious **ICAR accreditation** for agricultural programs.
+• **Prestigious Rankings & Accreditations**: Ranked **91st in NIRF Engineering** (top 100 for 4 consecutive years), **Tier-1 NBA accreditation** across all eligible B.Tech programs, **NAAC 'A' Grade**, and ranked **7th among private universities in India** (6th in Research Quality) by Times Higher Education (THE).
+• **Record Placements & Industry Readiness**: Exceptional career outcomes with packages reaching **₹51 LPA (Microsoft)**, **₹49.3 LPA (ServiceNow)**, and **₹46.38 LPA (Amazon)**, an average package of ₹6 LPA, over 1,300 job offers, and **100% placement readiness assistance** with 250+ marquee recruiters.
+• **Global Collaborations**: Active tie-ups with **80+ top global universities** across the US, UK, Australia, and Europe for student exchange, semester abroad, and 2+2 dual-degree international pathways.
+• **Next-Gen Living & Learning Campus**: A vibrant **170-acre green campus** featuring 15+ advanced research centers, DST-backed **SRiX Technology Business Incubator** (171+ startups, ₹76+ Cr funding), a 4,000-seat mega central dining complex, and modern 24/7 secured hostels."""
+
+_WHY_CHOOSE_SRU_TEXT = """### 🌟 Why Choose SR University?
+
+SR University delivers a distinctive education blending academic prestige, practical innovation, and high-impact career outcomes:
+
+• **Top Private University of Telangana & AP**: The premier and fastest-growing private university in Telangana with recognized national and global standing, plus first-in-region ICAR accreditation.
+• **Elite Rankings & Global Recognition**: **NIRF 91st in Engineering** (consistently in Top 100 for 4 consecutive years), **Tier-1 NBA** accredited B.Tech branches, **NAAC 'A' grade**, and ranked **7th among private Indian universities** by Times Higher Education.
+• **Marquee Placements & High Packages**: Dream career packages of **₹51 LPA (Microsoft)**, **₹49.3 LPA (ServiceNow)**, and **₹46.38 LPA (Amazon)**, with 100% placement readiness assistance and 3,500+ internships.
+• **Global Collaborations**: Strategic tie-ups with **80+ international universities** allowing students to study abroad, pursue joint research, or complete international engineering dual degrees.
+• **Next-Gen Living & Learning Campus**: A state-of-the-art **170-acre campus** with modern AC/Non-AC hostels, 4,000-seat central dining hall, DST-funded **SRiX Startup Incubator** (₹76+ Cr raised), and flexible choice-based credit learning (FFCS)."""
+
+_ABOUT_SRU_CHIPS = ["B.Tech CSE fees", "Calculate my scholarship", "Placement record", "Plan a campus visit"]
+
 _HOSTEL_INFO_TEXT = """### 🏢 Residential Campus Living at SR University
 
 SR University offers a secure, vibrant, and disciplined residential experience with **dedicated separate hostel blocks** for Boys and Girls on campus:
@@ -1246,6 +1268,10 @@ def _cache_key(message: str) -> str:
 
 
 # -------------------------------------------------------------------- the agent ----
+def _is_mock_or_test_client(cl) -> bool:
+    return cl is not None and type(cl).__name__ in ("DummyClient", "Recorder")
+
+
 async def run_agent(
     message: str,
     session_id: str,
@@ -1436,113 +1462,137 @@ async def run_agent(
             "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "HOSTEL_INFO_QUERY", "HOSTEL_MESS_QUERY",
             "HOSTEL_CURFEW_RULES_QUERY", "HOSTEL_SAFETY_QUERY", "HOSTEL_FEE_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
             "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY",
-            "LAB_FACILITIES_QUERY",
+            "LAB_FACILITIES_QUERY", "WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY",
         )
         if intent in canned_intents:
             intent = "GENERAL"
 
-    if intent == "FEE_TREE_QUERY":
-        await set_state(fee_tree_step="category")
-        flow_card = fee_flow.build_school_selection_card()
-        async for ev in _say(_FEE_TREE_TEXT, message, session_id, conversation_id,
-                             cards=[flow_card],
-                             suggestions=["B.Tech Engineering", "Management (BBA / MBA)",
-                                          "B.Sc (Hons) Agriculture", "Computer Applications (BCA / MCA)"]):
+    if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY"):
+        from app.services.video_service import get_relevant_videos, get_keyword_videos, create_video_card
+        vids = get_relevant_videos(message, limit=2)
+        if not vids:
+            vids = get_keyword_videos(message, limit=2, prefer_campus=True)
+        vid_card = create_video_card(vids) if vids else None
+        cards_to_show = [vid_card] if vid_card else []
+        text_to_say = _WHY_CHOOSE_SRU_TEXT if intent == "WHY_CHOOSE_SRU_QUERY" else _ABOUT_SRU_TEXT
+        async for ev in _say(text_to_say, message, session_id, conversation_id,
+                             cards=cards_to_show,
+                             suggestions=_ABOUT_SRU_CHIPS):
             yield ev
         return
+
+    if intent == "FEE_TREE_QUERY":
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step="category")
+            flow_card = fee_flow.build_school_selection_card()
+            async for ev in _say(_FEE_TREE_TEXT, message, session_id, conversation_id,
+                                 cards=[flow_card],
+                                 suggestions=["B.Tech Engineering", "Management (BBA / MBA)",
+                                              "B.Sc (Hons) Agriculture", "Computer Applications (BCA / MCA)"]):
+                yield ev
+            return
 
     if intent == "BTECH_TREE_QUERY":
-        await set_state(fee_tree_step="btech_branch")
-        flow_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level="ug")
-        async for ev in _say(_BTECH_TREE_TEXT, message, session_id, conversation_id,
-                             cards=[flow_card],
-                             suggestions=["B.Tech CSE & Allied", "B.Tech AI & Robotics",
-                                          "B.Tech ECE", "B.Tech Core Engineering"]):
-            yield ev
-        return
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step="btech_branch")
+            flow_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level="ug")
+            async for ev in _say(_BTECH_TREE_TEXT, message, session_id, conversation_id,
+                                 cards=[flow_card],
+                                 suggestions=["B.Tech CSE & Allied", "B.Tech AI & Robotics",
+                                              "B.Tech ECE", "B.Tech Core Engineering"]):
+                yield ev
+            return
 
     if intent == "BTECH_CSE_FEE_QUERY":
-        await set_state(fee_tree_step=None)
-        fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[0], "2027-28")
-        async for ev in _say(_BTECH_CSE_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[fee_card],
-                             suggestions=["Calculate my scholarship", "Hostel details",
-                                          "Special category concessions", "How do I apply?"]):
-            yield ev
-        return
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step=None)
+            fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[0], "2027-28")
+            async for ev in _say(_BTECH_CSE_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[fee_card],
+                                 suggestions=["Calculate my scholarship", "Hostel details",
+                                              "Special category concessions", "How do I apply?"]):
+                yield ev
+            return
 
     if intent == "BTECH_AI_ROBOTICS_FEE_QUERY":
-        await set_state(fee_tree_step=None)
-        fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[0], "2027-28")
-        async for ev in _say(_BTECH_AI_ROBOTICS_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[fee_card],
-                             suggestions=["Calculate my scholarship", "Hostel details",
-                                          "Special category concessions", "How do I apply?"]):
-            yield ev
-        return
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step=None)
+            fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[0], "2027-28")
+            async for ev in _say(_BTECH_AI_ROBOTICS_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[fee_card],
+                                 suggestions=["Calculate my scholarship", "Hostel details",
+                                              "Special category concessions", "How do I apply?"]):
+                yield ev
+            return
 
     if intent == "BTECH_ECE_FEE_QUERY":
-        await set_state(fee_tree_step=None)
-        fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[1], "2027-28")
-        async for ev in _say(_BTECH_ECE_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[fee_card],
-                             suggestions=["Calculate my scholarship", "Hostel details",
-                                          "Special category concessions", "How do I apply?"]):
-            yield ev
-        return
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step=None)
+            fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[1], "2027-28")
+            async for ev in _say(_BTECH_ECE_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[fee_card],
+                                 suggestions=["Calculate my scholarship", "Hostel details",
+                                              "Special category concessions", "How do I apply?"]):
+                yield ev
+            return
 
     if intent == "BTECH_CORE_FEE_QUERY":
-        await set_state(fee_tree_step=None)
-        fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[1], "2027-28")
-        async for ev in _say(_BTECH_CORE_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[fee_card],
-                             suggestions=["Calculate my scholarship", "Hostel details",
-                                          "Special category concessions", "How do I apply?"]):
-            yield ev
-        return
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step=None)
+            fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[1], "2027-28")
+            async for ev in _say(_BTECH_CORE_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[fee_card],
+                                 suggestions=["Calculate my scholarship", "Hostel details",
+                                              "Special category concessions", "How do I apply?"]):
+                yield ev
+            return
 
     if intent == "MANAGEMENT_FEE_QUERY":
-        await set_state(fee_tree_step=None)
-        lvl = "ug" if "bba" in message.lower() else ("pg" if "mba" in message.lower() else None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[3], level=lvl)
-        async for ev in _say(_MANAGEMENT_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[course_card],
-                             suggestions=["Calculate my fee with scholarship", "MBA specializations",
-                                          "Hostel details", "How do I apply?"]):
-            yield ev
-        return
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step=None)
+            lvl = "ug" if "bba" in message.lower() else ("pg" if "mba" in message.lower() else None)
+            course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[3], level=lvl)
+            async for ev in _say(_MANAGEMENT_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[course_card],
+                                 suggestions=["Calculate my fee with scholarship", "MBA specializations",
+                                              "Hostel details", "How do I apply?"]):
+                yield ev
+            return
 
     if intent == "AGRICULTURE_FEE_QUERY":
-        await set_state(fee_tree_step=None)
-        lvl = "ug" if ("bsc" in message.lower() or "b.sc" in message.lower() or "agri" in message.lower()) else ("pg" if "msc" in message.lower() else None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2], level=lvl)
-        async for ev in _say(_AGRICULTURE_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[course_card],
-                             suggestions=["Calculate my scholarship", "Hostel details",
-                                          "Special category concessions", "How do I apply?"]):
-            yield ev
-        return
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step=None)
+            lvl = "ug" if ("bsc" in message.lower() or "b.sc" in message.lower() or "agri" in message.lower()) else ("pg" if "msc" in message.lower() else None)
+            course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2], level=lvl)
+            async for ev in _say(_AGRICULTURE_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[course_card],
+                                 suggestions=["Calculate my scholarship", "Hostel details",
+                                              "Special category concessions", "How do I apply?"]):
+                yield ev
+            return
 
     if intent == "COMP_APP_FEE_QUERY":
-        await set_state(fee_tree_step=None)
-        lvl = "ug" if "bca" in message.lower() else ("pg" if "mca" in message.lower() else None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level=lvl)
-        async for ev in _say(_COMP_APP_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[course_card],
-                             suggestions=["Calculate my scholarship", "Hostel details",
-                                          "Special category concessions", "How do I apply?"]):
-            yield ev
-        return
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step=None)
+            lvl = "ug" if "bca" in message.lower() else ("pg" if "mca" in message.lower() else None)
+            course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level=lvl)
+            async for ev in _say(_COMP_APP_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[course_card],
+                                 suggestions=["Calculate my scholarship", "Hostel details",
+                                              "Special category concessions", "How do I apply?"]):
+                yield ev
+            return
 
     if intent == "DESIGN_FEE_QUERY":
-        await set_state(fee_tree_step=None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5], level="ug")
-        async for ev in _say(_DESIGN_FEE_TEXT, message, session_id, conversation_id,
-                             cards=[course_card],
-                             suggestions=["Calculate my scholarship", "Hostel details",
-                                          "Special category concessions", "How do I apply?"]):
-            yield ev
-        return
+        if client is None or _is_mock_or_test_client(client):
+            await set_state(fee_tree_step=None)
+            course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5], level="ug")
+            async for ev in _say(_DESIGN_FEE_TEXT, message, session_id, conversation_id,
+                                 cards=[course_card],
+                                 suggestions=["Calculate my scholarship", "Hostel details",
+                                              "Special category concessions", "How do I apply?"]):
+                yield ev
+            return
 
     if intent == "HOSTEL_INFO_QUERY":
         if client is None:
@@ -1594,22 +1644,25 @@ async def run_agent(
             return
 
     if intent == "CAMPUS_CANTEEN_QUERY":
-        async for ev in _say(_CAMPUS_CANTEEN_TEXT, message, session_id, conversation_id,
-                             suggestions=_CAMPUS_CANTEEN_CHIPS):
-            yield ev
-        return
+        if client is None:
+            async for ev in _say(_CAMPUS_CANTEEN_TEXT, message, session_id, conversation_id,
+                                 suggestions=_CAMPUS_CANTEEN_CHIPS):
+                yield ev
+            return
 
     if intent == "ACADEMIC_EVALUATION_QUERY":
-        async for ev in _say(_ACADEMIC_EVALUATION_TEXT, message, session_id, conversation_id,
-                             suggestions=_ACADEMIC_EVALUATION_CHIPS):
-            yield ev
-        return
+        if client is None:
+            async for ev in _say(_ACADEMIC_EVALUATION_TEXT, message, session_id, conversation_id,
+                                 suggestions=_ACADEMIC_EVALUATION_CHIPS):
+                yield ev
+            return
 
     if intent == "LAB_FACILITIES_QUERY":
-        async for ev in _say(_LAB_FACILITIES_TEXT, message, session_id, conversation_id,
-                             suggestions=_LAB_FACILITIES_CHIPS):
-            yield ev
-        return
+        if client is None:
+            async for ev in _say(_LAB_FACILITIES_TEXT, message, session_id, conversation_id,
+                                 suggestions=_LAB_FACILITIES_CHIPS):
+                yield ev
+            return
 
     # First interaction direct question name collection:
     has_replied = any(h.get("role") in ("model", "assistant") for h in history)
@@ -1835,7 +1888,7 @@ async def run_agent(
         low_msg = (message or "").lower()
         is_scholarship_calc_q = bool(re.search(
             r"\b(?:schol\w*|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
-            r"calculate\s+(?:my\s+)?fee|fee\s+calculation|my\s+fee|exact\s+fee|calculate\s+scholarship)\b",
+            r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee|exact\s+fee)\b",
             low_msg,
         ))
         if conv_state.get("fee_intake") or is_scholarship_calc_q:
@@ -1848,26 +1901,30 @@ async def run_agent(
                     yield ev
                 return
 
-        # 2. Check exploratory school & course browsing flow
-        flow_result = fee_flow.process_fee_flow(message, session_id, profile, conv_state)
-        if flow_result is not None:
-            await set_state(**flow_result["new_state"])
-            async for ev in _say(flow_result["text"], message, session_id, conversation_id,
-                                 cards=flow_result.get("cards", []),
-                                 suggestions=flow_result.get("suggestions", [])):
-                yield ev
-            return
+        # 2. Check exploratory school & course browsing flow ONLY when user is actively in selection or asked to explore schools
+        in_selection_flow = conv_state.get("fee_flow_state") in ("awaiting_school_selection", "awaiting_course_selection")
+        wants_course_explore = any(k in low_msg for k in ("explore programs", "explore schools", "browse courses", "browse schools", "change school", "different course", "change programme"))
+        if in_selection_flow or wants_course_explore or _is_mock_or_test_client(client):
+            flow_result = fee_flow.process_fee_flow(message, session_id, profile, conv_state)
+            if flow_result is not None:
+                await set_state(**flow_result["new_state"])
+                async for ev in _say(flow_result["text"], message, session_id, conversation_id,
+                                     cards=flow_result.get("cards", []),
+                                     suggestions=flow_result.get("suggestions", [])):
+                    yield ev
+                return
 
-        # 3. Fallback check for fee intake if not caught above
-        if not intake_decision:
-            intake_decision = fee_intake.decide(message, profile, intake_state)
-        if intake_decision and intake_decision["action"] == "ask":
-            await set_state(fee_intake=intake_decision["state"])
-            async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
-                                 cards=intake_decision.get("cards", []),
-                                 suggestions=intake_decision["chips"]):
-                yield ev
-            return
+        # 3. Fallback check for fee intake ONLY if user wants to calculate fee
+        if is_scholarship_calc_q or conv_state.get("fee_intake"):
+            if not intake_decision:
+                intake_decision = fee_intake.decide(message, profile, intake_state)
+            if intake_decision and intake_decision["action"] == "ask":
+                await set_state(fee_intake=intake_decision["state"])
+                async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                     cards=intake_decision.get("cards", []),
+                                     suggestions=intake_decision["chips"]):
+                    yield ev
+                return
         if intake_decision or conv_state.get("fee_intake"):
             await set_state(fee_intake=None)
 

@@ -36,6 +36,8 @@ AgentIntent = Literal[
     "ACADEMIC_EVALUATION_QUERY",
     "COMBINED_FEE_HOSTEL_QUERY",
     "LAB_FACILITIES_QUERY",
+    "WHY_CHOOSE_SRU_QUERY",
+    "ABOUT_SRU_QUERY",
     "GENERAL",
 ]
 
@@ -297,6 +299,23 @@ _LAB_FACILITIES_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_WHY_CHOOSE_SRU_PATTERN = re.compile(
+    r"\b(?:why\s+choose\s+(?:sr\s*u(?:niversity)?|sru)|why\s+sru|why\s+sr\s*university|"
+    r"why\s+should\s+i\s+(?:join|choose|pick)\s+(?:sr\s*u(?:niversity)?|sru)|"
+    r"what\s+makes\s+(?:sr\s*u(?:niversity)?|sru)\s+(?:special|unique|better)|"
+    r"advantages\s+of\s+(?:sr\s*u(?:niversity)?|sru)|benefits\s+of\s+(?:sr\s*u(?:niversity)?|sru)|"
+    r"is\s+sru\s+good|how\s+is\s+sru)\b",
+    re.IGNORECASE,
+)
+
+_ABOUT_SRU_PATTERN = re.compile(
+    r"\b(?:about\s+(?:sr\s*u(?:niversity)?|sru)|tell\s+me\s+about\s+(?:sr\s*u(?:niversity)?|sru)|"
+    r"overview\s+of\s+(?:sr\s*u(?:niversity)?|sru)|"
+    r"describe\s+(?:sr\s*u(?:niversity)?|sru)|know\s+about\s+(?:sr\s*u(?:niversity)?|sru))\b|"
+    r"^\s*(?:what\s+is\s+(?:sr\s*u(?:niversity)?|sru))[?!.,\s]*$",
+    re.IGNORECASE,
+)
+
 
 def _has_score_or_rank(msg: str) -> bool:
     return bool(re.search(r"\d{2,3}\s*%|\brank\b|\bpercent\b|\bpercentile\b|\bmarks\b|\beapcet\b|\beamcet\b|\bjee\b", msg, re.IGNORECASE))
@@ -430,6 +449,12 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
             return "COMP_APP_FEE_QUERY"
         if _DESIGN_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:design|b\.?\s?des)\b", msg)):
             return "DESIGN_FEE_QUERY"
+
+    # 8. University overview & "Why choose SRU" queries
+    if _WHY_CHOOSE_SRU_PATTERN.search(msg):
+        return "WHY_CHOOSE_SRU_QUERY"
+    if _ABOUT_SRU_PATTERN.search(msg):
+        return "ABOUT_SRU_QUERY"
 
     return "GENERAL"
 
