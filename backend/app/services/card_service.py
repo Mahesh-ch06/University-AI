@@ -1132,9 +1132,8 @@ def generate_cards(
                 query_embedding=query_embedding,
                 is_explicit=is_explicit_req,
             )
-            if relevant_videos and _can_show("video_recommendations"):
+            if relevant_videos:
                 cards.append(create_video_card(relevant_videos, is_explicit=is_explicit_req))
-                _mark_shown("video_recommendations")
     elif keyword_videos:
         # No embedding (the agent does not spend an AI call on videos): match on the videos' own
         # titles, categories and keywords instead.
@@ -1145,9 +1144,8 @@ def generate_cards(
                 user_message, limit=2, prefer_campus=is_about_sru_or_campus_query(user_message))
             if not relevant_videos and is_explicit_req:
                 relevant_videos = get_keyword_videos("campus tour", limit=2)
-            if relevant_videos and _can_show("video_recommendations"):
+            if relevant_videos:
                 cards.append(create_video_card(relevant_videos, is_explicit=is_explicit_req))
-                _mark_shown("video_recommendations")
 
     return cards
 

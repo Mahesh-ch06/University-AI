@@ -87,3 +87,26 @@ def test_cards_suppression_via_seen_card_types():
         seen_card_types=seen,
     )
     assert not any(c.get("type") in seen for c in cards)
+
+
+def test_video_recommendations_not_capped():
+    session_id = "test_video_nocap_001"
+    clear_session_cards(session_id)
+
+    # Turn 1: Ask for campus tour videos
+    cards_t1 = generate_cards(
+        "show me campus tour videos",
+        "Here are videos.",
+        session_id=session_id,
+        keyword_videos=True,
+    )
+    assert any(c.get("type") == "video_recommendations" for c in cards_t1)
+
+    # Turn 2: Ask for videos again in the SAME session -> still shown (not capped!)
+    cards_t2 = generate_cards(
+        "show me campus tour videos",
+        "Here are videos again.",
+        session_id=session_id,
+        keyword_videos=True,
+    )
+    assert any(c.get("type") == "video_recommendations" for c in cards_t2)
