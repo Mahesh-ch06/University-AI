@@ -66,6 +66,21 @@ _BOARD_LABEL = {
 _ENTRANCE_PROGRAMS = ("btech_", "bsc_agri")
 
 
+def _btech_branches_text() -> str:
+    data = fees.load_data()["programs"]
+    seen, lines = set(), []
+    for key, prog in data.items():
+        if not key.startswith("btech_"):
+            continue
+        fee = prog["tuition_per_year"]
+        name = prog["name"].split(" (")[0]
+        if (name, fee) in seen:
+            continue
+        seen.add((name, fee))
+        lines.append(f"• {name}: {fees.inr(fee)} per year")
+    return "\n".join(lines)
+
+
 def _board_card_key(board: str | None, label: str | None) -> str:
     lbl = (label or "").lower()
     if "telangana" in lbl or "ts" in lbl:
@@ -212,6 +227,8 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         known["program"] = profile["program_interest"]
 
     asked = set(intake.get("asked", []))
+    if intake.get("board"):
+        asked |= {"board", "entrance"}
     state = {**{k: v for k, v in known.items() if k != "standard_only"}, "asked": sorted(asked),
              "turns": int(intake.get("turns", 0)) + 1}
 
@@ -225,23 +242,50 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             return None  # Asked once already; let general agent assist
         state["asked"] = sorted(asked | {"program"})
         state["waiting_for"] = "program"
-        text = (
-            "To calculate your fee and check your eligible scholarship (up to 40% waiver), "
-            "please select or tell me your **course** and your **10+2 / Intermediate Board** "
-            "(Telangana, AP, CBSE, ICSE, Other State Boards across India, NIOS, or IB).\n\n"
-            "In the next step, you can enter your 10+2 marks or entrance rank. "
-            "You can also use the interactive assessment form below."
-        )
-        chips = ["B.Tech CSE", "B.Tech AI & Robotics", "B.Tech ECE", "BBA", "B.Sc Agriculture"]
-        form_card = build_fee_scholarship_form_card()
-        return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
+        if said.get("generic_btech") or fees._is_generic_btech((message or "").lower()):
+            text = ("B.Tech fees depend on the branch. The {year} standard tuition (before any scholarship, as per "
+                    "the Admissions Office) is:\n{branches}\n\nWhich branch are you interested in? Tell me your "
+                    "board, Intermediate / 12th marks and JEE Main or EAPCET score too, and I will work out your "
+                    "scholarship and exact fee.").format(year=config.ADMISSION_YEAR, branches=_btech_branches_text())
+            chips = ["B.Tech CSE", "B.Tech AI and Robotics", "B.Tech ECE", "B.Tech Mechanical"]
+            form_card = build_fee_scholarship_form_card(level="ug")
+            return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
+        else:
+            low_msg = (message or "").lower()
+            level = "ug"
+            if re.search(r"\b(?:pg|postgrad|postgraduate|master|mba|mca|m\.?tech|m\.?sc)\b", low_msg) or profile.get("degree_level") == "pg":
+                level = "pg"
+
+            if level == "pg":
+                text = (
+                    "Which programme are you asking about? For postgraduate studies, we offer MBA, MCA, M.Tech and M.Sc.\n\n"
+                    "To calculate your fee and check eligible merit scholarships, please select or tell me your **intended PG programme**.\n"
+                    "In the next step, you can enter your qualifying degree percentage."
+                )
+                chips = ["MBA", "MCA", "M.Tech CSE", "MBA in Agri-Business"]
+            else:
+                text = (
+                    "Which programme are you asking about? We offer B.Tech, BBA, BCA, B.Sc Agriculture, MBA, MCA, M.Tech and Ph.D. "
+                    "(for B.Tech, please mention the branch).\n\n"
+                    "To calculate your fee and check your eligible scholarship (up to 40% waiver), please select your course and your "
+                    "10+2 / Intermediate Board (Telangana, AP, CBSE, ICSE, Other State Boards across India, NIOS, or IB).\n\n"
+                    "In the next step, you can enter your 10+2 marks or entrance rank. "
+                    "You can also use the interactive assessment form below."
+                )
+                chips = ["B.Tech CSE", "B.Tech ECE", "BBA", "B.Sc Agriculture", "MBA"]
+
+            form_card = build_fee_scholarship_form_card(level=level)
+            return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
 
     known["program"] = prog_key
     state["program"] = prog_key
     prog = fees.load_data()["programs"][prog_key]
     level = prog.get("level", "ug")
     name = prog["name"]
-
+    standard = (f"The {config.ADMISSION_YEAR} standard tuition for **{name}** is **{fees.inr(prog['tuition_per_year'])} "
+                f"per year** ({fees.inr(prog['tuition_per_year'] // 2)} per semester), before any scholarship, as "
+                f"per the Admissions Office.")
+    portal = f"You can also check it on the official calculator: {FEE_PORTAL_URL}"
     has_score = any(known.get(k) not in (None, "") for k in ("percent", "eapcet_rank", "jee_percentile", "ib_score"))
 
     def calculate():
@@ -266,100 +310,177 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
     if (said.get("standard_only") and not has_score) or said.get("skip"):
         return calculate()
 
-    # -------------------------------------------------------------------------
-    # STEP 2: Course is known, but 10+2 Board is NOT known (for UG courses)
-    # -------------------------------------------------------------------------
-    if level != "pg" and not known.get("board"):
-        if "board" in asked:
-            return calculate()  # Asked once already, don't trap student
-        state["asked"] = sorted(asked | {"board"})
-        state["waiting_for"] = "board"
-        text = (
-            f"For **{name}**, scholarships are calculated based on your 10+2 board and marks/rank.\n\n"
-            f"Which **10+2 / Intermediate Board** did you study under?\n"
-            f"• **Telangana State Board (TS BIE)**\n"
-            f"• **AP State Board (BIEAP)**\n"
-            f"• **CBSE / ICSE / NIOS**\n"
-            f"• **Other State Boards across India** (Maharashtra, Karnataka, Tamil Nadu, UP, Bihar, etc.)\n"
-            f"• **IB (International Baccalaureate)**\n\n"
-            f"In the next step, I'll ask for your marks or entrance rank to calculate your exact scholarship and fee. "
-            f"You can also use the assessment form below."
-        )
-        chips = [
-            "Telangana State Board",
-            "AP State Board",
-            "CBSE / ICSE",
-            "Other State Board across India",
-            "IB",
-        ]
-        form_card = build_fee_scholarship_form_card(selected_program=prog_key)
-        return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
+    # IB students need their IB points, not a percentage
+    if level != "pg" and known.get("board") == "ib" and not known.get("ib_score") and "ib" not in asked:
+        state["asked"] = sorted(asked | {"ib"})
+        state["waiting_for"] = "ib"
+        form_card = build_fee_scholarship_form_card(selected_program=prog_key, selected_board="ib", level=level, only_selected=True)
+        return {
+            "action": "ask",
+            "text": f"Got it! For **{name}** under **International Baccalaureate (IB)**:\nWhat is your IB Diploma score (points out of 45)? The IB scholarship slabs use points, not a percentage.",
+            "chips": ["30", "34", "38"],
+            "cards": [form_card],
+            "state": state,
+        }
 
     # -------------------------------------------------------------------------
-    # STEP 3: Course and Board are known, but Marks / Rank are NOT known
+    # STEP 2 / 3: No marks or scores yet
     # -------------------------------------------------------------------------
     if not has_score:
-        if "marks" in asked:
-            return calculate()  # Asked once; proceed with standard fee
-        state["asked"] = sorted(asked | {"marks"})
-        board_disp = known.get("board_label") or _BOARD_LABEL.get(known.get("board"), "your board")
-        board_card_key = _board_card_key(known.get("board"), known.get("board_label"))
+        if "scores" in asked:
+            return calculate()
 
         if level == "pg":
+            state["asked"] = sorted(asked | {"scores"})
             state["waiting_for"] = "percent"
             text = (
-                f"For **{name}**, please provide your qualifying degree percentage "
-                f"(e.g. B.Tech / B.Sc / BBA percentage) to calculate your fee and scholarship."
+                f"{standard}\n\n"
+                f"To calculate your fee and merit scholarship for **{name}**, please provide your "
+                f"percentage in the qualifying degree (for example B.Tech, B.Sc or BBA).\n\n{portal}"
             )
-            chips = ["Degree 75%", "Degree 85%", "Just the standard fee"]
-        elif known.get("board") == "ib":
-            state["waiting_for"] = "ib"
+            chips = ["My degree % is 75", "My degree % is 85", "Just the standard fee"]
+            form_card = build_fee_scholarship_form_card(selected_program=prog_key, level="pg", only_selected=True)
+            return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
+
+        # UG: ask for 10+2 board first if not known
+        if not known.get("board"):
+            if "board" in asked:
+                return calculate()
+            state["asked"] = sorted(asked | {"board", "entrance"})
+            state["waiting_for"] = "board"
             text = (
-                f"Got it! For **{name}** under **International Baccalaureate (IB)**:\n"
-                f"What is your IB Diploma score (points out of 45)? The IB scholarship slabs use points out of 45."
-            )
-            chips = ["30 points", "34 points", "38 points", "Just the standard fee"]
-        else:
-            state["waiting_for"] = "percent"
-            text = (
-                f"Got it! For **{name}** under **{board_disp}**:\n"
-                f"Please provide your **10+2 marks** (percentage, or marks out of 1000) or your "
-                f"**Entrance Exam Rank** (JEE Main percentile or TG / AP EAPCET rank).\n\n"
-                f"Based on your marks or rank, I will calculate your merit scholarship (up to 40% fee waiver) "
-                f"and exact net tuition."
+                f"{standard}\n\n"
+                f"Which board (10+2 / Intermediate Board) did you study under?\n"
+                f"• **Telangana State Board (TS BIE)**\n"
+                f"• **AP State Board (BIEAP)**\n"
+                f"• **CBSE / ICSE / NIOS**\n"
+                f"• **Other State Boards across India** (Maharashtra, Karnataka, Tamil Nadu, UP, Bihar, etc.)\n"
+                f"• **IB (International Baccalaureate)**\n\n"
+                f"In the next step, I'll ask for your marks or entrance rank (JEE Main percentile or TG / AP EAPCET rank) "
+                f"to calculate your exact scholarship and fee. {portal}\n"
+                f"You can also use the assessment form below."
             )
             chips = [
-                "85% in 10+2",
-                "92% in 10+2",
-                "96% in 10+2",
-                "JEE 85 percentile",
-                "EAPCET rank 15000",
-                "Just the standard fee",
+                "Telangana State Board",
+                "AP State Board",
+                "CBSE / ICSE",
+                "Other State Board across India",
+                "IB",
             ]
+            form_card = build_fee_scholarship_form_card(selected_program=prog_key, level=level, only_selected=True)
+            return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
 
-        form_card = build_fee_scholarship_form_card(selected_program=prog_key, selected_board=board_card_key)
+        # UG: board is known, but marks/rank are not known
+        if "marks" in asked:
+            return calculate()
+        state["asked"] = sorted(asked | {"marks"})
+        state["waiting_for"] = "percent"
+        board_disp = known.get("board_label") or _BOARD_LABEL.get(known.get("board"), "your board")
+        board_card_key = _board_card_key(known.get("board"), known.get("board_label"))
+        text = (
+            f"Got it! For **{name}** under **{board_disp}**:\n"
+            f"Please provide your **10+2 marks** (percentage, or marks out of 1000) or your "
+            f"**Entrance Exam Rank** (JEE Main percentile or TG / AP EAPCET rank).\n\n"
+            f"Based on your marks or rank, I will calculate your merit scholarship (up to 40% fee waiver) "
+            f"and exact net tuition."
+        )
+        chips = [
+            "85% in 10+2",
+            "92% in 10+2",
+            "96% in 10+2",
+            "JEE 85 percentile",
+            "EAPCET rank 15000",
+            "Just the standard fee",
+        ]
+        form_card = build_fee_scholarship_form_card(
+            selected_program=prog_key,
+            selected_board=board_card_key,
+            level=level,
+            only_selected=True,
+        )
         return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
 
     # -------------------------------------------------------------------------
     # STEP 4: Only an entrance score given: board marks may give a higher scholarship
     # -------------------------------------------------------------------------
     if (level != "pg" and known.get("percent") is None and not known.get("ib_score")
-            and "marks" not in asked and not known.get("skip")):
+            and "marks" not in asked and "scores" not in asked and not known.get("skip")):
         state["asked"] = sorted(asked | {"marks"})
         state["waiting_for"] = "percent"
-        board_disp = known.get("board_label") or _BOARD_LABEL.get(known.get("board"), "your board")
-        text = (
-            f"Thanks! What are your Intermediate / 12th marks for **{name}** under **{board_disp}**? "
-            f"Board marks can also qualify for scholarships up to 40%, and the highest scholarship is always applied."
-        )
-        chips = ["85% in 10+2", "92% in 10+2", "Skip, use my entrance score"]
         form_card = build_fee_scholarship_form_card(
             selected_program=prog_key,
             selected_board=_board_card_key(known.get("board"), known.get("board_label")),
+            level=level,
+            only_selected=True,
         )
-        return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
+        return {
+            "action": "ask",
+            "chips": ["State Board, 85%", "CBSE, 90%", "Skip, use my rank"],
+            "cards": [form_card],
+            "state": state,
+            "text": (
+                "Thanks. What were your Intermediate / 12th marks, and which board (Telangana / AP State "
+                "Board, CBSE, ICSE or IB)? Board marks can earn a scholarship too, and the best one is applied."
+            ),
+        }
 
     # -------------------------------------------------------------------------
-    # STEP 5: All necessary details are known -> Calculate!
+    # STEP 5: The board changes the scholarship only for some percentages: ask only then
+    # -------------------------------------------------------------------------
+    pct = known.get("percent")
+    if level != "pg" and pct is not None and not known.get("board") and "board" not in asked:
+        as_state = fees.scholarship_for(prog_key, percent=pct, board="state_board")["percent"]
+        as_cbse = fees.scholarship_for(prog_key, percent=pct, board="cbse")["percent"]
+        if as_state != as_cbse:
+            state["asked"] = sorted(asked | {"board"})
+            state["waiting_for"] = "board"
+            form_card = build_fee_scholarship_form_card(
+                selected_program=prog_key,
+                level=level,
+                only_selected=True,
+            )
+            return {
+                "action": "ask",
+                "chips": ["Telangana State Board", "AP State Board", "CBSE", "ICSE"],
+                "cards": [form_card],
+                "state": state,
+                "text": (
+                    f"Which board did you study under? With {pct:g}% the scholarship is "
+                    f"{as_state}% for Telangana / AP State Board and {as_cbse}% for CBSE / ICSE, so it "
+                    f"matters for your fee."
+                ),
+            }
+
+    # -------------------------------------------------------------------------
+    # STEP 6: B.Tech / B.Sc Agriculture: an entrance score may give more; ask once
+    # -------------------------------------------------------------------------
+    if (level != "pg" and prog_key.startswith(_ENTRANCE_PROGRAMS) and "entrance" not in asked
+            and not known.get("no_entrance") and not known.get("eapcet_rank") and not known.get("jee_percentile")):
+        board = "cbse" if known.get("board") == "cbse" else "state_board"
+        best = fees.scholarship_for(prog_key, percent=pct, board=board, ib_score=known.get("ib_score"))["percent"]
+        if best < 40:
+            state["asked"] = sorted(asked | {"entrance"})
+            state["waiting_for"] = "rank"
+            form_card = build_fee_scholarship_form_card(
+                selected_program=prog_key,
+                selected_board=_board_card_key(known.get("board"), known.get("board_label")),
+                level=level,
+                only_selected=True,
+            )
+            return {
+                "action": "ask",
+                "chips": ["No entrance exam", "EAPCET rank 12000", "JEE 85 percentile"],
+                "cards": [form_card],
+                "state": state,
+                "text": (
+                    f"Got it. Did you also write JEE Main or TG / AP EAPCET? Your marks give a {best}% "
+                    f"scholarship; a JEE Main percentile of 80+ or an EAPCET rank up to 20,000 can give "
+                    f"more, and the best one is applied. Share your score, or say \"no entrance exam\"."
+                ),
+            }
+
+    # -------------------------------------------------------------------------
+    # STEP 7: All necessary details are known -> Calculate!
     # -------------------------------------------------------------------------
     return calculate()
+

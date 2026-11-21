@@ -523,7 +523,22 @@ def build_school_selection_card() -> dict:
     }
 
 
-def build_course_selection_card(school: dict) -> dict:
+def _detect_level(msg: str, conv_state: dict | None = None, profile: dict | None = None) -> str | None:
+    low = (msg or "").lower()
+    if re.search(r"\b(?:ug|undergrad|undergraduate|bachelor|b\.?tech|bba|bca|bdes|b\.?com|b\.?sc)\b", low):
+        return "ug"
+    if re.search(r"\b(?:pg|postgrad|postgraduate|master|mba|mca|m\.?tech|m\.?sc)\b", low):
+        return "pg"
+    if conv_state and conv_state.get("degree_level") in ("ug", "pg"):
+        return conv_state.get("degree_level")
+    if profile and profile.get("degree_level") in ("ug", "pg"):
+        return profile.get("degree_level")
+    return None
+
+
+def build_course_selection_card(school: dict, level: str | None = None) -> dict:
+    ug = school["programs"].get("ug", []) if level != "pg" else []
+    pg = school["programs"].get("pg", []) if level != "ug" else []
     return {
         "type": "course_selection",
         "title": f"Programmes in {school['short_name']}",
@@ -531,8 +546,9 @@ def build_course_selection_card(school: dict) -> dict:
         "school_id": school["id"],
         "school_name": school["display_name"],
         "icon": school["icon"],
-        "programs_ug": school["programs"].get("ug", []),
-        "programs_pg": school["programs"].get("pg", []),
+        "level": level,
+        "programs_ug": ug,
+        "programs_pg": pg,
     }
 
 
@@ -813,7 +829,7 @@ def process_fee_flow(
 
             return {
                 "text": reply_text,
-                "cards": [fee_card, build_fee_scholarship_form_card(selected_program=matched_prog["key"])],
+                "cards": [fee_card, build_fee_scholarship_form_card(selected_program=matched_prog["key"], only_selected=True)],
                 "suggestions": follow_up_chips,
                 "new_state": {
                     "fee_flow_state": "completed",
@@ -831,10 +847,9 @@ def process_fee_flow(
 
         elif matched_school:
             # User named the School directly (e.g. "fees for Agriculture", "interested in Astra School of Business")
-            prog_card = build_course_selection_card(matched_school)
-            ug_progs = matched_school["programs"].get("ug", [])
-            pg_progs = matched_school["programs"].get("pg", [])
-            all_progs = ug_progs + pg_progs
+            level = _detect_level(msg, conv_state, profile)
+            prog_card = build_course_selection_card(matched_school, level=level)
+            all_progs = prog_card["programs_ug"] + prog_card["programs_pg"]
 
             chips = [p["name"] for p in all_progs[:5]] + ["Change School"]
 
@@ -913,7 +928,7 @@ def process_fee_flow(
             )
             return {
                 "text": reply_text,
-                "cards": [fee_card, build_fee_scholarship_form_card(selected_program=matched_prog["key"])],
+                "cards": [fee_card, build_fee_scholarship_form_card(selected_program=matched_prog["key"], only_selected=True)],
                 "suggestions": ["Calculate scholarship for my marks", "Hostel room options", "Change school / programme"],
                 "new_state": {
                     "fee_flow_state": "completed",
@@ -930,10 +945,9 @@ def process_fee_flow(
             }
 
         if matched_school:
-            prog_card = build_course_selection_card(matched_school)
-            ug_progs = matched_school["programs"].get("ug", [])
-            pg_progs = matched_school["programs"].get("pg", [])
-            all_progs = ug_progs + pg_progs
+            level = _detect_level(msg, conv_state, profile)
+            prog_card = build_course_selection_card(matched_school, level=level)
+            all_progs = prog_card["programs_ug"] + prog_card["programs_pg"]
             chips = [p["name"] for p in all_progs[:5]] + ["Change School"]
 
             return {
@@ -1005,7 +1019,7 @@ def process_fee_flow(
 
             return {
                 "text": reply_text,
-                "cards": [fee_card, build_fee_scholarship_form_card(selected_program=matched_prog["key"])],
+                "cards": [fee_card, build_fee_scholarship_form_card(selected_program=matched_prog["key"], only_selected=True)],
                 "suggestions": follow_up_chips,
                 "new_state": {
                     "fee_flow_state": "completed",
@@ -1024,8 +1038,9 @@ def process_fee_flow(
         # User might have typed another school
         new_school = detect_school(msg)
         if new_school and new_school["id"] != saved_school_id:
-            prog_card = build_course_selection_card(new_school)
-            all_p = new_school["programs"].get("ug", []) + new_school["programs"].get("pg", [])
+            level = _detect_level(msg, conv_state, profile)
+            prog_card = build_course_selection_card(new_school, level=level)
+            all_p = prog_card["programs_ug"] + prog_card["programs_pg"]
             chips = [p["name"] for p in all_p[:5]] + ["Change School"]
             return {
                 "text": (
@@ -1049,10 +1064,13 @@ def process_fee_flow(
 
         # Re-prompt with the current school's course card
         if school:
+            level = _detect_level(msg, conv_state, profile)
+            prog_card = build_course_selection_card(school, level=level)
+            all_p = prog_card["programs_ug"] + prog_card["programs_pg"]
             return {
                 "text": f"Please select one of the programmes offered under **{school['display_name']}** below, or type your preferred degree:",
-                "cards": [build_course_selection_card(school)],
-                "suggestions": [p["name"] for p in (school["programs"].get("ug", []) + school["programs"].get("pg", []))[:5]],
+                "cards": [prog_card],
+                "suggestions": [p["name"] for p in all_p[:5]],
                 "new_state": conv_state,
             }
 
@@ -1078,7 +1096,7 @@ def process_fee_flow(
                     f"In the next step, I'll ask for your marks or entrance rank to determine your exact fee. "
                     f"You can also use the assessment form below."
                 ),
-                "cards": [build_fee_scholarship_form_card(selected_program=prog_key)],
+                "cards": [build_fee_scholarship_form_card(selected_program=prog_key, only_selected=True)],
                 "suggestions": [
                     "Telangana State Board",
                     "AP State Board",
@@ -1114,9 +1132,9 @@ def process_fee_flow(
 
         # Follow-up: Hostel specific fee/cost query only (strictly standalone)
         is_hostel_cost_q = any(k in low for k in ("hostel", "accommodation", "room", "mess", "boarding")) and (
-            any(k in low for k in ("fee", "fees", "cost", "costs", "charge", "charges", "price", "how much", "rate", "rent", "package", "deposit", "about"))
-            or low in ("what about hostel?", "what about hostel", "hostel?")
-        )
+            any(k in low for k in ("fee", "fees", "cost", "costs", "charge", "charges", "price", "how much", "rate", "rent", "package", "deposit"))
+            or low.strip("?. ") in ("what about hostel", "what about the hostel", "hostel")
+        ) and not any(k in low for k in ("facility", "facilities", "curfew", "food", "mess food", "menu", "timing", "timings", "rule", "rules", "warden", "gym"))
         if is_hostel_cost_q:
             school = next((s for s in SCHOOLS_DATA if s["id"] == saved_school_id), SCHOOLS_DATA[0])
             prog_dict = fees.load_data()["programs"].get(saved_prog_key or "btech_cse", {})

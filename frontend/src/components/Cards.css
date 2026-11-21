@@ -3620,6 +3620,38 @@
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
+.fee-form-selected-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-2, #f8fafc);
+  border: 1.5px solid rgba(99, 102, 241, 0.35);
+  border-radius: 10px;
+}
+
+.selected-course-icon {
+  font-size: 1.25rem;
+}
+
+.selected-course-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.selected-course-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-1, #0f172a);
+}
+
+.selected-course-fee {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4f46e5;
+}
+
 .fee-form-hint {
   font-size: 0.7rem;
   color: var(--text-3, #94a3b8);
@@ -3823,6 +3855,20 @@
 [data-theme="dark"] .preview-final {
   color: #34d399;
 }
+
+[data-theme="dark"] .fee-form-selected-badge {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+[data-theme="dark"] .selected-course-name {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .selected-course-fee {
+  color: #818cf8;
+}
+
 
 
 

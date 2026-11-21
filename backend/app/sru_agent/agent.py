@@ -30,7 +30,7 @@ except ImportError:
     genai = None
     types = None
 
-from . import config, faculty, fee_flow, fee_intake, fees, intents, knowledge, memory, tools
+from . import affordability, config, faculty, fee_flow, fee_intake, fees, intents, knowledge, memory, tools
 from .prompt import build_system_prompt
 
 log = logging.getLogger("sru_agent")
@@ -1444,7 +1444,7 @@ async def run_agent(
 
     if intent == "BTECH_TREE_QUERY":
         await set_state(fee_tree_step="btech_branch")
-        flow_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0])
+        flow_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level="ug")
         async for ev in _say(_BTECH_TREE_TEXT, message, session_id, conversation_id,
                              cards=[flow_card],
                              suggestions=["B.Tech CSE & Allied", "B.Tech AI & Robotics",
@@ -1494,7 +1494,8 @@ async def run_agent(
 
     if intent == "MANAGEMENT_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[3])
+        lvl = "ug" if "bba" in message.lower() else ("pg" if "mba" in message.lower() else None)
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[3], level=lvl)
         async for ev in _say(_MANAGEMENT_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
                              suggestions=["Calculate my fee with scholarship", "MBA specializations",
@@ -1504,7 +1505,8 @@ async def run_agent(
 
     if intent == "AGRICULTURE_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2])
+        lvl = "ug" if ("bsc" in message.lower() or "b.sc" in message.lower() or "agri" in message.lower()) else ("pg" if "msc" in message.lower() else None)
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2], level=lvl)
         async for ev in _say(_AGRICULTURE_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
                              suggestions=["Calculate my scholarship", "Hostel details",
@@ -1514,7 +1516,8 @@ async def run_agent(
 
     if intent == "COMP_APP_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0])
+        lvl = "ug" if "bca" in message.lower() else ("pg" if "mca" in message.lower() else None)
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level=lvl)
         async for ev in _say(_COMP_APP_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
                              suggestions=["Calculate my scholarship", "Hostel details",
@@ -1524,7 +1527,7 @@ async def run_agent(
 
     if intent == "DESIGN_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5])
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5], level="ug")
         async for ev in _say(_DESIGN_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
                              suggestions=["Calculate my scholarship", "Hostel details",
@@ -1807,6 +1810,17 @@ async def run_agent(
         intake_state = dict(conv_state.get("fee_intake") or {})
         if conv_state.get("fee_flow_prog") and not intake_state.get("program"):
             intake_state["program"] = conv_state.get("fee_flow_prog")
+
+        # 0. Check affordability and concession multi-step flow
+        if conv_state.get("affordability_flow") or affordability.is_affordability_query(message):
+            afford_res = affordability.process_affordability_flow(message, profile, conv_state)
+            if afford_res is not None:
+                await set_state(**afford_res["new_state"])
+                async for ev in _say(afford_res["text"], message, session_id, conversation_id,
+                                     cards=afford_res.get("cards", []),
+                                     suggestions=afford_res.get("suggestions", [])):
+                    yield ev
+                return
 
         # 1. If fee intake is active, or user asks specifically about scholarship/calculation, prioritize fee intake
         low_msg = (message or "").lower()

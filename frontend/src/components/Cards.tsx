@@ -1106,8 +1106,10 @@ export function SchoolSelectionCard({ card, onSelect }: { card: any; onSelect?: 
 }
 
 export function CourseSelectionCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
-  const ugProgs = card.programs_ug || [];
-  const pgProgs = card.programs_pg || [];
+  const isUgOnly = card.level === "ug";
+  const isPgOnly = card.level === "pg";
+  const ugProgs = isPgOnly ? [] : (card.programs_ug || []);
+  const pgProgs = isUgOnly ? [] : (card.programs_pg || []);
 
   return (
     <div className="rich-card course-selection-card">
@@ -1410,23 +1412,34 @@ export function HostelFacilitiesCard({ card, onSelect }: { card: any; onSelect?:
 }
 
 export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
-  const programs = card.programs || [
-    { key: "btech_cse", name: "B.Tech Computer Science & Engineering (CSE)", annual_tuition: 340000 },
-    { key: "btech_ai_robotics", name: "B.Tech in Artificial Intelligence & Robotics", annual_tuition: 400000 },
-    { key: "btech_ece", name: "B.Tech Electronics & Communication (ECE)", annual_tuition: 270000 },
-    { key: "btech_mech", name: "B.Tech Mechanical Engineering", annual_tuition: 200000 },
-    { key: "btech_civil", name: "B.Tech Civil Engineering", annual_tuition: 200000 },
-    { key: "btech_eee", name: "B.Tech Electrical & Electronics (EEE)", annual_tuition: 200000 },
-    { key: "bsc_agri", name: "B.Sc (Hons.) Agriculture (ICAR Accredited)", annual_tuition: 220000 },
-    { key: "bba", name: "BBA (Bachelor of Business Administration)", annual_tuition: 160000 },
-    { key: "bca", name: "BCA (Bachelor of Computer Applications)", annual_tuition: 150000 },
-    { key: "bdes", name: "B.Des (School of Design)", annual_tuition: 180000 },
-    { key: "mba", name: "MBA (Master of Business Administration)", annual_tuition: 180000 },
-    { key: "mca", name: "MCA (Master of Computer Applications)", annual_tuition: 150000 },
-    { key: "mtech", name: "M.Tech CSE", annual_tuition: 100000 },
+  const isPg = card.level === "pg";
+  const rawPrograms = card.programs || [
+    { key: "btech_cse", name: "B.Tech Computer Science & Engineering (CSE)", level: "ug", annual_tuition: 340000 },
+    { key: "btech_ai_robotics", name: "B.Tech in Artificial Intelligence & Robotics", level: "ug", annual_tuition: 400000 },
+    { key: "btech_ece", name: "B.Tech Electronics & Communication (ECE)", level: "ug", annual_tuition: 270000 },
+    { key: "btech_mech", name: "B.Tech Mechanical Engineering", level: "ug", annual_tuition: 200000 },
+    { key: "btech_civil", name: "B.Tech Civil Engineering", level: "ug", annual_tuition: 200000 },
+    { key: "btech_eee", name: "B.Tech Electrical & Electronics (EEE)", level: "ug", annual_tuition: 200000 },
+    { key: "bsc_agri", name: "B.Sc (Hons.) Agriculture (ICAR Accredited)", level: "ug", annual_tuition: 200000 },
+    { key: "bba", name: "BBA (Bachelor of Business Administration)", level: "ug", annual_tuition: 150000 },
+    { key: "bca", name: "BCA (Bachelor of Computer Applications)", level: "ug", annual_tuition: 150000 },
+    { key: "bdes", name: "B.Des (School of Design)", level: "ug", annual_tuition: 210000 },
+    { key: "bcom", name: "B.Com (Bachelor of Commerce)", level: "ug", annual_tuition: 100000 },
+    { key: "mba", name: "MBA (Master of Business Administration)", level: "pg", annual_tuition: 300000 },
+    { key: "mca", name: "MCA (Master of Computer Applications)", level: "pg", annual_tuition: 150000 },
+    { key: "mtech", name: "M.Tech CSE", level: "pg", annual_tuition: 100000 },
   ];
 
-  const boards = card.boards || [
+  // Filter programs strictly: if only_selected, keep only selected. Else scope strictly to level.
+  const filtered = card.only_selected && card.selected_program
+    ? rawPrograms.filter((p: any) => p.key === card.selected_program)
+    : (isPg ? rawPrograms.filter((p: any) => p.level === "pg") : rawPrograms.filter((p: any) => p.level !== "pg"));
+
+  const programs = filtered.length > 0 ? filtered : rawPrograms;
+
+  const boards = card.boards || (isPg ? [
+    { key: "degree_university", label: "Recognised University / College", slab_key: "pg" },
+  ] : [
     { key: "ts_state_board", label: "Telangana State Board (BIE TS)", slab_key: "state_board" },
     { key: "ap_state_board", label: "Andhra Pradesh State Board (BIE AP)", slab_key: "state_board" },
     { key: "cbse", label: "CBSE (Central Board)", slab_key: "cbse" },
@@ -1434,10 +1447,10 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
     { key: "other_state_board", label: "Other State Boards (All Over India)", slab_key: "state_board" },
     { key: "nios", label: "NIOS / National Open School", slab_key: "cbse" },
     { key: "ib", label: "International Baccalaureate (IB)", slab_key: "ib" },
-  ];
+  ]);
 
-  const [selectedProgKey, setSelectedProgKey] = useState<string>(card.selected_program || "btech_cse");
-  const [selectedBoardKey, setSelectedBoardKey] = useState<string>(card.selected_board || "ts_state_board");
+  const [selectedProgKey, setSelectedProgKey] = useState<string>(card.selected_program || programs[0]?.key || "btech_cse");
+  const [selectedBoardKey, setSelectedBoardKey] = useState<string>(card.selected_board || boards[0]?.key || "ts_state_board");
   const [scoreInput, setScoreInput] = useState<string>("");
   const [rankInput, setRankInput] = useState<string>("");
   const [activeScoreType, setActiveScoreType] = useState<"marks" | "eapcet" | "jee">("marks");
@@ -1445,7 +1458,8 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
 
   const selectedProg = programs.find((p: any) => p.key === selectedProgKey) || programs[0];
   const selectedBoard = boards.find((b: any) => b.key === selectedBoardKey) || boards[0];
-  const isEngineeringOrAgri = selectedProgKey.startsWith("btech_") || selectedProgKey === "bsc_agri";
+  const isEngineeringOrAgri = !isPg && (selectedProgKey.startsWith("btech_") || selectedProgKey === "bsc_agri");
+  const isSingleLockedProg = Boolean(card.only_selected || programs.length === 1);
 
   // Calculate live scholarship slab
   const getScholarshipPct = (): number => {
@@ -1477,21 +1491,24 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
   };
 
   const previewWaiver = getScholarshipPct();
-  const baseTuition = selectedProg.annual_tuition || 340000;
+  const baseTuition = selectedProg?.annual_tuition || 340000;
   const netTuition = Math.round(baseTuition * (1 - previewWaiver / 100));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!scoreInput.trim() && !rankInput.trim()) {
-      setErrorMsg("Please enter your marks (%) or entrance rank.");
+      setErrorMsg(isPg ? "Please enter your qualifying degree marks (%)." : "Please enter your marks (%) or entrance rank.");
       return;
     }
     setErrorMsg(null);
-    let prompt = `Calculate fee for ${selectedProg.name}, ${selectedBoard.label}`;
+    let prompt = `Calculate fee for ${selectedProg.name}`;
+    if (!isPg && selectedBoard?.label) {
+      prompt += `, ${selectedBoard.label}`;
+    }
     if (scoreInput.trim()) {
       prompt += ` with ${scoreInput.trim()}% marks`;
     }
-    if (rankInput.trim()) {
+    if (rankInput.trim() && !isPg) {
       prompt += activeScoreType === "jee" ? ` and JEE Main ${rankInput.trim()} percentile` : ` and EAPCET rank ${rankInput.trim()}`;
     }
     onSelect?.(prompt);
@@ -1505,7 +1522,9 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
         </span>
         <h4 className="card-title">{card.title || "Fee & Merit Scholarship Assessment Form"}</h4>
         <p className="card-subtitle">
-          {card.subtitle || "Select your course and 10+2 board, then enter your marks or rank to calculate your exact net fee."}
+          {card.subtitle || (isPg
+            ? "Enter your qualifying degree marks to calculate your postgraduate fee and scholarship."
+            : "Select your course and 10+2 board, then enter your marks or rank to calculate your exact net fee.")}
         </p>
       </div>
 
@@ -1513,25 +1532,35 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
         {/* Step 1: Course Selection */}
         <div className="fee-form-group">
           <label className="fee-form-label">
-            <span className="step-num-pill">1</span> Intended Course / Programme
+            <span className="step-num-pill">1</span> {isSingleLockedProg ? "Selected Programme" : (isPg ? "Postgraduate Programme" : "Intended Course / Programme")}
           </label>
-          <select
-            className="fee-form-select"
-            value={selectedProgKey}
-            onChange={(e) => setSelectedProgKey(e.target.value)}
-          >
-            {programs.map((p: any) => (
-              <option key={p.key} value={p.key}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          {isSingleLockedProg ? (
+            <div className="fee-form-selected-badge">
+              <span className="selected-course-icon">🎓</span>
+              <div className="selected-course-details">
+                <span className="selected-course-name">{selectedProg.name}</span>
+                <span className="selected-course-fee">Annual Tuition: ₹{(selectedProg.annual_tuition || 340000).toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+          ) : (
+            <select
+              className="fee-form-select"
+              value={selectedProgKey}
+              onChange={(e) => setSelectedProgKey(e.target.value)}
+            >
+              {programs.map((p: any) => (
+                <option key={p.key} value={p.key}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
-        {/* Step 1b: Board Selection (All Over India) */}
+        {/* Step 2: Board / University Selection */}
         <div className="fee-form-group">
           <label className="fee-form-label">
-            <span className="step-num-pill">2</span> 10+2 / Intermediate Board (All Over India)
+            <span className="step-num-pill">2</span> {isPg ? "Qualifying Degree Board / University" : "10+2 / Intermediate Board (All Over India)"}
           </label>
           <select
             className="fee-form-select"
@@ -1546,10 +1575,10 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
           </select>
         </div>
 
-        {/* Step 2: Marks / Rank Input */}
+        {/* Step 3: Marks / Rank Input */}
         <div className="fee-form-group">
           <label className="fee-form-label">
-            <span className="step-num-pill">3</span> Marks or Entrance Rank
+            <span className="step-num-pill">3</span> {isPg ? "Qualifying Degree Percentage (%)" : "Marks or Entrance Rank"}
           </label>
           {isEngineeringOrAgri && (
             <div className="score-type-tabs">
@@ -1582,7 +1611,7 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
               <input
                 type="text"
                 className="fee-form-input"
-                placeholder="Enter 10+2 marks (e.g. 88% or 880/1000)"
+                placeholder={isPg ? "Enter qualifying degree marks (e.g. 75% or 80%)" : "Enter 10+2 marks (e.g. 88% or 880/1000)"}
                 value={scoreInput}
                 onChange={(e) => {
                   setScoreInput(e.target.value);
@@ -1592,7 +1621,7 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
             </div>
           )}
 
-          {activeScoreType === "eapcet" && (
+          {activeScoreType === "eapcet" && !isPg && (
             <div className="fee-input-wrap">
               <input
                 type="text"
@@ -1607,7 +1636,7 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
             </div>
           )}
 
-          {activeScoreType === "jee" && (
+          {activeScoreType === "jee" && !isPg && (
             <div className="fee-input-wrap">
               <input
                 type="text"
