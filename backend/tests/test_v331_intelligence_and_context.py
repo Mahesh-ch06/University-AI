@@ -41,7 +41,7 @@ async def _run_session(session_id: str, turns: list[tuple[str, str]]):
     await memory.clear_profile(session_id)
     await memory.clear_conversation_state(session_id, conv_id)
 
-    script = [model_reply for _, model_reply in turns]
+    script = [model_reply for _, model_reply in turns if model_reply is not None]
     mock_client = MockClient(script)
 
     results = []
@@ -131,13 +131,16 @@ async def test_scenario_c_btech_branches_and_ai_flow():
 async def test_scenario_d_placements_and_guarantee_flow():
     """Scenario D: Tell me about SRU. -> What about placements? -> Is 98% guaranteed?"""
     turns = [
-        ("Tell me about SRU.", "SR University in Warangal is a premier research-oriented institution with NBA Tier-1 and ICAR accredited programs and a 170-acre campus."),
+        ("Tell me about SRU.", None),
         ("What about placements?", "SR University provides 100% placement assistance through CSSP, with 150+ recruiters, ₹51 LPA highest package, and the SRiX startup incubator."),
         ("Is 98% guaranteed?", "While SR University provides 100% placement assistance and dedicated career readiness training, actual job offers depend on individual student academic merit and interview performance; offers are not guaranteed at 98%."),
     ]
     results, _ = await _run_session("sess-scenario-d", turns)
 
     assert len(results) == 3
+    # Turn 1: About SRU 5-pillar response
+    assert "SR University" in results[0]["answer"] or "Top Private University" in results[0]["answer"]
+
     # Turn 2: Placements
     assert "100% placement assistance" in results[1]["answer"]
     assert "51" in results[1]["answer"]

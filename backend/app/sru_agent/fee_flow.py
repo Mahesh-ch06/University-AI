@@ -718,7 +718,7 @@ def process_fee_flow(
     saved_year = conv_state.get("fee_flow_year") or extract_academic_year(msg, DEFAULT_ACADEMIC_YEAR)
     is_fee_query = is_broad_fee_query(msg)
     user_name = profile.get("name")
-    name_prefix = f"{user_name}, " if user_name else ""
+    name_part = f", {user_name}" if user_name else ""
 
     # Check for back navigation
     if detect_back_navigation(msg) and current_state:
@@ -814,7 +814,7 @@ def process_fee_flow(
             annual_other_fmt = fee_card["formatted_annual_other"]
 
             reply_text = (
-                f"{year_unverified_notice}Sure {name_prefix}! Here is the complete verified fee breakdown for "
+                f"{year_unverified_notice}Sure{name_part}! Here is the complete verified fee breakdown for "
                 f"**{matched_prog['name']}** ({sch['short_name']}) for Academic Year **{saved_year}**:\n\n"
                 f"• **Tuition Fee**: {tuition_fmt} per year ({sem_fmt} per semester)\n"
                 f"• **One-Time Charges**: {one_time_fmt} (Enrolment ₹5,000 + Application ₹1,100)\n"
@@ -921,7 +921,7 @@ def process_fee_flow(
             sch = sch or SCHOOLS_DATA[0]
             fee_card = build_detailed_fee_card(matched_prog, sch, saved_year)
             reply_text = (
-                f"Excellent choice {name_prefix}! Here is the complete verified fee breakdown for "
+                f"Excellent choice{name_part}! Here is the complete verified fee breakdown for "
                 f"**{matched_prog['name']}** ({sch['short_name']}) for Academic Year **{saved_year}**:\n\n"
                 f"• **Tuition Fee**: {fee_card['tuition']['formatted_annual']} per year ({fee_card['tuition']['formatted_semester']} per semester)\n"
                 f"• **One-Time Charges**: {fee_card['formatted_one_time_total']} (Enrolment ₹5,000 + Application ₹1,100)\n"

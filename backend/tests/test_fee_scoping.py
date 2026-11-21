@@ -269,9 +269,10 @@ def test_programs_offered_card_trigger():
         cards = generate_cards(
             user_message=query,
             answer="SR University offers programs across 6 multidisciplinary schools.",
+            seen_card_types={"programs_offered"},
         )
         programs_cards = [c for c in cards if c.get("type") == "programs_offered"]
-        assert len(programs_cards) == 0, f"programs_offered card should be removed, but was found for '{query}'"
+        assert len(programs_cards) == 0, f"programs_offered card should be capped when seen, but was found for '{query}'"
 
 
 def test_course_fee_query_does_not_trigger_programs_card():

@@ -1524,10 +1524,21 @@ async def run_agent(
     # Greetings and small talk
     chat = intents.small_talk(message) if intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO") else None
     if chat:
-        name_bit = f", {_first_name(profile['name'])}" if profile.get("name") else ""
+        first_name = _first_name(profile["name"]) if profile.get("name") else ""
+        last_assistant_text = next(
+            (h.get("text", "") for h in reversed(history) if h.get("role") in ("model", "assistant")),
+            ""
+        )
+        name_used_recently = bool(
+            first_name and re.search(rf"\b{re.escape(first_name)}\b", last_assistant_text, re.IGNORECASE)
+        )
+        name_bit = f", {first_name}" if (first_name and not name_used_recently) else ""
         if chat == "greeting":
             if profile.get("name"):
-                text = _select_variation(_GREETING_WITH_NAME, session_id + str(len(history))).format(name=_first_name(profile["name"]))
+                if not name_used_recently:
+                    text = _select_variation(_GREETING_WITH_NAME, session_id + str(len(history))).format(name=first_name)
+                else:
+                    text = f"Hello again! What would you like to explore about SR University today?"
             else:
                 await set_state(awaiting_name=True, name_asked=True)
                 text = _select_variation(_GREETING_ASK_NAME, session_id + str(len(history)))
@@ -2140,6 +2151,16 @@ async def run_agent(
         link["key"] = None if client else _ring.next_key()
         if link["fixed"] is None and not link["key"]:
             link["fixed"] = get_client()
+        last_assistant_text = next(
+            (h.get("text", "") for h in reversed(history) if h.get("role") in ("model", "assistant")),
+            ""
+        )
+        student_name = ctx["profile"].get("name") or ""
+        first_name = _first_name(student_name)
+        name_used_recently = bool(
+            first_name and re.search(rf"\b{re.escape(first_name)}\b", last_assistant_text, re.IGNORECASE)
+        )
+
         for round_no in range(config.AGENT_MAX_TOOL_ROUNDS + 1):
             last_round = round_no == config.AGENT_MAX_TOOL_ROUNDS
             cfg = types.GenerateContentConfig(
@@ -2147,7 +2168,7 @@ async def run_agent(
                     ctx["profile"], variant_id=variant_id, used_openings=assistant_openings,
                     about_sru_angle=about_sru_angle, pending_action=pending, action_note=action_note,
                     handbook_passages=passages, fee_result=fee_note, faculty_result=faculty_note,
-                    persona=persona),
+                    persona=persona, name_used_recently=name_used_recently),
                 tools=[tool_decl],
                 temperature=0.2,
                 max_output_tokens=900,
