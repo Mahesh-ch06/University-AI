@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useState, useMemo } from "react";
 import { submitFeedback } from "../services/api";
 import { RenderCard, deduplicateCards } from "./Cards";
 import MarkdownContent from "./MarkdownContent";
@@ -62,6 +62,42 @@ function MessageBubble({
       : content
   );
 
+  const hasCards = Boolean(!isStreaming && role === "assistant" && cards && cards.length > 0);
+  const { mainText, followupText } = useMemo(() => {
+    if (!hasCards || !displayContent) {
+      return { mainText: displayContent, followupText: null };
+    }
+    const trimmed = displayContent.trim();
+    const paragraphs = trimmed.split(/\n\s*\n/);
+    if (paragraphs.length < 2) {
+      return { mainText: displayContent, followupText: null };
+    }
+    const lastPara = paragraphs[paragraphs.length - 1].trim();
+    // Exclude markdown tables, lists, headers, blockquotes, and code fences
+    if (
+      lastPara.startsWith("|") ||
+      lastPara.startsWith("-") ||
+      lastPara.startsWith("*") ||
+      lastPara.startsWith("#") ||
+      lastPara.startsWith("```") ||
+      lastPara.startsWith(">") ||
+      /^\d+\./.test(lastPara)
+    ) {
+      return { mainText: displayContent, followupText: null };
+    }
+    // Check if last paragraph ends with '?' or starts with a typical follow-up invitation
+    const isQuestion = lastPara.endsWith("?");
+    const isCallToAction = /^(would you|do you|if you|let me know|feel free|shall i|should i|can i|want me to|could i|reach out to)\b/i.test(lastPara);
+
+    if (isQuestion || isCallToAction) {
+      return {
+        mainText: paragraphs.slice(0, -1).join("\n\n"),
+        followupText: lastPara,
+      };
+    }
+    return { mainText: displayContent, followupText: null };
+  }, [displayContent, hasCards]);
+
   const handleCopy = async () => {
     const success = await copyCleanText(displayContent);
     if (success) {
@@ -122,13 +158,52 @@ function MessageBubble({
         )}
 
         {/* Message Content Bubble */}
-        {content && content.trim().length > 0 && (
+        {mainText && mainText.trim().length > 0 && (
           <div className={`message-text-bubble ${role}`}>
-            <MarkdownContent content={displayContent} isStreaming={isStreaming} />
+            <MarkdownContent content={mainText} isStreaming={isStreaming} />
           </div>
         )}
 
-        {/* Action Buttons (Copy + Feedback) directly attached to bubble */}
+        {/* Rich Interactive Cards (placed seamlessly under main response text) */}
+        {!isStreaming && role === "assistant" && cards && cards.length > 0 && (
+          <div className="message-cards-container">
+            {deduplicateCards(cards).map((card, idx) => (
+              <RenderCard key={idx} card={card} onSelect={onSuggestionClick} />
+            ))}
+          </div>
+        )}
+
+        {/* Follow-up question / closing call-to-action (placed after the card) */}
+        {!isStreaming && role === "assistant" && followupText && (
+          <div className={`message-text-bubble ${role} message-followup-bubble`}>
+            <MarkdownContent content={followupText} />
+          </div>
+        )}
+
+        {/* Clean Suggestion Chips */}
+        {!isStreaming && role === "assistant" && suggestions && suggestions.length > 0 && (
+          <div className="suggestion-chips-wrapper">
+            <div className="suggestion-chips-list">
+              {suggestions.map((suggestion, idx) => {
+                const cleanSuggestion = suggestion.replace(/Ask admissions to call me/gi, "Ask counsellor to call me");
+                const { icon, label } = parseSuggestionChip(cleanSuggestion);
+                return (
+                  <button
+                    key={idx}
+                    className="suggestion-chip"
+                    onClick={() => onSuggestionClick?.(cleanSuggestion)}
+                    type="button"
+                  >
+                    {icon && <span className="suggestion-chip-icon">{icon}</span>}
+                    <span className="suggestion-chip-text">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons (Copy + Feedback) - at the very bottom of the whole response */}
         {role === "assistant" && content && content.trim().length > 0 && !isStreaming && (
           <div className="message-bottom-bar">
             <div className="minimal-action-bar">
@@ -176,38 +251,6 @@ function MessageBubble({
               </button>
 
               {copied && <span className="copy-feedback-label">Copied</span>}
-            </div>
-          </div>
-        )}
-
-        {/* Rich Interactive Cards (e.g. branch comparison, fee breakdown, academic flow) */}
-        {!isStreaming && role === "assistant" && cards && cards.length > 0 && (
-          <div className="message-cards-container">
-            {deduplicateCards(cards).map((card, idx) => (
-              <RenderCard key={idx} card={card} onSelect={onSuggestionClick} />
-            ))}
-          </div>
-        )}
-
-        {/* Clean Suggestion Chips */}
-        {!isStreaming && role === "assistant" && suggestions && suggestions.length > 0 && (
-          <div className="suggestion-chips-wrapper">
-            <div className="suggestion-chips-list">
-              {suggestions.map((suggestion, idx) => {
-                const cleanSuggestion = suggestion.replace(/Ask admissions to call me/gi, "Ask counsellor to call me");
-                const { icon, label } = parseSuggestionChip(cleanSuggestion);
-                return (
-                  <button
-                    key={idx}
-                    className="suggestion-chip"
-                    onClick={() => onSuggestionClick?.(cleanSuggestion)}
-                    type="button"
-                  >
-                    {icon && <span className="suggestion-chip-icon">{icon}</span>}
-                    <span className="suggestion-chip-text">{label}</span>
-                  </button>
-                );
-              })}
             </div>
           </div>
         )}

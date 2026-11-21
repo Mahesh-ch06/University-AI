@@ -154,10 +154,17 @@
   flex-direction: column;
   gap: 10px;
   margin-top: 6px;
+  margin-bottom: 4px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+
+/* Follow-up question / call-to-action placed after card */
+.message-followup-bubble {
+  margin-top: 4px;
+  margin-bottom: 2px;
 }
 
 /* Suggestion Chips */
