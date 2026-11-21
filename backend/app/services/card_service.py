@@ -914,13 +914,26 @@ def generate_cards(
     msg_lower = user_message.lower()
     ans_lower = answer.lower()
 
-    # 1. Branch comparison card
+    def _can_show(card_type: str) -> bool:
+        if session_id and card_type in get_session_shown_cards(session_id):
+            return False
+        if seen_card_types and card_type in seen_card_types:
+            return False
+        return True
+
+    def _mark_shown(card_type: str) -> None:
+        if session_id:
+            record_session_card(session_id, card_type)
+
+    # 0. Branch comparison card (Shown at most once per session)
     if any(k in msg_lower for k in ("vs", "compare", "comparison", "difference")) and (
         "cse" in msg_lower or "ai" in msg_lower or "aiml" in msg_lower or "machine learning" in msg_lower
     ):
-        cards.append(COMPARISON_CSE_AIML)
+        if _can_show("comparison"):
+            cards.append(COMPARISON_CSE_AIML)
+            _mark_shown("comparison")
 
-    # 2. Fee breakdown card (Strict Category Scoping — show only what the user asks for)
+    # 1. Fee breakdown card (Strict Category Scoping — show only what the user asks for)
     is_transport_fee_query = any(k in msg_lower for k in ("bus", "transport", "commute", "van")) and any(
         k in msg_lower for k in ("fee", "fees", "cost", "charge", "price", "how much", "rate", "pass", "ticket")
     )
@@ -995,50 +1008,71 @@ def generate_cards(
     )
 
     if is_transport_fee_query:
-        cards.append(TRANSPORT_FEE_CARD)
+        if _can_show("fee_breakdown"):
+            cards.append(TRANSPORT_FEE_CARD)
+            _mark_shown("fee_breakdown")
     elif is_fee_with_hostel_query:
         # User explicitly asked to include hostel in the fee breakdown
-        cards.append(BTECH_CSE_WITH_HOSTEL_FEE_CARD)
+        if _can_show("fee_breakdown"):
+            cards.append(BTECH_CSE_WITH_HOSTEL_FEE_CARD)
+            _mark_shown("fee_breakdown")
     elif is_hostel_fee_query and not (is_cse_fee_query or is_btech_fee_query):
         # User asked purely for hostel fees
-        cards.append(HOSTEL_FEE_CARD)
+        if _can_show("fee_breakdown"):
+            cards.append(HOSTEL_FEE_CARD)
+            _mark_shown("fee_breakdown")
     elif is_hostel_facilities_query and not (is_cse_fee_query or is_btech_fee_query):
         # User asked for hostel facilities / living details
-        cards.append(HOSTEL_FACILITIES_CARD)
+        if _can_show("hostel_facilities"):
+            cards.append(HOSTEL_FACILITIES_CARD)
+            _mark_shown("hostel_facilities")
     elif is_exam_fee_query:
-        cards.append(EXAM_FEE_CARD)
+        if _can_show("fee_breakdown"):
+            cards.append(EXAM_FEE_CARD)
+            _mark_shown("fee_breakdown")
     elif is_admission_fee_query:
-        cards.append(ADMISSION_FEE_CARD)
+        if _can_show("fee_breakdown"):
+            cards.append(ADMISSION_FEE_CARD)
+            _mark_shown("fee_breakdown")
     elif is_scholarship_only_query:
-        cards.append(MERIT_SCHOLARSHIP_CARD)
+        if _can_show("fee_breakdown"):
+            cards.append(MERIT_SCHOLARSHIP_CARD)
+            _mark_shown("fee_breakdown")
     elif is_cse_fee_query:
         # User asked for CSE fee WITHOUT hostel (hostel not added)
-        cards.append(BTECH_CSE_SEMESTER_FEE_CARD)
+        if _can_show("fee_breakdown"):
+            cards.append(BTECH_CSE_SEMESTER_FEE_CARD)
+            _mark_shown("fee_breakdown")
     elif is_btech_fee_query:
-        cards.append(BTECH_ACADEMIC_FEE_CARD)
+        if _can_show("fee_breakdown"):
+            cards.append(BTECH_ACADEMIC_FEE_CARD)
+            _mark_shown("fee_breakdown")
     elif any(k in msg_lower for k in ("fee", "fees", "tuition", "cost of study", "how much is the fee")):
         # Only attach general breakdown if user explicitly asked for program fee structure / breakdown
         if any(k in msg_lower for k in ("structure", "complete fee", "breakdown", "all fees", "details", "academic", "tuition")):
             if not any(k in msg_lower for k in ("transport", "bus", "hostel", "mess", "exam")):
-                cards.append(BTECH_ACADEMIC_FEE_CARD)
+                if _can_show("fee_breakdown"):
+                    cards.append(BTECH_ACADEMIC_FEE_CARD)
+                    _mark_shown("fee_breakdown")
 
 
-    # 2b. Sponsored Early Bird Application Ad Card (media_1794676975023.png reference)
-    # Attached whenever student is interested in joining SRU, querying application discount, applying online, or early bird offers
+    # 2. Sponsored Early Bird Application Ad Card (media_1794676975023.png reference)
+    # Shown at most once per session when student is interested in joining SRU
     from app.config import settings as _settings
     if _settings.SHOW_EARLY_BIRD_OFFER and (is_join_interest_query or is_ad_query or (is_cse_fee_query and any(k in msg_lower for k in ("join", "admission", "apply", "want", "breakdown")))) and not is_admission_fee_query:
-        if APPLICATION_AD_CARD not in cards:
+        if _can_show("application_ad") and APPLICATION_AD_CARD not in cards:
             cards.append(APPLICATION_AD_CARD)
+            _mark_shown("application_ad")
 
-
-
-    # 3. Curriculum card
+    # 2b. Curriculum card (Shown at most once per session)
     if any(k in msg_lower for k in ("curriculum", "syllabus", "subjects", "course structure", "credits")) and (
         "cse" in msg_lower or "computer science" in msg_lower or "engineering" in msg_lower
     ):
-        cards.append(CURRICULUM_CARD)
+        if _can_show("curriculum"):
+            cards.append(CURRICULUM_CARD)
+            _mark_shown("curriculum")
 
-    # 3b. Academic Programs & Courses Offered card
+    # 3. Academic Programs & Courses Offered card (Shown at most once per session)
     is_courses_query = any(
         k in msg_lower for k in (
             "course", "courses", "programs", "programmes", "what can i study",
@@ -1049,11 +1083,15 @@ def generate_cards(
         )
     ) and not any(k in msg_lower for k in ("fee", "fees", "cost", "how much", "tuition", "vs", "compare", "curriculum", "syllabus"))
     if is_courses_query:
-        cards.append(PROGRAMS_OFFERED_CARD)
+        if _can_show("programs_offered"):
+            cards.append(PROGRAMS_OFFERED_CARD)
+            _mark_shown("programs_offered")
 
-    # 4. Placement Highlights card ("Three Consecutive Years of Excellence")
+    # 4. Placement Highlights card ("Three Consecutive Years of Excellence") - Shown at most once per session
     if any(k in msg_lower for k in ("placement", "placements", "highest package", "average package", "recruiters", "job offers", "internship", "internships", "superstar", "highest offer", "salary", "ctc", "highest ctc", "jobs", "career", "companies visiting", "recruitment")):
-        cards.append(PLACEMENT_EXCELLENCE_CARD)
+        if _can_show("placement_highlights"):
+            cards.append(PLACEMENT_EXCELLENCE_CARD)
+            _mark_shown("placement_highlights")
 
     # 4b. Campus visit: whom to contact (no booking form; visits are arranged by the admissions team)
     _visit_booking_triggers = (
@@ -1065,7 +1103,9 @@ def generate_cards(
     )
     is_visit_booking_query = any(k in msg_lower for k in _visit_booking_triggers) and not any(k in msg_lower for k in ("fee", "fees", "cost", "vs", "compare"))
     if is_visit_booking_query:
-        cards.append(CAMPUS_VISIT_CONTACT_CARD)
+        if _can_show("campus_visit_contact"):
+            cards.append(CAMPUS_VISIT_CONTACT_CARD)
+            _mark_shown("campus_visit_contact")
 
     # 5. Campus tour card (render static spot highlights if asking for about sru, campus walkthrough/tour, or facilities)
     is_video_query = (
@@ -1074,20 +1114,9 @@ def generate_cards(
     )
     if not is_video_query and not is_visit_booking_query and any(k in msg_lower for k in ("campus tour", "campus walkthrough", "see the campus", "visit the campus", "campus facilities", "about sru", "tell me about sru", "about sr university", "why sru", "why choose sru", "campus life", "overview of sru", "tell me about the university", "what is sru", "what is sr university", "describe sru")):
         if not any(k in msg_lower for k in ("fee", "cost", "vs")):
-            # Show Campus Tour card only the 1st time in a session
-            already_shown = False
-            if session_id and "campus_tour" in get_session_shown_cards(session_id):
-                already_shown = True
-            if seen_card_types and "campus_tour" in seen_card_types:
-                already_shown = True
-
-            if not already_shown:
+            if _can_show("campus_tour"):
                 cards.append(CAMPUS_TOUR_CARD)
-                if session_id:
-                    record_session_card(session_id, "campus_tour")
-
-    # 5b. SRU Advantage Comparison Card (Removed as per user request)
-    # Comparison triggers no longer emit SRU Edge card.
+                _mark_shown("campus_tour")
 
     # 6. University YouTube Media Recommendations (Dense Semantic Search via ChromaDB)
     # Zero keyword matching: relevance is governed purely by ChromaDB semantic cosine distance.
@@ -1103,8 +1132,9 @@ def generate_cards(
                 query_embedding=query_embedding,
                 is_explicit=is_explicit_req,
             )
-            if relevant_videos:
+            if relevant_videos and _can_show("video_recommendations"):
                 cards.append(create_video_card(relevant_videos, is_explicit=is_explicit_req))
+                _mark_shown("video_recommendations")
     elif keyword_videos:
         # No embedding (the agent does not spend an AI call on videos): match on the videos' own
         # titles, categories and keywords instead.
@@ -1115,42 +1145,9 @@ def generate_cards(
                 user_message, limit=2, prefer_campus=is_about_sru_or_campus_query(user_message))
             if not relevant_videos and is_explicit_req:
                 relevant_videos = get_keyword_videos("campus tour", limit=2)
-            if relevant_videos:
+            if relevant_videos and _can_show("video_recommendations"):
                 cards.append(create_video_card(relevant_videos, is_explicit=is_explicit_req))
-
-    # 7. Student profile card (if board_score is known and user asked about eligibility or admission)
-    if profile and profile.get("board_score"):
-        score = profile.get("board_score")
-        branch = profile.get("branch_interest") or "B.Tech CSE"
-        is_eligible = False
-        try:
-            num = float(re.sub(r"[^\d.]", "", score))
-            is_eligible = num >= 50.0
-        except ValueError:
-            is_eligible = True
-
-        status_text = "Eligible (Minimum Cutoff: 50%)" if is_eligible else "Cutoff Requirement: 50%"
-        status_color = "success" if is_eligible else "warning"
-
-        profile_card = {
-            "type": "profile",
-            "title": "Your Admission Evaluation",
-            "data": {
-                "degree": profile.get("degree_level") or "B.Tech",
-                "branch": branch,
-                "score": score,
-                "status": status_text,
-                "status_color": status_color,
-                "next_steps": (
-                    "Submit Application Form → Document Verification → Seat Allocation"
-                    if is_eligible
-                    else "Explore Diploma Lateral Entry or Vocational Programs"
-                ),
-            },
-        }
-        # Only attach if eligibility is being discussed or confirmed
-        if any(k in msg_lower or k in ans_lower for k in ("eligible", "score", "cutoff", "admission", "percentage", "%")):
-            cards.append(profile_card)
+                _mark_shown("video_recommendations")
 
     return cards
 

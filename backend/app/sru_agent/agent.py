@@ -1355,10 +1355,10 @@ async def run_agent(
         return
 
     if intent == "CONFUSION_QUERY":
-        async for ev in _say("Sorry for the confusion! I can share how to reach the campus and whom to contact "
-                             "to plan a visit, or answer anything else about admissions.", message, session_id,
-                             conversation_id, suggestions=["Plan a campus visit", "How to reach the campus",
-                                                           "B.Tech CSE fees"]):
+        async for ev in _say("Sorry for the confusion! I'm here to help clarify. Could you share what specific details you're looking for? "
+                             "I can help with B.Tech & PG programs, fee structure, scholarships, placements, or visiting the campus.",
+                             message, session_id, conversation_id,
+                             suggestions=["B.Tech CSE fees", "Scholarship slabs", "Placements at SRU", "Plan a campus visit"]):
             yield ev
         return
 
@@ -1389,18 +1389,27 @@ async def run_agent(
 
     # ---- 1b. Deterministic quick responses (placement assistance, special concessions, next-gen tech, fee tree, all programs) ----
     if intent == "PLACEMENT_GUARANTEE_QUERY":
-        from app.services.card_service import PLACEMENT_EXCELLENCE_CARD
+        from app.services.card_service import PLACEMENT_EXCELLENCE_CARD, get_session_shown_cards, record_session_card
         reply = _select_variation(_PLACEMENT_ASSISTANCE_RESPONSES, session_id + str(len(history)))
+        cards_to_show = []
+        if "placement_highlights" not in get_session_shown_cards(session_id):
+            cards_to_show = [PLACEMENT_EXCELLENCE_CARD]
+            record_session_card(session_id, "placement_highlights")
         async for ev in _say(reply, message, session_id, conversation_id,
-                             cards=[PLACEMENT_EXCELLENCE_CARD],
+                             cards=cards_to_show,
                              suggestions=_PLACEMENT_ASSISTANCE_CHIPS):
             yield ev
         return
 
     if intent == "SPECIAL_CONCESSIONS_QUERY":
+        from app.services.card_service import get_session_shown_cards, record_session_card
+        cards_to_show = []
+        if "get_special_concessions" not in get_session_shown_cards(session_id):
+            cards_to_show = [{"type": "get_special_concessions", "data": fees.special_concessions()}]
+            record_session_card(session_id, "get_special_concessions")
         async for ev in _say(_SPECIAL_CONCESSIONS_TEXT, message, session_id, conversation_id,
                              used=[{"name": "get_special_concessions", "status": "ok", "is_action": False}],
-                             cards=[{"type": "get_special_concessions", "data": fees.special_concessions()}],
+                             cards=cards_to_show,
                              suggestions=["Calculate my fee with scholarship", "Documents for concession",
                                           "Fee Structure 2027-28", "Talk to a counsellor"]):
             yield ev
@@ -2109,9 +2118,19 @@ async def run_agent(
         # so no embedding call is spent here.
         query_embedding = None
 
+        seen_card_types = set()
+        for h in history:
+            for c in h.get("cards") or []:
+                if isinstance(c, dict) and c.get("type"):
+                    seen_card_types.add(c["type"])
+        for c in cards:
+            if isinstance(c, dict) and c.get("type"):
+                seen_card_types.add(c["type"])
+
         contextual_cards = generate_cards(
             user_message=message, answer=final, profile=ctx.get("profile"),
-            session_id=session_id, query_embedding=query_embedding, keyword_videos=True)
+            session_id=session_id, seen_card_types=seen_card_types,
+            query_embedding=query_embedding, keyword_videos=True)
         personalised = any(t["name"] in _FEE_TOOLS for t in used)
         has_video_card = any(c.get("type") in ("get_university_videos", "video_recommendations") for c in cards)
         for c in contextual_cards:
