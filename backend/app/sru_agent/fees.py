@@ -98,8 +98,9 @@ def _is_generic_btech(text: str) -> bool:
 
 
 def _match_slab(slabs, value):
+    val = round(value, 2)
     for slab in slabs:
-        if slab["min"] <= value <= slab["max"]:
+        if slab["min"] <= val <= slab["max"]:
             return slab["percent"]
     return 0
 
@@ -335,6 +336,7 @@ def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=N
                          "per_semester": inr(net / 2), "_net": net})
 
     one_time = data["one_time"].get("enrollment_fee", 0)
+    one_time_app = data["one_time"].get("application_fee", 0)
     yearly_other = sum(data["yearly_other"].values())
     hostel_fee = data["hostel_per_year"].get(hostel, 0) if hostel and hostel != "none" else 0
     transport_fee = data.get("transport_per_year", 0) if transport else 0
@@ -368,6 +370,8 @@ def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=N
         "per_semester_after_scholarship": per_year[0]["per_semester"],
         "saving_first_year": inr(base - per_year[0]["_net"]),
         "one_time_enrollment_fee": inr(one_time),
+        "one_time_application_fee": inr(one_time_app),
+        "one_time_total": inr(one_time + one_time_app),
         "other_yearly_fees": inr(yearly_other),
         "other_fees_per_semester": inr(other_sem),
         "has_hostel": has_hostel,

@@ -131,13 +131,33 @@ def parse_details(message: str) -> dict:
         else:
             out["board_label"] = "Telangana / AP State Board"
 
+    # CGPA parsing (e.g. "9.2 CGPA", "CGPA 8.8")
+    cgpa_m = re.search(r"\b(?:cgpa\s*[:=]?\s*(\d{1,2}(?:\.\d+)?)|(\d{1,2}(?:\.\d+)?)\s*cgpa)\b", low)
+    if cgpa_m:
+        cgpa_val = float(cgpa_m.group(1) or cgpa_m.group(2))
+        if 0 < cgpa_val <= 10.0:
+            out["cgpa"] = cgpa_val
+            out["percent"] = round(cgpa_val * 9.5, 2)
+
+    # Explicit fraction parsing (e.g. "890/1000", "890 out of 1000", "450/600", "920 marks out of 1000")
+    frac = re.search(r"(?<![\d.])(\d{2,4})\s*(?:marks\s+)?(?:/|out\s+of)\s*(\d{3,4})", low)
+    if frac and not out.get("percent"):
+        obt, tot = float(frac.group(1)), float(frac.group(2))
+        if 0 < obt <= tot:
+            out["percent"] = round((obt / tot) * 100, 2)
+            out["raw_marks"] = obt
+            out["max_marks"] = tot
+
     # Percentage parsing
     m = re.search(r"(?<![\d.])(\d{2}(?:\.\d+)?)\s*(?:%|percent|per\s*cent|percentage)", low)
-    marks = re.search(r"(?<!\d)(\d{3,4})\s*(?:marks|/\s*1000|out\s+of\s+1000)", low)
-    if m and float(m.group(1)) <= 100:
+    if m and float(m.group(1)) <= 100 and not out.get("percent"):
         out["percent"] = float(m.group(1))
-    elif marks and int(marks.group(1)) <= 1000:
-        out["percent"] = round(int(marks.group(1)) / 10, 2)
+
+    # Raw 3-digit marks without maximum marks specified (e.g. "890 marks", "scored 890")
+    if not out.get("percent"):
+        raw_marks_m = re.search(r"\b(?:scored|got|secured|obtained|have)?\s*(\d{3,4})\s*marks\b", low)
+        if raw_marks_m and 100 < int(raw_marks_m.group(1)) <= 1000:
+            out["needs_marks_confirmation"] = int(raw_marks_m.group(1))
 
     # EAPCET rank
     m = re.search(
@@ -182,8 +202,24 @@ def _bare_number(message: str):
     return float(m.group(1)) if m else None
 
 
+_SCORE_OR_MARKS_QUERY = re.compile(
+    r"\b(?:\d{2,4}\s*marks?|scored\s+\d{2,4}|got\s+\d{2,4}|secured\s+\d{2,4}|obtained\s+\d{2,4}|"
+    r"\d{2,4}\s*(?:/|out\s+of)\s*\d{3,4}|\d{1,2}(?:\.\d+)?\s*%|cgpa\s*[:=]?\s*\d|\d\s*cgpa)\b",
+    re.IGNORECASE,
+)
+
+
 def is_fee_enquiry(message: str) -> bool:
-    return bool(_FEE_WORDS.search(message or "")) and not _OTHER_FEE_TOPIC.search(message or "")
+    if _OTHER_FEE_TOPIC.search(message or ""):
+        return False
+    if bool(_FEE_WORDS.search(message or "")):
+        return True
+    if _SCORE_OR_MARKS_QUERY.search(message or ""):
+        return True
+    num = _bare_number(message)
+    if num is not None and (35 <= num <= 1000):
+        return True
+    return False
 
 
 def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
@@ -196,37 +232,76 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
     if not is_fee_enquiry(message):
         # Only a reply to our own question continues the intake (a number, a board, "no JEE"...).
         reply_like = bool(said.keys() - {"generic_btech"}) or number is not None
+        if intake.get("waiting_for") == "marks_max" and re.search(
+            r"\b(?:1000|thousand|yes|correct|right|inter|intermediate|600|out\s+of)\b", (message or "").lower()
+        ):
+            reply_like = True
         if not (active and reply_like):
             return None
 
-    if active and number is not None:
-        # A bare number answers the question we asked last.
+    if active:
         waiting = intake.get("waiting_for")
-        if waiting == "rank":
-            said.setdefault("eapcet_rank" if number > 100 else "jee_percentile",
-                            int(number) if number > 100 else number)
-        elif waiting == "ib" and number <= 45:
-            said.setdefault("ib_score", int(number))
-        elif 35 <= number <= 100:
-            said.setdefault("percent", number)
-        elif 100 < number <= 1000:
-            said.setdefault("percent", round(number / 10, 2))
-        elif number > 1000:
-            said.setdefault("eapcet_rank", int(number))
+        if waiting == "marks_max":
+            raw = intake.get("pending_raw_marks")
+            if number is not None:
+                if number >= (raw or 0) and (raw or 0) > 0:
+                    said["percent"] = round((float(raw) / float(number)) * 100, 2)
+                elif 35 <= number <= 100:
+                    said["percent"] = float(number)
+            elif re.search(r"\b(?:1000|thousand|yes|correct|right|inter|intermediate)\b", (message or "").lower()):
+                if raw:
+                    said["percent"] = round((float(raw) / 1000.0) * 100, 2)
+            elif re.search(r"\b600\b", (message or "").lower()):
+                if raw:
+                    said["percent"] = round((float(raw) / 600.0) * 100, 2)
+        elif number is not None:
+            # A bare number answers the question we asked last.
+            if waiting == "rank":
+                said.setdefault("eapcet_rank" if number > 100 else "jee_percentile",
+                                int(number) if number > 100 else number)
+            elif waiting == "ib" and number <= 45:
+                said.setdefault("ib_score", int(number))
+            elif 35 <= number <= 100:
+                said.setdefault("percent", number)
+            elif 100 < number <= 1000:
+                # Raw 3-digit score needs confirmation of maximum marks per user requirement
+                said["needs_marks_confirmation"] = int(number)
+            elif number > 1000:
+                said.setdefault("eapcet_rank", int(number))
 
     # Known facts aggregation
-    known = {k: profile.get(k) for k in ("percent", "board", "eapcet_rank", "jee_percentile", "ib_score")
+    known = {k: profile.get(k) for k in ("percent", "board", "board_label", "eapcet_rank", "jee_percentile", "ib_score")
              if profile.get(k) not in (None, "")}
     known.update({k: v for k, v in intake.items() if k in (
-        "program", "percent", "board", "board_label", "eapcet_rank", "jee_percentile", "ib_score", "no_entrance")})
-    known.update({k: v for k, v in said.items() if k != "generic_btech"})
+        "program", "percent", "board", "board_label", "eapcet_rank", "jee_percentile", "ib_score", "no_entrance", "pending_raw_marks")})
+    known.update({k: v for k, v in said.items() if k not in ("generic_btech", "needs_marks_confirmation")})
 
-    if said.get("program"):
-        known["program"] = said["program"]
-    elif not known.get("program") and profile.get("program_interest") and not said.get("generic_btech"):
-        known["program"] = profile["program_interest"]
+    # Programme switch detection
+    if said.get("program") and intake.get("program"):
+        old_prog_key = fees.find_program(str(intake["program"]))
+        new_prog_key = fees.find_program(str(said["program"]))
+        if old_prog_key and new_prog_key and old_prog_key != new_prog_key:
+            data = fees.load_data()
+            old_level = data.get("programs", {}).get(old_prog_key, {}).get("level", "ug")
+            new_level = data.get("programs", {}).get(new_prog_key, {}).get("level", "ug")
+            known["program"] = said["program"]
+            if old_level != new_level:
+                for k_clr in ("percent", "board", "board_label", "eapcet_rank", "jee_percentile", "ib_score", "pending_raw_marks"):
+                    known.pop(k_clr, None)
+                intake.pop("waiting_for", None)
+                intake.pop("pending_raw_marks", None)
+                asked = set()
+            else:
+                asked = set(intake.get("asked", [])) - {"entrance", "program"}
+        else:
+            asked = set(intake.get("asked", []))
+    else:
+        if said.get("program"):
+            known["program"] = said["program"]
+        elif not known.get("program") and profile.get("program_interest") and not said.get("generic_btech"):
+            known["program"] = profile["program_interest"]
+        asked = set(intake.get("asked", []))
 
-    asked = set(intake.get("asked", []))
     if intake.get("board"):
         asked |= {"board", "entrance"}
     state = {**{k: v for k, v in known.items() if k != "standard_only"}, "asked": sorted(asked),
@@ -242,6 +317,48 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             return None  # Asked once already; let general agent assist
         state["asked"] = sorted(asked | {"program"})
         state["waiting_for"] = "program"
+
+        raw_val = (
+            said.get("needs_marks_confirmation")
+            or (int(number) if number is not None and 100 < number <= 1000 else None)
+            or (int(said["raw_marks"]) if said.get("raw_marks") else None)
+        )
+        pct_val = said.get("percent") or known.get("percent")
+        if raw_val or pct_val:
+            calc_pct = pct_val or round((raw_val / 1000.0) * 100, 1)
+            state["percent"] = calc_pct
+            if raw_val:
+                state["pending_raw_marks"] = raw_val
+
+            res = fees.calculate_fee("btech_cse", percent=calc_pct, board=known.get("board") or "state_board")
+            waiver = res.get("scholarship_percent", 0)
+            net_tuition = res.get("tuition_first_year_after_scholarship", "₹3,40,000")
+            per_sem = res.get("per_semester_after_scholarship", "₹1,70,000")
+            savings = res.get("saving_first_year", "₹0")
+
+            marks_str = f"**{raw_val} marks** (~{calc_pct}% in TS/AP Intermediate out of 1000)" if raw_val else f"**{calc_pct}%**"
+            if waiver > 0:
+                text = (
+                    f"With {marks_str}, you qualify for a **{waiver}% Merit Scholarship** on your tuition!\n\n"
+                    f"For example, in our flagship **B.Tech Computer Science & Engineering (CSE)** (standard tuition ₹3,40,000/year):\n"
+                    f"• **Net Tuition**: **{net_tuition} per year** ({per_sem} per semester)\n"
+                    f"• **Scholarship Savings**: You save **{savings} per year**\n\n"
+                    f"Which degree programme or engineering branch are you interested in exploring? "
+                    f"You can choose a programme below or use the interactive assessment form."
+                )
+                if raw_val and not said.get("max_marks"):
+                    text += f"\n\n*(Note: Calculated assuming {raw_val} out of 1000 in Intermediate State Board. If your score is out of 600 or CBSE, please let me know your board or maximum marks).*"
+            else:
+                text = (
+                    f"With {marks_str}, you meet the official 50% minimum eligibility requirement for B.Tech admission at SR University!\n\n"
+                    f"Standard tuition for **B.Tech CSE** is ₹3,40,000/year (₹1,70,000/semester). "
+                    f"We also offer B.Tech Core branches (Mechanical, Civil, EEE) at ₹2,00,000/year, and BBA/BCA at ₹1,50,000/year.\n\n"
+                    f"Which programme or branch would you like to explore?"
+                )
+            chips = ["B.Tech CSE", "B.Tech AI and Robotics", "B.Tech ECE", "B.Sc Agriculture", "BBA"]
+            form_card = build_fee_scholarship_form_card(level="ug")
+            return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
+
         if said.get("generic_btech") or fees._is_generic_btech((message or "").lower()):
             text = ("B.Tech fees depend on the branch. The {year} standard tuition (before any scholarship, as per "
                     "the Admissions Office) is:\n{branches}\n\nWhich branch are you interested in? Tell me your "
@@ -322,6 +439,43 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             "cards": [form_card],
             "state": state,
         }
+
+    # -------------------------------------------------------------------------
+    # CONFIRMATION: Raw 3-digit marks without maximum marks (e.g. "890")
+    # -------------------------------------------------------------------------
+    if said.get("needs_marks_confirmation") and not known.get("percent") and not has_score:
+        raw_val = said["needs_marks_confirmation"]
+        state["waiting_for"] = "marks_max"
+        state["pending_raw_marks"] = raw_val
+        pct_1000 = round(raw_val / 10.0, 1)
+        res = fees.calculate_fee(prog_key, percent=pct_1000, board=known.get("board") or "state_board")
+        waiver = res.get("scholarship_percent", 0)
+        net_tuition = res.get("tuition_first_year_after_scholarship", standard)
+        per_sem = res.get("per_semester_after_scholarship", "")
+        savings = res.get("saving_first_year", "₹0")
+        waiver_msg = (
+            f"qualify for a **{waiver}% Merit Scholarship** (Net tuition: **{net_tuition}/year** [{per_sem}/sem], saving {savings}/yr)"
+            if waiver > 0
+            else "meet the official 50% minimum eligibility criteria"
+        )
+        text = (
+            f"Based on **{raw_val} marks** (assuming out of 1000 in Intermediate State Board = **{pct_1000}%**), you {waiver_msg} for **{name}**.\n\n"
+            f"Please confirm your maximum/total marks (e.g., out of 1000 for Intermediate State Board, or out of 600) or select below to view your full fee structure:"
+        )
+        chips = [
+            f"{raw_val} out of 1000 ({pct_1000}%)",
+            f"{raw_val} out of 600",
+            f"{pct_1000}%",
+            "Hostel details",
+        ]
+        board_key = _board_card_key(known.get("board"), known.get("board_label"))
+        form_card = build_fee_scholarship_form_card(
+            selected_program=prog_key,
+            selected_board=board_key,
+            level=level,
+            only_selected=True,
+        )
+        return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
 
     # -------------------------------------------------------------------------
     # STEP 2 / 3: No marks or scores yet

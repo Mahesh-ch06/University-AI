@@ -316,3 +316,110 @@
     font-size: 0.92rem;
   }
 }
+
+/* ==========================================================================
+   Verified Sources Drawer (AGENTS.md Rules 19 & 20)
+   ========================================================================== */
+.message-sources-wrapper {
+  margin-top: 4px;
+  width: 100%;
+}
+
+.message-sources-details {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--surface-1, #f8fafc);
+  font-size: 0.8rem;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .message-sources-details {
+  background: rgba(30, 41, 59, 0.4);
+  border-color: rgba(51, 65, 85, 0.6);
+}
+
+.message-sources-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  user-select: none;
+  font-size: 0.76rem;
+  letter-spacing: 0.02em;
+}
+
+.message-sources-summary:hover {
+  color: var(--sru-blue, #0055a4);
+  background: rgba(0, 85, 164, 0.04);
+}
+
+.sources-icon {
+  flex-shrink: 0;
+  color: var(--sru-blue, #0055a4);
+}
+
+.message-sources-list {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border, #e2e8f0);
+  background: var(--surface-0, #ffffff);
+}
+
+[data-theme="dark"] .message-sources-list {
+  background: rgba(15, 23, 42, 0.6);
+  border-top-color: rgba(51, 65, 85, 0.5);
+}
+
+.source-citation-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--surface-1, #f1f5f9);
+  border-left: 2px solid var(--sru-blue, #0055a4);
+}
+
+[data-theme="dark"] .source-citation-card {
+  background: rgba(30, 41, 59, 0.6);
+}
+
+.source-citation-title {
+  font-weight: 600;
+  color: var(--text-1, #1e293b);
+  font-size: 0.78rem;
+}
+
+.source-link {
+  color: var(--sru-blue, #0055a4);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.source-link:hover {
+  text-decoration: underline;
+}
+
+.source-citation-section {
+  color: var(--text-muted, #64748b);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.source-citation-badge {
+  align-self: flex-start;
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 85, 164, 0.08);
+  color: var(--sru-blue, #0055a4);
+  font-weight: 500;
+  margin-top: 2px;
+}
+

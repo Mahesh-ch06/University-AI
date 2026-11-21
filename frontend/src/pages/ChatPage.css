@@ -1464,32 +1464,47 @@
   align-items: center;
   background: #ffffff;
   border-radius: 9999px;
-  border: 1.5px solid #cbd5e1;
+  border: 1.5px solid #e2e8f0;
   padding: 6px 8px 6px 18px;
-  box-shadow: 0 8px 25px rgba(0, 50, 110, 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   width: 380px;
   max-width: calc(100vw - 160px);
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sru-dock-input-pill:hover:not(:focus-within) {
+  border-color: #cbd5e1;
 }
 
 .sru-dock-input-pill:focus-within {
-  border-color: #0055a4;
-  box-shadow: 0 10px 35px rgba(0, 85, 164, 0.2), 0 0 0 2px rgba(0, 85, 164, 0.15);
+  border-color: #004382;
+  box-shadow: 0 8px 30px rgba(0, 67, 130, 0.14);
+  outline: none !important;
 }
 
 .sru-dock-field {
   flex: 1;
-  border: none;
+  border: none !important;
   background: transparent;
-  outline: none;
+  outline: none !important;
+  box-shadow: none !important;
   font-size: 0.88rem;
   color: #0f172a;
   padding: 6px 4px;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.sru-dock-field:focus,
+.sru-dock-field:focus-visible,
+.sru-dock-field:active {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 
 .sru-dock-field::placeholder {
-  color: #64748b;
-  font-weight: 500;
+  color: #94a3b8;
+  font-weight: 400;
 }
 
 .sru-dock-btn {
@@ -2188,112 +2203,232 @@
 }
 
 /* Footer / Input Bar */
+/* Footer / Input Bar */
 .sru-widget-footer {
   background: #ffffff;
   border-top: 1px solid #e2e8f0;
-  padding: 10px max(14px, env(safe-area-inset-right, 14px)) max(10px, env(safe-area-inset-bottom, 10px)) max(14px, env(safe-area-inset-left, 14px));
+  padding: 8px max(14px, env(safe-area-inset-right, 14px)) max(8px, env(safe-area-inset-bottom, 8px)) max(14px, env(safe-area-inset-left, 14px));
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   flex-shrink: 0;
   z-index: 20;
 }
 
 .sru-widget-input-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
-  background: #f8fafc;
-  border: 1.5px solid #cbd5e1;
-  border-radius: 9999px;
-  padding: 5px 6px 5px 14px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  min-height: 44px;
+  background: #ffffff;
+  border: 1.5px solid rgba(0, 85, 164, 0.35); /* Refined university blue border */
+  border-radius: 24px;
+  padding: 6px 6px 6px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 85, 164, 0.04);
+  transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  min-height: 48px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.sru-widget-input-row:hover:not(:focus-within) {
+  border-color: #0055a4;
+  box-shadow: 0 2px 6px rgba(0, 85, 164, 0.08);
 }
 
 .sru-widget-input-row:focus-within {
-  border-color: #0055a4;
-  box-shadow: 0 0 0 2px rgba(0, 85, 164, 0.2);
+  border-color: #004382;
+  box-shadow: 0 0 0 1px #004382, 0 4px 16px rgba(0, 67, 130, 0.12);
+  outline: none !important;
 }
 
 .sru-widget-textarea {
   flex: 1;
   background: transparent;
-  border: none;
-  outline: none;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   color: #0f172a;
-  font-size: 16px; /* Prevents iOS Safari auto-zoom on input focus */
-  line-height: 1.35;
-  resize: none;
+  font-size: 15px; /* Clean, modern readable font size */
+  line-height: 22px; /* Fixed line-height matching vertical alignment */
+  resize: none !important;
   font-family: inherit;
-  max-height: 80px;
+  min-height: 34px;
+  max-height: 136px;
+  height: 34px;
   padding: 6px 0;
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent !important;
   touch-action: manipulation;
+  overflow-y: auto !important; /* Preserves internal scrolling */
+  scrollbar-width: none !important; /* Firefox: completely hide scrollbar */
+  -ms-overflow-style: none !important; /* IE 10+ / Edge Legacy */
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* WebKit / Blink / Safari: completely hide scrollbar, track, thumb, and stepper buttons */
+.sru-widget-textarea::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.sru-widget-textarea::-webkit-scrollbar-track,
+.sru-widget-textarea::-webkit-scrollbar-thumb,
+.sru-widget-textarea::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.sru-widget-textarea::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.sru-widget-textarea::-webkit-resizer {
+  display: none !important;
+}
+
+.sru-widget-textarea:focus,
+.sru-widget-textarea:focus-visible,
+.sru-widget-textarea:active {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .sru-widget-textarea::placeholder {
-  color: #64748b;
+  color: #94a3b8;
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 22px;
+  opacity: 1;
+}
+
+.sru-widget-voice-btn,
+.sru-widget-send-btn {
+  margin: 0;
 }
 
 .sru-widget-voice-btn {
+  width: 34px;
+  height: 34px;
   background: transparent;
   border: none;
   color: #64748b;
   cursor: pointer;
-  padding: 6px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
 }
 
-.sru-widget-voice-btn:hover {
+.sru-widget-voice-btn:hover:not(:disabled) {
   color: #0055a4;
+  background-color: #f1f5f9;
+}
+
+.sru-widget-voice-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.sru-widget-voice-btn:focus-visible {
+  outline: 2px solid #0055a4;
+  outline-offset: 2px;
+}
+
+.sru-widget-voice-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .sru-widget-voice-btn.listening {
-  color: #2979e2;
-  animation: pulseRing 1.5s infinite;
+  color: #dc2626;
+  background-color: #fee2e2;
+  animation: sruVoicePulse 1.5s infinite;
+}
+
+@keyframes sruVoicePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(220, 38, 38, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+  }
 }
 
 .sru-widget-send-btn {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0055a4 0%, #2979e2 100%);
-  border: none;
-  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  padding: 0;
+  margin: 0;
+  border: none;
+  transition: background 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.sru-widget-send-btn:not(:disabled) {
+  background: linear-gradient(135deg, #0055a4 0%, #2979e2 100%);
+  color: #ffffff;
+  cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 85, 164, 0.35);
 }
 
-.sru-widget-send-btn:hover:not(:disabled) {
+.sru-widget-send-btn:not(:disabled):hover {
   background: linear-gradient(135deg, #004382 0%, #1c66c9 100%);
-  transform: scale(1.06);
-  box-shadow: 0 4px 12px rgba(0, 85, 164, 0.5);
+  box-shadow: 0 4px 14px rgba(0, 85, 164, 0.45);
+  transform: translateY(-1px);
+}
+
+.sru-widget-send-btn:not(:disabled):active {
+  transform: translateY(0) scale(0.95);
+  box-shadow: 0 1px 4px rgba(0, 85, 164, 0.3);
+}
+
+.sru-widget-send-btn:focus-visible {
+  outline: 2px solid #0055a4;
+  outline-offset: 2px;
 }
 
 .sru-widget-send-btn:disabled {
-  opacity: 0.4;
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+  opacity: 0.65;
+  box-shadow: none;
   cursor: not-allowed;
+  transform: none;
+}
+
+.sru-widget-send-btn svg {
+  display: block;
 }
 
 .sru-widget-watermark {
   font-size: 0.72rem;
-  color: #64748b;
+  color: #94a3b8;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 0 2px;
+  padding: 4px 0 2px;
   line-height: 1;
+  user-select: none;
 }
 
 .sru-watermark-version {
@@ -2541,6 +2676,8 @@
   .sru-widget-input-row {
     padding: 4px 6px 4px 14px !important;
     min-height: 44px !important;
+    align-items: flex-end !important;
+    border-radius: 20px !important;
   }
 
   .sru-widget-textarea {
