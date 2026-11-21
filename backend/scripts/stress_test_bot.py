@@ -163,7 +163,7 @@ async def run_stress_tests():
     await embedding_provider.close()
 
     # Save results to scratch json
-    out_file = settings.PROJECT_ROOT / "data" / "stress_test_results.json"
+    out_file = settings.DATA_DIR / "stress_test_results.json"
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     print(f"\n[OK] Stress test completed! Results saved to {out_file}")
