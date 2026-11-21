@@ -15,6 +15,7 @@ AgentIntent = Literal[
     "CAMPUS_VISIT_INFO",
     "PLACEMENT_GUARANTEE_QUERY",
     "SPECIAL_CONCESSIONS_QUERY",
+    "OTHER_FEES_QUERY",
     "NEXT_GEN_TECH_QUERY",
     "FEE_TREE_QUERY",
     "ALL_PROGRAMS_QUERY",
@@ -134,6 +135,17 @@ _SPECIAL_CONCESSIONS_PATTERN = re.compile(
     r"concessions?\s+table|special\s+category\s+discounts?)\b",
     re.IGNORECASE,
 )
+
+_OTHER_FEES_PATTERN = re.compile(
+    r"\b(?:other\s+fees?|other\s+academic(?:\s*/\s*university|\s+university)?\s+charges?|other\s+charges?|annual\s+charges?|"
+    r"university\s+charges?|additional\s+fees?|additional\s+charges?|enrolment\s+fee|enrollment\s+fee|application\s+form\s+fee|"
+    r"specialisation\s+fee|specialization\s+fee|phd\s+fee|"
+    r"fees?\s+(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee)|"
+    r"(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee))\b",
+    re.IGNORECASE,
+)
+
+
 
 _NEXT_GEN_TECH_PATTERN = re.compile(
     r"\b(?:next[\s-]?gen(?:eration)?\s+technology\s+programs?|"
@@ -420,6 +432,8 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
 
     # 7. Deterministic quick responses (when user hasn't provided a specific score/rank to calculate)
     if not _has_score_or_rank(msg):
+        if _OTHER_FEES_PATTERN.search(msg):
+            return "OTHER_FEES_QUERY"
         if _SPECIAL_CONCESSIONS_PATTERN.search(msg):
             return "SPECIAL_CONCESSIONS_QUERY"
         if _NEXT_GEN_TECH_PATTERN.search(msg):

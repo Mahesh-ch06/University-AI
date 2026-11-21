@@ -336,6 +336,61 @@ def _build_admission_fee_card() -> dict:
     }
 
 
+def _build_other_fees_card() -> dict:
+    data = _fee_data()
+    one_time = data["one_time"]
+    yearly = data.get("yearly_other", {})
+    return {
+        "type": "fee_breakdown",
+        "title": f"SR University Other Fees & Annual Charges ({data['academic_year']})",
+        "subtitle": "Fee components and institutional charges other than semester tuition",
+        "currency": "INR",
+        "items": [
+            {
+                "category": "Enrolment Fee",
+                "amount": _inr(one_time.get("enrollment_fee", 5000)),
+                "frequency": "One-time (Year 1)",
+                "note": "Paid once at the time of admission / Semester 1",
+            },
+            {
+                "category": "Other Academic / University Charges",
+                "amount": _inr(yearly.get("other_fee", 15000)),
+                "frequency": "Per Year",
+                "note": "Covers laboratories, library, campus amenities & infrastructure maintenance",
+            },
+            {
+                "category": "Examination Fee (First Year)",
+                "amount": _inr(yearly.get("exam_fee", 5000)),
+                "frequency": "Per Year",
+                "note": "Semester examination and evaluation charges as printed on fee card",
+            },
+            {
+                "category": "Application Form Fee",
+                "amount": _inr(one_time.get("application_fee", 1100)),
+                "frequency": "One-time",
+                "note": "Paid with the online application at apply.sru.edu.in",
+            },
+            {
+                "category": "Specialisation Fee",
+                "amount": "₹30,000",
+                "frequency": "Per Year (Year 2 Onwards)",
+                "note": "Applicable annually from the second year onwards where specialisation applies",
+            },
+            {
+                "category": "PhD Fee",
+                "amount": _inr(data.get("phd_fee_per_year", 70000)),
+                "frequency": "Per Year",
+                "note": "Annual fee for doctoral research scholars",
+            },
+        ],
+        "scholarship_note": (
+            "Optional facilities: University Bus ₹30,000/year; Hostel ₹1,15,000–₹1,35,000/year "
+            "(includes 4 daily meals in Mega Dining Hall, caution deposit ₹5,000 refundable). "
+            "There is no separate 'admission fee' charged on the 2027-28 fee card."
+        ),
+    }
+
+
 def _build_hostel_facilities_card() -> dict:
     return {
         "type": "hostel_facilities",
@@ -413,6 +468,7 @@ EXAM_FEE_CARD = {
 }
 
 ADMISSION_FEE_CARD = _build_admission_fee_card()
+OTHER_FEES_CARD = _build_other_fees_card()
 
 
 CURRICULUM_CARD = {
@@ -916,6 +972,15 @@ def generate_cards(
             _mark_shown("comparison")
 
     # 1. Fee breakdown card (Strict Category Scoping — show only what the user asks for)
+    is_other_fee_query = bool(re.search(
+        r"\b(?:other\s+fees?|other\s+academic(?:\s*/\s*university|\s+university)?\s+charges?|other\s+charges?|annual\s+charges?|"
+        r"university\s+charges?|additional\s+fees?|additional\s+charges?|enrolment\s+fee|enrollment\s+fee|application\s+form\s+fee|"
+        r"specialisation\s+fee|specialization\s+fee|phd\s+fee|"
+        r"fees?\s+(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee)|"
+        r"(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee))\b",
+        msg_lower,
+    ))
+
     is_transport_fee_query = any(k in msg_lower for k in ("bus", "transport", "commute", "van")) and any(
         k in msg_lower for k in ("fee", "fees", "cost", "charge", "price", "how much", "rate", "pass", "ticket")
     )
@@ -941,18 +1006,18 @@ def generate_cards(
         )
     )
 
-    is_cse_fee_query = is_cse_join_query or (
+    is_cse_fee_query = not is_other_fee_query and (is_cse_join_query or (
         any(k in msg_lower for k in ("cse", "computer science")) and any(
             k in msg_lower for k in ("fee", "fees", "tuition", "cost", "charge", "how much", "breakdown", "per sem", "semester", "sem fee")
         ) and not any(k in msg_lower for k in ("all branches", "complete fee", "other branches", "overall", "fee structure"))
-    )
+    ))
 
     is_ad_query = any(k in msg_lower for k in (
         "50% off", "50% discount", "early bird", "application discount", "application fee discount",
         "sponsored", "discount on application", "cheap application", "coupon", "promo", "voucher", "early ad"
     )) or bool(re.search(r"\bad\b", msg_lower)) or (
         any(k in msg_lower for k in ("apply online", "how to apply", "application form", "apply now", "register online", "online application"))
-        and not any(k in msg_lower for k in ("transport", "bus", "hostel", "admission fee", "one-time", "enrollment fee"))
+        and not any(k in msg_lower for k in ("transport", "bus", "hostel", "admission fee", "one-time", "enrollment fee", "other fee"))
     )
 
     is_join_interest_query = (
@@ -973,7 +1038,7 @@ def generate_cards(
             any(k in msg_lower for k in ("join", "take admission", "interested in joining", "want to join")) and
             any(k in msg_lower for k in ("sru", "sr university", "here", "college", "campus", "this university"))
         )
-    ) and not is_admission_fee_query
+    ) and not is_admission_fee_query and not is_other_fee_query
 
 
     is_fee_with_hostel_query = any(k in msg_lower for k in (
@@ -989,7 +1054,11 @@ def generate_cards(
         any(k in msg_lower for k in ("btech", "b.tech")) and any(k in msg_lower for k in ("fee", "fees", "tuition", "cost", "scholarship"))
     )
 
-    if is_transport_fee_query:
+    if is_other_fee_query:
+        if _can_show("fee_breakdown"):
+            cards.append(OTHER_FEES_CARD)
+            _mark_shown("fee_breakdown")
+    elif is_transport_fee_query:
         if _can_show("fee_breakdown"):
             cards.append(TRANSPORT_FEE_CARD)
             _mark_shown("fee_breakdown")

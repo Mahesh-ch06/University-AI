@@ -571,6 +571,13 @@ def _fee_args_from_message(message: str, profile: dict):
     return args
 
 
+def _has_word(text: str, *words: str) -> bool:
+    for w in words:
+        if re.search(r"\b" + re.escape(w) + r"\b", text):
+            return True
+    return False
+
+
 def _contextual_query(
     message: str,
     history: list | None = None,
@@ -587,41 +594,54 @@ def _contextual_query(
     additions = []
     topic = active_topic
 
-    if topic == "hostel" or any(w in low for w in ("hostel", "mess", "curfew", "warden", "ac", "non-ac", "sharing", "double", "table", "bed", "in-time")):
-        if not any(w in low for w in ("hostel", "hostels")):
+    is_other_fee_inquiry = bool(re.search(
+        r"\b(?:other\s+fees?|other\s+academic(?:\s*/\s*university|\s+university)?\s+charges?|other\s+charges?|annual\s+charges?|"
+        r"university\s+charges?|additional\s+fees?|additional\s+charges?|enrolment\s+fee|enrollment\s+fee|application\s+form\s+fee|"
+        r"specialisation\s+fee|specialization\s+fee|phd\s+fee|"
+        r"fees?\s+(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee)|"
+        r"(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee))\b",
+        low,
+    ))
+
+
+    if is_other_fee_inquiry:
+        additions.append("Other fees and charges enrolment fee application fee other academic university charges examination fee specialisation fee phd fee")
+    elif topic == "hostel" or _has_word(low, "hostel", "mess", "curfew", "warden", "ac", "non-ac", "sharing", "double", "table", "bed", "in-time"):
+        if not _has_word(low, "hostel", "hostels"):
             additions.append("hostel accommodation")
-        if any(w in low for w in ("double", "table")):
+        if _has_word(low, "double", "table"):
             additions.append("rooms sharing 3-sharing 4-sharing categories")
-        if any(w in low for w in ("mess", "food", "dining", "meal", "included")):
+        if _has_word(low, "mess", "food", "dining", "meal", "included"):
             additions.append("mess dining Mega Dining Hall food included fee")
-        if any(w in low for w in ("ac", "non-ac", "air")):
+        if _has_word(low, "ac", "non-ac", "air"):
             additions.append("AC Non-AC room amenities power backup")
-        if any(w in low for w in ("fee", "cost", "annual", "charge", "rent")):
+        if _has_word(low, "fee", "cost", "annual", "charge", "rent"):
             additions.append("hostel fees per year caution deposit laundry")
 
-    elif topic == "placements" or any(w in low for w in ("placement", "package", "guarantee", "guaranteed", "lpa", "jobs")):
-        if not any(w in low for w in ("placement", "placements")):
+    elif topic == "placements" or _has_word(low, "placement", "package", "guarantee", "guaranteed", "lpa", "jobs"):
+        if not _has_word(low, "placement", "placements"):
             additions.append("placements assistance career")
-        if any(w in low for w in ("guarantee", "guaranteed", "98%", "100%")):
+        if _has_word(low, "guarantee", "guaranteed", "98%", "100%"):
             additions.append("100% placement assistance policy readiness CSSP")
 
-    elif topic in ("btech", "programs") or any(w in low for w in ("btech", "b.tech", "branch", "branches", "stream", "engineering", "ai")):
-        if not any(w in low for w in ("b.tech", "btech", "engineering")):
+    elif topic in ("btech", "programs") or _has_word(low, "btech", "b.tech", "branch", "branches", "stream", "engineering", "ai"):
+        if not _has_word(low, "b.tech", "btech", "engineering"):
             additions.append("B.Tech engineering programs branches")
-        if "ai" in low:
+        if _has_word(low, "ai"):
             additions.append("Artificial Intelligence AI CSE AI Robotics")
 
-    elif topic in ("fee", "scholarship") or any(w in low for w in ("fee", "fees", "scholarship", "scholarships", "waiver", "concession", "eligible", "eligibility", "60%", "85%", "90%")):
-        if any(w in low for w in ("scholarship", "scholarships", "concession", "waiver", "discount")):
+    elif topic in ("fee", "scholarship") or _has_word(low, "fee", "fees", "scholarship", "scholarships", "waiver", "concession", "eligible", "eligibility", "60%", "85%", "90%"):
+        if _has_word(low, "scholarship", "scholarships", "concession", "waiver", "discount"):
             additions.append("merit scholarships fee concessions slabs intermediate cbse jee eapcet")
         if active_program:
             additions.append(str(active_program))
-        if any(w in low for w in ("eligible", "eligibility", "cutoff", "minimum")):
+        if _has_word(low, "eligible", "eligibility", "cutoff", "minimum"):
             additions.append("eligibility criteria minimum marks")
 
     if additions:
         return message + " " + " ".join(additions)
     return message
+
 
 
 def _handbook_context(query: str) -> str:
@@ -659,10 +679,10 @@ _LIMIT_REPLY_OPTIONS = [
      f"answer that question at the moment. I can still do these without it: calculate a fee or "
      f"scholarship (for example \"CSE fee with 85%\"), arrange a counsellor callback (\"call me\"), "
      f"find a faculty member, or share the campus visit contacts. You can also call the Admissions Office at {config.ADMISSIONS_PHONE}."),
-    (f"SRU Buddy is receiving high student traffic right now and free AI capacity is momentarily full. "
+    (f"SRU Buddy is receiving high student traffic right now and the free AI limit has been reached momentarily. "
      f"However, our fee & scholarship calculator (e.g. \"CSE fee with 85%\"), counsellor callbacks (\"call me\"), "
      f"faculty search, and campus visit details still work without it. You can also call Admissions at {config.ADMISSIONS_PHONE}."),
-    (f"The free AI query limit has been reached due to heavy traffic. I can still calculate your fees and scholarships, "
+    (f"The free AI limit has been reached due to heavy traffic. I can still calculate your fees and scholarships, "
      f"arrange a counsellor callback (\"call me\"), or share campus visit contacts. For immediate support, please call "
      f"the Admissions Office at {config.ADMISSIONS_PHONE}."),
 ]
@@ -1599,13 +1619,25 @@ async def run_agent(
             yield ev
         return
 
+    if intent == "OTHER_FEES_QUERY" and (_is_mock_or_test_client(client) or client is None):
+        from app.services.card_service import OTHER_FEES_CARD, get_session_shown_cards, record_session_card
+        cards_to_show = []
+        if "fee_breakdown" not in get_session_shown_cards(session_id):
+            cards_to_show = [OTHER_FEES_CARD]
+            record_session_card(session_id, "fee_breakdown")
+        async for ev in _say(responses._OTHER_FEES_TEXT, message, session_id, conversation_id,
+                             cards=cards_to_show,
+                             suggestions=responses._OTHER_FEES_CHIPS):
+            yield ev
+        return
+
     if bool(tools.find_phone(message) or intents.is_callback_request(message)):
         canned_intents = (
             "FEE_TREE_QUERY", "BTECH_TREE_QUERY", "BTECH_CSE_FEE_QUERY", "BTECH_AI_ROBOTICS_FEE_QUERY",
             "BTECH_ECE_FEE_QUERY", "BTECH_CORE_FEE_QUERY", "MANAGEMENT_FEE_QUERY", "AGRICULTURE_FEE_QUERY",
             "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "HOSTEL_INFO_QUERY", "HOSTEL_MESS_QUERY",
             "HOSTEL_CURFEW_RULES_QUERY", "HOSTEL_SAFETY_QUERY", "HOSTEL_FEE_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
-            "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY",
+            "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY", "OTHER_FEES_QUERY",
             "LAB_FACILITIES_QUERY", "WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY",
         )
         if intent in canned_intents:
@@ -1996,9 +2028,18 @@ async def run_agent(
 
         # 1. If fee intake is active, or user asks specifically about scholarship/calculation, prioritize fee intake
         low_msg = (message or "").lower()
-        is_scholarship_calc_q = bool(re.search(
+        is_other_fee_inquiry = bool(re.search(
+            r"\b(?:other\s+fees?|other\s+academic(?:\s*/\s*university|\s+university)?\s+charges?|other\s+charges?|annual\s+charges?|"
+            r"university\s+charges?|additional\s+fees?|additional\s+charges?|enrolment\s+fee|enrollment\s+fee|application\s+form\s+fee|"
+            r"specialisation\s+fee|specialization\s+fee|phd\s+fee|"
+            r"fees?\s+(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee)|"
+            r"(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee))\b",
+            low_msg,
+        ))
+
+        is_scholarship_calc_q = not is_other_fee_inquiry and bool(re.search(
             r"\b(?:schol\w*|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
-            r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee|exact\s+fee)\b",
+            r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee)\b",
             low_msg,
         ))
         if bool(re.search(
@@ -2006,12 +2047,15 @@ async def run_agent(
             low_msg,
         )):
             is_scholarship_calc_q = False
+        if is_other_fee_inquiry and conv_state.get("fee_intake"):
+            await set_state(fee_intake=None)
+            intake_state = {}
         is_score_msg = bool(re.search(
             r"\b(?:\d{2,4}\s*marks?|scored\s+\d{2,4}|got\s+\d{2,4}|secured\s+\d{2,4}|obtained\s+\d{2,4}|"
             r"\d{2,4}\s*(?:/|out\s+of)\s*\d{3,4}|\d{1,2}(?:\.\d+)?\s*%|cgpa\s*[:=]?\s*\d|\d\s*cgpa)\b",
             low_msg,
         )) or bool(re.fullmatch(r"\s*\d{2,4}(?:\.\d+)?\s*%?\s*", low_msg))
-        if conv_state.get("fee_intake") or is_scholarship_calc_q or (is_score_msg and client is None):
+        if not is_other_fee_inquiry and (conv_state.get("fee_intake") or is_scholarship_calc_q or (is_score_msg and client is None)):
             intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
                 await set_state(fee_intake=intake_decision["state"])
@@ -2035,7 +2079,7 @@ async def run_agent(
                 return
 
         # 3. Fallback check for fee intake ONLY if user wants to calculate fee
-        if is_scholarship_calc_q or conv_state.get("fee_intake"):
+        if not is_other_fee_inquiry and (is_scholarship_calc_q or conv_state.get("fee_intake")):
             if not intake_decision:
                 intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
@@ -2045,6 +2089,7 @@ async def run_agent(
                                      suggestions=intake_decision["chips"]):
                     yield ev
                 return
+
         if intake_decision or conv_state.get("fee_intake"):
             await set_state(fee_intake=None)
 
@@ -2284,6 +2329,13 @@ async def run_agent(
                                      suggestions=_COMBINED_HOSTEL_FEE_CHIPS):
                     yield ev
                 return
+            if is_other_fee_inquiry:
+                from app.services.card_service import OTHER_FEES_CARD
+                async for ev in _say(responses._OTHER_FEES_TEXT, message, session_id, conversation_id,
+                                     cards=[OTHER_FEES_CARD],
+                                     suggestions=responses._OTHER_FEES_CHIPS):
+                    yield ev
+                return
             if is_about_sru_query(message):
                 from app.services.card_service import generate_cards
                 why_text = responses.get_why_choose_sru_text(variant_id=variant_id, session_id=session_id)
@@ -2305,11 +2357,14 @@ async def run_agent(
                     yield ev
                 return
 
-        # When model is unavailable (quota, rate limit, or sandbox network): give handbook passage if one fits, else say what still works.
-        text = (None if used else (_offline_knowledge_reply(search_q) or _offline_knowledge_reply(message))) or get_limit_reply(session_id)
-        async for ev in _say(text, message, session_id, conversation_id, used, cards,
-                             ["CSE fee with 85%", "Call me", "Plan a campus visit"]):
-            yield ev
+        if link.get("error_kind") in ("rate", "busy"):
+            # When model is unavailable (quota, rate limit, or sandbox network): give handbook passage if one fits, else say what still works.
+            text = (None if used else (_offline_knowledge_reply(search_q) or _offline_knowledge_reply(message))) or get_limit_reply(session_id)
+            async for ev in _say(text, message, session_id, conversation_id, used, cards,
+                                 ["CSE fee with 85%", "Call me", "Plan a campus visit"]):
+                yield ev
+            return
+        yield {"type": "error", "detail": get_fallback_text(session_id)}
         return
 
     if prefetched_fee:  # the model answered from the calculation the code had already done

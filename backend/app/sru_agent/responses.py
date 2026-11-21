@@ -563,4 +563,26 @@ def get_why_choose_sru_text(variant_id: int | None = None, session_id: str | Non
     return _WHY_CHOOSE_SRU_VARIANTS[idx]
 
 
+_OTHER_FEES_TEXT = """As per the official 2027-28 Fee Structure, the fee components and charges other than semester tuition are:
+
+| Fee Component / Head | Amount | Notes / Frequency |
+| :--- | :--- | :--- |
+| **Enrolment Fee** | **₹5,000** | One-time (payable at admission / Semester 1) |
+| **Other Academic / University Charges** | **₹15,000** | Annual (laboratories, library & campus amenities) |
+| **Examination Fee (First Year)** | **₹5,000** | Annual (as printed on fee card for Year 1) |
+| **Application Form Fee** | **₹1,100** | One-time (paid with online application at apply.sru.edu.in) |
+| **Specialisation Fee** | **₹30,000** | Applicable annually from the 2nd year onwards where specialisation applies |
+| **PhD Fee** | **₹70,000** | Per year (for doctoral research scholars) |
+
+• **Optional Living & Transport Services**:
+  - **Hostel (Accommodation + Food)**: ₹1,15,000 – ₹1,35,000/year (includes 4 daily meals in the 4,000-seat Mega Dining Hall)
+  - **Hostel Caution Deposit**: ₹5,000 (refundable) + ₹5,000 laundry
+  - **Transportation (University Bus)**: ₹30,000/year (covers Warangal, Hanamkonda, Kazipet and outstation routes)
+
+There is no separate "admission fee" charged on the 2027-28 fee card."""
+
+_OTHER_FEES_CHIPS = ["B.Tech CSE tuition", "Calculate my scholarship", "Hostel accommodation", "Plan a campus visit"]
+
+
+
 
