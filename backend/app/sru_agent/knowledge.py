@@ -63,6 +63,11 @@ _SYNONYMS = {
     "own": ["chancellor", "society", "sponsoring"], "owns": ["chancellor", "society", "sponsoring"],
     "management": ["chancellor", "society", "leadership"], "principal": ["vice-chancellor", "registrar"],
     "dean": ["leadership"], "process": ["apply", "register", "admission"], "steps": ["apply", "register"],
+    "lab": ["labs", "laboratory", "laboratories", "research", "centre", "center", "facilities", "studios"],
+    "labs": ["lab", "laboratory", "laboratories", "research", "centres", "centers", "facilities", "studios"],
+    "laboratory": ["lab", "labs", "laboratories", "research", "facilities"],
+    "laboratories": ["lab", "labs", "laboratory", "research", "facilities"],
+    "research": ["centre", "center", "centers", "centres", "lab", "labs"],
 }
 _WORD = re.compile(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*")
 

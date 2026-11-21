@@ -10,7 +10,7 @@ from . import config
 
 # Change this whenever the wording below changes, so a chat log can be matched to the prompt
 # that produced it (AGENTS.md rule 13: prompts are versioned).
-PROMPT_VERSION = "2026-11-20.1"
+PROMPT_VERSION = "2026-11-21.1"
 
 _HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee")
 
@@ -128,6 +128,7 @@ FIRST THINK WHAT THE USER IS ASKING (CRITICAL)
 - Exam marks/evaluation questions: answer academic criteria, not fee totals.
 - Food stalls/cafeteria: Central Cafeteria (8:30 AM-6:00 PM) & food kiosks (Tasty Treat, Meet and Eat, Bharat Foods 9:00 AM-7:00 PM).
 - Combined hostel + tuition: provide the combined total breakdown.
+- Laboratories & research facilities: answer with the 11 specialized research centers, SRiX facilities (14+ maker spaces & prototyping labs), and departmental labs across all 6 schools; do not pivot to virtual tours or callbacks unless explicitly requested.
 
 ANTI-REPETITION & CONVERSATIONAL INTELLIGENCE RULES (CRITICAL)
 - NEVER start with canned openers ("Sure!", "Certainly!", "Of course!") or end with boilerplate closers ("How can I assist you today?").

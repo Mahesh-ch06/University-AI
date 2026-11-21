@@ -563,7 +563,7 @@ def _fee_args_from_message(message: str, profile: dict):
 def _handbook_context(message: str) -> str:
     """Handbook passages for this message, found by keyword search (no AI call)."""
     try:
-        found = knowledge.search(message, k=3, min_score=5.0)
+        found = knowledge.search(message, k=3, min_score=3.0)
     except Exception:
         return ""
     if not found:
@@ -1207,6 +1207,37 @@ SR University follows a comprehensive Credit-Based Semester System (CBSS) govern
 
 _ACADEMIC_EVALUATION_CHIPS = ["Attendance & Condonation Rules", "Honours & Minor Degrees", "B.Tech CSE Fees", "Placement Records"]
 
+_LAB_FACILITIES_TEXT = """### 🔬 Laboratories & Research Infrastructure at SR University
+
+SR University does not operate with a single combined count for all labs because facilities are organized across three distinct levels of advanced infrastructure:
+
+#### 1. 🏢 11 Interdisciplinary Specialized Research Centers
+Dedicated high-tech centers conducting cutting-edge research, patent creation, and industry projects:
+• **Center for AI & Deep Learning (CAIDL)**: High-performance GPU computing clusters, neural network training environments, and computer vision systems.
+• **Center for Creative Cognition (CCC)**: Houses 6 advanced labs (*Ideation Lab, Eye-tracking Lab, EEG Lab, Computational Neuroscience Lab, Driving Simulator Lab, Psychometric Testing Lab*).
+• **Center for Embedded Systems & IoT (EIoT)**: Raspberry Pi platforms, ARM Cortex M4 development kits, and wireless sensor nodes.
+• **Center for Emerging Energy Technologies (CEET)**: LabVIEW Advanced Simulation Lab, Energy Lab, and Electric Drives / EV Powertrain Lab.
+• **Center for Materials & Manufacturing (CMM)**: Product Design Studio, CAD/CAM Lab, CNC Makers Space, and Additive Manufacturing (3D Printing).
+• **Center for Construction Methods & Materials**: Concrete Technology, Triaxial Testing, Digital Consolidation, and Automatic Asphalt Compactor setups.
+• **Centre for Nanomaterials**: Nanomaterial synthesis and high-resolution characterization microscopy.
+• **Additional Centers**: *Center for Informetrics & Statistics*, *Center for Experiential Learning*, *Collaboratory for Social Innovation*, and *Center for Design*.
+
+#### 2. 🚀 SR Innovation Exchange (SRiX) & Prototyping Studios
+• **14+ Maker Spaces** and open innovation project studios.
+• **IoT & ESDM Lab** (Electronic System Design & Manufacturing).
+• **3D Rapid Prototyping Facility** & **Design Thinking Studio** supporting student startups from idea to scale (171+ startups incubated, ₹76+ Cr funding).
+
+#### 3. 🖥️ Departmental Academic Laboratories Across 6 Schools
+Every department maintains multiple specialized curriculum labs:
+• **School of Computer Science & AI**: AI/ML, Big Data Analytics, Cloud Computing/DevOps, Cybersecurity, and Software Engineering Labs.
+• **School of Engineering**: ECE (VLSI Design, DSP, Microprocessors, Microwave), EEE (Electric Machines, Power Electronics), Mechanical (Robotics & Automation, CAD/CAM, Metallurgy, Fluid Mechanics), and Civil (Surveying Total Station, Geotechnical, Environmental).
+• **School of Agriculture (ICAR Accredited)**: 50+ acre experimental farm, polyhouses, Soil & Water Testing, Agronomy, and Plant Pathology labs.
+• **Basic Sciences & Design**: Engineering Physics, Chemistry, AECS Multimedia English Lab, and Visual Design/Ergonomics Studios.
+
+Which department or domain of laboratories would you like to explore in detail?"""
+
+_LAB_FACILITIES_CHIPS = ["AI & Computer Science Labs", "SRiX Startup Maker Spaces", "Robotics & IoT Labs", "B.Tech CSE Curriculum"]
+
 
 def _cache_key(message: str) -> str:
     import hashlib
@@ -1396,6 +1427,7 @@ async def run_agent(
             "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "HOSTEL_INFO_QUERY", "HOSTEL_MESS_QUERY",
             "HOSTEL_CURFEW_RULES_QUERY", "HOSTEL_SAFETY_QUERY", "HOSTEL_FEE_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
             "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY",
+            "LAB_FACILITIES_QUERY",
         )
         if intent in canned_intents:
             intent = "GENERAL"
@@ -1558,6 +1590,12 @@ async def run_agent(
     if intent == "ACADEMIC_EVALUATION_QUERY":
         async for ev in _say(_ACADEMIC_EVALUATION_TEXT, message, session_id, conversation_id,
                              suggestions=_ACADEMIC_EVALUATION_CHIPS):
+            yield ev
+        return
+
+    if intent == "LAB_FACILITIES_QUERY":
+        async for ev in _say(_LAB_FACILITIES_TEXT, message, session_id, conversation_id,
+                             suggestions=_LAB_FACILITIES_CHIPS):
             yield ev
         return
 

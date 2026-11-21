@@ -35,6 +35,7 @@ AgentIntent = Literal[
     "CAMPUS_CANTEEN_QUERY",
     "ACADEMIC_EVALUATION_QUERY",
     "COMBINED_FEE_HOSTEL_QUERY",
+    "LAB_FACILITIES_QUERY",
     "GENERAL",
 ]
 
@@ -277,6 +278,25 @@ _ACADEMIC_EVALUATION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_LAB_FACILITIES_PATTERN = re.compile(
+    r"\b(?:"
+    r"how\s+many\s+labs(?:\s+are\s+there)?|"
+    r"how\s+many\s+laboratories(?:\s+are\s+there)?|"
+    r"number\s+of\s+labs|number\s+of\s+laboratories|"
+    r"count\s+of\s+labs|count\s+of\s+laboratories|"
+    r"total\s+labs|total\s+laboratories|"
+    r"what\s+labs(?:\s+are\s+there|\s+do\s+you\s+have|\s+available)?|"
+    r"which\s+labs(?:\s+are\s+there|\s+do\s+you\s+have|\s+available)?|"
+    r"what\s+laboratories(?:\s+are\s+there|\s+do\s+you\s+have|\s+available)?|"
+    r"which\s+laboratories(?:\s+are\s+there|\s+do\s+you\s+have|\s+available)?|"
+    r"lab\s+facilities|laboratory\s+facilities|research\s+centres?|research\s+centers?|"
+    r"list\s+of\s+labs|list\s+of\s+laboratories|"
+    r"tell\s+me\s+about\s+(?:the\s+)?labs?|tell\s+me\s+about\s+(?:the\s+)?laboratories|"
+    r"university\s+labs|campus\s+labs|sru\s+labs|modern\s+labs"
+    r")\b",
+    re.IGNORECASE,
+)
+
 
 def _has_score_or_rank(msg: str) -> bool:
     return bool(re.search(r"\d{2,3}\s*%|\brank\b|\bpercent\b|\bpercentile\b|\bmarks\b|\beapcet\b|\beamcet\b|\bjee\b", msg, re.IGNORECASE))
@@ -317,6 +337,10 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
     if _CAMPUS_CANTEEN_PATTERN.search(msg):
         return "CAMPUS_CANTEEN_QUERY"
 
+    # 3e. Laboratory & research facilities query
+    if _LAB_FACILITIES_PATTERN.search(msg) and not bool(re.search(r"\b(?:fees?|tuition|cost|price|scholarship|manual|exam|timetable)\b", msg)):
+        return "LAB_FACILITIES_QUERY"
+
     # 4. Check if message is asking to visit on a specific date
     if _VISIT_WITH_DATE_PATTERN.search(msg) or any(k in msg for k in ("visit on", "visit tomorrow", "visit today")):
         return "CAMPUS_VISIT_BOOKING_WITH_DATE"
@@ -325,7 +349,7 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
         # Guard: If user asks an academic, fee, scholarship, canteen, or general question, do not hijack into campus visit!
         has_off_topic_context = bool(re.search(
             r"\b(?:scholarship|marks?|rank|fee|fees|tuition|canteen|cafeteria|food|stalls?|exam|passmarks|"
-            r"faculty|dean|hod|hostel|placements?|package|vc|vice\s+chancellor|chancellor|sports|library)\b",
+            r"faculty|dean|hod|hostel|placements?|package|vc|vice\s+chancellor|chancellor|sports|library|labs?|laborator(?:y|ies)|research)\b",
             msg
         ))
         if not has_off_topic_context:
