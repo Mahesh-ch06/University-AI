@@ -1134,7 +1134,7 @@ def process_fee_flow(
         is_hostel_cost_q = any(k in low for k in ("hostel", "accommodation", "room", "mess", "boarding")) and (
             any(k in low for k in ("fee", "fees", "cost", "costs", "charge", "charges", "price", "how much", "rate", "rent", "package", "deposit"))
             or low.strip("?. ") in ("what about hostel", "what about the hostel", "hostel")
-        ) and not any(k in low for k in ("facility", "facilities", "curfew", "food", "mess food", "menu", "timing", "timings", "rule", "rules", "warden", "gym"))
+        ) and not any(k in low for k in ("facility", "facilities", "curfew", "food", "mess food", "menu", "timing", "timings", "rule", "rules", "warden", "gym", "wifi", "internet"))
         if is_hostel_cost_q:
             school = next((s for s in SCHOOLS_DATA if s["id"] == saved_school_id), SCHOOLS_DATA[0])
             prog_dict = fees.load_data()["programs"].get(saved_prog_key or "btech_cse", {})

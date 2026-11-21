@@ -10,6 +10,19 @@ logger = logging.getLogger(__name__)
 PERCENT_PATTERN = re.compile(r"\b(\d{1,2}(?:\.\d+)?)\s*%", re.I)
 SCORE_FRACTION_PATTERN = re.compile(r"\b(\d{2,4})\s*(?:out\s+of|/)\s*(\d{2,4})\b", re.I)
 
+# Pattern detecting student-specific score claims (e.g., "you've scored 75%", "since you scored 85%")
+STUDENT_SCORE_CLAIM_PATTERN = re.compile(
+    r"\b(?:you(?:'ve)?|scored|got|obtained|secured|with(?:\s+your)?|have)\s+(\d{1,2}(?:\.\d+)?)\s*%",
+    re.I,
+)
+
+# Verified static university policy percentages in the official handbook / fee card
+# (attendance minimums, scholarship slabs, early-bird waiver, placement assistance).
+# Whitelisting these for general policy statements prevents false-positive guardrail triggers.
+KNOWN_POLICY_PERCENTAGES = {
+    "10%", "20%", "30%", "40%", "50%", "60%", "65%", "75%", "100%",
+}
+
 
 def verify_numeric_faithfulness(
     answer: str,
@@ -28,12 +41,26 @@ def verify_numeric_faithfulness(
     # Combined allowed corpus: evidence + conversation context + user's question
     allowed_corpus = (evidence_text + " " + conversation_context + " " + question).lower().replace(" ", "")
 
+    # Extract any percentages specifically attributed to the student's personal score/marks
+    student_score_claims = {
+        f"{m.group(1)}%".lower().replace(" ", "")
+        for m in STUDENT_SCORE_CLAIM_PATTERN.finditer(answer)
+    }
+
     unsupported = []
     for pct in answer_percents:
         raw_num = pct.replace("%", "").strip()
-        # Check if the percentage or raw number exists in the allowed corpus
-        if pct not in allowed_corpus and raw_num not in allowed_corpus:
-            unsupported.append(pct)
+
+        # 1. Grounded in evidence, context, or question
+        if pct in allowed_corpus or raw_num in allowed_corpus:
+            continue
+
+        # 2. General university policy constant (e.g. 75% attendance, 100% placement assistance),
+        # as long as the LLM is NOT inventing it as the student's personal score.
+        if pct in KNOWN_POLICY_PERCENTAGES and pct not in student_score_claims:
+            continue
+
+        unsupported.append(pct)
 
     if unsupported:
         logger.warning(

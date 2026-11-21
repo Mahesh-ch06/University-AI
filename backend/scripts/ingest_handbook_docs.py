@@ -142,7 +142,7 @@ async def clear_existing_handbook_docs(db, collection):
 async def ingest_handbook():
     import chromadb
 
-    handbook_dir = settings.PROJECT_ROOT / "data" / "handbook"
+    handbook_dir = settings.DATA_DIR / "handbook"
     if not handbook_dir.exists():
         logger.error("Handbook directory not found: %s", handbook_dir)
         return

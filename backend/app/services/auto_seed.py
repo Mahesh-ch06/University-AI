@@ -45,7 +45,7 @@ async def refresh_handbook_if_changed() -> bool:
     quota is exhausted the old index stays and this is retried on the next start. (The admissions
     agent does not depend on it: it reads the handbook files directly.)
     """
-    handbook_dir = settings.PROJECT_ROOT / "data" / "handbook"
+    handbook_dir = settings.DATA_DIR / "handbook"
     if not handbook_dir.is_dir():
         return False
     marker = Path(settings.CHROMA_PERSIST_DIR or "./chroma_data") / "handbook.sha256"
@@ -117,7 +117,7 @@ async def ensure_documents_seeded() -> int:
             try:  # remember which handbook text is in the index (see refresh_handbook_if_changed)
                 marker = Path(settings.CHROMA_PERSIST_DIR or "./chroma_data") / "handbook.sha256"
                 marker.parent.mkdir(parents=True, exist_ok=True)
-                marker.write_text(_handbook_fingerprint(settings.PROJECT_ROOT / "data" / "handbook"), encoding="utf-8")
+                marker.write_text(_handbook_fingerprint(settings.DATA_DIR / "handbook"), encoding="utf-8")
             except Exception as marker_err:
                 logger.warning("Could not record the handbook fingerprint: %s", marker_err)
 

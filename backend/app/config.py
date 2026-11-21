@@ -59,15 +59,21 @@ class Settings(BaseSettings):
 
     # ---- Paths ----
     PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
+    BACKEND_DIR: Path = Path(__file__).resolve().parent.parent
+    DATA_DIR: Path = (
+        (BACKEND_DIR / "data")
+        if (BACKEND_DIR / "data").exists()
+        else (PROJECT_ROOT / "data")
+    )
     PROMPTS_DIR: Path = (
-        PROJECT_ROOT / "prompts"
-        if (PROJECT_ROOT / "prompts").exists()
-        else (Path(__file__).resolve().parent.parent / "prompts")
+        (BACKEND_DIR / "prompts")
+        if (BACKEND_DIR / "prompts").exists()
+        else (PROJECT_ROOT / "prompts")
     )
     UPLOAD_DIR: Path = (
         PROJECT_ROOT / "uploads"
         if (PROJECT_ROOT / "uploads").exists()
-        else (Path(__file__).resolve().parent.parent / "uploads")
+        else (BACKEND_DIR / "uploads")
     )
 
     model_config = {

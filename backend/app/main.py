@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
@@ -142,6 +143,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# GZip compression — reduces JSON payload size by ~60-80% for large RAG answers.
+# Must be added AFTER CORSMiddleware so CORS headers are present before compression.
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 def _origin_allowed(origin: str) -> bool:

@@ -11,9 +11,9 @@ import shutil
 from pathlib import Path
 import docx
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DOCX_PATH = PROJECT_ROOT / "data" / "SRU Agentic AI.docx"
-BACKUP_PATH = PROJECT_ROOT / "data" / "SRU Agentic AI.docx.bak"
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DOCX_PATH = DATA_DIR / "SRU Agentic AI.docx"
+BACKUP_PATH = DATA_DIR / "SRU Agentic AI.docx.bak"
 
 # Section-scoped Q&A updates
 SECTION_UPDATES = {
