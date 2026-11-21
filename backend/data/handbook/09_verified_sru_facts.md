@@ -262,3 +262,21 @@
   - **International Business Accelerated Program (IBAP)**: BBA + MBA/MS (Finance / Business Analytics), 3 years at SRU + 2 years at UMass Lowell, USA.
   - **2+2 New Zealand**: Years 1–2 at SRU, Years 3–4 at University of Otago (B.Sc. Food Science) or Massey University (B.Sc. Agriculture).
 
+---
+
+## 10. Laboratories & Specialized Research Centers
+
+- **[FACT-ID: LAB-001] [STATUS: VERIFIED] [SOURCE: 13_laboratories_and_research_centers.md & sru.edu.in/research]**
+  - **Total Laboratories Structure**: SR University does not have a single combined count because laboratories are organized across **11 specialized interdisciplinary research centers**, the **SRiX incubator (14+ maker spaces & prototyping labs)**, and **dedicated departmental teaching laboratories across all 6 schools**.
+  - **11 Research Centers**: Center for AI & Deep Learning, Center for Creative Cognition (6 labs), Center for Embedded Systems & IoT, Center for Emerging Energy Technologies (LabVIEW Simulation, Energy, Electric Drives), Center for Materials & Manufacturing, Center for Construction Methods & Materials, Centre for Nanomaterials, Center for Informetrics & Statistics, Center for Experiential Learning, Collaboratory for Social Innovation, Center for Design.
+
+- **[FACT-ID: LAB-002] [STATUS: VERIFIED] [SOURCE: 13_laboratories_and_research_centers.md]**
+  - **Key Specialized Labs**:
+    - *Creative Cognition*: Ideation Lab, Eye-tracking Lab, EEG Lab, Computational Neuroscience Lab, Driving Simulator Lab, Psychometric Testing Lab.
+    - *Embedded Systems & IoT*: High-end computing, Raspberry Pi, ARM Cortex M4 hardware development setups.
+    - *Materials & Manufacturing*: Product Design Studio, CAD/CAM Lab, CNC Makers Space, 3D printing.
+    - *Civil / Construction*: Concrete Tech Lab, Triaxial machine, Digital Consolidation, Asphalt compactor.
+    - *SRiX*: 14+ maker spaces, IoT & ESDM lab, 3D rapid prototyping, Design Thinking Studio.
+    - *Departmental Labs*: Dedicated curriculum labs across CS & AI (AI/ML, Data Science, Cyber Security, Cloud), ECE (VLSI, DSP), EEE (Electric Drives), Mechanical (Robotics, Fluid Mechanics, Metallurgy), Agriculture (ICAR polyhouses, soil testing), and Sciences.
+
+

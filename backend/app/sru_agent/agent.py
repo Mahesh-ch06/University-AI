@@ -30,7 +30,7 @@ except ImportError:
     genai = None
     types = None
 
-from . import config, faculty, fee_flow, fee_intake, fees, intents, knowledge, memory, tools
+from . import affordability, config, faculty, fee_flow, fee_intake, fees, intents, knowledge, memory, tools
 from .prompt import build_system_prompt
 
 log = logging.getLogger("sru_agent")
@@ -563,7 +563,7 @@ def _fee_args_from_message(message: str, profile: dict):
 def _handbook_context(message: str) -> str:
     """Handbook passages for this message, found by keyword search (no AI call)."""
     try:
-        found = knowledge.search(message, k=3, min_score=5.0)
+        found = knowledge.search(message, k=3, min_score=3.0)
     except Exception:
         return ""
     if not found:
@@ -1207,6 +1207,37 @@ SR University follows a comprehensive Credit-Based Semester System (CBSS) govern
 
 _ACADEMIC_EVALUATION_CHIPS = ["Attendance & Condonation Rules", "Honours & Minor Degrees", "B.Tech CSE Fees", "Placement Records"]
 
+_LAB_FACILITIES_TEXT = """### 🔬 Laboratories & Research Infrastructure at SR University
+
+SR University does not operate with a single combined count for all labs because facilities are organized across three distinct levels of advanced infrastructure:
+
+#### 1. 🏢 11 Interdisciplinary Specialized Research Centers
+Dedicated high-tech centers conducting cutting-edge research, patent creation, and industry projects:
+• **Center for AI & Deep Learning (CAIDL)**: High-performance GPU computing clusters, neural network training environments, and computer vision systems.
+• **Center for Creative Cognition (CCC)**: Houses 6 advanced labs (*Ideation Lab, Eye-tracking Lab, EEG Lab, Computational Neuroscience Lab, Driving Simulator Lab, Psychometric Testing Lab*).
+• **Center for Embedded Systems & IoT (EIoT)**: Raspberry Pi platforms, ARM Cortex M4 development kits, and wireless sensor nodes.
+• **Center for Emerging Energy Technologies (CEET)**: LabVIEW Advanced Simulation Lab, Energy Lab, and Electric Drives / EV Powertrain Lab.
+• **Center for Materials & Manufacturing (CMM)**: Product Design Studio, CAD/CAM Lab, CNC Makers Space, and Additive Manufacturing (3D Printing).
+• **Center for Construction Methods & Materials**: Concrete Technology, Triaxial Testing, Digital Consolidation, and Automatic Asphalt Compactor setups.
+• **Centre for Nanomaterials**: Nanomaterial synthesis and high-resolution characterization microscopy.
+• **Additional Centers**: *Center for Informetrics & Statistics*, *Center for Experiential Learning*, *Collaboratory for Social Innovation*, and *Center for Design*.
+
+#### 2. 🚀 SR Innovation Exchange (SRiX) & Prototyping Studios
+• **14+ Maker Spaces** and open innovation project studios.
+• **IoT & ESDM Lab** (Electronic System Design & Manufacturing).
+• **3D Rapid Prototyping Facility** & **Design Thinking Studio** supporting student startups from idea to scale (171+ startups incubated, ₹76+ Cr funding).
+
+#### 3. 🖥️ Departmental Academic Laboratories Across 6 Schools
+Every department maintains multiple specialized curriculum labs:
+• **School of Computer Science & AI**: AI/ML, Big Data Analytics, Cloud Computing/DevOps, Cybersecurity, and Software Engineering Labs.
+• **School of Engineering**: ECE (VLSI Design, DSP, Microprocessors, Microwave), EEE (Electric Machines, Power Electronics), Mechanical (Robotics & Automation, CAD/CAM, Metallurgy, Fluid Mechanics), and Civil (Surveying Total Station, Geotechnical, Environmental).
+• **School of Agriculture (ICAR Accredited)**: 50+ acre experimental farm, polyhouses, Soil & Water Testing, Agronomy, and Plant Pathology labs.
+• **Basic Sciences & Design**: Engineering Physics, Chemistry, AECS Multimedia English Lab, and Visual Design/Ergonomics Studios.
+
+Which department or domain of laboratories would you like to explore in detail?"""
+
+_LAB_FACILITIES_CHIPS = ["AI & Computer Science Labs", "SRiX Startup Maker Spaces", "Robotics & IoT Labs", "B.Tech CSE Curriculum"]
+
 
 def _cache_key(message: str) -> str:
     import hashlib
@@ -1396,6 +1427,7 @@ async def run_agent(
             "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "HOSTEL_INFO_QUERY", "HOSTEL_MESS_QUERY",
             "HOSTEL_CURFEW_RULES_QUERY", "HOSTEL_SAFETY_QUERY", "HOSTEL_FEE_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
             "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY",
+            "LAB_FACILITIES_QUERY",
         )
         if intent in canned_intents:
             intent = "GENERAL"
@@ -1412,7 +1444,7 @@ async def run_agent(
 
     if intent == "BTECH_TREE_QUERY":
         await set_state(fee_tree_step="btech_branch")
-        flow_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0])
+        flow_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level="ug")
         async for ev in _say(_BTECH_TREE_TEXT, message, session_id, conversation_id,
                              cards=[flow_card],
                              suggestions=["B.Tech CSE & Allied", "B.Tech AI & Robotics",
@@ -1462,7 +1494,8 @@ async def run_agent(
 
     if intent == "MANAGEMENT_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[3])
+        lvl = "ug" if "bba" in message.lower() else ("pg" if "mba" in message.lower() else None)
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[3], level=lvl)
         async for ev in _say(_MANAGEMENT_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
                              suggestions=["Calculate my fee with scholarship", "MBA specializations",
@@ -1472,7 +1505,8 @@ async def run_agent(
 
     if intent == "AGRICULTURE_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2])
+        lvl = "ug" if ("bsc" in message.lower() or "b.sc" in message.lower() or "agri" in message.lower()) else ("pg" if "msc" in message.lower() else None)
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2], level=lvl)
         async for ev in _say(_AGRICULTURE_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
                              suggestions=["Calculate my scholarship", "Hostel details",
@@ -1482,7 +1516,8 @@ async def run_agent(
 
     if intent == "COMP_APP_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0])
+        lvl = "ug" if "bca" in message.lower() else ("pg" if "mca" in message.lower() else None)
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level=lvl)
         async for ev in _say(_COMP_APP_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
                              suggestions=["Calculate my scholarship", "Hostel details",
@@ -1492,7 +1527,7 @@ async def run_agent(
 
     if intent == "DESIGN_FEE_QUERY":
         await set_state(fee_tree_step=None)
-        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5])
+        course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5], level="ug")
         async for ev in _say(_DESIGN_FEE_TEXT, message, session_id, conversation_id,
                              cards=[course_card],
                              suggestions=["Calculate my scholarship", "Hostel details",
@@ -1558,6 +1593,12 @@ async def run_agent(
     if intent == "ACADEMIC_EVALUATION_QUERY":
         async for ev in _say(_ACADEMIC_EVALUATION_TEXT, message, session_id, conversation_id,
                              suggestions=_ACADEMIC_EVALUATION_CHIPS):
+            yield ev
+        return
+
+    if intent == "LAB_FACILITIES_QUERY":
+        async for ev in _say(_LAB_FACILITIES_TEXT, message, session_id, conversation_id,
+                             suggestions=_LAB_FACILITIES_CHIPS):
             yield ev
         return
 
@@ -1766,6 +1807,39 @@ async def run_agent(
     if not action_note and not action and conv_state.get("pending_action") not in ("callback", "campus_visit") \
             and intent not in ("CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_BOOKING_WITH_DATE", "DATE_CONFIRMATION_YES",
                                "DATE_CONFIRMATION_NO"):
+        intake_state = dict(conv_state.get("fee_intake") or {})
+        if conv_state.get("fee_flow_prog") and not intake_state.get("program"):
+            intake_state["program"] = conv_state.get("fee_flow_prog")
+
+        # 0. Check affordability and concession multi-step flow
+        if conv_state.get("affordability_flow") or affordability.is_affordability_query(message):
+            afford_res = affordability.process_affordability_flow(message, profile, conv_state)
+            if afford_res is not None:
+                await set_state(**afford_res["new_state"])
+                async for ev in _say(afford_res["text"], message, session_id, conversation_id,
+                                     cards=afford_res.get("cards", []),
+                                     suggestions=afford_res.get("suggestions", [])):
+                    yield ev
+                return
+
+        # 1. If fee intake is active, or user asks specifically about scholarship/calculation, prioritize fee intake
+        low_msg = (message or "").lower()
+        is_scholarship_calc_q = bool(re.search(
+            r"\b(?:schol\w*|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
+            r"calculate\s+(?:my\s+)?fee|fee\s+calculation|my\s+fee|exact\s+fee|calculate\s+scholarship)\b",
+            low_msg,
+        ))
+        if conv_state.get("fee_intake") or is_scholarship_calc_q:
+            intake_decision = fee_intake.decide(message, profile, intake_state)
+            if intake_decision and intake_decision["action"] == "ask":
+                await set_state(fee_intake=intake_decision["state"])
+                async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                     cards=intake_decision.get("cards", []),
+                                     suggestions=intake_decision["chips"]):
+                    yield ev
+                return
+
+        # 2. Check exploratory school & course browsing flow
         flow_result = fee_flow.process_fee_flow(message, session_id, profile, conv_state)
         if flow_result is not None:
             await set_state(**flow_result["new_state"])
@@ -1775,10 +1849,13 @@ async def run_agent(
                 yield ev
             return
 
-        intake_decision = fee_intake.decide(message, profile, conv_state.get("fee_intake"))
+        # 3. Fallback check for fee intake if not caught above
+        if not intake_decision:
+            intake_decision = fee_intake.decide(message, profile, intake_state)
         if intake_decision and intake_decision["action"] == "ask":
             await set_state(fee_intake=intake_decision["state"])
             async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                 cards=intake_decision.get("cards", []),
                                  suggestions=intake_decision["chips"]):
                 yield ev
             return

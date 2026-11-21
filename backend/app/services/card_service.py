@@ -1153,3 +1153,80 @@ def generate_cards(
             cards.append(profile_card)
 
     return cards
+
+
+_ALL_FORM_PROGRAMS = [
+    # Undergraduate Programmes (UG)
+    {"key": "btech_cse", "name": "B.Tech Computer Science & Engineering (CSE)", "degree": "B.Tech", "level": "ug", "annual_tuition": 340000},
+    {"key": "btech_ai_robotics", "name": "B.Tech in Artificial Intelligence & Robotics", "degree": "B.Tech", "level": "ug", "annual_tuition": 400000},
+    {"key": "btech_ece", "name": "B.Tech Electronics & Communication (ECE)", "degree": "B.Tech", "level": "ug", "annual_tuition": 270000},
+    {"key": "btech_mech", "name": "B.Tech Mechanical Engineering", "degree": "B.Tech", "level": "ug", "annual_tuition": 200000},
+    {"key": "btech_civil", "name": "B.Tech Civil Engineering", "degree": "B.Tech", "level": "ug", "annual_tuition": 200000},
+    {"key": "btech_eee", "name": "B.Tech Electrical & Electronics (EEE)", "degree": "B.Tech", "level": "ug", "annual_tuition": 200000},
+    {"key": "bsc_agri", "name": "B.Sc (Hons.) Agriculture (ICAR Accredited)", "degree": "B.Sc", "level": "ug", "annual_tuition": 200000},
+    {"key": "bba", "name": "BBA (Bachelor of Business Administration)", "degree": "BBA", "level": "ug", "annual_tuition": 150000},
+    {"key": "bca", "name": "BCA (Bachelor of Computer Applications)", "degree": "BCA", "level": "ug", "annual_tuition": 150000},
+    {"key": "bdes", "name": "B.Des (School of Design)", "degree": "B.Des", "level": "ug", "annual_tuition": 210000},
+    {"key": "bcom", "name": "B.Com (Bachelor of Commerce)", "degree": "B.Com", "level": "ug", "annual_tuition": 100000},
+
+    # Postgraduate Programmes (PG)
+    {"key": "mba", "name": "MBA (Finance, Operations, HR, Business Analytics, Marketing)", "degree": "MBA", "level": "pg", "annual_tuition": 300000},
+    {"key": "mba_agri", "name": "MBA in Agri-Business Management", "degree": "MBA", "level": "pg", "annual_tuition": 200000},
+    {"key": "mca", "name": "MCA (Master of Computer Applications)", "degree": "MCA", "level": "pg", "annual_tuition": 150000},
+    {"key": "mtech", "name": "M.Tech CSE", "degree": "M.Tech", "level": "pg", "annual_tuition": 100000},
+    {"key": "msc", "name": "M.Sc Sciences & Agriculture", "degree": "M.Sc", "level": "pg", "annual_tuition": 100000},
+]
+
+
+def build_fee_scholarship_form_card(
+    selected_program: str | None = None,
+    selected_board: str | None = None,
+    level: str | None = None,
+    only_selected: bool = False,
+) -> dict:
+    """Constructs an interactive in-chat Fee & Scholarship Assessment Form card.
+
+    Strictly scopes programs according to what the user selected or asked for:
+    - If user selected/asked for a UG course: displays ONLY UG courses (or only the selected course).
+    - If user selected/asked for a PG course: displays ONLY PG courses.
+    - If only_selected is True: restricts the card strictly to what the user selected.
+    """
+    # Detect level from selected_program if not explicitly given
+    if selected_program and not level:
+        pg_keys = {"mba", "mba_agri", "mca", "mtech", "msc"}
+        level = "pg" if (selected_program in pg_keys or selected_program.startswith("m")) else "ug"
+
+    # Filter programs
+    if only_selected and selected_program:
+        filtered_progs = [p for p in _ALL_FORM_PROGRAMS if p["key"] == selected_program]
+        if not filtered_progs:
+            filtered_progs = [p for p in _ALL_FORM_PROGRAMS if p["level"] == (level or "ug")]
+    elif level:
+        filtered_progs = [p for p in _ALL_FORM_PROGRAMS if p["level"] == level]
+    else:
+        filtered_progs = list(_ALL_FORM_PROGRAMS)
+
+    # Ensure selected program is in the filtered list or default to the first one
+    active_prog = selected_program if any(p["key"] == selected_program for p in filtered_progs) else (filtered_progs[0]["key"] if filtered_progs else "btech_cse")
+
+    return {
+        "type": "fee_scholarship_form",
+        "title": "Fee & Merit Scholarship Assessment Form",
+        "subtitle": "Select your course and 10+2 board, then enter your marks or rank to calculate your exact net fee." if level != "pg" else "Select your postgraduate programme and enter your qualifying degree marks to calculate your fee & scholarship.",
+        "level": level or "ug",
+        "only_selected": only_selected,
+        "selected_program": active_prog,
+        "selected_board": selected_board or "ts_state_board",
+        "programs": filtered_progs,
+        "boards": [
+            {"key": "ts_state_board", "label": "Telangana State Board (BIE TS)", "slab_key": "state_board"},
+            {"key": "ap_state_board", "label": "Andhra Pradesh State Board (BIE AP)", "slab_key": "state_board"},
+            {"key": "cbse", "label": "CBSE (Central Board)", "slab_key": "cbse"},
+            {"key": "icse", "label": "ICSE / ISC (CISCE)", "slab_key": "cbse"},
+            {"key": "other_state_board", "label": "Other State Boards (All Over India)", "slab_key": "state_board"},
+            {"key": "nios", "label": "NIOS / National Open School", "slab_key": "cbse"},
+            {"key": "ib", "label": "International Baccalaureate (IB)", "slab_key": "ib"},
+        ] if level != "pg" else [
+            {"key": "degree_university", "label": "Recognised University / College", "slab_key": "pg"},
+        ],
+    }

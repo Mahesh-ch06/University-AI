@@ -3541,6 +3541,336 @@
   color: #ffffff;
 }
 
+/* ==========================================================================
+   Fee & Scholarship Assessment Form Card
+   ========================================================================== */
+.fee-scholarship-form-card {
+  border-top: 3px solid #6366f1;
+  background: var(--surface-1, #ffffff);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fee-form-badge {
+  background: rgba(99, 102, 241, 0.12) !important;
+  color: #4f46e5 !important;
+  border-color: rgba(99, 102, 241, 0.25) !important;
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.fee-form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fee-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fee-form-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-1, #0f172a);
+}
+
+.step-num-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #6366f1;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.fee-form-select {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #cbd5e1);
+  background: var(--surface-2, #f8fafc);
+  color: var(--text-1, #0f172a);
+  font-size: 0.82rem;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.fee-form-select:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.fee-form-selected-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-2, #f8fafc);
+  border: 1.5px solid rgba(99, 102, 241, 0.35);
+  border-radius: 10px;
+}
+
+.selected-course-icon {
+  font-size: 1.25rem;
+}
+
+.selected-course-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.selected-course-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-1, #0f172a);
+}
+
+.selected-course-fee {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4f46e5;
+}
+
+.fee-form-hint {
+  font-size: 0.7rem;
+  color: var(--text-3, #94a3b8);
+  margin: 0;
+}
+
+.score-type-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.score-type-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--border, #cbd5e1);
+  background: var(--surface-2, #f8fafc);
+  color: var(--text-2, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.score-type-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.score-type-btn.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
+}
+
+.fee-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.fee-form-input {
+  width: 100%;
+  padding: 9px 42px 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #cbd5e1);
+  background: var(--surface-2, #f8fafc);
+  color: var(--text-1, #0f172a);
+  font-size: 0.86rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.fee-form-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.fee-form-unit {
+  position: absolute;
+  right: 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-2, #64748b);
+  pointer-events: none;
+}
+
+.fee-form-live-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 8px;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.preview-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.preview-badge.success {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.preview-badge.neutral {
+  background: #94a3b8;
+  color: #ffffff;
+}
+
+.preview-amounts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.preview-base {
+  text-decoration: line-through;
+  color: var(--text-3, #94a3b8);
+  font-size: 0.76rem;
+}
+
+.preview-arrow {
+  color: var(--text-3, #94a3b8);
+  font-size: 0.7rem;
+}
+
+.preview-final {
+  font-weight: 800;
+  color: #059669;
+}
+
+.preview-sub {
+  font-size: 0.7rem;
+  color: var(--text-2, #64748b);
+  font-weight: 500;
+}
+
+.fee-form-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #6366f1;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+  margin-top: 4px;
+}
+
+.fee-form-submit-btn:hover {
+  background: #4f46e5;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+.fee-form-submit-btn:active {
+  transform: translateY(0);
+}
+
+/* Dark mode overrides for fee scholarship form */
+[data-theme="dark"] .fee-scholarship-form-card {
+  border-top-color: #818cf8;
+  background: #181d27;
+}
+
+[data-theme="dark"] .fee-form-badge {
+  background: rgba(129, 140, 248, 0.18) !important;
+  color: #a5b4fc !important;
+  border-color: rgba(129, 140, 248, 0.3) !important;
+}
+
+[data-theme="dark"] .fee-form-select,
+[data-theme="dark"] .score-type-btn,
+[data-theme="dark"] .fee-form-input {
+  background: #212631;
+  border-color: #2d3340;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .fee-form-select:focus,
+[data-theme="dark"] .fee-form-input:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
+}
+
+[data-theme="dark"] .score-type-btn.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .fee-form-live-preview {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .preview-final {
+  color: #34d399;
+}
+
+[data-theme="dark"] .fee-form-selected-badge {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+[data-theme="dark"] .selected-course-name {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .selected-course-fee {
+  color: #818cf8;
+}
+
+
+
 
 
 
