@@ -68,6 +68,13 @@ _SYNONYMS = {
     "laboratory": ["lab", "labs", "laboratories", "research", "facilities"],
     "laboratories": ["lab", "labs", "laboratory", "research", "facilities"],
     "research": ["centre", "center", "centers", "centres", "lab", "labs"],
+    "double": ["sharing", "room", "hostel", "accommodation"],
+    "table": ["sharing", "room", "bed"],
+    "triple": ["sharing", "3-sharing", "room"],
+    "quad": ["sharing", "4-sharing", "room"],
+    "included": ["fee", "mess", "dining", "hostel"],
+    "guaranteed": ["assistance", "placement", "policy"],
+    "guarantee": ["assistance", "placement", "policy"],
 }
 _WORD = re.compile(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*")
 

@@ -41,7 +41,7 @@ SCORE_NUMBER_BEFORE_SUBJECT_PATTERN = re.compile(
     re.I,
 )
 SCORE_STANDALONE_ANSWER_PATTERN = re.compile(
-    r"^\s*(\d{2}(?:\.\d+)?)\s*(?:marks?|in\s*(?:12th|inter|pcm))?\s*$",
+    r"^\s*(\d{2,4}(?:\.\d+)?)\s*(?:marks?|in\s*(?:12th|inter|pcm))?\s*$",
     re.I,
 )
 
@@ -137,13 +137,16 @@ def extract_score_from_text(text: str) -> tuple[float, str] | None:
         except ValueError:
             pass
 
-    # 6. Standalone answer: e.g. user just types "85" or "85 marks"
+    # 6. Standalone answer: e.g. user just types "85" or "85 marks" or "985"
     standalone_match = SCORE_STANDALONE_ANSWER_PATTERN.match(text)
     if standalone_match:
         try:
             val = float(standalone_match.group(1))
             if 35 <= val <= 100:
                 return val, f"{val}%"
+            elif 100 < val <= 1000:
+                pct = round(val / 10.0, 1)
+                return pct, f"{int(val)} marks (~{pct}%)"
         except ValueError:
             pass
 

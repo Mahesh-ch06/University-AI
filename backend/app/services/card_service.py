@@ -341,18 +341,6 @@ def _build_hostel_facilities_card() -> dict:
         "type": "hostel_facilities",
         "title": "SR University Residential Living & Campus Hostels",
         "subtitle": "Safe, vibrant, and disciplined residential living on campus",
-        "blocks": [
-            {
-                "type": "Boys Hostels",
-                "blocks": "Dr. Sarvepalli Radhakrishnan Bhavan & APJ Abdul Kalam Bhavan",
-                "warden": "Dr. Rupesh Mishra (9716935695) & Dr. Anshu Kumar (6394355001)",
-            },
-            {
-                "type": "Girls Hostels",
-                "blocks": "Kalpana Chawla Bhavan & Sarojini Naidu Bhavan",
-                "warden": "Ms. Anitha GP (9599042878, stu.girlshostel@sru.edu.in)",
-            },
-        ],
         "room_types": [
             {
                 "name": "3-Sharing & 4-Sharing AC",
@@ -401,12 +389,6 @@ def _build_hostel_facilities_card() -> dict:
             "Digital Out-Pass: Required via Sruniv portal with parent SMS verification",
             "Zero Tolerance: 100% ragging-free campus, anti-substance policy & 10:00 PM silence hours",
         ],
-        "contacts": {
-            "girls_warden": "Ms. Anitha GP (9599042878, stu.girlshostel@sru.edu.in)",
-            "boys_wardens": "Dr. Rupesh Mishra (9716935695) & Dr. Anshu Kumar (6394355001)",
-            "boys_counsellor": "Mr. Benson (7893525257)",
-            "girls_counsellor": "Ms. Swapna (7207672300)",
-        },
     }
 
 

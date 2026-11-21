@@ -32,12 +32,60 @@ function closeWidget() {
   }
 }
 
-const DEFAULT_WELCOME_MESSAGE: MessageData = {
-  id: "welcome-sru-buddy",
-  role: "assistant",
-  content: "Welcome to SR University! \n\nI’m SRU Buddy, your AI companion at a Next-Gen Living and Learning Campus.\n\n🏆 Top Private University in Telangana & AP\n\nWhich program are you interested in? I’ll guide you on eligibility, fees, scholarships and campus life.\n\n🌐 Ask in English, हिंदी, తెలుగు or any language. ",
-  created_at: new Date().toISOString(),
-};
+const WELCOME_VARIANTS: Array<{ content: string; suggestions: string[] }> = [
+  {
+    content:
+      "Welcome to SR University! I'm SRU Buddy, your official AI admissions guide.\n\nI can help you explore programs, calculate fees and scholarships, or learn about campus life.\n\nWhich course or stream are you interested in?\n\n🌐 Ask in English, తెలుగు, or हिंदी.",
+    suggestions: [
+      "B.Tech programmes offered",
+      "Calculate my scholarship",
+      "Hostel fees & facilities",
+      "How to apply for 2027-28",
+    ],
+  },
+  {
+    content:
+      "Hello! Welcome to SR University. I'm SRU Buddy.\n\nWhether you're deciding on a course, calculating fee waivers, or exploring hostel life, I'm here to help.\n\nWhat would you like to explore first?\n\n🌐 Feel free to ask in English, తెలుగు, or हिंदी.",
+    suggestions: [
+      "B.Tech CSE fees",
+      "Help me choose a course",
+      "Campus life & hostels",
+      "Placement records",
+    ],
+  },
+  {
+    content:
+      "Welcome! I'm SRU Buddy, your AI companion for SR University admissions.\n\nAsk me anything about programs, eligibility criteria, merit scholarships up to 40%, or life on our 170-acre campus.\n\nHow can I help you today?\n\n🌐 You can chat in English, తెలుగు, or हिंदी.",
+    suggestions: [
+      "Scholarship for my marks",
+      "Explore B.Tech streams",
+      "Hostel rooms & mess food",
+      "Talk to a counsellor",
+    ],
+  },
+];
+
+export function getInitialWelcomeMessage(seed: string = ""): MessageData {
+  let idx = 0;
+  if (seed) {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash << 5) - hash + seed.charCodeAt(i);
+      hash |= 0;
+    }
+    idx = Math.abs(hash) % WELCOME_VARIANTS.length;
+  }
+  const v = WELCOME_VARIANTS[idx];
+  return {
+    id: "welcome-sru-buddy",
+    role: "assistant",
+    content: v.content,
+    created_at: new Date().toISOString(),
+    suggestions: v.suggestions,
+  };
+}
+
+export const DEFAULT_WELCOME_MESSAGE: MessageData = getInitialWelcomeMessage();
 
 const MESSAGE_RENDER_WINDOW = 60;
 
@@ -52,6 +100,21 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   // Queries
   const [dockQuery, setDockQuery] = useState("");
   const [widgetInput, setWidgetInput] = useState("");
+  const widgetTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const portalTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const adjustTextareaHeight = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "34px";
+    const scrollH = el.scrollHeight;
+    const targetHeight = Math.min(Math.max(scrollH, 34), 136);
+    el.style.height = `${targetHeight}px`;
+  };
+
+  useEffect(() => {
+    adjustTextareaHeight(widgetTextareaRef.current);
+    adjustTextareaHeight(portalTextareaRef.current);
+  }, [widgetInput]);
 
   // Chat message state
   const hasValidContactDetails = (): boolean => {
@@ -59,7 +122,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     return Boolean(details?.name?.trim() && cleanPhone(details?.phone || ""));
   };
 
-  const [messages, setMessages] = useState<MessageData[]>([DEFAULT_WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<MessageData[]>(() => [getInitialWelcomeMessage(sessionId)]);
   const [showInlineLeadForm, setShowInlineLeadForm] = useState<boolean>(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
@@ -415,7 +478,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     setStreamingMsgId(null);
     setActiveConvId(null);
     activeConvIdRef.current = null;
-    setMessages([DEFAULT_WELCOME_MESSAGE]);
+    setMessages([getInitialWelcomeMessage(sessionId + Date.now().toString())]);
     setVisibleMessageCount(MESSAGE_RENDER_WINDOW);
     setError(null);
     setShowInlineLeadForm(false);
@@ -437,7 +500,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const handleWidgetSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const input = widgetInput.trim();
-    if (!input || isLoading) return;
+    if (!input || isLoading || showInlineLeadForm) return;
     handleSendMessage(input);
     setWidgetInput("");
   };
@@ -466,6 +529,17 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
             </div>
 
             <div className="sru-widget-header-actions">
+              <button
+                className="sru-widget-hdr-btn"
+                onClick={() => setShowSettings(true)}
+                title="Student Profile & Settings"
+                aria-label="Student Profile & Settings"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </button>
               <button
                 className="sru-widget-hdr-btn"
                 onClick={() => setIsCalculatorOpen(true)}
@@ -589,14 +663,19 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           <div className="sru-widget-footer">
             <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
               <textarea
+                ref={widgetTextareaRef}
                 className="sru-widget-textarea"
-                placeholder={showInlineLeadForm ? "Please share your name & mobile number above to chat" : "Type your message...."}
+                placeholder={showInlineLeadForm ? "Please share your name & mobile number above to chat" : "Ask SRU Buddy..."}
                 rows={1}
                 value={widgetInput}
                 disabled={showInlineLeadForm || isLoading}
-                onChange={(e) => setWidgetInput(e.target.value)}
+                aria-label="Ask SRU Buddy"
+                onChange={(e) => {
+                  setWidgetInput(e.target.value);
+                  adjustTextareaHeight(e.target);
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     handleWidgetSubmit(e);
                   }
@@ -608,7 +687,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 className={`sru-widget-voice-btn ${listening ? "listening" : ""}`}
                 onClick={toggleVoice}
                 disabled={showInlineLeadForm}
-                title="Voice Typing"
+                title={listening ? "Stop voice recording" : "Voice Typing"}
+                aria-label={listening ? "Stop voice recording" : "Start voice typing"}
+                aria-pressed={listening}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -623,8 +704,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 className="sru-widget-send-btn"
                 disabled={showInlineLeadForm || !widgetInput.trim() || isLoading}
                 title="Send Message"
+                aria-label="Send message"
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13" />
                   <polygon points="22 2 15 22 11 13 2 9 22 2" fill="currentColor" />
                 </svg>
@@ -905,6 +987,17 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
             <div className="sru-widget-header-actions">
               <button
                 className="sru-widget-hdr-btn"
+                onClick={() => setShowSettings(true)}
+                title="Student Profile & Settings"
+                aria-label="Student Profile & Settings"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </button>
+              <button
+                className="sru-widget-hdr-btn"
                 onClick={() => setIsCalculatorOpen(true)}
                 title="Fee Calculator"
                 aria-label="Fee Calculator"
@@ -1023,14 +1116,19 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               <div className="sru-widget-footer">
                 <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
                   <textarea
+                    ref={portalTextareaRef}
                     className="sru-widget-textarea"
-                    placeholder={showInlineLeadForm ? "Please share your name & mobile number above to chat" : "Type your message...."}
+                    placeholder={showInlineLeadForm ? "Please share your name & mobile number above to chat" : "Ask SRU Buddy..."}
                     rows={1}
                     value={widgetInput}
                     disabled={showInlineLeadForm || isLoading}
-                    onChange={(e) => setWidgetInput(e.target.value)}
+                    aria-label="Ask SRU Buddy"
+                    onChange={(e) => {
+                      setWidgetInput(e.target.value);
+                      adjustTextareaHeight(e.target);
+                    }}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
+                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                         e.preventDefault();
                         handleWidgetSubmit(e);
                       }
@@ -1042,7 +1140,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     className={`sru-widget-voice-btn ${listening ? "listening" : ""}`}
                     onClick={toggleVoice}
                     disabled={showInlineLeadForm}
-                    title="Voice Typing"
+                    title={listening ? "Stop voice recording" : "Voice Typing"}
+                    aria-label={listening ? "Stop voice recording" : "Start voice typing"}
+                    aria-pressed={listening}
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -1057,8 +1157,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     className="sru-widget-send-btn"
                     disabled={showInlineLeadForm || !widgetInput.trim() || isLoading}
                     title="Send Message"
+                    aria-label="Send message"
                   >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="22" y1="2" x2="11" y2="13" />
                       <polygon points="22 2 15 22 11 13 2 9 22 2" fill="currentColor" />
                     </svg>

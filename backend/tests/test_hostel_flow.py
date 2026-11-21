@@ -120,9 +120,10 @@ async def test_agent_hostel_deterministic_replies():
     events_info = [ev async for ev in agent.run_agent("tell me about hostel facilities", "test_hostel_sess_1")]
     tokens_info = "".join(ev.get("delta", "") for ev in events_info if ev.get("type") == "token")
     cards_info = [ev.get("card", {}).get("type") for ev in events_info if ev.get("type") == "card"]
-    assert "Residential Campus Living" in tokens_info
-    assert "Dr. Sarvepalli Radhakrishnan Bhavan" in tokens_info
-    assert "Kalpana Chawla Bhavan" in tokens_info
+    assert "Residential Living & Campus Hostels" in tokens_info or "Residential" in tokens_info
+    assert "3-sharing" in tokens_info.lower() or "sharing" in tokens_info.lower()
+    assert "Sarvepalli" not in tokens_info
+    assert "Kalpana Chawla" not in tokens_info
     assert "hostel_facilities" in cards_info
 
     # Test HOSTEL_MESS_QUERY
@@ -138,15 +139,16 @@ async def test_agent_hostel_deterministic_replies():
     tokens_curfew = "".join(ev.get("delta", "") for ev in events_curfew if ev.get("type") == "token")
     assert "9:00 PM" in tokens_curfew
     assert "9:30 PM" in tokens_curfew
-    assert "Biometric Roll Call" in tokens_curfew
+    assert "biometric roll call" in tokens_curfew.lower()
     assert "Sruniv portal" in tokens_curfew
 
     # Test HOSTEL_SAFETY_QUERY
     events_safety = [ev async for ev in agent.run_agent("is hostel safe for girls and who is the warden?", "test_hostel_sess_4")]
     tokens_safety = "".join(ev.get("delta", "") for ev in events_safety if ev.get("type") == "token")
-    assert "Anitha GP" in tokens_safety
-    assert "Rupesh Mishra" in tokens_safety
+    assert "Round-the-Clock Security" in tokens_safety
     assert "Aaditya Hospital" in tokens_safety
+    assert "Rupesh Mishra" not in tokens_safety
+    assert "Anitha GP" not in tokens_safety
 
     # Test HOSTEL_FEE_QUERY
     events_fee = [ev async for ev in agent.run_agent("what is the hostel fee?", "test_hostel_sess_5")]

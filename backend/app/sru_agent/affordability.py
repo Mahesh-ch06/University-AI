@@ -167,17 +167,36 @@ def is_affordability_query(message: str) -> bool:
     return bool(AFFORDABILITY_REGEX.search(message))
 
 
-def match_special_concession(message: str) -> dict | None:
-    """Matches a user message against SR University's 19 official special concession categories."""
+def match_all_special_concessions(message: str) -> list[dict]:
+    """Matches a user message against all applicable categories from SR University's 19 official special concessions."""
     low = (message or "").lower()
     if re.search(r"\b(?:none|no|neither|na|n/?a|not\s+applicable|none\s+of\s+these|nothing)\b", low):
-        return None
+        return []
 
+    matched = []
+    seen_keys = set()
     for cat in SPECIAL_CONCESSION_CATEGORIES:
+        if cat["key"] in seen_keys:
+            continue
         for kw in cat["keywords"]:
-            if kw in low:
-                return cat
-    return None
+            if re.search(rf"\b{re.escape(kw)}\b" if len(kw) <= 5 else re.escape(kw), low):
+                matched.append(cat)
+                seen_keys.add(cat["key"])
+                break
+    return matched
+
+
+def match_special_concession(message: str) -> dict | None:
+    """Matches a user message against SR University's 19 official special concessions, returning the highest concession."""
+    all_matched = match_all_special_concessions(message)
+    if not all_matched:
+        return None
+    # Pick the highest benefit category
+    best = max(all_matched, key=lambda c: c["amount"])
+    if len(all_matched) > 1:
+        best = dict(best)
+        best["all_eligible"] = all_matched
+    return best
 
 
 def _extract_percent(message: str) -> float | None:
@@ -413,11 +432,18 @@ def process_affordability_flow(
         total_savings_int = merit_saving_int + concession_amount
         prog_name = calc.get("program", prog_key)
 
-        concession_bullet = (
-            f"• **Special Concession ({concession_label})**: -{fees.inr(concession_amount)}\n"
-            if matched_concession
-            else "• **Special Concession**: Standard merit deduction applied (no additional special category claimed)\n"
-        )
+        if matched_concession:
+            all_elig = matched_concession.get("all_eligible")
+            if all_elig and len(all_elig) > 1:
+                labels = ", ".join(c["label"] for c in all_elig)
+                concession_bullet = (
+                    f"• **Special Concession ({concession_label})**: -{fees.inr(concession_amount)} "
+                    f"*(applied highest benefit category among your eligible categories: {labels})*\n"
+                )
+            else:
+                concession_bullet = f"• **Special Concession ({concession_label})**: -{fees.inr(concession_amount)}\n"
+        else:
+            concession_bullet = "• **Special Concession**: Standard merit deduction applied (no additional special category claimed)\n"
 
         final_text = (
             f"Here is your final net fee breakdown after all considered deductions{', ' + user_name if user_name else ''}:\n\n"

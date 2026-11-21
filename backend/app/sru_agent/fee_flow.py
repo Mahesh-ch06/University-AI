@@ -386,7 +386,8 @@ _BACK_NAVIGATION_WORDS = re.compile(
 
 _FEE_EXCLUSIONS = re.compile(
     r"\b(?:refund|refunds|cancellation\s*refund|cancel\s*my\s*admission|cancel\s*admission|admission\s*cancel|"
-    r"calculate|calculation|how\s+to\s+pay|mode\s+of\s+payment|payment\s+mode|payment\s+method|due\s+date|last\s+date|deadline)\b",
+    r"calculate|calculation|how\s+to\s+pay|mode\s+of\s+payment|payment\s+mode|payment\s+method|due\s+date|last\s+date|deadline|"
+    r"hostel\s*fee|hostel\s*fees|hostel\s*charges?|hostel\s*rent|mess\s*fee|mess\s*fees|mess\s*charges?)\b",
     re.IGNORECASE,
 )
 
@@ -760,6 +761,9 @@ def process_fee_flow(
             return None
 
         if not is_fee_query and not any(kw in low for kw in ("school of", "astra school")):
+            return None
+
+        if conv_state.get("active_topic") == "hostel" and not any(kw in low for kw in ("school of", "astra school", "btech", "b.tech", "mtech", "bba", "mba", "tuition")):
             return None
 
         # Check if user mentioned an unverified year (e.g. 2028-29, 2030)

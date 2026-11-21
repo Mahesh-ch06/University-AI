@@ -30,14 +30,26 @@ except ImportError:
     genai = None
     types = None
 
-from . import affordability, config, faculty, fee_flow, fee_intake, fees, intents, knowledge, memory, tools
+from . import affordability, config, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
 from .prompt import build_system_prompt
 
 log = logging.getLogger("sru_agent")
 _client = None
 
-FALLBACK = (f"I'm having trouble right now. Please call the Admissions Office at "
-            f"{config.ADMISSIONS_PHONE} or try again in a moment.")
+FALLBACK_OPTIONS = [
+    f"I'm having trouble right now. Please call the Admissions Office at {config.ADMISSIONS_PHONE} or try again in a moment.",
+    f"I'm experiencing a temporary connection issue. Please try again in a moment, or reach Admissions directly at {config.ADMISSIONS_PHONE}.",
+    f"I couldn't reach the service just now. Please try again in a moment, or call the Admissions Office at {config.ADMISSIONS_PHONE}.",
+]
+FALLBACK = FALLBACK_OPTIONS[0]
+
+
+def get_fallback_text(seed_str: str = "") -> str:
+    if not seed_str:
+        return FALLBACK
+    import hashlib
+    h = int(hashlib.md5(seed_str.encode()).hexdigest(), 16)
+    return FALLBACK_OPTIONS[h % len(FALLBACK_OPTIONS)]
 # Results of these tools are sent to the browser so it can draw a card.
 CARD_TOOLS = {"calculate_fee", "check_eligibility", "request_counsellor_callback",
               "request_campus_visit_callback", "get_contact_and_apply_links", "get_university_videos",
@@ -71,14 +83,10 @@ _CAMPUS_TOUR_CHOICE_TEXT = (
 _VIRTUAL_TOUR_CHIPS = ["🏛️ In-Person Campus Visit", "Hostel details", "Why choose SRU?"]
 _VIRTUAL_TOUR_TEXT = (
     "Here is the virtual walkthrough of our 170-acre Warangal campus!\n\n"
-    "Key highlights you can explore:\n"
-    "• **Smart Infrastructure**: Modern IoT-enabled classrooms and high-tech academic blocks.\n"
-    "• **Central Library & Research**: Comprehensive digital repository and advanced research labs.\n"
-    "• **Innovation & Incubation**: SRiX (SR Innovation Exchange) startup incubator fostering student ventures.\n"
-    "• **Sports & Student Life**: Multi-sport indoor stadium, cricket grounds, athletic tracks, and cultural spaces.\n"
-    "• **Living Facilities**: Separate secure AC & Non-AC hostels with 24/7 security, WiFi, and hygienic dining.\n\n"
-    "Watch the official 4K walkthrough and student reaction videos in the card below. "
-    f"If you'd like to visit in person, our admissions team at {config.CAMPUS_VISIT_PHONE} will be happy to host you!"
+    "• 🏛️ **Academic & Research**: Smart IoT classrooms, digital central library, and 11 specialized research centers.\n"
+    "• 🚀 **SRiX Innovation Exchange**: On-campus incubator with 14+ maker spaces supporting 171+ student startups.\n"
+    "• 🏠 **Campus Life**: Modern sports arenas, secure hostels, and a 4,000-seat dining hall.\n\n"
+    f"Explore the videos below! For an in-person guided tour, call Admissions at {config.CAMPUS_VISIT_PHONE}."
 )
 
 _VISIT_CHIPS = ["Ask counsellor to call me", "How to reach the campus", "🎥 Virtual Tour (Videos & Info)"]
@@ -198,6 +206,9 @@ async def _handle_call_error(exc, link: dict, attempt: int, model: str) -> float
     """Decide what to do after a failed model call: None = try the next model at once, a number =
     wait that long and retry; raises when there is nothing left to try."""
     kind = link["error_kind"] = _error_kind(exc)
+    err_str = str(exc).lower()
+    if "name resolution" in err_str or "clientconnectordnserror" in type(exc).__name__.lower():
+        raise exc
     if kind == "model" and link["model_idx"] + 1 < len(link["models"]):
         log.warning("Agent model %s unavailable (%s), trying the next model", model, exc)
         link["model_idx"] += 1
@@ -560,16 +571,69 @@ def _fee_args_from_message(message: str, profile: dict):
     return args
 
 
-def _handbook_context(message: str) -> str:
-    """Handbook passages for this message, found by keyword search (no AI call)."""
+def _contextual_query(
+    message: str,
+    history: list | None = None,
+    active_topic: str | None = None,
+    active_program: str | None = None,
+) -> str:
+    """Build a search query enriched with conversational context for follow-up questions."""
+    low = (message or "").lower().strip()
+    words = low.split()
+
+    if len(words) > 7 and not re.search(r"\b(?:it|this|that|these|those)\b", low):
+        return message
+
+    additions = []
+    topic = active_topic
+
+    if topic == "hostel" or any(w in low for w in ("hostel", "mess", "curfew", "warden", "ac", "non-ac", "sharing", "double", "table", "bed", "in-time")):
+        if not any(w in low for w in ("hostel", "hostels")):
+            additions.append("hostel accommodation")
+        if any(w in low for w in ("double", "table")):
+            additions.append("rooms sharing 3-sharing 4-sharing categories")
+        if any(w in low for w in ("mess", "food", "dining", "meal", "included")):
+            additions.append("mess dining Mega Dining Hall food included fee")
+        if any(w in low for w in ("ac", "non-ac", "air")):
+            additions.append("AC Non-AC room amenities power backup")
+        if any(w in low for w in ("fee", "cost", "annual", "charge", "rent")):
+            additions.append("hostel fees per year caution deposit laundry")
+
+    elif topic == "placements" or any(w in low for w in ("placement", "package", "guarantee", "guaranteed", "lpa", "jobs")):
+        if not any(w in low for w in ("placement", "placements")):
+            additions.append("placements assistance career")
+        if any(w in low for w in ("guarantee", "guaranteed", "98%", "100%")):
+            additions.append("100% placement assistance policy readiness CSSP")
+
+    elif topic in ("btech", "programs") or any(w in low for w in ("btech", "b.tech", "branch", "branches", "stream", "engineering", "ai")):
+        if not any(w in low for w in ("b.tech", "btech", "engineering")):
+            additions.append("B.Tech engineering programs branches")
+        if "ai" in low:
+            additions.append("Artificial Intelligence AI CSE AI Robotics")
+
+    elif topic in ("fee", "scholarship") or any(w in low for w in ("fee", "fees", "scholarship", "scholarships", "waiver", "concession", "eligible", "eligibility", "60%", "85%", "90%")):
+        if any(w in low for w in ("scholarship", "scholarships", "concession", "waiver", "discount")):
+            additions.append("merit scholarships fee concessions slabs intermediate cbse jee eapcet")
+        if active_program:
+            additions.append(str(active_program))
+        if any(w in low for w in ("eligible", "eligibility", "cutoff", "minimum")):
+            additions.append("eligibility criteria minimum marks")
+
+    if additions:
+        return message + " " + " ".join(additions)
+    return message
+
+
+def _handbook_context(query: str) -> str:
+    """Handbook passages for this query, found by keyword search (no AI call)."""
     try:
-        found = knowledge.search(message, k=3, min_score=3.0)
+        found = knowledge.search(query, k=3, min_score=2.5)
     except Exception:
         return ""
     if not found:
         return ""
     top = found[0]["score"]
-    parts = [f"[{f['title'].split(' > ')[-1]}]\n{f['text'][:750]}" for f in found if f["score"] >= 0.55 * top]
+    parts = [f"[{f['title'].split(' > ')[-1]}]\n{f['text'][:750]}" for f in found if f["score"] >= 0.50 * top]
     return "\n\n".join(parts)
 
 
@@ -590,10 +654,27 @@ def _offline_knowledge_reply(message: str):
             f"For anything else, please call the Admissions Office at {config.ADMISSIONS_PHONE}.")
 
 
-_LIMIT_REPLY = (f"Many students are using SRU Buddy right now and the free AI limit has been reached, so I cannot "
-                f"answer that question at the moment. I can still do these without it: calculate a fee or "
-                f"scholarship (for example \"CSE fee with 85%\"), arrange a counsellor callback (\"call me\"), "
-                f"find a faculty member, or share the campus visit contacts. You can also call the Admissions Office at {config.ADMISSIONS_PHONE}.")
+_LIMIT_REPLY_OPTIONS = [
+    (f"Many students are using SRU Buddy right now and the free AI limit has been reached, so I cannot "
+     f"answer that question at the moment. I can still do these without it: calculate a fee or "
+     f"scholarship (for example \"CSE fee with 85%\"), arrange a counsellor callback (\"call me\"), "
+     f"find a faculty member, or share the campus visit contacts. You can also call the Admissions Office at {config.ADMISSIONS_PHONE}."),
+    (f"SRU Buddy is receiving high student traffic right now and free AI capacity is momentarily full. "
+     f"However, our fee & scholarship calculator (e.g. \"CSE fee with 85%\"), counsellor callbacks (\"call me\"), "
+     f"faculty search, and campus visit details still work without it. You can also call Admissions at {config.ADMISSIONS_PHONE}."),
+    (f"The free AI query limit has been reached due to heavy traffic. I can still calculate your fees and scholarships, "
+     f"arrange a counsellor callback (\"call me\"), or share campus visit contacts. For immediate support, please call "
+     f"the Admissions Office at {config.ADMISSIONS_PHONE}."),
+]
+_LIMIT_REPLY = _LIMIT_REPLY_OPTIONS[0]
+
+
+def get_limit_reply(seed_str: str = "") -> str:
+    if not seed_str:
+        return _LIMIT_REPLY
+    import hashlib
+    h = int(hashlib.md5(seed_str.encode()).hexdigest(), 16)
+    return _LIMIT_REPLY_OPTIONS[h % len(_LIMIT_REPLY_OPTIONS)]
 
 _GREETING_ASK_NAME = [
     "Hello! Welcome to SR University. Before we get started, may I know your name?",
@@ -687,6 +768,8 @@ def _ack_question_for_name(question: str, seed: str) -> str:
 
 def _is_first_interaction_name_query(message: str) -> bool:
     msg = (message or "").strip().lower()
+    if any(k in msg for k in ("hostel", "mess", "food")):
+        return False
     if any(k in msg for k in ("fee", "fees", "scholarship", "tuition", "cost", "waiver")):
         return True
     if any(k in msg for k in ("about sru", "about sr university", "tell me about sru", "tell me about sr university",
@@ -698,7 +781,43 @@ def _is_first_interaction_name_query(message: str) -> bool:
     return False
 
 
-_SMALL_TALK_CHIPS = ["B.Tech CSE fees", "Scholarship for my marks", "Placements at SRU", "Plan a campus visit"]
+# Static response templates and catalogues are housed in responses.py
+from .responses import (
+    _SMALL_TALK_CHIPS,
+    _PLACEMENT_ASSISTANCE_CHIPS,
+    _PLACEMENT_ASSISTANCE_RESPONSES,
+    _SPECIAL_CONCESSIONS_TEXT,
+    _NEXT_GEN_TECH_TEXT,
+    _FEE_TREE_TEXT,
+    _BTECH_TREE_TEXT,
+    _BTECH_CSE_FEE_TEXT,
+    _BTECH_AI_ROBOTICS_FEE_TEXT,
+    _BTECH_ECE_FEE_TEXT,
+    _BTECH_CORE_FEE_TEXT,
+    _MANAGEMENT_FEE_TEXT,
+    _AGRICULTURE_FEE_TEXT,
+    _COMP_APP_FEE_TEXT,
+    _DESIGN_FEE_TEXT,
+    _ALL_PROGRAMS_TEXT,
+    _HOSTEL_INFO_TEXT,
+    _HOSTEL_INFO_CHIPS,
+    _HOSTEL_MESS_TEXT,
+    _HOSTEL_MESS_CHIPS,
+    _HOSTEL_CURFEW_RULES_TEXT,
+    _HOSTEL_CURFEW_CHIPS,
+    _HOSTEL_SAFETY_TEXT,
+    _HOSTEL_SAFETY_CHIPS,
+    _HOSTEL_FEE_TEXT,
+    _HOSTEL_FEE_CHIPS,
+    _COMBINED_HOSTEL_FEE_TEXT,
+    _COMBINED_HOSTEL_FEE_CHIPS,
+    _CAMPUS_CANTEEN_TEXT,
+    _CAMPUS_CANTEEN_CHIPS,
+    _ACADEMIC_EVALUATION_TEXT,
+    _ACADEMIC_EVALUATION_CHIPS,
+    _LAB_FACILITIES_TEXT,
+    _LAB_FACILITIES_CHIPS,
+)
 
 _PLACEMENT_ASSISTANCE_CHIPS = ["Top Recruiters & Packages", "Startup Incubator (SRiX)", "Placement Eligibility Rules", "Book a Campus Visit"]
 
@@ -1331,6 +1450,20 @@ async def run_agent(
     async def clear_pending():
         await set_state(pending_action=None, pending_phone=None, pending_name=None, pending_turns=0)
 
+    # Track conversational topic and program across turns
+    active_topic = conv_state.get("active_topic")
+    active_program = conv_state.get("active_program")
+
+    current_topic = followups.topic_of(message, used, active_topic=active_topic)
+    if current_topic:
+        active_topic = current_topic
+        await set_state(active_topic=active_topic)
+
+    detected_prog = fees.find_program(message) or (profile.get("program_interest") if profile else None) or ((conv_state.get("fee_intake") or {}).get("program"))
+    if detected_prog:
+        active_program = detected_prog
+        await set_state(active_program=active_program)
+
     # Detect user persona and style
     persona = intents.detect_user_persona(message, history, profile)
     if persona == "parent" and not profile.get("is_parent"):
@@ -1595,53 +1728,19 @@ async def run_agent(
             return
 
     if intent == "HOSTEL_INFO_QUERY":
-        if client is None:
-            from app.services.card_service import HOSTEL_FACILITIES_CARD
-            async for ev in _say(_HOSTEL_INFO_TEXT, message, session_id, conversation_id,
-                                 cards=[HOSTEL_FACILITIES_CARD],
-                                 suggestions=_HOSTEL_INFO_CHIPS):
-                yield ev
-            return
+        from app.services.card_service import HOSTEL_FACILITIES_CARD
+        if HOSTEL_FACILITIES_CARD not in cards:
+            cards.append(HOSTEL_FACILITIES_CARD)
 
-    if intent == "HOSTEL_MESS_QUERY":
-        if client is None:
-            async for ev in _say(_HOSTEL_MESS_TEXT, message, session_id, conversation_id,
-                                 suggestions=_HOSTEL_MESS_CHIPS):
-                yield ev
-            return
+    elif intent == "HOSTEL_FEE_QUERY":
+        from app.services.card_service import HOSTEL_FEE_CARD
+        if HOSTEL_FEE_CARD not in cards:
+            cards.append(HOSTEL_FEE_CARD)
 
-    if intent == "HOSTEL_CURFEW_RULES_QUERY":
-        if client is None:
-            async for ev in _say(_HOSTEL_CURFEW_RULES_TEXT, message, session_id, conversation_id,
-                                 suggestions=_HOSTEL_CURFEW_CHIPS):
-                yield ev
-            return
-
-    if intent == "HOSTEL_SAFETY_QUERY":
-        if client is None:
-            async for ev in _say(_HOSTEL_SAFETY_TEXT, message, session_id, conversation_id,
-                                 suggestions=_HOSTEL_SAFETY_CHIPS):
-                yield ev
-            return
-
-    if intent == "HOSTEL_FEE_QUERY":
-        if client is None:
-            from app.services.card_service import HOSTEL_FEE_CARD
-            async for ev in _say(_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
-                                 cards=[HOSTEL_FEE_CARD],
-                                 suggestions=_HOSTEL_FEE_CHIPS):
-                yield ev
-            return
-
-    if intent == "COMBINED_FEE_HOSTEL_QUERY":
-        has_profile_marks = bool(profile.get("percent") or profile.get("marks") or profile.get("jee") or profile.get("eapcet"))
-        if not has_profile_marks and client is None:
-            from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
-            async for ev in _say(_COMBINED_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
-                                 cards=[BTECH_CSE_WITH_HOSTEL_FEE_CARD],
-                                 suggestions=_COMBINED_HOSTEL_FEE_CHIPS):
-                yield ev
-            return
+    elif intent == "COMBINED_FEE_HOSTEL_QUERY":
+        from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
+        if BTECH_CSE_WITH_HOSTEL_FEE_CARD not in cards:
+            cards.append(BTECH_CSE_WITH_HOSTEL_FEE_CARD)
 
     if intent == "CAMPUS_CANTEEN_QUERY":
         if client is None:
@@ -1891,7 +1990,17 @@ async def run_agent(
             r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee|exact\s+fee)\b",
             low_msg,
         ))
-        if conv_state.get("fee_intake") or is_scholarship_calc_q:
+        if bool(re.search(
+            r"\b(?:what\s+scholarships|which\s+scholarships|scholarships\s+available|scholarship\s+options|list\s+of\s+scholarships|tell\s+me\s+about\s+scholarships)\b",
+            low_msg,
+        )):
+            is_scholarship_calc_q = False
+        is_score_msg = bool(re.search(
+            r"\b(?:\d{2,4}\s*marks?|scored\s+\d{2,4}|got\s+\d{2,4}|secured\s+\d{2,4}|obtained\s+\d{2,4}|"
+            r"\d{2,4}\s*(?:/|out\s+of)\s*\d{3,4}|\d{1,2}(?:\.\d+)?\s*%|cgpa\s*[:=]?\s*\d|\d\s*cgpa)\b",
+            low_msg,
+        )) or bool(re.fullmatch(r"\s*\d{2,4}(?:\.\d+)?\s*%?\s*", low_msg))
+        if conv_state.get("fee_intake") or is_scholarship_calc_q or (is_score_msg and client is None):
             intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
                 await set_state(fee_intake=intake_decision["state"])
@@ -1970,6 +2079,13 @@ async def run_agent(
                 yield ev
             return
 
+    if is_about_sru_query(message):
+        from app.services.card_service import generate_cards
+        why_cards = generate_cards(message, "", session_id=session_id)
+        for wc in why_cards:
+            if wc not in cards:
+                cards.append(wc)
+
     # Do the look-ups the code can do for free, so the model can usually answer in ONE call:
     # the fee calculation for a plain fee question, and the handbook passages for everything else.
     prefetched_fee = None
@@ -2005,7 +2121,8 @@ async def run_agent(
         import json as _json
         faculty_note = _json.dumps({k: v for k, v in prefetched_faculty.items() if k != "status"},
                                    ensure_ascii=False)[:3500]
-    passages = "" if (prefetched_fee or prefetched_faculty) else _handbook_context(message)
+    search_q = _contextual_query(message, history, active_topic=active_topic, active_program=active_program)
+    passages = "" if (prefetched_fee or prefetched_faculty) else _handbook_context(search_q)
 
     models = []
     for m in (config.AGENT_MODEL, *_FALLBACK_MODELS):
@@ -2101,6 +2218,61 @@ async def run_agent(
                 yield ev
             return
         if not used:
+            if intent == "PLACEMENT_GUARANTEE_QUERY":
+                from app.services.card_service import PLACEMENT_EXCELLENCE_CARD
+                reply = _select_variation(_PLACEMENT_ASSISTANCE_RESPONSES, session_id + str(len(history)))
+                async for ev in _say(reply, message, session_id, conversation_id,
+                                     cards=[PLACEMENT_EXCELLENCE_CARD],
+                                     suggestions=_PLACEMENT_ASSISTANCE_CHIPS):
+                    yield ev
+                return
+            if intent == "HOSTEL_INFO_QUERY":
+                from app.services.card_service import HOSTEL_FACILITIES_CARD
+                hostel_text = responses.get_hostel_info_text(session_id, message)
+                async for ev in _say(hostel_text, message, session_id, conversation_id,
+                                     cards=[HOSTEL_FACILITIES_CARD],
+                                     suggestions=_HOSTEL_INFO_CHIPS):
+                    yield ev
+                return
+            if intent == "HOSTEL_MESS_QUERY":
+                async for ev in _say(_HOSTEL_MESS_TEXT, message, session_id, conversation_id,
+                                     suggestions=_HOSTEL_MESS_CHIPS):
+                    yield ev
+                return
+            if intent == "HOSTEL_CURFEW_RULES_QUERY":
+                async for ev in _say(_HOSTEL_CURFEW_RULES_TEXT, message, session_id, conversation_id,
+                                     suggestions=_HOSTEL_CURFEW_CHIPS):
+                    yield ev
+                return
+            if intent == "HOSTEL_SAFETY_QUERY":
+                async for ev in _say(_HOSTEL_SAFETY_TEXT, message, session_id, conversation_id,
+                                     suggestions=_HOSTEL_SAFETY_CHIPS):
+                    yield ev
+                return
+            if intent == "HOSTEL_FEE_QUERY":
+                from app.services.card_service import HOSTEL_FEE_CARD
+                async for ev in _say(_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
+                                     cards=[HOSTEL_FEE_CARD],
+                                     suggestions=_HOSTEL_FEE_CHIPS):
+                    yield ev
+                return
+            if intent == "COMBINED_FEE_HOSTEL_QUERY":
+                from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
+                async for ev in _say(_COMBINED_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
+                                     cards=[BTECH_CSE_WITH_HOSTEL_FEE_CARD],
+                                     suggestions=_COMBINED_HOSTEL_FEE_CHIPS):
+                    yield ev
+                return
+            if is_about_sru_query(message):
+                from app.services.card_service import generate_cards
+                why_text = responses.get_why_choose_sru_text(variant_id=variant_id, session_id=session_id)
+                why_cards = generate_cards(message, why_text, session_id=session_id)
+                async for ev in _say(why_text, message, session_id, conversation_id,
+                                     cards=why_cards,
+                                     suggestions=responses._WHY_CHOOSE_SRU_CHIPS):
+                    yield ev
+                return
+
             offline = _offline_fee_reply(message, ctx, prefetched_fee)
             if offline:
                 text, fee = offline
@@ -2111,14 +2283,12 @@ async def run_agent(
                                      [{"type": "calculate_fee", "data": fee}]):
                     yield ev
                 return
-        if link.get("error_kind") in ("rate", "busy"):
-            # The AI limit is reached: give the handbook passage if one fits, else say what still works.
-            text = (None if used else _offline_knowledge_reply(message)) or _LIMIT_REPLY
-            async for ev in _say(text, message, session_id, conversation_id, used, cards,
-                                 ["CSE fee with 85%", "Call me", "Plan a campus visit"]):
-                yield ev
-            return
-        yield {"type": "error", "detail": FALLBACK}
+
+        # When model is unavailable (quota, rate limit, or sandbox network): give handbook passage if one fits, else say what still works.
+        text = (None if used else (_offline_knowledge_reply(search_q) or _offline_knowledge_reply(message))) or get_limit_reply(session_id)
+        async for ev in _say(text, message, session_id, conversation_id, used, cards,
+                             ["CSE fee with 85%", "Call me", "Plan a campus visit"]):
+            yield ev
         return
 
     if prefetched_fee:  # the model answered from the calculation the code had already done
@@ -2159,7 +2329,7 @@ async def run_agent(
     if saved_now:
         await clear_pending()
 
-    final = final or canned_action_text or FALLBACK
+    final = final or canned_action_text or get_fallback_text(session_id)
     if not streamed:
         for piece in _chunks(final):
             yield {"type": "token", "delta": piece}
@@ -2202,13 +2372,12 @@ async def run_agent(
 
     suggestions = []
     try:
-        from . import followups
         department = None
         fac = next((c["data"] for c in cards if c.get("type") == "find_faculty"), None)
         if fac:
             department = fac.get("department") or next(
                 (p.get("department") for p in fac.get("faculty") or [] if p.get("department")), None)
-        suggestions = followups.suggest(message, used, ctx.get("profile"), department)
+        suggestions = followups.suggest(message, used, ctx.get("profile"), department, history=history, active_topic=active_topic)
     except Exception as sugg_err:
         log.warning("Could not generate suggestions for agent: %s", sugg_err)
 

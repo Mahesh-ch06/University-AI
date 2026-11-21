@@ -258,9 +258,7 @@ def test_170_acres_in_campus_tour_and_advantage_cards():
 
 
 def test_programs_offered_card_trigger():
-    """Verify courses/programs inquiries trigger PROGRAMS_OFFERED_CARD with all 6 schools + Ph.D."""
-    from app.services.card_service import PROGRAMS_OFFERED_CARD
-
+    """Verify courses/programs inquiries do NOT trigger the deprecated programs_offered card."""
     for query in (
         "what courses are offered by sru?",
         "what can i study at sru",
@@ -272,21 +270,8 @@ def test_programs_offered_card_trigger():
             user_message=query,
             answer="SR University offers programs across 6 multidisciplinary schools.",
         )
-        assert len(cards) >= 1
         programs_cards = [c for c in cards if c.get("type") == "programs_offered"]
-        assert len(programs_cards) == 1
-        card = programs_cards[0]
-        assert card["type"] == "programs_offered"
-        assert len(card["schools"]) == 7  # 6 schools + Doctoral Studies
-
-        school_names = [s["short_name"] for s in card["schools"]]
-        assert "CS & AI" in school_names
-        assert "Engineering" in school_names
-        assert "Business" in school_names
-        assert "Agriculture" in school_names
-        assert "Design" in school_names
-        assert "Sciences & Humanities" in school_names
-        assert "Ph.D. Studies" in school_names
+        assert len(programs_cards) == 0, f"programs_offered card should be removed, but was found for '{query}'"
 
 
 def test_course_fee_query_does_not_trigger_programs_card():
