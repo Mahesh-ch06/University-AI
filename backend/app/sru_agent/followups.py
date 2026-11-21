@@ -59,9 +59,23 @@ def _short_dept(name: str) -> str:
             .replace("Astra School of Business", "the business school").replace("School of ", ""))
 
 
-def _chips(topic: str, program: str | None, department: str | None) -> list[str]:
+def _chips(topic: str, program: str | None, department: str | None, message: str = "") -> list[str]:
     p = program or "B.Tech CSE"
     mine = program or "my course"
+    low = (message or "").lower()
+
+    if topic == "hostel":
+        if re.search(r"\b(?:fee|fees|cost|price|how\s+much|rent|pay)\b", low):
+            return ["AC vs Non-AC room fees", "Mess charges", "Double-sharing availability", "Hostel fee payment details"]
+        if re.search(r"\b(?:mess|food|dining|meal|canteen|eating)\b", low):
+            return ["Does fee include mess?", "Mess timings & food", "AC vs Non-AC room fees", "Hostel in-time rules"]
+        return ["AC vs Non-AC room fees", "Mess & dining facilities", "Hostel in-time rules", "Hostel room sharing options"]
+
+    if topic == "placements":
+        if re.search(r"\b(?:guarantee|guaranteed|98%|100%|sure)\b", low):
+            return ["Placement assistance policy", "Top recruiters & packages", "Average package by branch", "Internship training"]
+        return ["Top recruiters & packages", "Average package by branch", "Placement training and internships", "Placement assistance policy"]
+
     table = {
         "fee_personal": ["Special category concessions", f"Add hostel to my {mine} fee",
                          f"Eligibility for {p}", "How do I apply for 2027-28?", "How is the fee paid each semester?"],
@@ -82,9 +96,9 @@ def _chips(topic: str, program: str | None, department: str | None) -> list[str]
                      "Deans of all schools"] if department else
                     ["Heads of all departments", "Deans of all schools", "Faculty working on AI",
                      "Research centres at SRU"]),
-        "placements": ["Top recruiters", "Placement training and internships", f"{p} fee and scholarship",
-                       "Why choose SRU?"],
-        "hostel": ["Hostel fee (AC / Non-AC)", "Hostel in-time rules", "Mess and food", "Hostel safety and wardens"],
+        "placements": ["Top recruiters & packages", "Average package by branch", "Placement training and internships",
+                       "Placement assistance policy"],
+        "hostel": ["AC vs Non-AC room fees", "Mess & dining facilities", "Hostel in-time rules", "Hostel room sharing options"],
         "transport": ["Bus routes and stops", "Transport fee", "Hostel options", "How to reach the campus"],
         "tour_choice": ["🎥 Virtual Tour (Videos & Info)", "🏛️ In-Person Campus Visit"],
         "virtual_tour": ["🏛️ In-Person Campus Visit", "Hostel details", "Why choose SRU?"],
@@ -104,7 +118,7 @@ def _chips(topic: str, program: str | None, department: str | None) -> list[str]
     return table.get(topic, table["default"])
 
 
-_STOP = set("the a an of for to and or my is are what how do i me in on at with about sru".split())
+_STOP = set("the a an of for to and or my is are what how do i me in on at with about sru tell can".split())
 
 
 def _overlaps(chip: str, message: str) -> bool:
@@ -116,25 +130,46 @@ def _overlaps(chip: str, message: str) -> bool:
     return sum(1 for w in words if w in msg) / len(words) >= 0.5
 
 
-def topic_of(message: str, tools_used: list | None = None) -> str:
+def topic_of(message: str, tools_used: list | None = None, active_topic: str | None = None) -> str:
     for t in tools_used or []:
         name = t.get("name") if isinstance(t, dict) else t
         if name in _TOOL_TOPIC and (not isinstance(t, dict) or t.get("status") in ("ok", "saved", "calculated")):
             return _TOOL_TOPIC[name]
+    low = (message or "").lower()
+    if active_topic == "hostel" and re.search(r"\b(?:fee|fees|cost|how\s+much|charge|charges|rent|annual\s+fee)\b", low):
+        if not re.search(r"\b(?:b\.?tech|m\.?tech|bba|mba|bca|mca|b\.?sc|course|branch|engineering|tuition)\b", low):
+            return "hostel"
     for topic, pattern in _TOPICS:
         if re.search(pattern, message or "", re.IGNORECASE):
             return topic
+    if active_topic and active_topic in (
+        "hostel", "placements", "fee", "scholarship", "programs", "faculty", "campus_visit", "transport", "concessions"
+    ):
+        return active_topic
     return "default"
 
 
 def suggest(message: str, tools_used: list | None = None, profile: dict | None = None,
-            department: str | None = None, limit: int = 4) -> list[str]:
-    topic = topic_of(message, tools_used)
-    if topic == "hostel" and re.search(r"\b(?:fee|fees|cost|how\s+much)\b", message or "", re.IGNORECASE):
-        chips = ["Add hostel to my fee", "Hostel in-time rules", "Mess and food", "Hostel safety and wardens"]
-    else:
-        chips = _chips(topic, _short_program(profile or {}), department)
+            department: str | None = None, limit: int = 4, history: list | None = None,
+            active_topic: str | None = None) -> list[str]:
+    topic = topic_of(message, tools_used, active_topic=active_topic)
+    chips = _chips(topic, _short_program(profile or {}), department, message=message)
     if topic == "career_guidance":
         return chips[:limit]
-    picked = [c for c in chips if not _overlaps(c, message or "")]
+
+    # Collect past questions from history to avoid repeating recent queries
+    past_queries = set()
+    for h in (history or [])[-4:]:
+        if h.get("role") == "user":
+            past_queries.add(h.get("text", "").lower())
+
+    picked = []
+    for c in chips:
+        if _overlaps(c, message or ""):
+            continue
+        if any(_overlaps(c, pq) for pq in past_queries):
+            continue
+        picked.append(c)
+
     return (picked if len(picked) >= 2 else chips)[:limit]
+

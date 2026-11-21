@@ -12,40 +12,40 @@ _PLACEMENT_ASSISTANCE_CHIPS = ["Top Recruiters & Packages", "Startup Incubator (
 _PLACEMENT_ASSISTANCE_RESPONSES = [
     """At **SR University**, we provide **100% placement assistance** to all eligible students.
 
-While final job offers depend on interview clearance, SRU delivers full career preparation:
+While final job offers depend on student interview performance, SRU delivers full career preparation:
 
 • 💼 **Top Recruiters**: 150+ companies visit campus (Microsoft, Amazon, ServiceNow) with 1,300+ offers.
-• 📊 **Packages**: **6 to 6.5 LPA** average, with top offers reaching **₹51 LPA**.
+• 📊 **Packages**: **6 to 6.5 LPA** average, with top offers reaching **₹51 LPA**, **₹49.30 LPA**, and **₹46.38 LPA**.
 • 🚀 **Startup Incubator (SRiX)**: DST-supported on-campus incubator with ₹76+ Cr funding.
 
 Would you like placement stats for a specific branch?""",
 
     """**SR University assures 100% placement assistance** and structured training for every eligible graduate.
 
-Because final selection depends on interview performance, placements are actively supported:
+Because final selection depends on student interview performance, placements are actively supported:
 
-• 🎯 **150+ Hiring Partners**: Campus drives with top MNCs (Amazon, Microsoft, ServiceNow) and coding prep.
-• 📈 **Proven Outcomes**: **6 to 6.5 LPA** average salary, with highest offers up to **₹51 LPA**.
+• 🎯 **150+ Hiring Partners**: 1,300+ campus offers from top MNCs (Amazon, Microsoft, ServiceNow) with coding prep.
+• 📈 **Proven Outcomes**: **6 to 6.5 LPA** average salary, with highest offers of **₹51 LPA**, **₹49.30 LPA**, and **₹46.38 LPA**.
 • 💡 **Innovation at SRiX**: Maker spaces and seed funding to launch your own startup.
 
 Which engineering stream are you most interested in?""",
 
-    """At **SR University**, we deliver **100% placement assistance and career pathways** for all eligible students.
+    """At **SR University**, we deliver **100% placement assistance** for all eligible students.
 
 Hiring depends on student interview success, and SRU equips you with end-to-end readiness:
 
-• 💼 **Comprehensive Training**: Mock interviews, hackathons, and 3,500+ internships with stipends up to ₹1.25L/month.
-• 📊 **Verified Salaries**: **6 to 6.5 LPA** average package, with top offers reaching **₹51 LPA**.
-• 🚀 **Entrepreneurship**: Access to **SRiX**, our ₹76+ Cr DST-backed incubator.
+• 💼 **Corporate Drives**: 150+ marquee companies (Microsoft, Amazon, ServiceNow) with 1,300+ offers and internships.
+• 📊 **Verified Salaries**: **6 to 6.5 LPA** average package, with top offers of **₹51 LPA**, **₹49.30 LPA**, and **₹46.38 LPA**.
+• 🚀 **Startup Hub (SRiX)**: Access to our ₹76+ Cr DST-backed incubator.
 
 Would you like to know more about internships or branch placements?""",
 
-    """**SR University provides 100% placement support** and structured guidance to every eligible student.
+    """**SR University provides 100% placement assistance** and structured guidance to every eligible student.
 
-Offers reflect individual interview clearance, backed by our extensive recruitment ecosystem:
+Offers reflect individual student interview clearance, backed by our extensive recruitment ecosystem:
 
-• 🎯 **Corporate Drives**: Direct recruitment by **150+ marquee companies** with 1,300+ offers.
-• 📈 **Verified Packages**: **6 to 6.5 LPA** average CTC, with peak packages up to **₹51 LPA**.
+• 🎯 **Corporate Drives**: Direct recruitment by **150+ marquee companies** (Microsoft, Amazon, ServiceNow) with 1,300+ offers.
+• 📈 **Verified Packages**: **6 to 6.5 LPA** average CTC, with peak packages of **₹51 LPA**, **₹49.30 LPA**, and **₹46.38 LPA**.
 • 🛠️ **Startup Hub (SRiX)**: Incubation with prototyping labs and mentorship for founders.
 
 Can I share details for a specific department or recruiter?""",
