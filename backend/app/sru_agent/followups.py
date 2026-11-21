@@ -21,6 +21,7 @@ _TOPICS = [
     ("transport", r"\b(?:bus|buses|transport|transportation|commute|route|routes)\b"),
     ("hostel", r"\b(?:hostels?|mess|warden|curfew|in-?time|room\s+(?:type|sharing)|ac\s+room|non-?ac)\b"),
     ("compare", r"\b(?:vs|versus|compare|comparison|difference\s+between|better\s+than)\b"),
+    ("career_guidance", r"\b(?:confused|not\s+sure|don'?t\s+know|what\s+(?:to|should\s+i)\s+study|which\s+(?:course|branch|stream)|options?\s+after\s+(?:mpc|bipc|inter|12th)|career\s+options?|suggest\s+a\s+course|what\s+clicks)\b"),
     ("scholarship", r"\b(?:scholarships?|waiver|merit)\b"),
     ("fee", r"\b(?:fee|fees|fess|tuition|cost|how\s+much|per\s+sem\w*)\b"),
     ("eligibility", r"\b(?:eligib\w*|cut-?off|minimum\s+marks|can\s+i\s+(?:join|get|apply))\b"),
@@ -75,6 +76,7 @@ def _chips(topic: str, program: str | None, department: str | None) -> list[str]
         "programs": [f"{p} fee and scholarship", f"Eligibility for {p}", "Who are the faculty?", f"Placements for {p}"],
         "compare": ["Scholarship for my marks", "Placement record by branch", "Faculty in each department",
                     "How do I apply for 2027-28?"],
+        "career_guidance": ["I like computers", "I like building things", "People and numbers", "Still not sure"],
         "faculty": ([f"Faculty research areas in {_short_dept(department)}", f"Placements for {p}",
                      "Heads of all departments",
                      "Deans of all schools"] if department else
@@ -132,5 +134,7 @@ def suggest(message: str, tools_used: list | None = None, profile: dict | None =
         chips = ["Add hostel to my fee", "Hostel in-time rules", "Mess and food", "Hostel safety and wardens"]
     else:
         chips = _chips(topic, _short_program(profile or {}), department)
+    if topic == "career_guidance":
+        return chips[:limit]
     picked = [c for c in chips if not _overlaps(c, message or "")]
     return (picked if len(picked) >= 2 else chips)[:limit]

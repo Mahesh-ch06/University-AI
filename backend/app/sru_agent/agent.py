@@ -30,14 +30,26 @@ except ImportError:
     genai = None
     types = None
 
-from . import affordability, config, faculty, fee_flow, fee_intake, fees, intents, knowledge, memory, tools
+from . import affordability, config, faculty, fee_flow, fee_intake, fees, intents, knowledge, memory, responses, tools
 from .prompt import build_system_prompt
 
 log = logging.getLogger("sru_agent")
 _client = None
 
-FALLBACK = (f"I'm having trouble right now. Please call the Admissions Office at "
-            f"{config.ADMISSIONS_PHONE} or try again in a moment.")
+FALLBACK_OPTIONS = [
+    f"I'm having trouble right now. Please call the Admissions Office at {config.ADMISSIONS_PHONE} or try again in a moment.",
+    f"I'm experiencing a temporary connection issue. Please try again in a moment, or reach Admissions directly at {config.ADMISSIONS_PHONE}.",
+    f"I couldn't reach the service just now. Please try again in a moment, or call the Admissions Office at {config.ADMISSIONS_PHONE}.",
+]
+FALLBACK = FALLBACK_OPTIONS[0]
+
+
+def get_fallback_text(seed_str: str = "") -> str:
+    if not seed_str:
+        return FALLBACK
+    import hashlib
+    h = int(hashlib.md5(seed_str.encode()).hexdigest(), 16)
+    return FALLBACK_OPTIONS[h % len(FALLBACK_OPTIONS)]
 # Results of these tools are sent to the browser so it can draw a card.
 CARD_TOOLS = {"calculate_fee", "check_eligibility", "request_counsellor_callback",
               "request_campus_visit_callback", "get_contact_and_apply_links", "get_university_videos",
@@ -71,14 +83,10 @@ _CAMPUS_TOUR_CHOICE_TEXT = (
 _VIRTUAL_TOUR_CHIPS = ["🏛️ In-Person Campus Visit", "Hostel details", "Why choose SRU?"]
 _VIRTUAL_TOUR_TEXT = (
     "Here is the virtual walkthrough of our 170-acre Warangal campus!\n\n"
-    "Key highlights you can explore:\n"
-    "• **Smart Infrastructure**: Modern IoT-enabled classrooms and high-tech academic blocks.\n"
-    "• **Central Library & Research**: Comprehensive digital repository and advanced research labs.\n"
-    "• **Innovation & Incubation**: SRiX (SR Innovation Exchange) startup incubator fostering student ventures.\n"
-    "• **Sports & Student Life**: Multi-sport indoor stadium, cricket grounds, athletic tracks, and cultural spaces.\n"
-    "• **Living Facilities**: Separate secure AC & Non-AC hostels with 24/7 security, WiFi, and hygienic dining.\n\n"
-    "Watch the official 4K walkthrough and student reaction videos in the card below. "
-    f"If you'd like to visit in person, our admissions team at {config.CAMPUS_VISIT_PHONE} will be happy to host you!"
+    "• 🏛️ **Academic & Research**: Smart IoT classrooms, digital central library, and 11 specialized research centers.\n"
+    "• 🚀 **SRiX Innovation Exchange**: On-campus incubator with 14+ maker spaces supporting 171+ student startups.\n"
+    "• 🏠 **Campus Life**: Modern sports arenas, secure hostels, and a 4,000-seat dining hall.\n\n"
+    f"Explore the videos below! For an in-person guided tour, call Admissions at {config.CAMPUS_VISIT_PHONE}."
 )
 
 _VISIT_CHIPS = ["Ask counsellor to call me", "How to reach the campus", "🎥 Virtual Tour (Videos & Info)"]
@@ -590,10 +598,27 @@ def _offline_knowledge_reply(message: str):
             f"For anything else, please call the Admissions Office at {config.ADMISSIONS_PHONE}.")
 
 
-_LIMIT_REPLY = (f"Many students are using SRU Buddy right now and the free AI limit has been reached, so I cannot "
-                f"answer that question at the moment. I can still do these without it: calculate a fee or "
-                f"scholarship (for example \"CSE fee with 85%\"), arrange a counsellor callback (\"call me\"), "
-                f"find a faculty member, or share the campus visit contacts. You can also call the Admissions Office at {config.ADMISSIONS_PHONE}.")
+_LIMIT_REPLY_OPTIONS = [
+    (f"Many students are using SRU Buddy right now and the free AI limit has been reached, so I cannot "
+     f"answer that question at the moment. I can still do these without it: calculate a fee or "
+     f"scholarship (for example \"CSE fee with 85%\"), arrange a counsellor callback (\"call me\"), "
+     f"find a faculty member, or share the campus visit contacts. You can also call the Admissions Office at {config.ADMISSIONS_PHONE}."),
+    (f"SRU Buddy is receiving high student traffic right now and free AI capacity is momentarily full. "
+     f"However, our fee & scholarship calculator (e.g. \"CSE fee with 85%\"), counsellor callbacks (\"call me\"), "
+     f"faculty search, and campus visit details still work without it. You can also call Admissions at {config.ADMISSIONS_PHONE}."),
+    (f"The free AI query limit has been reached due to heavy traffic. I can still calculate your fees and scholarships, "
+     f"arrange a counsellor callback (\"call me\"), or share campus visit contacts. For immediate support, please call "
+     f"the Admissions Office at {config.ADMISSIONS_PHONE}."),
+]
+_LIMIT_REPLY = _LIMIT_REPLY_OPTIONS[0]
+
+
+def get_limit_reply(seed_str: str = "") -> str:
+    if not seed_str:
+        return _LIMIT_REPLY
+    import hashlib
+    h = int(hashlib.md5(seed_str.encode()).hexdigest(), 16)
+    return _LIMIT_REPLY_OPTIONS[h % len(_LIMIT_REPLY_OPTIONS)]
 
 _GREETING_ASK_NAME = [
     "Hello! Welcome to SR University. Before we get started, may I know your name?",
@@ -1037,7 +1062,8 @@ async def run_agent(
     if intent == "HOSTEL_INFO_QUERY":
         if client is None:
             from app.services.card_service import HOSTEL_FACILITIES_CARD
-            async for ev in _say(_HOSTEL_INFO_TEXT, message, session_id, conversation_id,
+            hostel_text = responses.get_hostel_info_text(session_id, message)
+            async for ev in _say(hostel_text, message, session_id, conversation_id,
                                  cards=[HOSTEL_FACILITIES_CARD],
                                  suggestions=_HOSTEL_INFO_CHIPS):
                 yield ev
@@ -1408,6 +1434,16 @@ async def run_agent(
                 yield ev
             return
 
+    if is_about_sru_query(message) and client is None:
+        from app.services.card_service import generate_cards
+        why_text = responses.get_why_choose_sru_text(variant_id=variant_id, session_id=session_id)
+        why_cards = generate_cards(message, why_text, session_id=session_id)
+        async for ev in _say(why_text, message, session_id, conversation_id,
+                             cards=why_cards,
+                             suggestions=responses._WHY_CHOOSE_SRU_CHIPS):
+            yield ev
+        return
+
     # Do the look-ups the code can do for free, so the model can usually answer in ONE call:
     # the fee calculation for a plain fee question, and the handbook passages for everything else.
     prefetched_fee = None
@@ -1551,12 +1587,12 @@ async def run_agent(
                 return
         if link.get("error_kind") in ("rate", "busy"):
             # The AI limit is reached: give the handbook passage if one fits, else say what still works.
-            text = (None if used else _offline_knowledge_reply(message)) or _LIMIT_REPLY
+            text = (None if used else _offline_knowledge_reply(message)) or get_limit_reply(session_id)
             async for ev in _say(text, message, session_id, conversation_id, used, cards,
                                  ["CSE fee with 85%", "Call me", "Plan a campus visit"]):
                 yield ev
             return
-        yield {"type": "error", "detail": FALLBACK}
+        yield {"type": "error", "detail": get_fallback_text(session_id)}
         return
 
     if prefetched_fee:  # the model answered from the calculation the code had already done
@@ -1597,7 +1633,7 @@ async def run_agent(
     if saved_now:
         await clear_pending()
 
-    final = final or canned_action_text or FALLBACK
+    final = final or canned_action_text or get_fallback_text(session_id)
     if not streamed:
         for piece in _chunks(final):
             yield {"type": "token", "delta": piece}

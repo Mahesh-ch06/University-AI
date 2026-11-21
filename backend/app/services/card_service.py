@@ -341,18 +341,6 @@ def _build_hostel_facilities_card() -> dict:
         "type": "hostel_facilities",
         "title": "SR University Residential Living & Campus Hostels",
         "subtitle": "Safe, vibrant, and disciplined residential living on campus",
-        "blocks": [
-            {
-                "type": "Boys Hostels",
-                "blocks": "Dr. Sarvepalli Radhakrishnan Bhavan & APJ Abdul Kalam Bhavan",
-                "warden": "Dr. Rupesh Mishra (9716935695) & Dr. Anshu Kumar (6394355001)",
-            },
-            {
-                "type": "Girls Hostels",
-                "blocks": "Kalpana Chawla Bhavan & Sarojini Naidu Bhavan",
-                "warden": "Ms. Anitha GP (9599042878, stu.girlshostel@sru.edu.in)",
-            },
-        ],
         "room_types": [
             {
                 "name": "3-Sharing & 4-Sharing AC",
@@ -401,12 +389,6 @@ def _build_hostel_facilities_card() -> dict:
             "Digital Out-Pass: Required via Sruniv portal with parent SMS verification",
             "Zero Tolerance: 100% ragging-free campus, anti-substance policy & 10:00 PM silence hours",
         ],
-        "contacts": {
-            "girls_warden": "Ms. Anitha GP (9599042878, stu.girlshostel@sru.edu.in)",
-            "boys_wardens": "Dr. Rupesh Mishra (9716935695) & Dr. Anshu Kumar (6394355001)",
-            "boys_counsellor": "Mr. Benson (7893525257)",
-            "girls_counsellor": "Ms. Swapna (7207672300)",
-        },
     }
 
 
@@ -1037,19 +1019,6 @@ def generate_cards(
         "cse" in msg_lower or "computer science" in msg_lower or "engineering" in msg_lower
     ):
         cards.append(CURRICULUM_CARD)
-
-    # 3b. Academic Programs & Courses Offered card
-    is_courses_query = any(
-        k in msg_lower for k in (
-            "course", "courses", "programs", "programmes", "what can i study",
-            "what does sru offer", "courses offered", "programs offered",
-            "degrees offered", "branches available", "what streams", "degrees",
-            "schools and courses", "which courses", "all courses", "list of courses",
-            "what to study", "fields of study", "specializations offered", "schools offered"
-        )
-    ) and not any(k in msg_lower for k in ("fee", "fees", "cost", "how much", "tuition", "vs", "compare", "curriculum", "syllabus"))
-    if is_courses_query:
-        cards.append(PROGRAMS_OFFERED_CARD)
 
     # 4. Placement Highlights card ("Three Consecutive Years of Excellence")
     if any(k in msg_lower for k in ("placement", "placements", "highest package", "average package", "recruiters", "job offers", "internship", "internships", "superstar", "highest offer", "salary", "ctc", "highest ctc", "jobs", "career", "companies visiting", "recruitment")):

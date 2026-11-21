@@ -32,18 +32,60 @@ function closeWidget() {
   }
 }
 
-const DEFAULT_WELCOME_MESSAGE: MessageData = {
-  id: "welcome-sru-buddy",
-  role: "assistant",
-  content: "Welcome to SR University! \n\nI’m SRU Buddy, your AI companion at a Next-Gen Living and Learning Campus.\n\n🏆 Top Private University in Telangana & AP\n\nWhich program are you interested in? I’ll guide you on eligibility, fees, scholarships and campus life.\n\n🌐 Ask in English, हिंदी, తెలుగు or any language. ",
-  created_at: new Date().toISOString(),
-  suggestions: [
-    "What B.Tech programmes are offered?",
-    "Calculate my scholarship",
-    "Hostel fees & facilities",
-    "How to apply for admission?",
-  ],
-};
+const WELCOME_VARIANTS: Array<{ content: string; suggestions: string[] }> = [
+  {
+    content:
+      "Welcome to SR University! I'm SRU Buddy, your official AI admissions guide.\n\nI can help you explore programs, calculate fees and scholarships, or learn about campus life.\n\nWhich course or stream are you interested in?\n\n🌐 Ask in English, తెలుగు, or हिंदी.",
+    suggestions: [
+      "B.Tech programmes offered",
+      "Calculate my scholarship",
+      "Hostel fees & facilities",
+      "How to apply for 2027-28",
+    ],
+  },
+  {
+    content:
+      "Hello! Welcome to SR University. I'm SRU Buddy.\n\nWhether you're deciding on a course, calculating fee waivers, or exploring hostel life, I'm here to help.\n\nWhat would you like to explore first?\n\n🌐 Feel free to ask in English, తెలుగు, or हिंदी.",
+    suggestions: [
+      "B.Tech CSE fees",
+      "Help me choose a course",
+      "Campus life & hostels",
+      "Placement records",
+    ],
+  },
+  {
+    content:
+      "Welcome! I'm SRU Buddy, your AI companion for SR University admissions.\n\nAsk me anything about programs, eligibility criteria, merit scholarships up to 40%, or life on our 170-acre campus.\n\nHow can I help you today?\n\n🌐 You can chat in English, తెలుగు, or हिंदी.",
+    suggestions: [
+      "Scholarship for my marks",
+      "Explore B.Tech streams",
+      "Hostel rooms & mess food",
+      "Talk to a counsellor",
+    ],
+  },
+];
+
+export function getInitialWelcomeMessage(seed: string = ""): MessageData {
+  let idx = 0;
+  if (seed) {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash << 5) - hash + seed.charCodeAt(i);
+      hash |= 0;
+    }
+    idx = Math.abs(hash) % WELCOME_VARIANTS.length;
+  }
+  const v = WELCOME_VARIANTS[idx];
+  return {
+    id: "welcome-sru-buddy",
+    role: "assistant",
+    content: v.content,
+    created_at: new Date().toISOString(),
+    suggestions: v.suggestions,
+  };
+}
+
+export const DEFAULT_WELCOME_MESSAGE: MessageData = getInitialWelcomeMessage();
 
 const MESSAGE_RENDER_WINDOW = 60;
 
@@ -80,7 +122,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     return Boolean(details?.name?.trim() && cleanPhone(details?.phone || ""));
   };
 
-  const [messages, setMessages] = useState<MessageData[]>([DEFAULT_WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<MessageData[]>(() => [getInitialWelcomeMessage(sessionId)]);
   const [showInlineLeadForm, setShowInlineLeadForm] = useState<boolean>(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
@@ -436,7 +478,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     setStreamingMsgId(null);
     setActiveConvId(null);
     activeConvIdRef.current = null;
-    setMessages([DEFAULT_WELCOME_MESSAGE]);
+    setMessages([getInitialWelcomeMessage(sessionId + Date.now().toString())]);
     setVisibleMessageCount(MESSAGE_RENDER_WINDOW);
     setError(null);
     setShowInlineLeadForm(false);

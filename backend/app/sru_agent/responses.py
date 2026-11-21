@@ -3,81 +3,52 @@
 Decouples agent.py from large multi-line markdown texts.
 """
 from __future__ import annotations
+import hashlib
 
 _SMALL_TALK_CHIPS = ["B.Tech CSE fees", "Scholarship for my marks", "Placements at SRU", "Plan a campus visit"]
 
 _PLACEMENT_ASSISTANCE_CHIPS = ["Top Recruiters & Packages", "Startup Incubator (SRiX)", "Placement Eligibility Rules", "Book a Campus Visit"]
 
 _PLACEMENT_ASSISTANCE_RESPONSES = [
-    """At **SR University**, we provide **100% placement assistance and career readiness support** to all eligible students across our undergraduate and postgraduate programs.
+    """At **SR University**, we provide **100% placement assistance** to all eligible students.
 
-While no university can unconditionally guarantee job offers—as final placement selections depend entirely on an individual student's academic standing, technical competence, interview clearance, and recruiter hiring criteria—SRU provides an end-to-end launchpad to prepare you for industry success.
+While final job offers depend on interview clearance, SRU delivers full career preparation:
 
----
+• 💼 **Top Recruiters**: 150+ companies visit campus (Microsoft, Amazon, ServiceNow) with 1,300+ offers.
+• 📊 **Packages**: **6 to 6.5 LPA** average, with top offers reaching **₹51 LPA**.
+• 🚀 **Startup Incubator (SRiX)**: DST-supported on-campus incubator with ₹76+ Cr funding.
 
-### 🌟 How SRU Empowers Your Career & Ambitions:
-1. **💼 100% Placement & Career Support**:
-   - Structured preparation via the **Center for Student Services and Placements (CSSP)** and **Career Guidance Cell (CGC)**: competitive coding, full-stack assessments, aptitude coaching, and mock technical interviews.
-   - **3,500+ internships** completed with top stipends reaching up to ₹1.25 Lakh/month.
-   - Dedicated on-campus recruitment drives featuring **150+ marquee companies** (including Microsoft, Amazon, ServiceNow, Salesforce, PayPal, Cisco, TCS, Cognizant, Accenture, and Capgemini).
+Would you like placement stats for a specific branch?""",
 
-2. **🚀 Explore Startups & Entrepreneurship (SRiX)**:
-   - For students passionate about entrepreneurship or building their own ventures, SRU houses **SRiX (SR Innovation Exchange)**—a premier, DST-supported technology business incubator on campus.
-   - Students gain access to **maker spaces, rapid prototyping labs, expert mentorship from venture leaders**, and **seed grant funding from a ₹76+ Crore startup ecosystem** with 171+ incubated startups.
+    """**SR University assures 100% placement assistance** and structured training for every eligible graduate.
 
-3. **📊 Verified Placement Track Record**:
-   - **1,300+ Total Job Offers** secured by students.
-   - **Average Package**: ~**6 to 6.5 LPA** across graduating engineering cohorts.
-   - **Top Milestone Packages**:
-     - 💎 **₹51.00 LPA** — Microsoft (*Batch 2025*)
-     - 💎 **₹49.30 LPA** — ServiceNow (*Batch 2027*)
-     - 💎 **₹46.38 LPA** — Amazon (*Batch 2026*)
-     - 💎 **₹44.00 LPA** — Salesforce & ServiceNow (*Batch 2025*)
+Because final selection depends on interview performance, placements are actively supported:
 
-> [!TIP]
-> **Our Commitment**: We provide 100% institutional support, premium recruiters, and incubation backing—your dedication, skills, and preparation turn these opportunities into dream careers!""",
+• 🎯 **150+ Hiring Partners**: Campus drives with top MNCs (Amazon, Microsoft, ServiceNow) and coding prep.
+• 📈 **Proven Outcomes**: **6 to 6.5 LPA** average salary, with highest offers up to **₹51 LPA**.
+• 💡 **Innovation at SRiX**: Maker spaces and seed funding to launch your own startup.
 
-    """**SR University provides 100% placement assistance** and an end-to-end career launchpad for every eligible student.
+Which engineering stream are you most interested in?""",
 
-Because final placement outcomes depend on individual student dedication, technical competence, academic consistency (CGPA and zero active backlogs), and company interview evaluations, placements cannot be unconditionally guaranteed by any institution. However, SRU equips every student with industry-grade skills, corporate drives, and entrepreneurial pathways.
+    """At **SR University**, we deliver **100% placement assistance and career pathways** for all eligible students.
 
----
+Hiring depends on student interview success, and SRU equips you with end-to-end readiness:
 
-### 💼 Comprehensive Career & Startup Ecosystem:
-- **🎯 100% Placement Guidance**: Tailored career counselling, full-stack coding assessments, and intensive interview preparation conducted by the **Center for Student Services and Placements (CSSP)** with **150+ hiring partners**.
-- **🚀 Passionate About Startups?**: If you want to pursue your own venture, SRU's on-campus incubator **SRiX (SR Innovation Exchange)**—recognized and supported by the Department of Science and Technology (DST)—provides seed funding, incubation labs, prototyping resources, and angel investor networking.
-- **🛠️ Industry Internships**: Over **3,500+ internships** completed with monthly stipends reaching up to ₹1.25 Lakh/month.
+• 💼 **Comprehensive Training**: Mock interviews, hackathons, and 3,500+ internships with stipends up to ₹1.25L/month.
+• 📊 **Verified Salaries**: **6 to 6.5 LPA** average package, with top offers reaching **₹51 LPA**.
+• 🚀 **Entrepreneurship**: Access to **SRiX**, our ₹76+ Cr DST-backed incubator.
 
-### 📈 Verified Placement Benchmarks:
-- **Average Package**: ~**6 LPA** (with university portals citing 6.5 LPA across engineering streams).
-- **Highest Packages**: **₹51 LPA** at Microsoft, **₹49.30 LPA** at ServiceNow, and **₹46.38 LPA** at Amazon.
-- **Over 1,300+ Placement Offers** spanning global IT giants, product companies, and core engineering firms.""",
+Would you like to know more about internships or branch placements?""",
 
-    """At **SR University**, our core commitment is delivering **100% placement assistance, rigorous skill development, and diverse career pathways** for every student.
+    """**SR University provides 100% placement support** and structured guidance to every eligible student.
 
-While final job offers naturally depend on each student's academic performance, technical skills, and interview success—meaning no higher education institution can give an unconditional job guarantee—SRU leaves no stone unturned in ensuring you are career-ready:
+Offers reflect individual interview clearance, backed by our extensive recruitment ecosystem:
 
----
+• 🎯 **Corporate Drives**: Direct recruitment by **150+ marquee companies** with 1,300+ offers.
+• 📈 **Verified Packages**: **6 to 6.5 LPA** average CTC, with peak packages up to **₹51 LPA**.
+• 🛠️ **Startup Hub (SRiX)**: Incubation with prototyping labs and mentorship for founders.
 
-- 🎯 **100% Placement Assistance**: Rigorous coaching in data structures, system design, aptitude, and soft skills from the 2nd year onwards, connecting students directly to **150+ national and multinational recruiters**.
-- 🚀 **Explore Startups & Innovation**: Have an entrepreneurial mindset? SRU’s **SRiX (SR Innovation Exchange)** incubator offers world-class maker spaces, seed capital, and mentorship to help students launch and scale their own startup ventures.
-- 💼 **Proven Placement Record**: Over **1,300+ job offers** with an average package of **6 to 6.5 LPA**. Top offers include **₹51 LPA (Microsoft)**, **₹49.30 LPA (ServiceNow)**, and **₹46.38 LPA (Amazon)**.
-
-Whether your aspiration is securing a dream role at a global technology leader or launching a disruptive startup, SR University provides the 100% mentorship, infrastructure, and opportunities to make it happen!""",
-
-    """**SR University assures 100% placement assistance and career guidance** to help every graduate succeed in the professional world.
-
-Rather than a passive "guarantee", SRU actively partners with you: final placement offers depend on your skills, consistency, and interview performance, while the university provides the entire launchpad—from industry certifications to campus drives.
-
----
-
-### 🌟 What SRU Offers Every Student:
-1. **100% Placement Assistance**: Dedicated recruitment drives with **150+ top companies** (Microsoft, Amazon, ServiceNow, Salesforce, Accenture, Cognizant, TCS), comprehensive mock interviews, and 3,500+ internships.
-2. **Startup & Incubation Support (SRiX)**: Want to build your own company instead of a traditional corporate job? SRU's on-campus incubator **SRiX** offers seed funding, maker spaces, and startup mentoring to turn innovative ideas into commercial realities.
-3. **Stellar Placement Records**: 
-   - **Average Salary**: ~**6 – 6.5 LPA** across graduating engineering disciplines.
-   - **Highest Packages**: **₹51 LPA** (Microsoft), **₹49.30 LPA** (ServiceNow), and **₹46.38 LPA** (Amazon).
-   - **1,300+ Placement Offers** across global tech, fintech, core engineering, and consulting firms."""
+Can I share details for a specific department or recruiter?""",
 ]
 
 _SPECIAL_CONCESSIONS_TEXT = """### 🎖️ Special Category Fee Concessions (2027–28)
@@ -333,28 +304,51 @@ SR University offers multidisciplinary UG, PG, and Ph.D. programs across **6 spe
 
 👉 **Which school or program would you like details on (eligibility, fees, or syllabus)?**"""
 
-_HOSTEL_INFO_TEXT = """### 🏢 Residential Campus Living at SR University
+_HOSTEL_INFO_VARIANTS = [
+    """### 🏢 Residential Living & Campus Hostels
 
-SR University offers a secure, vibrant, and disciplined residential experience with **dedicated separate hostel blocks** for Boys and Girls on campus:
+SR University offers safe, vibrant residential living with separate facilities for Boys and Girls on campus:
 
-• **Hostel Blocks**:
-  - **Boys Hostels**: Dr. Sarvepalli Radhakrishnan Bhavan & APJ Abdul Kalam Bhavan
-  - **Girls Hostels**: Kalpana Chawla Bhavan & Sarojini Naidu Bhavan
-• **Room Options & Furnishings**:
-  - **Air-Conditioned (AC)**: 3-Sharing & 4-Sharing
-  - **Non-AC**: 3-Sharing & 4-Sharing
-  - Every resident receives a dedicated bed, comfortable mattress, individual study desk, ergonomic chair, personal wardrobe, and 24/7 Wi-Fi.
-• **Mega Dining Hall**:
-  - 4,000 seating capacity serving 4 fresh, hygienic, unlimited meals daily (Breakfast, Lunch, Evening Snacks, Dinner) with balanced vegetarian and non-vegetarian menus.
-• **Key Amenities & Utilities**:
-  - 24/7 power backup and commercial RO-purified water dispensers on every floor.
-  - Solar hot water supply (7:00–9:00 AM & 7:00–9:00 PM).
-  - Modern gymnasium with fitness trainers, indoor sports (table tennis, carroms, chess, shuttle badminton) and recreation lounges.
-  - On-campus health clinic, resident nurses, 24/7 stationed ambulance, and institutional tie-up with Aaditya Hospital.
-• **Safety & Security**:
-  - 100% CCTV surveillance, biometric access checkpoints, dedicated security personnel at all gates, and resident wardens in every block.
+• 🛏️ **Room Options**: AC and Non-AC 3-sharing and 4-sharing rooms with study desks, personal wardrobes, and Wi-Fi.
+• 🍽️ **Mega Dining Hall**: 4,000-seat mess serving 4 wholesome meals daily (Breakfast, Lunch, Snacks, Dinner).
+• 🛡️ **Safety & Wellness**: Round-the-clock security, biometric roll call, and an on-campus clinic with ambulance.
 
-*Hostel accommodation is optional. Would you like to check the room fee breakdown, dining timings, or curfew rules?*"""
+Would you like room fees, mess timings, or curfew rules?""",
+
+    """### 🛏️ Hostel Room Options & Living Comfort
+
+Residential living at SR University provides dedicated, fully-furnished spaces designed for comfortable studying:
+
+• ❄️ **AC Comfort (3 & 4-Sharing)**: Fully air-conditioned rooms, ergonomic study desks, personal wardrobes, and power backup.
+• 🌿 **Non-AC (3 & 4-Sharing)**: Spacious, well-ventilated rooms with dedicated study furniture, storage, and 24/7 campus fiber Wi-Fi.
+• 💧 **Daily Essentials**: Commercial RO drinking water stations on every floor and scheduled solar hot water supply.
+
+Would you like to know the annual room fees or check dining facilities?""" ,
+
+    """### 🌿 Campus Amenities & Residential Community
+
+Hostel life at SR University combines complete convenience, student wellness, and rigorous campus safety:
+
+• 🍽️ **Dining & Nutrition**: 4,000-seat dining facility serving 4 hygienic meals daily with unlimited vegetarian and non-vegetarian menus.
+• 🏃 **Sports & Fitness**: Modern indoor gymnasium with trainers, badminton, table tennis, and recreation lounges.
+• 🔒 **Security & Discipline**: 100% CCTV surveillance, nightly biometric roll call, digital out-passes via Sruniv portal, and 24/7 medical support.
+
+Can I help you with hostel fees, curfew guidelines, or mess schedules?""",
+]
+
+_HOSTEL_INFO_TEXT = _HOSTEL_INFO_VARIANTS[0]
+
+
+def get_hostel_info_text(session_id: str | None = None, query: str = "") -> str:
+    """Return a contextual or session-stable hostel information variant."""
+    q = (query or "").lower()
+    if any(k in q for k in ("room", "sharing", "ac", "non-ac", "bed", "furniture", "desk")):
+        return _HOSTEL_INFO_VARIANTS[1]
+    if any(k in q for k in ("amenit", "facilit", "gym", "water", "wifi", "medical", "clinic", "sports")):
+        return _HOSTEL_INFO_VARIANTS[2]
+    seed = (session_id or "default_hostel").encode("utf-8")
+    idx = int(hashlib.md5(seed).hexdigest(), 16) % len(_HOSTEL_INFO_VARIANTS)
+    return _HOSTEL_INFO_VARIANTS[idx]
 
 _HOSTEL_MESS_TEXT = """### 🍽️ Dining & Mess Facilities at SR University
 
@@ -373,52 +367,26 @@ The university features a state-of-the-art **4,000-seat Mega Dining Hall** provi
 
 *Would you like to know more about hostel room options, rules, or fees?*"""
 
-_HOSTEL_CURFEW_RULES_TEXT = """### ⏰ Hostel Curfew, Timings & Discipline Regulations
+_HOSTEL_CURFEW_RULES_TEXT = """### ⏰ Hostel Curfew & Timings
 
-SR University maintains a secure and disciplined campus environment with strict curfew and movement policies:
+SR University maintains a secure residential campus with clear guidelines:
 
-• **Hostel In-Time (Night Curfew)**:
-  - **Weekdays (Monday to Friday)**: Students must be inside the hostel premises by **9:00 PM**.
-  - **Weekends & Holidays (Saturday & Sunday)**: Students must be inside by **9:30 PM**.
-  - **Biometric Roll Call**: Mandatory nightly biometric attendance between **9:00 PM and 9:30 PM** (weekdays) / before **10:00 PM** (weekends).
-  - **Morning Exit**: Students can leave the hostel in the morning after **5:30 AM** by signing the movement register.
-• **Curfew Extensions**:
-  - Extensions up to **11:00 PM** are granted for hackathons, club activities, festival preparations, or library study.
-  - Requests must be submitted via the online **Sruniv portal** before 4:00 PM on the day and approved by the Warden.
-• **Digital Out-Pass System**:
-  - Resident students wishing to leave campus must apply via the online **Sruniv portal**.
-  - Automated SMS notifications are sent to parents/guardians for approval before gate clearance is issued.
-• **Silence Hours & Code of Conduct**:
-  - **Silence Hours**: **10:00 PM to 7:00 AM** daily (strictly enforced for quiet study and rest).
-  - **Cross-Gender Entry Policy**: Strictly prohibited. Male students/visitors cannot enter female blocks, and female students/visitors cannot enter male blocks.
-  - **Prohibited Appliances**: Electric stoves, induction cooktops, immersion heaters, and electric irons are strictly forbidden in rooms.
-  - **Substance Policy**: 100% zero-tolerance policy against ragging, bullying, alcohol, smoking, or unauthorized absences.
+• ⏰ **In-Time Curfew**: **9:00 PM** weekdays and **9:30 PM** weekends, followed by nightly biometric roll call.
+• 📱 **Digital Out-Pass**: Mandatory online pass via **Sruniv portal** with parent SMS confirmation.
+• 📚 **Study Extensions**: Extended up to **11:00 PM** for hackathons and library projects with warden approval.
 
-*Would you like to review safety and warden details, mess food, or room fees?*"""
+Would you like room options, mess details, or fee structure?"""
 
-_HOSTEL_SAFETY_TEXT = """### 🛡️ Campus Safety, Security & Hostel Wardens
+_HOSTEL_SAFETY_TEXT = """### 🛡️ Campus Safety, Security & Student Support
 
 The safety and well-being of residential students are our highest priorities:
 
-• **Round-the-Clock Security**:
-  - Gated campus with 24/7 professional uniformed security personnel at all hostel and campus gates.
-  - Comprehensive CCTV surveillance covering all hostel corridors, staircases, common lounges, and perimeter grounds.
-  - Biometric checkpoints for entry and roll call.
-• **Dedicated Residential Wardens**:
-  - **Girls Hostels Warden**: Ms. Anitha GP (📞 **+91 9599042878** | ✉️ `stu.girlshostel@sru.edu.in`)
-  - **Boys Hostels Wardens**: Dr. Rupesh Mishra (📞 **+91 9716935695**) & Dr. Anshu Kumar (📞 **+91 6394355001**)
-• **Student Counsellors**:
-  - **Boys Counsellor**: Mr. Benson (📞 **+91 7893525257**)
-  - **Girls Counsellor**: Ms. Swapna (📞 **+91 7207672300**)
-• **Medical & Emergency Infrastructure**:
-  - On-campus Health Centre with qualified resident nurse and visiting physicians.
-  - Stationed 24/7 emergency ambulance on campus.
-  - Direct tie-up with **Aaditya Hospital** for tertiary and emergency healthcare.
-• **Zero-Tolerance Anti-Ragging**:
-  - Fully compliant with Supreme Court & UGC Anti-Ragging Regulations 2009.
-  - Active Anti-Ragging Committee and flying squads (`stu.antiraggingcell@sru.edu.in`).
+• **Round-the-Clock Security**: Gated campus with 24/7 uniformed security personnel, comprehensive CCTV surveillance, and biometric checkpoints.
+• **Medical & Emergency Care**: On-campus Health Centre with resident nurses, visiting physicians, 24/7 stationed ambulance, and institutional tie-up with Aaditya Hospital.
+• **Student Counsellors**: Dedicated male and female student counsellors for personal and emotional guidance.
+• **Zero-Tolerance Discipline**: 100% ragging-free campus with active flying squads, anti-substance policy, and digital out-pass verification via Sruniv portal.
 
-*Would you like details on hostel living facilities, mess food, or room fees?*"""
+Would you like details on hostel living facilities, mess food, or room fees?"""
 
 _HOSTEL_FEE_TEXT = """### 💰 SR University Residential Hostel Fee Structure (2027–28)
 
@@ -465,25 +433,15 @@ Here is the complete combined fee breakdown for **B.Tech Computer Science & Engi
 
 _COMBINED_HOSTEL_FEE_CHIPS = ["Calculate scholarship for my marks", "Hostel room options", "Placement records for this course", "Hostel Rules & Curfew"]
 
-_CAMPUS_CANTEEN_TEXT = """### ☕ Campus Cafeteria, Food Stalls & Dining Options at SR University
+_CAMPUS_CANTEEN_TEXT = """### ☕ Campus Cafeteria & Dining Options
 
-SR University offers vibrant on-campus dining and snacking spots for students, faculty, and visitors across its 170-acre campus:
+SR University offers vibrant on-campus dining for day scholars and hostellers:
 
-#### 1. 🍽️ Central Cafeteria
-• **Timings**: **8:30 AM to 6:00 PM** (Monday to Saturday)
-• **Offerings**: Fresh breakfast, hot South & North Indian lunch platters, fresh juices, teas, coffees, and wholesome snacks in a spacious indoor seating setting.
+• 🍽️ **Central Cafeteria**: Hot meals, juices, and snacks in a spacious food court (8:30 AM – 6:00 PM).
+• 🥪 **Campus Food Kiosks**: *Tasty Treat*, *Meet & Eat*, and *Bharat Foods* for quick bites (9:00 AM – 7:00 PM).
+• 🍱 **Mega Dining Mess**: 4,000-seat hall serving 4 nutritious meals daily for residential students.
 
-#### 2. 🥪 Campus Food Kiosks & Stalls
-Open **9:00 AM to 7:00 PM** across campus plazas:
-• **Tasty Treat**: Quick bites, grilled sandwiches, rolls, patties, and cool beverages.
-• **Meet and Eat**: Fast-food varieties, noodles, wraps, and quick evening snacks.
-• **Bharat Foods**: Traditional snacks, chaat, samosas, and refreshing hot drinks.
-
-#### 3. 🍱 4,000-Seat Mega Dining Hall (Residential Mess)
-• Four nutritious, hygienic daily meals (Breakfast, Lunch, Evening Snacks, Dinner) for hostel residents with rotating South & North Indian multi-cuisine menus.
-
-> [!TIP]
-> All food kiosks and the central cafeteria accept digital payments (UPI/cards). The Canara Bank 24/7 ATM is conveniently located at the Main Gate."""
+All outlets accept UPI. Would you like details on hostel fees or campus facilities?"""
 
 _CAMPUS_CANTEEN_CHIPS = ["Hostel Mess & Dining", "Hostel Facilities & Rooms", "Campus Tour & Visit", "B.Tech CSE Fees"]
 
@@ -513,35 +471,96 @@ SR University follows a comprehensive Credit-Based Semester System (CBSS) govern
 
 _ACADEMIC_EVALUATION_CHIPS = ["Attendance & Condonation Rules", "Honours & Minor Degrees", "B.Tech CSE Fees", "Placement Records"]
 
-_LAB_FACILITIES_TEXT = """### 🔬 Laboratories & Research Infrastructure at SR University
+_LAB_FACILITIES_TEXT = """### 🔬 Research Labs & Infrastructure
 
-SR University does not operate with a single combined count for all labs because facilities are organized across three distinct levels of advanced infrastructure:
+SR University organizes high-tech laboratories across three specialized levels:
 
-#### 1. 🏢 11 Interdisciplinary Specialized Research Centers
-Dedicated high-tech centers conducting cutting-edge research, patent creation, and industry projects:
-• **Center for AI & Deep Learning (CAIDL)**: High-performance GPU computing clusters, neural network training environments, and computer vision systems.
-• **Center for Creative Cognition (CCC)**: Houses 6 advanced labs (*Ideation Lab, Eye-tracking Lab, EEG Lab, Computational Neuroscience Lab, Driving Simulator Lab, Psychometric Testing Lab*).
-• **Center for Embedded Systems & IoT (EIoT)**: Raspberry Pi platforms, ARM Cortex M4 development kits, and wireless sensor nodes.
-• **Center for Emerging Energy Technologies (CEET)**: LabVIEW Advanced Simulation Lab, Energy Lab, and Electric Drives / EV Powertrain Lab.
-• **Center for Materials & Manufacturing (CMM)**: Product Design Studio, CAD/CAM Lab, CNC Makers Space, and Additive Manufacturing (3D Printing).
-• **Center for Construction Methods & Materials**: Concrete Technology, Triaxial Testing, Digital Consolidation, and Automatic Asphalt Compactor setups.
-• **Centre for Nanomaterials**: Nanomaterial synthesis and high-resolution characterization microscopy.
-• **Additional Centers**: *Center for Informetrics & Statistics*, *Center for Experiential Learning*, *Collaboratory for Social Innovation*, and *Center for Design*.
+• 🏢 **11 Research Centers**: Dedicated centers for AI & Deep Learning (CAIDL), Embedded Systems, IoT, and EV Powertrains.
+• 🚀 **SRiX Innovation Exchange**: 14+ maker spaces, IoT prototyping labs, and 3D design studios with ₹76+ Cr funding.
+• 🖥️ **Departmental Labs**: Robotics arenas, VLSI suites, and an ICAR experimental farm.
 
-#### 2. 🚀 SR Innovation Exchange (SRiX) & Prototyping Studios
-• **14+ Maker Spaces** and open innovation project studios.
-• **IoT & ESDM Lab** (Electronic System Design & Manufacturing).
-• **3D Rapid Prototyping Facility** & **Design Thinking Studio** supporting student startups from idea to scale (171+ startups incubated, ₹76+ Cr funding).
-
-#### 3. 🖥️ Departmental Academic Laboratories Across 6 Schools
-Every department maintains multiple specialized curriculum labs:
-• **School of Computer Science & AI**: AI/ML, Big Data Analytics, Cloud Computing/DevOps, Cybersecurity, and Software Engineering Labs.
-• **School of Engineering**: ECE (VLSI Design, DSP, Microprocessors, Microwave), EEE (Electric Machines, Power Electronics), Mechanical (Robotics & Automation, CAD/CAM, Metallurgy, Fluid Mechanics), and Civil (Surveying Total Station, Geotechnical, Environmental).
-• **School of Agriculture (ICAR Accredited)**: 50+ acre experimental farm, polyhouses, Soil & Water Testing, Agronomy, and Plant Pathology labs.
-• **Basic Sciences & Design**: Engineering Physics, Chemistry, AECS Multimedia English Lab, and Visual Design/Ergonomics Studios.
-
-Which department or domain of laboratories would you like to explore in detail?"""
+Which department's labs would you like to explore?"""
 
 _LAB_FACILITIES_CHIPS = ["AI & Computer Science Labs", "SRiX Startup Maker Spaces", "Robotics & IoT Labs", "B.Tech CSE Curriculum"]
+
+_WHY_CHOOSE_SRU_VARIANTS = [
+    """### 🏛️ Why Choose SR University
+
+SR University is among the youngest private universities in Telangana to earn national and global rankings, with industry-ready learning and strong placements:
+
+• 🌏 **QS Asia Rankings 2027**: 701–710 band (ahead of ~60% of ranked Asian institutions; 19th private in India).
+• 🏆 **National Recognition**: NIRF 2025 91st in Engineering (Top 100 for 4 years) & THE World Rankings 2026 (801–1000).
+• 🎯 **Proven Outcomes**: 95% placement rate with top package of ₹51 LPA; Tier-1 NBA & ICAR accreditations.
+• 🚀 **Innovation at SRiX**: 171+ startups, 8,900+ publications, and 2,700+ patents on a 170-acre campus.
+
+Would you like to explore our programs, fee structure, or campus facilities?""",
+
+    """### 🚀 Young University, Proven Results
+
+In a short span, SR University has built a record that older institutions take decades to match, backed by independent rankings and strong career outcomes:
+
+• 🌟 **Rapid Rise**: Among the youngest private universities in Telangana with national and global ranks.
+• 🌏 **Global Standings**: Debuted in QS Asia 2027 (701–710 band; 19th private in India) and 7th among private universities in India (THE).
+• 📚 **Accreditations**: Tier-1 NBA accredited B.Tech programmes and ICAR-accredited School of Agriculture.
+• 💼 **Placement Track Record**: 95% placement rate with ₹51 LPA highest offer; marquee recruiters include Microsoft and Amazon.
+
+Which program or branch are you most curious about?""",
+
+    """### 🔬 Ranked, Research-Driven, Career-Ready
+
+SR University pairs national and global recognition with a strong research and innovation culture, where you learn by doing and graduate ready for industry:
+
+• 📊 **Global & National Ranks**: QS Asia 2027 (701–710 band), THE World Rankings 2026 (801–1000), and NIRF 2025 91st in Engineering (Top 100 four years running).
+• 💡 **Research Excellence**: Dedicated research centres, 8,900+ publications, 2,700+ patents filed, and SRiX incubator with 171+ startups.
+• 🛠️ **Practical Learning**: Multidisciplinary hands-on curriculum, live projects, and international academic collaborations.
+• 📈 **Verified Salaries**: 95% placement rate with milestone packages reaching ₹51 LPA.
+
+Would you like to know more about research opportunities or admission eligibility?""",
+
+    """### 🏆 Rankings You Can Trust
+
+Choosing a university is easier when independent rankings back the decision. SR University is ranked nationally and globally, and continues to grow rapidly:
+
+• 🌏 **International Accolades**: Debuted in QS Asia 2027 (701–710 band; ahead of 60% of ranked Asian institutions) and 19th among private universities in India.
+• 🏅 **Top Tier in India**: 7th among private universities in India (THE) and 91st in Engineering (NIRF 2025).
+• 🎓 **Quality Assured**: Tier-1 NBA accredited B.Tech and ICAR-accredited School of Agriculture.
+• 💼 **Global Connections**: 80+ international university collaborations and a 95% placement rate.
+
+Can I share details on merit scholarships or specific department offerings?""",
+
+    """### 💼 Learn, Innovate, Get Placed
+
+At SR University, classroom learning connects directly to industry, research, and global opportunities:
+
+• 🎯 **Industry-Oriented Learning**: Live industry projects, internship exposure, and active mentoring by corporate experts.
+• 🚀 **Startups & Patents**: ₹76+ Cr DST-funded SRiX incubator with 171+ ventures, 8,900+ publications, and 2,700+ patents.
+• 📊 **Hiring Benchmarks**: 95% placement success rate with highest offer of ₹51 LPA (Microsoft, Amazon, and leading MNCs).
+• 🏛️ **Ranked Excellence**: QS Asia 2027 (701–710 band) and NIRF 2025 91st in Engineering.
+
+Would you like to see the placement highlights for a specific branch?""",
+
+    """### 🌟 The Complete SRU Experience
+
+SR University offers more than a degree: top rankings, practical learning, global exposure, and a vibrant residential campus:
+
+• 🏛️ **Ranked Distinction**: Among the youngest private universities in Telangana with QS Asia 2027 (701–710) and NIRF 91st rank.
+• 🌍 **Global Exposure**: 80+ international collaborations (2+2 degree pathways) and Tier-1 NBA & ICAR accreditations.
+• 💼 **Placements & Innovation**: 95% placement rate, ₹51 LPA highest package, and 171+ startups incubated at SRiX.
+• 🌳 **Vibrant Campus**: 170-acre green campus, modern research labs, student clubs, and merit scholarships.
+
+Would you like to explore our admissions process or plan a campus visit?""",
+]
+
+_WHY_CHOOSE_SRU_CHIPS = ["B.Tech CSE Fee Structure", "Merit Scholarships & Slabs", "Top Placements & Recruiters", "Hostel Living & Facilities"]
+
+
+def get_why_choose_sru_text(variant_id: int | None = None, session_id: str | None = None) -> str:
+    """Return one of the 6 Why Choose SRU drafts dynamically based on variant_id or session."""
+    if variant_id is not None and 1 <= variant_id <= len(_WHY_CHOOSE_SRU_VARIANTS):
+        return _WHY_CHOOSE_SRU_VARIANTS[variant_id - 1]
+    seed = (session_id or "default_why_sru").encode("utf-8")
+    idx = int(hashlib.md5(seed).hexdigest(), 16) % len(_WHY_CHOOSE_SRU_VARIANTS)
+    return _WHY_CHOOSE_SRU_VARIANTS[idx]
+
 
 
