@@ -80,7 +80,7 @@ async def test_scenario_2_complete_fee_structure_asks_school():
     assert state.get("fee_flow_state") == "awaiting_school_selection"
 
 
-# ---- Scenario 3: "What is the hostel fee?" ----
+# ---- Scenario 3: "What is the tuition fee?" ----
 @pytest.mark.asyncio
 async def test_scenario_3_hostel_fee_query_initiates_flow():
     session_id = "test-fee-sc3"
@@ -88,7 +88,7 @@ async def test_scenario_3_hostel_fee_query_initiates_flow():
     await memory.clear_profile(session_id)
     await memory.clear_conversation_state(session_id, conv_id)
 
-    events = await _run("What is the hostel fee for 2027-28?", session_id, conv_id)
+    events = await _run("What is the tuition fee for 2027-28?", session_id, conv_id)
     assert events[-1]["type"] == "done"
     answer = events[-1]["answer"]
     cards = events[-1]["cards"]

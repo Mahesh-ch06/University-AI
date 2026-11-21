@@ -2245,7 +2245,7 @@ async def run_agent(
                     yield ev
                 return
             if intent == "HOSTEL_SAFETY_QUERY":
-                async for ev in _say(_HOSTEL_SAFETY_TEXT, message, session_id, conversation_id,
+                async for ev in _say(responses._HOSTEL_SAFETY_TEXT, message, session_id, conversation_id,
                                      suggestions=_HOSTEL_SAFETY_CHIPS):
                     yield ev
                 return
