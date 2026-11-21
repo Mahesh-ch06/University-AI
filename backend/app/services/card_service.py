@@ -1153,3 +1153,38 @@ def generate_cards(
             cards.append(profile_card)
 
     return cards
+
+
+def build_fee_scholarship_form_card(selected_program: str | None = None, selected_board: str | None = None) -> dict:
+    """Constructs an interactive in-chat Fee & Scholarship Assessment Form card."""
+    return {
+        "type": "fee_scholarship_form",
+        "title": "Fee & Merit Scholarship Assessment Form",
+        "subtitle": "Select your course and 10+2 board, then enter your marks or rank to calculate your exact net fee.",
+        "selected_program": selected_program or "btech_cse",
+        "selected_board": selected_board or "ts_state_board",
+        "programs": [
+            {"key": "btech_cse", "name": "B.Tech Computer Science & Engineering (CSE)", "degree": "B.Tech", "annual_tuition": 340000},
+            {"key": "btech_ai_robotics", "name": "B.Tech in Artificial Intelligence & Robotics", "degree": "B.Tech", "annual_tuition": 400000},
+            {"key": "btech_ece", "name": "B.Tech Electronics & Communication (ECE)", "degree": "B.Tech", "annual_tuition": 270000},
+            {"key": "btech_mech", "name": "B.Tech Mechanical Engineering", "degree": "B.Tech", "annual_tuition": 200000},
+            {"key": "btech_civil", "name": "B.Tech Civil Engineering", "degree": "B.Tech", "annual_tuition": 200000},
+            {"key": "btech_eee", "name": "B.Tech Electrical & Electronics (EEE)", "degree": "B.Tech", "annual_tuition": 200000},
+            {"key": "bsc_agri", "name": "B.Sc (Hons.) Agriculture (ICAR Accredited)", "degree": "B.Sc", "annual_tuition": 220000},
+            {"key": "bba", "name": "BBA (Bachelor of Business Administration)", "degree": "BBA", "annual_tuition": 160000},
+            {"key": "bca", "name": "BCA (Bachelor of Computer Applications)", "degree": "BCA", "annual_tuition": 150000},
+            {"key": "bdes", "name": "B.Des (School of Design)", "degree": "B.Des", "annual_tuition": 180000},
+            {"key": "mba", "name": "MBA (Master of Business Administration)", "degree": "MBA", "annual_tuition": 180000},
+            {"key": "mca", "name": "MCA (Master of Computer Applications)", "degree": "MCA", "annual_tuition": 150000},
+            {"key": "mtech", "name": "M.Tech CSE", "degree": "M.Tech", "annual_tuition": 100000},
+        ],
+        "boards": [
+            {"key": "ts_state_board", "label": "Telangana State Board (BIE TS)", "slab_key": "state_board"},
+            {"key": "ap_state_board", "label": "Andhra Pradesh State Board (BIE AP)", "slab_key": "state_board"},
+            {"key": "cbse", "label": "CBSE (Central Board)", "slab_key": "cbse"},
+            {"key": "icse", "label": "ICSE / ISC (CISCE)", "slab_key": "cbse"},
+            {"key": "other_state_board", "label": "Other State Boards (All Over India)", "slab_key": "state_board"},
+            {"key": "nios", "label": "NIOS / National Open School", "slab_key": "cbse"},
+            {"key": "ib", "label": "International Baccalaureate (IB)", "slab_key": "ib"},
+        ],
+    }

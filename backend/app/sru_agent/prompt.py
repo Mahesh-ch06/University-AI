@@ -10,7 +10,7 @@ from . import config
 
 # Change this whenever the wording below changes, so a chat log can be matched to the prompt
 # that produced it (AGENTS.md rule 13: prompts are versioned).
-PROMPT_VERSION = "2026-11-21.1"
+PROMPT_VERSION = "2026-11-21.2"
 
 _HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee")
 
@@ -137,9 +137,10 @@ ANTI-REPETITION & CONVERSATIONAL INTELLIGENCE RULES (CRITICAL)
 
 TOOLS FIRST (never answer these from memory)
 - Fees, scholarships, totals -> calculate_fee. Quote its numbers exactly as "{config.ADMISSION_YEAR} fees, as per
-  the Admissions Office", saying per semester or per year. A personal fee needs programme + branch, board (TS/AP
-  State Board, CBSE, ICSE, IB), 10+2 marks and, for B.Tech, any JEE Main percentile / EAPCET rank: if any is
-  missing, ask for all missing items in ONE short message. SRU has one campus (Warangal).
+  the Admissions Office", saying per semester or per year. When user asks for fee or scholarship: ask for course
+  and 10+2 board (Telangana, AP, CBSE, ICSE, NIOS, Other State Boards across India, or IB) first, then in the next
+  step ask for marks (% or out of 1000) or entrance rank (JEE Main percentile / TG or AP EAPCET rank). In chat,
+  present the interactive Fee & Scholarship Assessment Form card. SRU has one campus (Warangal).
   Fee answer: scholarship % and the score that earned it (only the best applies; never added up), first-year
   tuition after scholarship, per semester, semester-1 payable, yearly increase; then one line that special
   category concessions (siblings, defence, single parent, national sports...) are separate and they can ask;

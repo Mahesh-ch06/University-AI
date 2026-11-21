@@ -1409,6 +1409,247 @@ export function HostelFacilitiesCard({ card, onSelect }: { card: any; onSelect?:
   );
 }
 
+export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
+  const programs = card.programs || [
+    { key: "btech_cse", name: "B.Tech Computer Science & Engineering (CSE)", annual_tuition: 340000 },
+    { key: "btech_ai_robotics", name: "B.Tech in Artificial Intelligence & Robotics", annual_tuition: 400000 },
+    { key: "btech_ece", name: "B.Tech Electronics & Communication (ECE)", annual_tuition: 270000 },
+    { key: "btech_mech", name: "B.Tech Mechanical Engineering", annual_tuition: 200000 },
+    { key: "btech_civil", name: "B.Tech Civil Engineering", annual_tuition: 200000 },
+    { key: "btech_eee", name: "B.Tech Electrical & Electronics (EEE)", annual_tuition: 200000 },
+    { key: "bsc_agri", name: "B.Sc (Hons.) Agriculture (ICAR Accredited)", annual_tuition: 220000 },
+    { key: "bba", name: "BBA (Bachelor of Business Administration)", annual_tuition: 160000 },
+    { key: "bca", name: "BCA (Bachelor of Computer Applications)", annual_tuition: 150000 },
+    { key: "bdes", name: "B.Des (School of Design)", annual_tuition: 180000 },
+    { key: "mba", name: "MBA (Master of Business Administration)", annual_tuition: 180000 },
+    { key: "mca", name: "MCA (Master of Computer Applications)", annual_tuition: 150000 },
+    { key: "mtech", name: "M.Tech CSE", annual_tuition: 100000 },
+  ];
+
+  const boards = card.boards || [
+    { key: "ts_state_board", label: "Telangana State Board (BIE TS)", slab_key: "state_board" },
+    { key: "ap_state_board", label: "Andhra Pradesh State Board (BIE AP)", slab_key: "state_board" },
+    { key: "cbse", label: "CBSE (Central Board)", slab_key: "cbse" },
+    { key: "icse", label: "ICSE / ISC (CISCE)", slab_key: "cbse" },
+    { key: "other_state_board", label: "Other State Boards (All Over India)", slab_key: "state_board" },
+    { key: "nios", label: "NIOS / National Open School", slab_key: "cbse" },
+    { key: "ib", label: "International Baccalaureate (IB)", slab_key: "ib" },
+  ];
+
+  const [selectedProgKey, setSelectedProgKey] = useState<string>(card.selected_program || "btech_cse");
+  const [selectedBoardKey, setSelectedBoardKey] = useState<string>(card.selected_board || "ts_state_board");
+  const [scoreInput, setScoreInput] = useState<string>("");
+  const [rankInput, setRankInput] = useState<string>("");
+  const [activeScoreType, setActiveScoreType] = useState<"marks" | "eapcet" | "jee">("marks");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const selectedProg = programs.find((p: any) => p.key === selectedProgKey) || programs[0];
+  const selectedBoard = boards.find((b: any) => b.key === selectedBoardKey) || boards[0];
+  const isEngineeringOrAgri = selectedProgKey.startsWith("btech_") || selectedProgKey === "bsc_agri";
+
+  // Calculate live scholarship slab
+  const getScholarshipPct = (): number => {
+    const isCbseFamily = selectedBoard.slab_key === "cbse";
+    if (activeScoreType === "marks" && scoreInput) {
+      const raw = parseFloat(scoreInput.replace(/[^\d.]/g, ""));
+      const pct = raw > 100 && raw <= 1000 ? raw / 10 : raw;
+      if (pct >= (isCbseFamily ? 95 : 98)) return 40;
+      if (pct >= (isCbseFamily ? 90 : 92)) return 30;
+      if (pct >= 80) return 25;
+      if (pct >= 70) return 20;
+      if (pct >= 65) return 15;
+      if (pct >= 60) return 10;
+    } else if (activeScoreType === "jee" && scoreInput) {
+      const p = parseFloat(scoreInput.replace(/[^\d.]/g, ""));
+      if (p >= 95) return 40;
+      if (p >= 90) return 30;
+      if (p >= 80) return 25;
+      if (p >= 70) return 20;
+      if (p >= 60) return 15;
+      if (p >= 50) return 10;
+    } else if (activeScoreType === "eapcet" && rankInput) {
+      const r = parseInt(rankInput.replace(/[^\d]/g, ""), 10);
+      if (r >= 1 && r <= 2000) return 40;
+      if (r > 2000 && r <= 8000) return 30;
+      if (r > 8000 && r <= 20000) return 25;
+    }
+    return 0;
+  };
+
+  const previewWaiver = getScholarshipPct();
+  const baseTuition = selectedProg.annual_tuition || 340000;
+  const netTuition = Math.round(baseTuition * (1 - previewWaiver / 100));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scoreInput.trim() && !rankInput.trim()) {
+      setErrorMsg("Please enter your marks (%) or entrance rank.");
+      return;
+    }
+    setErrorMsg(null);
+    let prompt = `Calculate fee for ${selectedProg.name}, ${selectedBoard.label}`;
+    if (scoreInput.trim()) {
+      prompt += ` with ${scoreInput.trim()}% marks`;
+    }
+    if (rankInput.trim()) {
+      prompt += activeScoreType === "jee" ? ` and JEE Main ${rankInput.trim()} percentile` : ` and EAPCET rank ${rankInput.trim()}`;
+    }
+    onSelect?.(prompt);
+  };
+
+  return (
+    <div className="rich-card fee-scholarship-form-card">
+      <div className="card-header">
+        <span className="card-badge">
+          <AwardIcon size={14} /> Fee & Scholarship Assessment
+        </span>
+        <h4 className="card-title">{card.title || "Fee & Merit Scholarship Assessment Form"}</h4>
+        <p className="card-subtitle">
+          {card.subtitle || "Select your course and 10+2 board, then enter your marks or rank to calculate your exact net fee."}
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="fee-form-body">
+        {/* Step 1: Course Selection */}
+        <div className="fee-form-group">
+          <label className="fee-form-label">
+            <span className="step-num-pill">1</span> Intended Course / Programme
+          </label>
+          <select
+            className="fee-form-select"
+            value={selectedProgKey}
+            onChange={(e) => setSelectedProgKey(e.target.value)}
+          >
+            {programs.map((p: any) => (
+              <option key={p.key} value={p.key}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Step 1b: Board Selection (All Over India) */}
+        <div className="fee-form-group">
+          <label className="fee-form-label">
+            <span className="step-num-pill">2</span> 10+2 / Intermediate Board (All Over India)
+          </label>
+          <select
+            className="fee-form-select"
+            value={selectedBoardKey}
+            onChange={(e) => setSelectedBoardKey(e.target.value)}
+          >
+            {boards.map((b: any) => (
+              <option key={b.key} value={b.key}>
+                {b.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Step 2: Marks / Rank Input */}
+        <div className="fee-form-group">
+          <label className="fee-form-label">
+            <span className="step-num-pill">3</span> Marks or Entrance Rank
+          </label>
+          {isEngineeringOrAgri && (
+            <div className="score-type-tabs">
+              <button
+                type="button"
+                className={`score-type-btn ${activeScoreType === "marks" ? "active" : ""}`}
+                onClick={() => setActiveScoreType("marks")}
+              >
+                10+2 Marks (%)
+              </button>
+              <button
+                type="button"
+                className={`score-type-btn ${activeScoreType === "eapcet" ? "active" : ""}`}
+                onClick={() => setActiveScoreType("eapcet")}
+              >
+                TG/AP EAPCET Rank
+              </button>
+              <button
+                type="button"
+                className={`score-type-btn ${activeScoreType === "jee" ? "active" : ""}`}
+                onClick={() => setActiveScoreType("jee")}
+              >
+                JEE Main %ile
+              </button>
+            </div>
+          )}
+
+          {activeScoreType === "marks" && (
+            <div className="fee-input-wrap">
+              <input
+                type="text"
+                className="fee-form-input"
+                placeholder="Enter 10+2 marks (e.g. 88% or 880/1000)"
+                value={scoreInput}
+                onChange={(e) => {
+                  setScoreInput(e.target.value);
+                  setErrorMsg(null);
+                }}
+              />
+            </div>
+          )}
+
+          {activeScoreType === "eapcet" && (
+            <div className="fee-input-wrap">
+              <input
+                type="text"
+                className="fee-form-input"
+                placeholder="Enter TG / AP EAPCET Rank (e.g. 12500)"
+                value={rankInput}
+                onChange={(e) => {
+                  setRankInput(e.target.value);
+                  setErrorMsg(null);
+                }}
+              />
+            </div>
+          )}
+
+          {activeScoreType === "jee" && (
+            <div className="fee-input-wrap">
+              <input
+                type="text"
+                className="fee-form-input"
+                placeholder="Enter JEE Main Percentile (e.g. 91.5)"
+                value={scoreInput}
+                onChange={(e) => {
+                  setScoreInput(e.target.value);
+                  setErrorMsg(null);
+                }}
+              />
+            </div>
+          )}
+
+          {errorMsg && <div className="fee-form-error">{errorMsg}</div>}
+        </div>
+
+        {/* Live Scholarship Preview */}
+        {previewWaiver > 0 && (
+          <div className="fee-form-live-preview">
+            <div className="preview-badge">
+              <SparklesIcon size={13} /> {previewWaiver}% Merit Scholarship Qualified!
+            </div>
+            <div className="preview-amounts">
+              <span>Net Annual Tuition:</span>
+              <strong>₹{netTuition.toLocaleString("en-IN")}</strong>
+              <small>(₹{Math.round(netTuition / 2).toLocaleString("en-IN")}/sem)</small>
+            </div>
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <div className="fee-form-actions">
+          <button type="submit" className="fee-form-submit-btn">
+            Calculate Fee & Scholarship →
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /**
  * Deduplicates cards so the user is never shown duplicate cards (e.g. multiple video cards or repeated contact cards).
  */
@@ -1442,6 +1683,8 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
   if (!card || !card.type) return null;
 
   switch (card.type) {
+    case "fee_scholarship_form":
+      return <FeeScholarshipFormCard card={card} onSelect={onSelect} />;
     case "school_selection":
       return <SchoolSelectionCard card={card} onSelect={onSelect} />;
     case "course_selection":

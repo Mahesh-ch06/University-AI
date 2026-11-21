@@ -1804,6 +1804,28 @@ async def run_agent(
     if not action_note and not action and conv_state.get("pending_action") not in ("callback", "campus_visit") \
             and intent not in ("CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_BOOKING_WITH_DATE", "DATE_CONFIRMATION_YES",
                                "DATE_CONFIRMATION_NO"):
+        intake_state = dict(conv_state.get("fee_intake") or {})
+        if conv_state.get("fee_flow_prog") and not intake_state.get("program"):
+            intake_state["program"] = conv_state.get("fee_flow_prog")
+
+        # 1. If fee intake is active, or user asks specifically about scholarship/calculation, prioritize fee intake
+        low_msg = (message or "").lower()
+        is_scholarship_calc_q = bool(re.search(
+            r"\b(?:schol\w*|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
+            r"calculate\s+(?:my\s+)?fee|fee\s+calculation|my\s+fee|exact\s+fee|calculate\s+scholarship)\b",
+            low_msg,
+        ))
+        if conv_state.get("fee_intake") or is_scholarship_calc_q:
+            intake_decision = fee_intake.decide(message, profile, intake_state)
+            if intake_decision and intake_decision["action"] == "ask":
+                await set_state(fee_intake=intake_decision["state"])
+                async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                     cards=intake_decision.get("cards", []),
+                                     suggestions=intake_decision["chips"]):
+                    yield ev
+                return
+
+        # 2. Check exploratory school & course browsing flow
         flow_result = fee_flow.process_fee_flow(message, session_id, profile, conv_state)
         if flow_result is not None:
             await set_state(**flow_result["new_state"])
@@ -1813,10 +1835,13 @@ async def run_agent(
                 yield ev
             return
 
-        intake_decision = fee_intake.decide(message, profile, conv_state.get("fee_intake"))
+        # 3. Fallback check for fee intake if not caught above
+        if not intake_decision:
+            intake_decision = fee_intake.decide(message, profile, intake_state)
         if intake_decision and intake_decision["action"] == "ask":
             await set_state(fee_intake=intake_decision["state"])
             async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                 cards=intake_decision.get("cards", []),
                                  suggestions=intake_decision["chips"]):
                 yield ev
             return
