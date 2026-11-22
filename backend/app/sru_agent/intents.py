@@ -14,6 +14,8 @@ AgentIntent = Literal[
     "CAMPUS_VISIT_BOOKING",
     "CAMPUS_VISIT_INFO",
     "PLACEMENT_GUARANTEE_QUERY",
+    "ADMISSION_GUARANTEE_QUERY",
+    "FUTURE_YEAR_FEE_QUERY",
     "SPECIAL_CONCESSIONS_QUERY",
     "OTHER_FEES_QUERY",
     "NEXT_GEN_TECH_QUERY",
@@ -151,6 +153,23 @@ _PLACEMENT_GUARANTEE_PATTERN = re.compile(
     r"\bcan\s+(?:you|sru)\s+(?:promise|guarantee)\s+(?:a\s+)?(?:job|placement)\b|"
     r"\bjob\s+confirm\b"
     r")",
+    re.IGNORECASE,
+)
+
+_ADMISSION_GUARANTEE_PATTERN = re.compile(
+    r"(?:"
+    r"\b(?:guarantee|guaranteed|promise|promised|assure|assured)\b.*?\b(?:admissions?|seats?|getting\s+in|seat\s+allotment)\b|"
+    r"\b(?:admissions?|seats?)\b.*?\b(?:guarantee|guaranteed|confirm|confirmed|promise|promised|assured?)\b|"
+    r"\b(?:is\s+admission\s+guaranteed|can\s+you\s+guarantee\s+admission|seat\s+confirm\s+ga\s+vastunda|"
+    r"will\s+i\s+(?:definitely|surely|guaranteed)\s+get\s+(?:a\s+)?seat|confirmed\s+seat|seat\s+guaranteed|"
+    r"seat\s+vastunda|seat\s+vasthunda|seat\s+pakka|pakka\s+seat|guarantee\s+seat)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+_FUTURE_YEAR_FEE_PATTERN = re.compile(
+    r"\b(?:fees?|tuition|cost|fee\s+structure)\b.*?\b(?:2028-?29|2029-?30|2029|2030|2031|future\s+years?)\b|"
+    r"\b(?:2028-?29|2029-?30|2029|2030|2031)\b.*?\b(?:fees?|tuition|cost|fee\s+structure)\b",
     re.IGNORECASE,
 )
 
@@ -448,6 +467,14 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
     # 6b. Placement guarantee / 100% placement assistance inquiry
     if _PLACEMENT_GUARANTEE_PATTERN.search(msg):
         return "PLACEMENT_GUARANTEE_QUERY"
+
+    # 6bb. Admission / Seat guarantee inquiry (evaluated before fee / score checks)
+    if _ADMISSION_GUARANTEE_PATTERN.search(msg):
+        return "ADMISSION_GUARANTEE_QUERY"
+
+    # 6bc. Future academic year fee inquiry
+    if _FUTURE_YEAR_FEE_PATTERN.search(msg):
+        return "FUTURE_YEAR_FEE_QUERY"
 
     # 6c. Dedicated Hostel Inquiries (Categorized before fee calculations)
     if _HOSTEL_FEE_PATTERN.search(msg) and not _COMBINED_HOSTEL_FEE_PATTERN.search(msg):

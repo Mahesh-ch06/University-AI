@@ -619,5 +619,34 @@ Here is a quick overview of the key B.Tech engineering pathways available at SR 
 Which area interests you more — building software and apps, working with hardware and robotics, or core physical engineering?"""
 
 
+_ADMISSION_GUARANTEE_TEXT = """### 📋 SR University Admission & Seat Allocation Policy
+
+Admissions at SR University are **merit-based and subject to seat availability** during the active admission and counselling cycle. Seats are **never unconditionally guaranteed** or confirmed solely on a score, percentage, or rank.
+
+Key facts regarding admission:
+• **Eligibility vs. Allocation**: Having qualifying marks (such as 50%+ in 10+2 PCM for B.Tech, or 90%+ for scholarships) makes you fully eligible to apply and qualifies you for merit tuition fee waivers, but actual seat allotment depends on available branch vacancies during counselling.
+• **No Informal Reservations**: SR University strictly follows transparent merit-based counselling and document verification; no confirmed seat guarantees are issued without the formal application process.
+• **How to Apply**: To secure your preferred branch, register early through the official admissions portal at [apply.sru.edu.in](https://apply.sru.edu.in) or connect with the Admissions Office at **833 100 3030**.
+
+Would you like to calculate your merit scholarship slab, or review the step-by-step application process?"""
+
+_ADMISSION_GUARANTEE_CHIPS = ["Calculate scholarship", "How to apply", "Fee structure", "Contact Admissions"]
+
+
+_FUTURE_YEAR_FEE_TEXT = """### 📅 SR University Academic Fee Schedule
+
+Official fee schedules and merit scholarship waivers have **not yet been finalized** for future years and are currently notified for the **2027-28** academic year (e.g. B.Tech CSE annual tuition is **₹3,40,000** per year or ₹1,70,000 per semester). Fees for 2028-29, 2029, and subsequent academic years are approved by the university governing body prior to each respective admission cycle.
+
+Key policy rules regarding future academic fees:
+• **Annual Tuition Revision**: In accordance with official university regulations, there is an annual revision of **₹9,000 per year** for subsequent academic years.
+• **Merit Scholarships**: Scholarship percentages awarded at the time of admission are maintained across subsequent academic years provided the student maintains the required academic standing (minimum 7.5 CGPA and no active backlogs).
+• **Official Inquiries**: For forward projections or multi-year fee planning, please contact the Admissions Office at **833 100 3030** or email **info@sru.edu.in**.
+
+Would you like to review the official 2027-28 fee schedule or calculate your scholarship waiver?"""
+
+_FUTURE_YEAR_FEE_CHIPS = ["2027-28 Fee Structure", "Merit Scholarships", "Hostel Fees", "Contact Admissions"]
+
+
+
 
 

@@ -374,6 +374,10 @@ def is_fee_enquiry(message: str) -> bool:
     from . import intents
     if intents.is_branch_guidance_query(message or ""):
         return False
+    if intents._ADMISSION_GUARANTEE_PATTERN.search(message or ""):
+        return False
+    if intents._FUTURE_YEAR_FEE_PATTERN.search(message or ""):
+        return False
     if _OTHER_FEE_TOPIC.search(message or ""):
         return False
     if bool(_FEE_WORDS.search(message or "")):
@@ -390,6 +394,9 @@ def is_fee_enquiry(message: str) -> bool:
 
 def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
     """What to do with a fee enquiry. Multi-step intake with counsellor workflow and anti-repetition."""
+    from . import intents
+    if intents._ADMISSION_GUARANTEE_PATTERN.search(message or "") or intents._FUTURE_YEAR_FEE_PATTERN.search(message or ""):
+        return None
     intake = dict(intake or {})
     said = parse_details(message)
     active = bool(intake) and int(intake.get("turns", 0)) < 10

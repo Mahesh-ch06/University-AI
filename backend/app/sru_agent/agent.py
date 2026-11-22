@@ -741,19 +741,33 @@ def _handbook_context(query: str) -> str:
     return "\n\n".join(parts)
 
 
-def _offline_knowledge_reply(message: str):
-    """The most relevant handbook passage, shown as it is, for when the model cannot be reached."""
+_shown_offline_titles: dict = {}
+
+
+def _offline_knowledge_reply(message: str, session_id: str = ""):
+    """The most relevant handbook passage, shown as it is, with rotation across turns for when the model cannot be reached."""
     try:
-        found = knowledge.search(message, k=1, min_score=7.0)
+        found = knowledge.search(message, k=4, min_score=6.0)
     except Exception:
         found = []
     if not found:
         return None
-    text = re.sub(r"\[FACT-ID:[^\]]*\]\s*|\[STATUS:[^\]]*\]\s*|\[SOURCE:[^\]]*\]\s*", "", found[0]["text"]).strip()
+    recent = _shown_offline_titles.setdefault(session_id, [])
+    selected = found[0]
+    for c in found:
+        t = c.get("title", "")
+        if t not in recent:
+            selected = c
+            break
+    recent.append(selected.get("title", ""))
+    if len(recent) > 10:
+        recent.pop(0)
+
+    text = re.sub(r"\[FACT-ID:[^\]]*\]\s*|\[STATUS:[^\]]*\]\s*|\[SOURCE:[^\]]*\]\s*", "", selected["text"]).strip()
     if len(text) > 900:
         text = text[:900].rsplit("\n", 1)[0] + "\n..."
     return (f"I cannot reach my AI model right now (the free limit for today has been used), so here is the "
-            f"matching part of the SR University handbook, **{found[0]['title'].split(' > ')[-1]}**:\n\n{text}\n\n"
+            f"matching part of the SR University handbook, **{selected['title'].split(' > ')[-1]}**:\n\n{text}\n\n"
             f"I can still calculate fees and scholarships, find faculty profiles and arrange a callback. "
             f"For anything else, please call the Admissions Office at {config.ADMISSIONS_PHONE}.")
 
@@ -922,6 +936,10 @@ from .responses import (
     _ACADEMIC_EVALUATION_CHIPS,
     _LAB_FACILITIES_TEXT,
     _LAB_FACILITIES_CHIPS,
+    _ADMISSION_GUARANTEE_TEXT,
+    _ADMISSION_GUARANTEE_CHIPS,
+    _FUTURE_YEAR_FEE_TEXT,
+    _FUTURE_YEAR_FEE_CHIPS,
 )
 
 _PLACEMENT_ASSISTANCE_CHIPS = ["Top Recruiters & Packages", "Startup Incubator (SRiX)", "Placement Eligibility Rules", "Book a Campus Visit"]
@@ -1773,6 +1791,20 @@ async def run_agent(
             yield ev
         return
 
+    if intent == "ADMISSION_GUARANTEE_QUERY":
+        await set_state(fee_intake=None)
+        async for ev in _say(_ADMISSION_GUARANTEE_TEXT, message, session_id, conversation_id,
+                             suggestions=_ADMISSION_GUARANTEE_CHIPS):
+            yield ev
+        return
+
+    if intent == "FUTURE_YEAR_FEE_QUERY":
+        await set_state(fee_intake=None)
+        async for ev in _say(_FUTURE_YEAR_FEE_TEXT, message, session_id, conversation_id,
+                             suggestions=_FUTURE_YEAR_FEE_CHIPS):
+            yield ev
+        return
+
     if intent == "SPECIAL_CONCESSIONS_QUERY":
         from app.services.card_service import get_session_shown_cards, record_session_card
         cards_to_show = []
@@ -1820,7 +1852,8 @@ async def run_agent(
             "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "HOSTEL_INFO_QUERY", "HOSTEL_MESS_QUERY",
             "HOSTEL_CURFEW_RULES_QUERY", "HOSTEL_SAFETY_QUERY", "HOSTEL_FEE_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
             "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY", "OTHER_FEES_QUERY",
-            "LAB_FACILITIES_QUERY", "WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY",
+            "LAB_FACILITIES_QUERY", "WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY", "ADMISSION_GUARANTEE_QUERY",
+            "FUTURE_YEAR_FEE_QUERY",
         )
         if intent in canned_intents:
             intent = "GENERAL"
@@ -2282,8 +2315,16 @@ async def run_agent(
             low_msg,
         )) or bool(re.fullmatch(r"\s*\d{2,4}(?:\.\d+)?\s*%?\s*", low_msg))
         is_branch_guidance = (intent == "BRANCH_GUIDANCE_QUERY") or intents.is_branch_guidance_query(message)
+        is_seat_guarantee = (intent == "ADMISSION_GUARANTEE_QUERY") or bool(intents._ADMISSION_GUARANTEE_PATTERN.search(message))
+        is_future_year = (intent == "FUTURE_YEAR_FEE_QUERY") or bool(intents._FUTURE_YEAR_FEE_PATTERN.search(message))
+        if is_seat_guarantee or is_future_year:
+            is_scholarship_calc_q = False
+            if conv_state.get("fee_intake"):
+                await set_state(fee_intake=None)
+                intake_state = {}
+
         intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for"))
-        if not is_other_fee_inquiry and not is_branch_guidance and (intake_in_progress or is_scholarship_calc_q or (is_bare_score_msg and client is None)):
+        if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (intake_in_progress or is_scholarship_calc_q or (is_bare_score_msg and client is None)):
             intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
                 await _apply_intake_updates(intake_decision["state"])
@@ -2322,7 +2363,7 @@ async def run_agent(
                 return
 
         # 3. Fallback check for fee intake ONLY if user wants to calculate fee
-        if not is_other_fee_inquiry and not is_branch_guidance and (is_scholarship_calc_q or intake_in_progress):
+        if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (is_scholarship_calc_q or intake_in_progress):
             if not intake_decision:
                 intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
@@ -2623,7 +2664,7 @@ async def run_agent(
 
         if link.get("error_kind") in ("rate", "busy"):
             # When model is unavailable (quota, rate limit, or sandbox network): give handbook passage if one fits, else say what still works.
-            text = (None if used else (_offline_knowledge_reply(search_q) or _offline_knowledge_reply(message))) or get_limit_reply(session_id)
+            text = (None if used else (_offline_knowledge_reply(search_q, session_id) or _offline_knowledge_reply(message, session_id))) or get_limit_reply(session_id)
             async for ev in _say(text, message, session_id, conversation_id, used, cards,
                                  ["CSE fee with 85%", "Call me", "Plan a campus visit"]):
                 yield ev
