@@ -1742,6 +1742,22 @@ async def run_agent(
             if profile is not None:
                 profile[k] = early_details[k]
             academic_updates[k] = early_details[k]
+
+    # Synchronize percentage when raw marks are corrected in a multi-turn session
+    if early_details.get("raw_marks") is not None:
+        old_raw = (profile or {}).get("raw_marks")
+        new_raw = early_details["raw_marks"]
+        if old_raw and old_raw != new_raw and not early_details.get("percent"):
+            max_m = (profile or {}).get("max_marks")
+            if max_m and max_m > 0:
+                new_pct = round((new_raw / max_m) * 100, 2)
+                academic_updates["percent"] = new_pct
+                if profile is not None:
+                    profile["percent"] = new_pct
+            else:
+                academic_updates["percent"] = None
+                if profile is not None:
+                    profile["percent"] = None
     if early_details.get("generic_btech") and not (profile or {}).get("degree_interest") and not (profile or {}).get("program_interest"):
         academic_updates["degree_interest"] = "btech"
         academic_updates["generic_btech"] = True

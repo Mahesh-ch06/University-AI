@@ -302,17 +302,13 @@ def parse_details(message: str) -> dict:
         raw_marks_m = re.search(
             r"\b(?:scored|got|secured|obtained|have|actually\s+(?:i\s+)?(?:scored|got))\s*(\d{3,4})\b|"
             r"\b(\d{3,4})\s*marks\b|"
-            r"\b(?:marks?\s*(?:are|is|=|:)\s*)(\d{3,4})\b|"
-            r"^\s*(?:actually\s+)?(\d{3,4})\s*$",
+            r"\b(?:marks?\s*(?:are|is|=|:)\s*)(\d{3,4})\b",
             low,
         )
         if raw_marks_m:
-            raw_val = int(raw_marks_m.group(1) or raw_marks_m.group(2) or raw_marks_m.group(3) or raw_marks_m.group(4))
+            raw_val = int(raw_marks_m.group(1) or raw_marks_m.group(2) or raw_marks_m.group(3))
             if 100 < raw_val <= 1000:
                 out["raw_marks"] = raw_val
-                default_max = 1000 if raw_val > 500 else 470
-                out["max_marks"] = default_max
-                out["percent"] = round((raw_val / default_max) * 100, 2)
                 out["needs_marks_confirmation"] = raw_val
 
     # EAPCET rank
