@@ -714,7 +714,7 @@ def process_fee_flow(
     low = msg.lower()
     current_state = conv_state.get("fee_flow_state")
     saved_school_id = conv_state.get("fee_flow_school")
-    saved_prog_key = conv_state.get("fee_flow_prog")
+    saved_prog_key = conv_state.get("fee_flow_prog") or conv_state.get("active_program") or (profile.get("program_interest") if profile else None)
     saved_year = conv_state.get("fee_flow_year") or extract_academic_year(msg, DEFAULT_ACADEMIC_YEAR)
     is_fee_query = is_broad_fee_query(msg)
     user_name = profile.get("name")
@@ -1085,7 +1085,17 @@ def process_fee_flow(
         # Follow-up: Calculate scholarship for my marks on the active programme
         if any(k in low for k in ("calculate scholarship", "scholarship for my marks", "check scholarship", "my marks", "my scholarship")):
             fee_data = fees.load_data()
-            prog_key = saved_prog_key or "btech_cse"
+            prog_key = saved_prog_key or conv_state.get("active_program") or (profile.get("program_interest") if profile else None)
+            if not prog_key:
+                return {
+                    "text": "Sure! Which course or degree are you considering pursuing at SR University?",
+                    "cards": [build_school_selection_card()],
+                    "suggestions": ["B.Tech Engineering", "MBA", "BBA", "B.Sc Agriculture"],
+                    "new_state": {
+                        **conv_state,
+                        "fee_flow_state": "awaiting_school_selection",
+                    },
+                }
             prog_dict = fee_data["programs"].get(prog_key, {})
             prog_name = prog_dict.get("name", "B.Tech Computer Science & Engineering")
             return {
@@ -1131,7 +1141,8 @@ def process_fee_flow(
 
         if is_combined_hostel_q:
             fee_data = fees.load_data()
-            prog_dict = fee_data["programs"].get(saved_prog_key or "btech_cse", {})
+            active_p = saved_prog_key or conv_state.get("active_program") or (profile.get("program_interest") if profile else None) or "btech_cse"
+            prog_dict = fee_data["programs"].get(active_p, {})
             return _build_combined_hostel_payload(prog_dict, saved_year, user_name, conv_state)
 
         # Follow-up: Hostel specific fee/cost query only (strictly standalone)
@@ -1141,7 +1152,8 @@ def process_fee_flow(
         ) and not any(k in low for k in ("facility", "facilities", "curfew", "food", "mess food", "menu", "timing", "timings", "rule", "rules", "warden", "gym", "wifi", "internet"))
         if is_hostel_cost_q:
             school = next((s for s in SCHOOLS_DATA if s["id"] == saved_school_id), SCHOOLS_DATA[0])
-            prog_dict = fees.load_data()["programs"].get(saved_prog_key or "btech_cse", {})
+            active_p = saved_prog_key or conv_state.get("active_program") or (profile.get("program_interest") if profile else None) or "btech_cse"
+            prog_dict = fees.load_data()["programs"].get(active_p, {})
             prog_name = prog_dict.get("name", "B.Tech CSE")
 
             return {
@@ -1180,7 +1192,8 @@ def process_fee_flow(
         )
         if is_total_fee_q:
             fee_data = fees.load_data()
-            prog_dict = fee_data["programs"].get(saved_prog_key or "btech_cse", {})
+            active_p = saved_prog_key or conv_state.get("active_program") or (profile.get("program_interest") if profile else None) or "btech_cse"
+            prog_dict = fee_data["programs"].get(active_p, {})
             tuition = prog_dict.get("tuition_per_year", 340000)
             duration = prog_dict.get("duration_years", 4)
             one_time = 6100

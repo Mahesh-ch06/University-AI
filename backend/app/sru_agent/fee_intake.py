@@ -164,8 +164,9 @@ def parse_details(message: str) -> dict:
     """Everything fee-relevant the student typed in this one message."""
     low = (message or "").lower()
     out: dict = {}
-    if fees.find_program(message or ""):
-        out["program"] = message
+    detected_p = fees.find_program(message or "")
+    if detected_p:
+        out["program"] = detected_p
     elif fees._is_generic_btech(low) or re.search(r"\b(?:b\.?\s?tech|btech|engineering)\b", low):
         out["generic_btech"] = True
 
@@ -566,6 +567,25 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         is_all_known = has_board and has_stage and has_marks and has_route and has_prog
         is_re_query = is_all_known and (intake.get("waiting_for") == "done" or int(intake.get("turns", 0)) > 0)
 
+        # Step 0: If course/degree is completely unknown (neither specific programme nor generic B.Tech)
+        # Prompt user to choose or state their course first before board/marks questions.
+        has_any_course = bool(has_prog or said.get("generic_btech") or known.get("generic_btech") or intake.get("generic_btech"))
+        if not has_any_course and not intake.get("waiting_for"):
+            state["waiting_for"] = "program"
+            text = (
+                "Sure! I can help you with fee and scholarship details at SR University.\n\n"
+                "Which course or degree are you considering?"
+            )
+            chips = [
+                "B.Tech CSE",
+                "B.Tech (Other Branches)",
+                "MBA",
+                "BBA",
+                "B.Sc Agriculture",
+            ]
+            card = build_counsellor_program_card(selected_program=known.get("program"), step_label="Step 1: Preferred Programme")
+            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+
         # Step 1: Board selection (if not already known)
         if not has_board:
             state["waiting_for"] = "board"
@@ -643,10 +663,12 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             pct = known.get("percent")
             score_str = f"**{int(raw_m) if raw_m == int(raw_m) else raw_m}/{max_m} ({pct}%)**" if raw_m and max_m > 100 else f"**{pct}%**"
             proj_str = " (projected based on 1st-year performance)" if known.get("is_projected") else ""
+            prog_data = fees.load_data()["programs"].get(prog_key or "btech_cse", {})
+            prog_title = "B.Tech" if (said.get("generic_btech") or known.get("generic_btech") or not prog_key) else prog_data.get("name", "B.Tech")
 
             text = (
                 f"Thank you! Based on your academic score of {score_str}{proj_str}, you have a strong academic profile for SR University.\n\n"
-                f"Which admission route are you planning to use for B.Tech?\n"
+                f"Which admission route are you planning to use for {prog_title}?\n"
                 f"Select your admission pathway so we can factor in any entrance rank scholarships."
             )
             card = build_counsellor_route_card(selected_route=known.get("admission_route"))
@@ -685,7 +707,7 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 "Which B.Tech programme are you interested in?\n"
                 "Choose an engineering programme or branch to view your exact fee and scholarship breakdown."
             )
-            card = build_counsellor_program_card(selected_program=known.get("program"))
+            card = build_counsellor_program_card(selected_program=known.get("program"), step_label="Step 5: Preferred Programme")
             chips = ["B.Tech CSE", "B.Tech AI & Robotics", "B.Tech ECE", "B.Tech EEE", "B.Tech Mechanical", "B.Tech Civil"]
             return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
 

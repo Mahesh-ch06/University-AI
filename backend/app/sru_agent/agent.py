@@ -1559,10 +1559,83 @@ async def run_agent(
         active_topic = current_topic
         await set_state(active_topic=active_topic)
 
-    detected_prog = fees.find_program(message) or (profile.get("program_interest") if profile else None) or ((conv_state.get("fee_intake") or {}).get("program"))
-    if detected_prog:
-        active_program = detected_prog
-        await set_state(active_program=active_program)
+    # Track conversational program and course changes across turns
+    explicit_msg_prog = fees.find_program(message)
+    previous_active_prog = conv_state.get("active_program") or (profile.get("program_interest") if profile else None)
+
+    if explicit_msg_prog:
+        active_program = explicit_msg_prog
+        if profile is not None:
+            profile["program_interest"] = explicit_msg_prog
+        await memory.update_profile(session_id, program_interest=explicit_msg_prog)
+
+        # Handle course switch
+        if previous_active_prog and previous_active_prog != explicit_msg_prog:
+            data = fees.load_data()
+            old_level = data.get("programs", {}).get(previous_active_prog, {}).get("level", "ug")
+            new_level = data.get("programs", {}).get(explicit_msg_prog, {}).get("level", "ug")
+            current_intake = dict(conv_state.get("fee_intake") or {})
+            if current_intake:
+                current_intake["program"] = explicit_msg_prog
+                if old_level != new_level:
+                    for k_clr in (
+                        "board", "board_label", "board_key", "academic_stage", "stage_label",
+                        "raw_marks", "max_marks", "percent", "is_projected", "admission_route",
+                        "route_label", "eapcet_rank", "jee_percentile", "ib_score"
+                    ):
+                        current_intake.pop(k_clr, None)
+                        if profile is not None:
+                            profile.pop(k_clr, None)
+            await set_state(
+                active_program=explicit_msg_prog,
+                fee_flow_prog=explicit_msg_prog,
+                fee_tree_step=None,
+                fee_intake=current_intake if current_intake.get("waiting_for") else None,
+            )
+        else:
+            current_intake = dict(conv_state.get("fee_intake") or {})
+            if current_intake.get("waiting_for"):
+                current_intake["program"] = explicit_msg_prog
+                await set_state(
+                    active_program=active_program,
+                    fee_flow_prog=active_program,
+                    fee_intake=current_intake,
+                )
+            else:
+                await set_state(
+                    active_program=active_program,
+                    fee_flow_prog=active_program,
+                )
+    else:
+        active_program = (
+            conv_state.get("active_program")
+            or (profile.get("program_interest") if profile else None)
+            or ((conv_state.get("fee_intake") or {}).get("program"))
+        )
+        if active_program:
+            await set_state(active_program=active_program)
+            if profile is not None and not profile.get("program_interest"):
+                profile["program_interest"] = active_program
+                await memory.update_profile(session_id, program_interest=active_program)
+
+    # Early extract academic facts (board, stage, marks, rank) so they are preserved across turns
+    early_details = fee_intake.parse_details(message)
+    academic_updates = {}
+    for k in (
+        "board", "board_label", "board_key", "academic_stage", "stage_label",
+        "raw_marks", "max_marks", "percent", "is_projected", "admission_route",
+        "route_label", "eapcet_rank", "jee_percentile", "ib_score"
+    ):
+        if early_details.get(k) is not None:
+            if profile is not None:
+                profile[k] = early_details[k]
+            academic_updates[k] = early_details[k]
+    if academic_updates:
+        await memory.update_profile(session_id, **academic_updates)
+        current_intake = dict(conv_state.get("fee_intake") or {})
+        if current_intake.get("waiting_for"):
+            current_intake.update(academic_updates)
+            await set_state(fee_intake=current_intake)
 
     # Detect user persona and style
     persona = intents.detect_user_persona(message, history, profile)
@@ -1618,6 +1691,21 @@ async def run_agent(
                              "I can help with B.Tech & PG programs, fee structure, scholarships, placements, or visiting the campus.",
                              message, session_id, conversation_id,
                              suggestions=["B.Tech CSE fees", "Scholarship slabs", "Placements at SRU", "Plan a campus visit"]):
+            yield ev
+        return
+
+    if intent == "JOIN_SRU_QUERY":
+        flow_card = fee_flow.build_school_selection_card()
+        async for ev in _say(
+            "That's great! Which course or degree are you interested in pursuing at SR University?\n\n"
+            "We offer diverse undergraduate and postgraduate programs across Engineering, Management, "
+            "Agriculture, Computer Applications, and Sciences. Choose an academic area below or tell me your preferred course:",
+            message,
+            session_id,
+            conversation_id,
+            cards=[flow_card],
+            suggestions=["B.Tech Engineering", "MBA", "BBA", "B.Sc (Hons) Agriculture", "Explore all programs"]
+        ):
             yield ev
         return
 
@@ -1760,8 +1848,11 @@ async def run_agent(
             return
 
     if intent == "BTECH_CSE_FEE_QUERY":
+        if profile is not None:
+            profile["program_interest"] = "btech_cse"
+        await memory.update_profile(session_id, program_interest="btech_cse")
+        await set_state(fee_tree_step=None, active_program="btech_cse", fee_flow_prog="btech_cse")
         if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step=None)
             fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[0], "2027-28")
             async for ev in _say(_BTECH_CSE_FEE_TEXT, message, session_id, conversation_id,
                                  cards=[fee_card],
@@ -1771,8 +1862,11 @@ async def run_agent(
             return
 
     if intent == "BTECH_AI_ROBOTICS_FEE_QUERY":
+        if profile is not None:
+            profile["program_interest"] = "btech_ai_robotics"
+        await memory.update_profile(session_id, program_interest="btech_ai_robotics")
+        await set_state(fee_tree_step=None, active_program="btech_ai_robotics", fee_flow_prog="btech_ai_robotics")
         if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step=None)
             fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[0], "2027-28")
             async for ev in _say(_BTECH_AI_ROBOTICS_FEE_TEXT, message, session_id, conversation_id,
                                  cards=[fee_card],
@@ -1782,8 +1876,11 @@ async def run_agent(
             return
 
     if intent == "BTECH_ECE_FEE_QUERY":
+        if profile is not None:
+            profile["program_interest"] = "btech_ece"
+        await memory.update_profile(session_id, program_interest="btech_ece")
+        await set_state(fee_tree_step=None, active_program="btech_ece", fee_flow_prog="btech_ece")
         if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step=None)
             fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[1], "2027-28")
             async for ev in _say(_BTECH_ECE_FEE_TEXT, message, session_id, conversation_id,
                                  cards=[fee_card],
@@ -1793,8 +1890,11 @@ async def run_agent(
             return
 
     if intent == "BTECH_CORE_FEE_QUERY":
+        if profile is not None:
+            profile["program_interest"] = "btech_mech"
+        await memory.update_profile(session_id, program_interest="btech_mech")
+        await set_state(fee_tree_step=None, active_program="btech_mech", fee_flow_prog="btech_mech")
         if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step=None)
             fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[1], "2027-28")
             async for ev in _say(_BTECH_CORE_FEE_TEXT, message, session_id, conversation_id,
                                  cards=[fee_card],
@@ -2092,8 +2192,27 @@ async def run_agent(
             and intent not in ("CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_BOOKING_WITH_DATE", "DATE_CONFIRMATION_YES",
                                "DATE_CONFIRMATION_NO"):
         intake_state = dict(conv_state.get("fee_intake") or {})
-        if conv_state.get("fee_flow_prog") and not intake_state.get("program"):
-            intake_state["program"] = conv_state.get("fee_flow_prog")
+        if not intake_state.get("program"):
+            candidate_p = conv_state.get("fee_flow_prog") or conv_state.get("active_program") or (profile.get("program_interest") if profile else None)
+            if candidate_p:
+                intake_state["program"] = candidate_p
+
+        async def _apply_intake_updates(state_dict: dict):
+            await set_state(fee_intake=state_dict)
+            for k in ("program", "board", "board_label", "board_key", "academic_stage", "stage_label",
+                      "raw_marks", "max_marks", "percent", "admission_route", "route_label",
+                      "eapcet_rank", "jee_percentile"):
+                val = state_dict.get(k)
+                if val is not None:
+                    if k == "program":
+                        if profile is not None:
+                            profile["program_interest"] = val
+                        await memory.update_profile(session_id, program_interest=val)
+                        await set_state(active_program=val, fee_flow_prog=val)
+                    else:
+                        if profile is not None:
+                            profile[k] = val
+                        await memory.update_profile(session_id, **{k: val})
 
         # 0. Check affordability and concession multi-step flow
         if conv_state.get("affordability_flow") or affordability.is_affordability_query(message):
@@ -2136,25 +2255,18 @@ async def run_agent(
             r"\d{2,4}\s*(?:/|out\s+of)\s*\d{3,4}|\d{1,2}(?:\.\d+)?\s*%|cgpa\s*[:=]?\s*\d|\d\s*cgpa)\b",
             low_msg,
         )) or bool(re.fullmatch(r"\s*\d{2,4}(?:\.\d+)?\s*%?\s*", low_msg))
-        if not is_other_fee_inquiry and (conv_state.get("fee_intake") or is_scholarship_calc_q or (is_score_msg and client is None)):
+        intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for"))
+        if not is_other_fee_inquiry and (intake_in_progress or is_scholarship_calc_q or (is_score_msg and client is None)):
             intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
-                await set_state(fee_intake=intake_decision["state"])
-                for k in ("board", "board_label", "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks", "percent", "admission_route", "route_label", "eapcet_rank", "jee_percentile"):
-                    if intake_decision["state"].get(k) is not None:
-                        profile[k] = intake_decision["state"][k]
-                        await memory.update_profile(session_id, **{k: intake_decision["state"][k]})
+                await _apply_intake_updates(intake_decision["state"])
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=intake_decision.get("cards", []),
                                      suggestions=intake_decision["chips"]):
                     yield ev
                 return
             elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
-                await set_state(fee_intake=intake_decision["state"])
-                for k in ("board", "board_label", "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks", "percent", "admission_route", "route_label", "eapcet_rank", "jee_percentile"):
-                    if intake_decision["state"].get(k) is not None:
-                        profile[k] = intake_decision["state"][k]
-                        await memory.update_profile(session_id, **{k: intake_decision["state"][k]})
+                await _apply_intake_updates(intake_decision["state"])
                 fee_args = dict(intake_decision["args"])
                 fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
                 if fee_result.get("status") == "ok":
@@ -2183,26 +2295,18 @@ async def run_agent(
                 return
 
         # 3. Fallback check for fee intake ONLY if user wants to calculate fee
-        if not is_other_fee_inquiry and (is_scholarship_calc_q or conv_state.get("fee_intake")):
+        if not is_other_fee_inquiry and (is_scholarship_calc_q or intake_in_progress):
             if not intake_decision:
                 intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
-                await set_state(fee_intake=intake_decision["state"])
-                for k in ("board", "board_label", "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks", "percent", "admission_route", "route_label", "eapcet_rank", "jee_percentile"):
-                    if intake_decision["state"].get(k) is not None:
-                        profile[k] = intake_decision["state"][k]
-                        await memory.update_profile(session_id, **{k: intake_decision["state"][k]})
+                await _apply_intake_updates(intake_decision["state"])
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=intake_decision.get("cards", []),
                                      suggestions=intake_decision["chips"]):
                     yield ev
                 return
             elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
-                await set_state(fee_intake=intake_decision["state"])
-                for k in ("board", "board_label", "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks", "percent", "admission_route", "route_label", "eapcet_rank", "jee_percentile"):
-                    if intake_decision["state"].get(k) is not None:
-                        profile[k] = intake_decision["state"][k]
-                        await memory.update_profile(session_id, **{k: intake_decision["state"][k]})
+                await _apply_intake_updates(intake_decision["state"])
                 fee_args = dict(intake_decision["args"])
                 fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
                 if fee_result.get("status") == "ok":

@@ -39,6 +39,7 @@ AgentIntent = Literal[
     "LAB_FACILITIES_QUERY",
     "WHY_CHOOSE_SRU_QUERY",
     "ABOUT_SRU_QUERY",
+    "JOIN_SRU_QUERY",
     "GENERAL",
 ]
 
@@ -54,6 +55,17 @@ _CONFUSION_PATTERN = re.compile(
     r"what\s+do\s+you\s+mean|what\s+does\s+that\s+mean|"
     r"i\s+didn'?t\s+(ask|say|mention)\s+that|i\s+never\s+(asked|said|mentioned)\s+that|"
     r"huh|what\s+is\s+this|what\s+are\s+you\s+saying)[?!.,\s]*$",
+    re.IGNORECASE,
+)
+
+_JOIN_SRU_PATTERN = re.compile(
+    r"^\s*(?:i\s+(?:want|would\s+like|wish|plan|hope)\s+to\s+join\s+(?:sru|sr\s*u(?:niversity)?)|"
+    r"how\s+(?:can\s+i|to)\s+join\s+(?:sru|sr\s*u(?:niversity)?)|"
+    r"i\s+(?:am\s+)?planning\s+to\s+join\s+(?:sru|sr\s*u(?:niversity)?)|"
+    r"i\s+want\s+to\s+take\s+admission\s+in\s+(?:sru|sr\s*u(?:niversity)?)|"
+    r"how\s+to\s+get\s+admission\s+in\s+(?:sru|sr\s*u(?:niversity)?)|"
+    r"admission\s+in\s+(?:sru|sr\s*u(?:niversity)?)|"
+    r"i\s+want\s+to\s+join)[?!.,\s]*$",
     re.IGNORECASE,
 )
 
@@ -348,6 +360,12 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
     # 2. Confusion query
     if _CONFUSION_PATTERN.match(msg):
         return "CONFUSION_QUERY"
+
+    # 2b. General join query without course
+    if _JOIN_SRU_PATTERN.match(msg):
+        from . import fees as _fees
+        if not _fees.find_program(msg):
+            return "JOIN_SRU_QUERY"
 
     # 3. Active date confirmation in progress
     if state.get("awaiting_date_confirmation"):

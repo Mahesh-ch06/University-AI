@@ -1252,8 +1252,8 @@ def build_fee_scholarship_form_card(
     else:
         filtered_progs = list(_ALL_FORM_PROGRAMS)
 
-    # Ensure selected program is in the filtered list or default to the first one
-    active_prog = selected_program if any(p["key"] == selected_program for p in filtered_progs) else (filtered_progs[0]["key"] if filtered_progs else "btech_cse")
+    # Ensure selected program is in the filtered list
+    active_prog = selected_program if (selected_program and any(p["key"] == selected_program for p in filtered_progs)) else (selected_program or None)
 
     return {
         "type": "fee_scholarship_form",
@@ -1366,20 +1366,21 @@ def build_counsellor_route_card(selected_route: str | None = None) -> dict:
     }
 
 
-def build_counsellor_program_card(selected_program: str | None = None) -> dict:
-    """Builds interactive programme selection card for B.Tech disciplines."""
+def build_counsellor_program_card(selected_program: str | None = None, step_label: str = "Step 1: Preferred Programme") -> dict:
+    """Builds interactive programme selection card across disciplines."""
     return {
         "type": "counsellor_program_selection",
-        "title": "Which B.Tech programme are you interested in?",
-        "subtitle": "Choose an engineering programme or branch to view your exact fee and scholarship breakdown.",
-        "selected_program": selected_program or "btech_cse",
+        "title": "Which course are you considering?",
+        "subtitle": "Choose a programme or degree to view your exact fee and scholarship breakdown.",
+        "step_label": step_label,
+        "selected_program": selected_program or None,
         "programs": [
-            {"key": "btech_cse", "name": "B.Tech CSE (AIML, Data Science, Cyber Security, Quantum AI)", "short": "CSE & Specialisations", "annual_tuition": "₹3,40,000"},
+            {"key": "btech_cse", "name": "B.Tech CSE (AIML, Data Science, Cyber Security, Quantum AI)", "short": "B.Tech CSE", "annual_tuition": "₹3,40,000"},
             {"key": "btech_ai_robotics", "name": "B.Tech in Artificial Intelligence & Robotics", "short": "AI & Robotics", "annual_tuition": "₹4,00,000"},
-            {"key": "btech_ece", "name": "B.Tech ECE (AIML, VLSI, Robotics)", "short": "ECE", "annual_tuition": "₹2,70,000"},
-            {"key": "btech_eee", "name": "B.Tech Electrical & Electronics (EEE)", "short": "EEE", "annual_tuition": "₹2,00,000"},
-            {"key": "btech_mech", "name": "B.Tech Mechanical (Robotics, Smart Mfg)", "short": "Mechanical", "annual_tuition": "₹2,00,000"},
-            {"key": "btech_civil", "name": "B.Tech Civil Engineering", "short": "Civil", "annual_tuition": "₹2,00,000"},
+            {"key": "btech_ece", "name": "B.Tech ECE (AIML, VLSI, Robotics)", "short": "B.Tech ECE", "annual_tuition": "₹2,70,000"},
+            {"key": "btech_mech", "name": "B.Tech Mechanical / Civil / EEE", "short": "Core Engineering", "annual_tuition": "₹2,00,000"},
+            {"key": "mba", "name": "Master of Business Administration (MBA)", "short": "MBA", "annual_tuition": "₹3,00,000"},
+            {"key": "bba", "name": "Bachelor of Business Administration (BBA)", "short": "BBA", "annual_tuition": "₹1,50,000"},
             {"key": "bsc_agri", "name": "B.Sc (Hons.) Agriculture (ICAR Accredited)", "short": "B.Sc Agriculture", "annual_tuition": "₹2,00,000"},
         ],
     }

@@ -1844,7 +1844,7 @@ export function CounsellorProgramCard({ card, onSelect }: { card: any; onSelect?
     <div className="rich-card counsellor-card counsellor-program-card">
       <div className="counsellor-card-header">
         <span className="card-badge counsellor-step-badge">
-          <RupeeIcon size={13} /> Step 5: Preferred Programme
+          <RupeeIcon size={13} /> {card.step_label || "Preferred Programme"}
         </span>
         <h4 className="card-title counsellor-title">{card.title}</h4>
         {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
