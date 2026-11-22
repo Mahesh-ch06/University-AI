@@ -3952,6 +3952,487 @@
   color: #818cf8;
 }
 
+/* =========================================================
+   COUNSELLOR SCHOLARSHIP WORKFLOW CARDS
+   ========================================================= */
+
+.counsellor-card {
+  border-top: 3px solid #6366f1;
+  background: var(--card-bg, #ffffff);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.08);
+  margin-top: 12px;
+  padding: 16px 18px;
+  animation: counsellorFadeIn 0.25s ease-out;
+}
+
+@keyframes counsellorFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.counsellor-card-header {
+  margin-bottom: 14px;
+}
+
+.counsellor-step-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #4f46e5;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.counsellor-title {
+  color: var(--text-1, #0f172a);
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 6px 0 2px 0;
+  line-height: 1.35;
+}
+
+.counsellor-subtitle {
+  color: var(--text-2, #64748b);
+  font-size: 0.8rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Board Options Grid */
+.counsellor-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.counsellor-opt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1.5px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+}
+
+.counsellor-opt-btn:hover:not(:disabled) {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.04);
+  transform: translateY(-1px);
+}
+
+.counsellor-opt-btn.selected {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.counsellor-opt-btn.dimmed {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.counsellor-opt-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.counsellor-opt-code {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #4f46e5;
+  text-transform: uppercase;
+}
+
+.counsellor-opt-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-1, #1e293b);
+}
+
+.counsellor-check {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #10b981;
+  margin-left: 8px;
+}
+
+/* Stage List */
+.counsellor-stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.counsellor-stage-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1.5px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+}
+
+.counsellor-stage-btn:hover:not(:disabled) {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.04);
+  transform: translateY(-1px);
+}
+
+.counsellor-stage-btn.selected {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.counsellor-stage-btn.dimmed {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.counsellor-stage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.counsellor-stage-label {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-1, #1e293b);
+}
+
+.counsellor-stage-desc {
+  font-size: 0.76rem;
+  color: var(--text-2, #64748b);
+}
+
+.counsellor-arrow {
+  font-size: 0.92rem;
+  color: #6366f1;
+  font-weight: 700;
+}
+
+/* Marks Input Card */
+.counsellor-marks-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.counsellor-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.counsellor-input-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.counsellor-marks-input-field {
+  width: 100%;
+  padding: 10px 48px 10px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-color, #cbd5e1);
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-1, #0f172a);
+  font-size: 0.95rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.counsellor-marks-input-field:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.counsellor-marks-input-field.error {
+  border-color: #ef4444;
+}
+
+.counsellor-marks-unit {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.counsellor-submit-btn {
+  padding: 10px 16px;
+  background: #6366f1;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.counsellor-submit-btn:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.counsellor-submit-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.counsellor-inline-error {
+  font-size: 0.76rem;
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.counsellor-benchmarks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.counsellor-benchmarks-title {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-2, #64748b);
+}
+
+.counsellor-benchmarks-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.counsellor-benchmark-chip {
+  padding: 4px 8px;
+  background: var(--bg-secondary, #f1f5f9);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-1, #334155);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.counsellor-benchmark-chip:hover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: #6366f1;
+  color: #4f46e5;
+}
+
+/* Route Grid */
+.counsellor-route-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.counsellor-route-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1.5px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+}
+
+.counsellor-route-btn:hover:not(:disabled) {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.04);
+  transform: translateY(-1px);
+}
+
+.counsellor-route-btn.selected {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.counsellor-route-btn.dimmed {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.counsellor-route-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.counsellor-route-label {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-1, #1e293b);
+}
+
+.counsellor-route-desc {
+  font-size: 0.72rem;
+  color: var(--text-2, #64748b);
+}
+
+/* Programme Selection List */
+.counsellor-prog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.counsellor-prog-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1.5px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+}
+
+.counsellor-prog-btn:hover:not(:disabled) {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.04);
+  transform: translateY(-1px);
+}
+
+.counsellor-prog-btn.selected {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.counsellor-prog-btn.dimmed {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.counsellor-prog-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.counsellor-prog-name {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-1, #1e293b);
+}
+
+.counsellor-prog-fee {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #6366f1;
+}
+
+/* Dark Mode Overrides for Counsellor Cards */
+[data-theme="dark"] .counsellor-card {
+  border-top-color: #818cf8;
+  background: #181d27;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .counsellor-step-badge {
+  background: rgba(129, 140, 248, 0.18);
+  color: #a5b4fc;
+  border-color: rgba(129, 140, 248, 0.3);
+}
+
+[data-theme="dark"] .counsellor-title {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .counsellor-subtitle {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .counsellor-opt-btn,
+[data-theme="dark"] .counsellor-stage-btn,
+[data-theme="dark"] .counsellor-route-btn,
+[data-theme="dark"] .counsellor-prog-btn {
+  background: #212631;
+  border-color: #2d3340;
+}
+
+[data-theme="dark"] .counsellor-opt-label,
+[data-theme="dark"] .counsellor-stage-label,
+[data-theme="dark"] .counsellor-route-label,
+[data-theme="dark"] .counsellor-prog-name {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .counsellor-opt-code,
+[data-theme="dark"] .counsellor-prog-fee,
+[data-theme="dark"] .counsellor-arrow {
+  color: #818cf8;
+}
+
+[data-theme="dark"] .counsellor-stage-desc,
+[data-theme="dark"] .counsellor-route-desc,
+[data-theme="dark"] .counsellor-marks-unit,
+[data-theme="dark"] .counsellor-benchmarks-title {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .counsellor-marks-input-field {
+  background: #212631;
+  border-color: #2d3340;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .counsellor-benchmark-chip {
+  background: #212631;
+  border-color: #2d3340;
+  color: #cbd5e1;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+  .counsellor-options-grid,
+  .counsellor-route-grid {
+    grid-template-columns: 1fr;
+  }
+  .counsellor-card {
+    padding: 14px 12px;
+  }
+}
+
 
 
 

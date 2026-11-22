@@ -1276,3 +1276,111 @@ def build_fee_scholarship_form_card(
             {"key": "degree_university", "label": "Recognised University / College", "slab_key": "pg"},
         ],
     }
+
+
+def build_counsellor_board_card(selected_board: str | None = None) -> dict:
+    """Builds interactive board selection card for guided scholarship counselling."""
+    return {
+        "type": "counsellor_board_selection",
+        "title": "Where did you complete your schooling / Intermediate education?",
+        "subtitle": "Select the board under which you studied so I can use the appropriate academic assessment criteria.",
+        "selected_board": selected_board,
+        "options": [
+            {"key": "ts_state_board", "label": "Telangana Intermediate (TSBIE)", "short": "TSBIE", "code": "TSBIE"},
+            {"key": "ap_state_board", "label": "Andhra Pradesh Intermediate (BIEAP)", "short": "BIEAP", "code": "BIEAP"},
+            {"key": "cbse", "label": "CBSE", "short": "CBSE", "code": "CBSE"},
+            {"key": "icse", "label": "ISC / ICSE", "short": "ISC", "code": "ISC"},
+            {"key": "other_state_board", "label": "Other State Board", "short": "Other State Board", "code": "Other"},
+            {"key": "ib", "label": "International Baccalaureate (IB)", "short": "IB", "code": "IB"},
+        ],
+    }
+
+
+def build_counsellor_stage_card(board_label: str | None = None, selected_stage: str | None = None) -> dict:
+    """Builds interactive academic stage card for guided scholarship counselling."""
+    return {
+        "type": "counsellor_stage_selection",
+        "title": "Which year are you currently studying in?",
+        "subtitle": f"Select your academic stage{' under ' + board_label if board_label else ''} so I can ask for the correct marks.",
+        "board_label": board_label,
+        "selected_stage": selected_stage,
+        "options": [
+            {
+                "key": "1st_year",
+                "label": "Intermediate 1st Year (11th)",
+                "desc": "Currently in 1st year / completed 1st year exams",
+            },
+            {
+                "key": "2nd_year",
+                "label": "Intermediate 2nd Year (12th)",
+                "desc": "Currently in 2nd year; preliminary assessment on completed 1st year marks",
+            },
+            {
+                "key": "completed",
+                "label": "Completed Intermediate (Passed out)",
+                "desc": "Completed 10+2 / Intermediate with final examination score",
+            },
+        ],
+    }
+
+
+def build_counsellor_marks_card(
+    board_key: str | None = None,
+    stage_key: str | None = None,
+    max_marks: int = 1000,
+    board_label: str | None = None,
+    default_val: float | None = None,
+) -> dict:
+    """Builds interactive marks input card with inline validation and continue button."""
+    unit = "%" if max_marks <= 100 else f"/ {max_marks}"
+    stage_name = "Intermediate 1st Year" if stage_key in ("1st_year", "2nd_year") else "Intermediate"
+    return {
+        "type": "counsellor_marks_input",
+        "title": f"What marks have you scored in {stage_name}?",
+        "subtitle": f"Enter your marks scored out of {max_marks} under {board_label or 'your board'}." if max_marks > 100 else f"Enter your percentage scored under {board_label or 'your board'}.",
+        "board_key": board_key or "ts_state_board",
+        "stage_key": stage_key or "completed",
+        "max_marks": max_marks,
+        "board_label": board_label,
+        "unit": unit,
+        "placeholder": f"e.g. {int(max_marks * 0.88)}" if max_marks > 100 else "e.g. 88%",
+        "default_val": default_val,
+    }
+
+
+def build_counsellor_route_card(selected_route: str | None = None) -> dict:
+    """Builds interactive admission route card for guided scholarship counselling."""
+    return {
+        "type": "counsellor_route_selection",
+        "title": "Which admission route are you planning to use for B.Tech?",
+        "subtitle": "Select your admission pathway so we can factor in any entrance rank scholarships.",
+        "selected_route": selected_route,
+        "options": [
+            {"key": "tg_eapcet", "label": "TG EAPCET", "desc": "Telangana State Engineering Entrance (Ranks 1 to 20,000)"},
+            {"key": "ap_eapcet", "label": "AP EAPCET", "desc": "Andhra Pradesh State Engineering Entrance (Ranks 1 to 20,000)"},
+            {"key": "jee_main", "label": "JEE Main", "desc": "NTA JEE Main (50 to 95+ Percentile)"},
+            {"key": "srsat", "label": "SR University SRSAT", "desc": "SR University Scholastic Aptitude Test"},
+            {"key": "other", "label": "Other", "desc": "Other state or national entrance exam"},
+            {"key": "not_decided", "label": "Not decided yet", "desc": "Assess based on 10+2 Intermediate marks alone"},
+        ],
+    }
+
+
+def build_counsellor_program_card(selected_program: str | None = None) -> dict:
+    """Builds interactive programme selection card for B.Tech disciplines."""
+    return {
+        "type": "counsellor_program_selection",
+        "title": "Which B.Tech programme are you interested in?",
+        "subtitle": "Choose an engineering programme or branch to view your exact fee and scholarship breakdown.",
+        "selected_program": selected_program or "btech_cse",
+        "programs": [
+            {"key": "btech_cse", "name": "B.Tech CSE (AIML, Data Science, Cyber Security, Quantum AI)", "short": "CSE & Specialisations", "annual_tuition": "₹3,40,000"},
+            {"key": "btech_ai_robotics", "name": "B.Tech in Artificial Intelligence & Robotics", "short": "AI & Robotics", "annual_tuition": "₹4,00,000"},
+            {"key": "btech_ece", "name": "B.Tech ECE (AIML, VLSI, Robotics)", "short": "ECE", "annual_tuition": "₹2,70,000"},
+            {"key": "btech_eee", "name": "B.Tech Electrical & Electronics (EEE)", "short": "EEE", "annual_tuition": "₹2,00,000"},
+            {"key": "btech_mech", "name": "B.Tech Mechanical (Robotics, Smart Mfg)", "short": "Mechanical", "annual_tuition": "₹2,00,000"},
+            {"key": "btech_civil", "name": "B.Tech Civil Engineering", "short": "Civil", "annual_tuition": "₹2,00,000"},
+            {"key": "bsc_agri", "name": "B.Sc (Hons.) Agriculture (ICAR Accredited)", "short": "B.Sc Agriculture", "annual_tuition": "₹2,00,000"},
+        ],
+    }
+

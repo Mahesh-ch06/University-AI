@@ -1648,10 +1648,289 @@ export function deduplicateCards(cards: any[] | undefined | null): any[] {
   return result;
 }
 
+export function CounsellorBoardCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
+  const [selected, setSelected] = useState<string | null>(card.selected_board || null);
+  const options = card.options || [];
+
+  const handleSelect = (opt: any) => {
+    if (selected) return;
+    setSelected(opt.key);
+    if (onSelect) {
+      onSelect(opt.label);
+    }
+  };
+
+  return (
+    <div className="rich-card counsellor-card counsellor-board-card">
+      <div className="counsellor-card-header">
+        <span className="card-badge counsellor-step-badge">
+          <BookOpenIcon size={13} /> Step 1: Schooling / Board
+        </span>
+        <h4 className="card-title counsellor-title">{card.title}</h4>
+        {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
+      </div>
+      <div className="counsellor-options-grid">
+        {options.map((opt: any) => (
+          <button
+            key={opt.key}
+            type="button"
+            className={`counsellor-opt-btn ${selected === opt.key ? "selected" : ""} ${selected && selected !== opt.key ? "dimmed" : ""}`}
+            onClick={() => handleSelect(opt)}
+            disabled={Boolean(selected)}
+          >
+            <div className="counsellor-opt-content">
+              <span className="counsellor-opt-code">{opt.code || opt.short}</span>
+              <span className="counsellor-opt-label">{opt.label}</span>
+            </div>
+            {selected === opt.key && <span className="counsellor-check">✓</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CounsellorStageCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
+  const [selected, setSelected] = useState<string | null>(card.selected_stage || null);
+  const options = card.options || [];
+
+  const handleSelect = (opt: any) => {
+    if (selected) return;
+    setSelected(opt.key);
+    if (onSelect) {
+      onSelect(opt.label);
+    }
+  };
+
+  return (
+    <div className="rich-card counsellor-card counsellor-stage-card">
+      <div className="counsellor-card-header">
+        <span className="card-badge counsellor-step-badge">
+          <TargetIcon size={13} /> Step 2: Academic Stage
+        </span>
+        <h4 className="card-title counsellor-title">{card.title}</h4>
+        {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
+      </div>
+      <div className="counsellor-stage-list">
+        {options.map((opt: any) => (
+          <button
+            key={opt.key}
+            type="button"
+            className={`counsellor-stage-btn ${selected === opt.key ? "selected" : ""} ${selected && selected !== opt.key ? "dimmed" : ""}`}
+            onClick={() => handleSelect(opt)}
+            disabled={Boolean(selected)}
+          >
+            <div className="counsellor-stage-info">
+              <span className="counsellor-stage-label">{opt.label}</span>
+              <span className="counsellor-stage-desc">{opt.desc}</span>
+            </div>
+            {selected === opt.key ? <span className="counsellor-check">✓</span> : <span className="counsellor-arrow">→</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CounsellorMarksCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
+  const [val, setVal] = useState<string>(card.default_val ? String(card.default_val) : "");
+  const [submitted, setSubmitted] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const maxMarks = card.max_marks || 1000;
+  const isPercentage = maxMarks <= 100;
+
+  const handleSubmit = (marksVal?: number) => {
+    if (submitted) return;
+    const num = marksVal !== undefined ? marksVal : parseFloat(val.replace(/[^\d.]/g, ""));
+    if (isNaN(num) || num <= 0) {
+      setError(`Please enter a valid score (between 1 and ${maxMarks}).`);
+      return;
+    }
+    if (num > maxMarks) {
+      setError(`Entered score exceeds the maximum marks (${maxMarks}).`);
+      return;
+    }
+    setError(null);
+    setSubmitted(true);
+    if (onSelect) {
+      if (isPercentage) {
+        onSelect(`${num}%`);
+      } else {
+        onSelect(`${num} out of ${maxMarks}`);
+      }
+    }
+  };
+
+  const quickMarks = isPercentage
+    ? [80, 88, 92, 96]
+    : [Math.round(maxMarks * 0.85), Math.round(maxMarks * 0.92), Math.round(maxMarks * 0.96)];
+
+  return (
+    <div className="rich-card counsellor-card counsellor-marks-card">
+      <div className="counsellor-card-header">
+        <span className="card-badge counsellor-step-badge">
+          <AwardIcon size={13} /> Step 3: Academic Marks
+        </span>
+        <h4 className="card-title counsellor-title">{card.title}</h4>
+        {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
+      </div>
+
+      <div className="counsellor-marks-body">
+        <div className="counsellor-input-row">
+          <div className="counsellor-input-wrapper">
+            <input
+              type="number"
+              className={`counsellor-marks-input-field ${error ? "error" : ""}`}
+              placeholder={card.placeholder || (isPercentage ? "e.g. 88" : `e.g. ${Math.round(maxMarks * 0.88)}`)}
+              value={val}
+              onChange={(e) => {
+                setVal(e.target.value);
+                if (error) setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSubmit();
+              }}
+              disabled={submitted}
+              autoFocus
+            />
+            <span className="counsellor-marks-unit">{isPercentage ? "%" : `/ ${maxMarks}`}</span>
+          </div>
+          <button
+            type="button"
+            className="counsellor-submit-btn"
+            onClick={() => handleSubmit()}
+            disabled={submitted || !val.trim()}
+          >
+            {submitted ? "Submitted ✓" : "Continue →"}
+          </button>
+        </div>
+
+        {error && <div className="counsellor-inline-error">{error}</div>}
+
+        {!submitted && (
+          <div className="counsellor-benchmarks">
+            <span className="counsellor-benchmarks-title">Quick select:</span>
+            <div className="counsellor-benchmarks-chips">
+              {quickMarks.map((qm) => (
+                <button
+                  key={qm}
+                  type="button"
+                  className="counsellor-benchmark-chip"
+                  onClick={() => {
+                    setVal(String(qm));
+                    handleSubmit(qm);
+                  }}
+                >
+                  {isPercentage ? `${qm}%` : `${qm} / ${maxMarks}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function CounsellorRouteCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
+  const [selected, setSelected] = useState<string | null>(card.selected_route || null);
+  const options = card.options || [];
+
+  const handleSelect = (opt: any) => {
+    if (selected) return;
+    setSelected(opt.key);
+    if (onSelect) {
+      onSelect(opt.label);
+    }
+  };
+
+  return (
+    <div className="rich-card counsellor-card counsellor-route-card">
+      <div className="counsellor-card-header">
+        <span className="card-badge counsellor-step-badge">
+          <SparklesIcon size={13} /> Step 4: Admission Route
+        </span>
+        <h4 className="card-title counsellor-title">{card.title}</h4>
+        {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
+      </div>
+      <div className="counsellor-route-grid">
+        {options.map((opt: any) => (
+          <button
+            key={opt.key}
+            type="button"
+            className={`counsellor-route-btn ${selected === opt.key ? "selected" : ""} ${selected && selected !== opt.key ? "dimmed" : ""}`}
+            onClick={() => handleSelect(opt)}
+            disabled={Boolean(selected)}
+          >
+            <div className="counsellor-route-info">
+              <span className="counsellor-route-label">{opt.label}</span>
+              <span className="counsellor-route-desc">{opt.desc}</span>
+            </div>
+            {selected === opt.key && <span className="counsellor-check">✓</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CounsellorProgramCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
+  const [selected, setSelected] = useState<string | null>(card.selected_program || null);
+  const programs = card.programs || [];
+
+  const handleSelect = (prog: any) => {
+    if (selected) return;
+    setSelected(prog.key);
+    if (onSelect) {
+      onSelect(prog.name);
+    }
+  };
+
+  return (
+    <div className="rich-card counsellor-card counsellor-program-card">
+      <div className="counsellor-card-header">
+        <span className="card-badge counsellor-step-badge">
+          <RupeeIcon size={13} /> Step 5: Preferred Programme
+        </span>
+        <h4 className="card-title counsellor-title">{card.title}</h4>
+        {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
+      </div>
+      <div className="counsellor-prog-list">
+        {programs.map((prog: any) => (
+          <button
+            key={prog.key}
+            type="button"
+            className={`counsellor-prog-btn ${selected === prog.key ? "selected" : ""} ${selected && selected !== prog.key ? "dimmed" : ""}`}
+            onClick={() => handleSelect(prog)}
+            disabled={Boolean(selected)}
+          >
+            <div className="counsellor-prog-main">
+              <span className="counsellor-prog-name">{prog.name}</span>
+              <span className="counsellor-prog-fee">{prog.annual_tuition}/year</span>
+            </div>
+            {selected === prog.key ? <span className="counsellor-check">✓</span> : <span className="counsellor-arrow">→</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
   if (!card || !card.type) return null;
 
   switch (card.type) {
+    case "counsellor_board_selection":
+      return <CounsellorBoardCard card={card} onSelect={onSelect} />;
+    case "counsellor_stage_selection":
+      return <CounsellorStageCard card={card} onSelect={onSelect} />;
+    case "counsellor_marks_input":
+      return <CounsellorMarksCard card={card} onSelect={onSelect} />;
+    case "counsellor_route_selection":
+      return <CounsellorRouteCard card={card} onSelect={onSelect} />;
+    case "counsellor_program_selection":
+      return <CounsellorProgramCard card={card} onSelect={onSelect} />;
     case "fee_scholarship_form":
       return <FeeScholarshipFormCard card={card} onSelect={onSelect} />;
     case "school_selection":

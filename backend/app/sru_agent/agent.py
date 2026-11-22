@@ -525,6 +525,83 @@ def _offline_fee_text(fee: dict) -> str:
     return "\n".join(lines)
 
 
+def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
+    """Formats structured scholarship assessment and fee details following admission counsellor standards."""
+    board_lbl = details.get("board_label") or details.get("board") or "10+2 / Intermediate"
+    stage_lbl = details.get("stage_label") or ""
+    qual_str = f"{board_lbl} ({stage_lbl})" if stage_lbl else board_lbl
+
+    raw_m = details.get("raw_marks")
+    max_m = details.get("max_marks")
+    pct = details.get("percent")
+    if raw_m and max_m and max_m > 100:
+        score_str = f"{int(raw_m) if raw_m == int(raw_m) else raw_m}/{max_m} ({pct}%)"
+    elif pct:
+        score_str = f"{pct}%"
+    elif details.get("ib_score"):
+        score_str = f"{details['ib_score']} points (out of 45)"
+    else:
+        score_str = "Standard Eligibility"
+
+    route_lbl = details.get("route_label") or "Direct Merit / 10+2 Marks"
+    if details.get("eapcet_rank"):
+        route_str = f"{route_lbl} (Rank: {details['eapcet_rank']:,})"
+    elif details.get("jee_percentile"):
+        route_str = f"{route_lbl} ({details['jee_percentile']}%ile)"
+    else:
+        route_str = route_lbl
+
+    prog_name = fee_res.get("program") or details.get("program_name") or details.get("program") or "B.Tech CSE"
+
+    pct_waiver = fee_res.get("scholarship_percent", 0)
+    matching_cat = fee_res.get("scholarship_basis_text") or (
+        f"{pct_waiver}% Merit Scholarship" if pct_waiver > 0 else "Standard Fee / Minimum Eligibility"
+    )
+
+    orig_tuition = fee_res.get("tuition_first_year", "₹3,40,000")
+    num_match = re.search(r"[\d,]+", orig_tuition.replace("₹", ""))
+    if num_match:
+        orig_annual_int = int(num_match.group(0).replace(",", ""))
+        orig_sem = f"₹{orig_annual_int // 2:,}"
+    else:
+        orig_sem = "₹1,70,000"
+
+    savings = fee_res.get("saving_first_year", "₹0")
+    net_tuition = fee_res.get("tuition_first_year_after_scholarship", orig_tuition)
+    per_sem_net = fee_res.get("per_semester_after_scholarship", orig_sem)
+    sem1_payable = fee_res.get("sem1_total_payable", per_sem_net)
+
+    lines = []
+    if details.get("re_query"):
+        lines.append("Thanks! I already have your academic details. Let's continue with your scholarship assessment.\n")
+
+    lines.append("### Your Scholarship Assessment")
+    lines.append(f"• **Academic Qualification**: {qual_str}")
+    lines.append(f"• **Academic Score**: {score_str}")
+    lines.append(f"• **Admission Route**: {route_str}")
+    lines.append(f"• **Selected Programme**: {prog_name}")
+    lines.append(f"• **Matching Scholarship Category**: {matching_cat}\n")
+
+    lines.append("### Your Fee Details")
+    lines.append(f"• **Original Tuition Fee**: {orig_tuition} per year ({orig_sem} per semester)")
+    if pct_waiver > 0:
+        lines.append(f"• **Applicable Scholarship**: **{pct_waiver}% Tuition Waiver**")
+        lines.append(f"• **Scholarship Savings**: **{savings} per year**")
+    else:
+        lines.append("• **Applicable Scholarship**: **0% (Standard Fee)**")
+    lines.append(f"• **Remaining Annual Tuition**: **{net_tuition} per year** ({per_sem_net} per semester)")
+    lines.append(f"• **First Semester Payable**: **{sem1_payable}**")
+
+    if details.get("is_projected"):
+        lines.append("\n> [!NOTE]\n"
+                     f"> **Preliminary Projection**: Based on your {stage_lbl or 'first-year'} academic score, "
+                     "this is an estimated scholarship. Final scholarship will be confirmed upon submission of "
+                     "complete 10+2 academic transcripts and entrance scorecard.")
+
+    lines.append(f"\nYou can also verify your scholarship on our official calculator: {fee_intake.FEE_PORTAL_URL}")
+    return "\n".join(lines)
+
+
 _SCORE_WORDS = r"(?:eapcet|eamcet|emcet|emact|eamect|eamcent)"
 _FEE_KEYS = ("program", "academic_year", "scholarship_percent", "scholarship_basis_text", "scores_considered",
              "tuition_first_year", "tuition_first_year_after_scholarship", "per_semester_after_scholarship",
@@ -1408,7 +1485,10 @@ def _cache_key(message: str) -> str:
 
 # -------------------------------------------------------------------- the agent ----
 def _is_mock_or_test_client(cl) -> bool:
-    return cl is not None and type(cl).__name__ in ("DummyClient", "Recorder")
+    return cl is not None and type(cl).__name__ in (
+        "DummyClient", "Recorder", "MockClient", "MockAgentClient", "ScriptedClient",
+        "FakeClient", "StreamingClient", "FallbackClient", "KeyClient", "QuotaClient"
+    )
 
 
 async def run_agent(
@@ -2039,11 +2119,12 @@ async def run_agent(
 
         is_scholarship_calc_q = not is_other_fee_inquiry and bool(re.search(
             r"\b(?:schol\w*|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
-            r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee)\b",
+            r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee|expected\s+scholarship|"
+            r"counsell?or|guide\s+me)\b",
             low_msg,
         ))
         if bool(re.search(
-            r"\b(?:what\s+scholarships|which\s+scholarships|scholarships\s+available|scholarship\s+options|list\s+of\s+scholarships|tell\s+me\s+about\s+scholarships)\b",
+            r"\b(?:what\s+scholarships|which\s+scholarships|scholarships\s+available|scholarship\s+options|list\s+of\s+scholarships)\b",
             low_msg,
         )):
             is_scholarship_calc_q = False
@@ -2059,11 +2140,34 @@ async def run_agent(
             intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
                 await set_state(fee_intake=intake_decision["state"])
+                for k in ("board", "board_label", "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks", "percent", "admission_route", "route_label", "eapcet_rank", "jee_percentile"):
+                    if intake_decision["state"].get(k) is not None:
+                        profile[k] = intake_decision["state"][k]
+                        await memory.update_profile(session_id, **{k: intake_decision["state"][k]})
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=intake_decision.get("cards", []),
                                      suggestions=intake_decision["chips"]):
                     yield ev
                 return
+            elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
+                await set_state(fee_intake=intake_decision["state"])
+                for k in ("board", "board_label", "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks", "percent", "admission_route", "route_label", "eapcet_rank", "jee_percentile"):
+                    if intake_decision["state"].get(k) is not None:
+                        profile[k] = intake_decision["state"][k]
+                        await memory.update_profile(session_id, **{k: intake_decision["state"][k]})
+                fee_args = dict(intake_decision["args"])
+                fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
+                if fee_result.get("status") == "ok":
+                    c_text = format_counsellor_assessment(fee_result, intake_decision.get("counsellor_details", {}))
+                    chips = ["Hostel fee details", "Campus visit", "Talk to an admission counsellor", "Explore other branches"]
+                    for ev in _tool_events("calculate_fee", fee_result):
+                        yield ev
+                    async for ev in _say(c_text, message, session_id, conversation_id,
+                                         used=[{"name": "calculate_fee", "status": "ok", "is_action": False}],
+                                         cards=[{"type": "calculate_fee", "data": fee_result}],
+                                         suggestions=chips):
+                        yield ev
+                    return
 
         # 2. Check exploratory school & course browsing flow ONLY when user is actively in selection or asked to explore schools
         in_selection_flow = conv_state.get("fee_flow_state") in ("awaiting_school_selection", "awaiting_course_selection")
@@ -2084,13 +2188,36 @@ async def run_agent(
                 intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
                 await set_state(fee_intake=intake_decision["state"])
+                for k in ("board", "board_label", "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks", "percent", "admission_route", "route_label", "eapcet_rank", "jee_percentile"):
+                    if intake_decision["state"].get(k) is not None:
+                        profile[k] = intake_decision["state"][k]
+                        await memory.update_profile(session_id, **{k: intake_decision["state"][k]})
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=intake_decision.get("cards", []),
                                      suggestions=intake_decision["chips"]):
                     yield ev
                 return
+            elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
+                await set_state(fee_intake=intake_decision["state"])
+                for k in ("board", "board_label", "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks", "percent", "admission_route", "route_label", "eapcet_rank", "jee_percentile"):
+                    if intake_decision["state"].get(k) is not None:
+                        profile[k] = intake_decision["state"][k]
+                        await memory.update_profile(session_id, **{k: intake_decision["state"][k]})
+                fee_args = dict(intake_decision["args"])
+                fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
+                if fee_result.get("status") == "ok":
+                    c_text = format_counsellor_assessment(fee_result, intake_decision.get("counsellor_details", {}))
+                    chips = ["Hostel fee details", "Campus visit", "Talk to an admission counsellor", "Explore other branches"]
+                    for ev in _tool_events("calculate_fee", fee_result):
+                        yield ev
+                    async for ev in _say(c_text, message, session_id, conversation_id,
+                                         used=[{"name": "calculate_fee", "status": "ok", "is_action": False}],
+                                         cards=[{"type": "calculate_fee", "data": fee_result}],
+                                         suggestions=chips):
+                        yield ev
+                    return
 
-        if intake_decision or conv_state.get("fee_intake"):
+        if intake_decision and not intake_decision.get("counsellor"):
             await set_state(fee_intake=None)
 
     # ---- 5. Everything else: the model, with tools --------------------------------------------

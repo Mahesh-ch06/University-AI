@@ -12,7 +12,14 @@ decide() looks at the message, what the chat already knows and what was asked be
 import re
 from typing import Any
 
-from app.services.card_service import build_fee_scholarship_form_card
+from app.services.card_service import (
+    build_fee_scholarship_form_card,
+    build_counsellor_board_card,
+    build_counsellor_stage_card,
+    build_counsellor_marks_card,
+    build_counsellor_route_card,
+    build_counsellor_program_card,
+)
 from . import config, fees
 
 FEE_PORTAL_URL = config.FEE_PORTAL_URL
@@ -36,10 +43,39 @@ _OTHER_FEE_TOPIC = re.compile(
     re.IGNORECASE,
 )
 
+_COUNSELLOR_TRIGGER = re.compile(
+    r"\b(?:schol\w*|waiver|concession|discount|counsell?or|admission\s+counsell?or|guide\s+me|guided\s+assessment|"
+    r"potential\s+scholarship|calculate\s+(?:my\s+)?scholarship|fee\s+after\s+scholarship|expected\s+scholarship|"
+    r"scholarship\s+assessment)\b",
+    re.IGNORECASE,
+)
 
+_STAGE_1ST = re.compile(
+    r"\b(?:1st\s*(?:year|yr)|first\s*(?:year|yr)|11th|class\s*11|junior\s*inter|inter\s*1st)\b",
+    re.IGNORECASE,
+)
+_STAGE_2ND = re.compile(
+    r"\b(?:2nd\s*(?:year|yr)|second\s*(?:year|yr)|12th|class\s*12|senior\s*inter|inter\s*2nd)\b",
+    re.IGNORECASE,
+)
+_STAGE_COMPLETED = re.compile(
+    r"\b(?:completed|passed(?:\s*out)?|finished|dropper|passed|already\s*passed|passout|10\+2\s*completed)\b",
+    re.IGNORECASE,
+)
+
+_ROUTE_TG_EAPCET = re.compile(r"\b(?:tg|ts)\s*eapcet\b|\b(?:tg|ts)\s*eamcet\b", re.IGNORECASE)
+_ROUTE_AP_EAPCET = re.compile(r"\bap\s*eapcet\b|\bap\s*eamcet\b", re.IGNORECASE)
+_ROUTE_JEE = re.compile(r"\bjee(?:\s*main)?\b", re.IGNORECASE)
+_ROUTE_SRSAT = re.compile(r"\bsrsat\b|\bsr\s*(?:univ\w*|scholastic)?\s*aptitude(?:\s*test)?\b", re.IGNORECASE)
+_ROUTE_NOT_DECIDED = re.compile(
+    r"\bnot\s+decided(?:\s+yet)?\b|\bno\s+entrance\b|\bhaven'?t\s+decided\b|\bnot\s+sure\b|\bno\s+exam\b|"
+    r"\binter(?:mediate)?\s+alone\b|\bmarks\s+alone\b|\bnone\b",
+    re.IGNORECASE,
+)
+_ROUTE_OTHER = re.compile(r"\bother(?:\s+(?:entrance|exam|route))?\b", re.IGNORECASE)
 
 _STATE_BOARD = re.compile(
-    r"\b(?:state\s*board|bie(?:ap|ts)?|board\s+of\s+intermediate|intermediate\s+board|inter\s+board|"
+    r"\b(?:state\s*board|tsbie|bieap|biets|board\s+of\s+intermediate|intermediate\s+board|inter\s+board|"
     r"(?:ts|tg|ap|telangana|andhra(?:\s+pradesh)?)\s*(?:state\s*)?(?:board|inter(?:mediate)?)|"
     r"(?:maharashtra|msbshse|karnataka|puc?|tamil\s*nadu|tndge|kerala|dhse|up\s*board|uttar\s*pradesh|"
     r"bihar|bseb|mp\s*board|madhya\s*pradesh|rajasthan|rbse|delhi|punjab|pseb|haryana|hbse|"
@@ -71,6 +107,23 @@ _BOARD_LABEL = {
     "ib": "International Baccalaureate (IB)",
 }
 _ENTRANCE_PROGRAMS = ("btech_", "bsc_agri")
+
+
+def get_max_marks(board_key: str | None, stage_key: str | None) -> int:
+    """Returns official maximum marks according to the board and academic stage."""
+    if board_key in ("ts_state_board", "ap_state_board"):
+        if stage_key in ("1st_year", "2nd_year"):
+            return 470
+        return 1000
+    if board_key in ("cbse", "icse"):
+        if stage_key == "1st_year":
+            return 500
+        return 100
+    if board_key == "ib":
+        return 45
+    if stage_key in ("1st_year", "2nd_year"):
+        return 500
+    return 100
 
 
 def _btech_branches_text() -> str:
@@ -116,27 +169,88 @@ def parse_details(message: str) -> dict:
     elif fees._is_generic_btech(low) or re.search(r"\b(?:b\.?\s?tech|btech|engineering)\b", low):
         out["generic_btech"] = True
 
+    # Check specific B.Tech branches if program not yet matched
+    if not out.get("program"):
+        if re.search(r"\b(?:cse|computer\s+science|aiml|ai\s*&?\s*ml|data\s+science|cyber\s*security|quantum\s*ai)\b", low):
+            out["program"] = "btech_cse"
+        elif re.search(r"\b(?:ai\s*(?:and|&)\s*robotics|artificial\s+intelligence\s*(?:and|&)\s*robotics)\b", low):
+            out["program"] = "btech_ai_robotics"
+        elif re.search(r"\b(?:ece|electronics(?:\s*(?:and|&)\s*communication)?)\b", low):
+            out["program"] = "btech_ece"
+        elif re.search(r"\b(?:eee|electrical(?:\s*(?:and|&)\s*electronics)?)\b", low):
+            out["program"] = "btech_eee"
+        elif re.search(r"\b(?:mech|mechanical)\b", low):
+            out["program"] = "btech_mech"
+        elif re.search(r"\b(?:civil)\b", low):
+            out["program"] = "btech_civil"
+        elif re.search(r"\b(?:agri|agriculture)\b", low):
+            out["program"] = "bsc_agri"
+
+    # Board detection
     if _IB.search(message or ""):
         out["board"] = "ib"
-        out["board_label"] = "IB"
+        out["board_label"] = "International Baccalaureate (IB)"
+        out["board_key"] = "ib"
     elif _CBSE.search(message or "") or _ICSE.search(message or "") or _NIOS.search(message or ""):
         out["board"] = "cbse"
         if _ICSE.search(message or "") and not _CBSE.search(message or ""):
-            out["board_label"] = "ICSE"
+            out["board_label"] = "ISC"
+            out["board_key"] = "icse"
         elif _NIOS.search(message or "") and not _CBSE.search(message or ""):
             out["board_label"] = "NIOS"
+            out["board_key"] = "nios"
         else:
             out["board_label"] = "CBSE"
+            out["board_key"] = "cbse"
     elif _STATE_BOARD.search(message or ""):
         out["board"] = "state_board"
-        if re.search(r"\b(?:ts|tg|telangana)\b", low):
-            out["board_label"] = "Telangana State Board"
-        elif re.search(r"\b(?:ap|andhra)\b", low):
-            out["board_label"] = "AP State Board"
+        if re.search(r"\b(?:ts|tg|telangana|tsbie|biets)\b", low):
+            out["board_label"] = "Telangana Intermediate (TSBIE)"
+            out["board_key"] = "ts_state_board"
+        elif re.search(r"\b(?:ap|andhra|bieap)\b", low):
+            out["board_label"] = "Andhra Pradesh Intermediate (BIEAP)"
+            out["board_key"] = "ap_state_board"
         elif re.search(r"\b(?:other|maharashtra|karnataka|tamil|kerala|up|bihar|mp|rajasthan|delhi|punjab|haryana|bengal|gujarat)\b", low):
-            out["board_label"] = "Other State Board across India"
+            out["board_label"] = "Other State Board"
+            out["board_key"] = "other_state_board"
         else:
             out["board_label"] = "Telangana / AP State Board"
+            out["board_key"] = "ts_state_board"
+
+    # Stage detection
+    if _STAGE_2ND.search(message or "") and not (re.search(r"\b(?:completed|passed)\s+1st\s+year\b", low) and not re.search(r"\b(?:in|studying|currently|in\s+the)\s*2nd\b", low)):
+        out["academic_stage"] = "2nd_year"
+        out["stage_label"] = "Intermediate 2nd Year (12th)"
+        out["is_projected"] = True
+    elif _STAGE_1ST.search(message or "") and not re.search(r"\b2nd\s*year\b", low):
+        out["academic_stage"] = "1st_year"
+        out["stage_label"] = "Intermediate 1st Year (11th)"
+        out["is_projected"] = True
+    elif _STAGE_COMPLETED.search(message or ""):
+        out["academic_stage"] = "completed"
+        out["stage_label"] = "Completed Intermediate (Passed out)"
+        out["is_projected"] = False
+
+    # Admission route detection
+    if _ROUTE_TG_EAPCET.search(message or ""):
+        out["admission_route"] = "tg_eapcet"
+        out["route_label"] = "TG EAPCET"
+    elif _ROUTE_AP_EAPCET.search(message or ""):
+        out["admission_route"] = "ap_eapcet"
+        out["route_label"] = "AP EAPCET"
+    elif _ROUTE_JEE.search(message or ""):
+        out["admission_route"] = "jee_main"
+        out["route_label"] = "JEE Main"
+    elif _ROUTE_SRSAT.search(message or ""):
+        out["admission_route"] = "srsat"
+        out["route_label"] = "SR University SRSAT"
+    elif _ROUTE_NOT_DECIDED.search(message or ""):
+        out["admission_route"] = "not_decided"
+        out["route_label"] = "Not decided yet"
+        out["no_entrance"] = True
+    elif _ROUTE_OTHER.search(message or ""):
+        out["admission_route"] = "other"
+        out["route_label"] = "Other"
 
     # CGPA parsing (e.g. "9.2 CGPA", "CGPA 8.8")
     cgpa_m = re.search(r"\b(?:cgpa\s*[:=]?\s*(\d{1,2}(?:\.\d+)?)|(\d{1,2}(?:\.\d+)?)\s*cgpa)\b", low)
@@ -146,8 +260,8 @@ def parse_details(message: str) -> dict:
             out["cgpa"] = cgpa_val
             out["percent"] = round(cgpa_val * 9.5, 2)
 
-    # Explicit fraction parsing (e.g. "890/1000", "890 out of 1000", "450/600", "920 marks out of 1000")
-    frac = re.search(r"(?<![\d.])(\d{2,4})\s*(?:marks\s+)?(?:/|out\s+of)\s*(\d{3,4})", low)
+    # Explicit fraction parsing (e.g. "890/1000", "890 out of 1000", "430/470", "430 out of 470")
+    frac = re.search(r"(?<![\d.])(\d{2,4})\s*(?:marks\s+)?(?:/|out\s+of)\s*(\d{2,4})", low)
     if frac and not out.get("percent"):
         obt, tot = float(frac.group(1)), float(frac.group(2))
         if 0 < obt <= tot:
@@ -160,10 +274,11 @@ def parse_details(message: str) -> dict:
     if m and float(m.group(1)) <= 100 and not out.get("percent"):
         out["percent"] = float(m.group(1))
 
-    # Raw 3-digit marks without maximum marks specified (e.g. "890 marks", "scored 890")
-    if not out.get("percent"):
+    # Raw 3-digit marks without maximum marks specified (e.g. "890 marks", "scored 430")
+    if not out.get("percent") and not out.get("raw_marks"):
         raw_marks_m = re.search(r"\b(?:scored|got|secured|obtained|have)?\s*(\d{3,4})\s*marks\b", low)
         if raw_marks_m and 100 < int(raw_marks_m.group(1)) <= 1000:
+            out["raw_marks"] = int(raw_marks_m.group(1))
             out["needs_marks_confirmation"] = int(raw_marks_m.group(1))
 
     # EAPCET rank
@@ -178,17 +293,25 @@ def parse_details(message: str) -> dict:
             out["eapcet_rank"] = int(m.group(4)) * 1000
         else:
             out["eapcet_rank"] = int((m.group(1) or m.group(2) or m.group(3)).replace(",", ""))
+        if not out.get("admission_route"):
+            out["admission_route"] = "tg_eapcet"
+            out["route_label"] = "TG EAPCET"
 
     # JEE Main percentile
     m = re.search(r"\bjee(?:\s+main)?\D{0,25}(\d{1,2}(?:\.\d+)?)\b|(\d{1,2}(?:\.\d+)?)\s*(?:percentile|%ile)", low)
     if m:
         out["jee_percentile"] = float(m.group(1) or m.group(2))
+        if not out.get("admission_route"):
+            out["admission_route"] = "jee_main"
+            out["route_label"] = "JEE Main"
 
     # IB score
     m = re.search(r"\bib\D{0,15}(\d{2})\b|(?<!\d)(\d{2})\s*(?:/\s*45|points|out\s+of\s+45)", low)
     if m and 0 < int(m.group(1) or m.group(2)) <= 45:
         out["ib_score"] = int(m.group(1) or m.group(2))
         out["board"] = "ib"
+        out["board_label"] = "International Baccalaureate (IB)"
+        out["board_key"] = "ib"
 
     if _NO_ENTRANCE.search(message or ""):
         out["no_entrance"] = True
@@ -201,6 +324,15 @@ def parse_details(message: str) -> dict:
         re.IGNORECASE,
     ):
         out["skip"] = True
+    if _COUNSELLOR_TRIGGER.search(message or ""):
+        is_broad = bool(re.search(
+            r"\b(?:what\s+scholarships|which\s+scholarships|scholarships\s+available|scholarship\s+options|list\s+of\s+scholarships)\b",
+            message or "",
+            re.IGNORECASE,
+        ))
+        has_concrete_score = bool(out.get("eapcet_rank") or out.get("jee_percentile"))
+        if not is_broad and not has_concrete_score:
+            out["counsellor_triggered"] = True
     return out
 
 
@@ -230,10 +362,10 @@ def is_fee_enquiry(message: str) -> bool:
 
 
 def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
-    """What to do with a fee enquiry. Multi-step intake with All India 10+2 boards and FeeScholarshipForm card."""
+    """What to do with a fee enquiry. Multi-step intake with counsellor workflow and anti-repetition."""
     intake = dict(intake or {})
     said = parse_details(message)
-    active = bool(intake) and int(intake.get("turns", 0)) < 5
+    active = bool(intake) and int(intake.get("turns", 0)) < 10
     number = _bare_number(message)
 
     if not is_fee_enquiry(message):
@@ -246,42 +378,42 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         if not (active and reply_like):
             return None
 
-    if active:
-        waiting = intake.get("waiting_for")
-        if waiting == "marks_max":
-            raw = intake.get("pending_raw_marks")
-            if number is not None:
-                if number >= (raw or 0) and (raw or 0) > 0:
-                    said["percent"] = round((float(raw) / float(number)) * 100, 2)
-                elif 35 <= number <= 100:
-                    said["percent"] = float(number)
-            elif re.search(r"\b(?:1000|thousand|yes|correct|right|inter|intermediate)\b", (message or "").lower()):
-                if raw:
-                    said["percent"] = round((float(raw) / 1000.0) * 100, 2)
-            elif re.search(r"\b600\b", (message or "").lower()):
-                if raw:
-                    said["percent"] = round((float(raw) / 600.0) * 100, 2)
-        elif number is not None:
-            # A bare number answers the question we asked last.
-            if waiting == "rank":
-                said.setdefault("eapcet_rank" if number > 100 else "jee_percentile",
-                                int(number) if number > 100 else number)
-            elif waiting == "ib" and number <= 45:
-                said.setdefault("ib_score", int(number))
-            elif 35 <= number <= 100:
-                said.setdefault("percent", number)
-            elif 100 < number <= 1000:
-                # Raw 3-digit score needs confirmation of maximum marks per user requirement
-                said["needs_marks_confirmation"] = int(number)
-            elif number > 1000:
-                said.setdefault("eapcet_rank", int(number))
+    # Determine whether counsellor mode is active or newly requested
+    counsellor_mode = bool(intake.get("counsellor_mode")) or bool(said.get("counsellor_triggered"))
 
-    # Known facts aggregation
-    known = {k: profile.get(k) for k in ("percent", "board", "board_label", "eapcet_rank", "jee_percentile", "ib_score")
-             if profile.get(k) not in (None, "")}
-    known.update({k: v for k, v in intake.items() if k in (
-        "program", "percent", "board", "board_label", "eapcet_rank", "jee_percentile", "ib_score", "no_entrance", "pending_raw_marks")})
-    known.update({k: v for k, v in said.items() if k not in ("generic_btech", "needs_marks_confirmation")})
+    # Known facts aggregation from profile, previous intake state, and current message
+    known = {}
+    for k in (
+        "board",
+        "board_label",
+        "board_key",
+        "academic_stage",
+        "stage_label",
+        "raw_marks",
+        "max_marks",
+        "percent",
+        "is_projected",
+        "admission_route",
+        "route_label",
+        "eapcet_rank",
+        "jee_percentile",
+        "ib_score",
+        "program",
+        "no_entrance",
+        "pending_raw_marks",
+    ):
+        if profile.get(k) not in (None, ""):
+            known[k] = profile[k]
+    if not known.get("program") and profile.get("program_interest") and not said.get("generic_btech"):
+        known["program"] = profile["program_interest"]
+
+    for k, v in intake.items():
+        if v not in (None, ""):
+            known[k] = v
+
+    for k, v in said.items():
+        if v not in (None, "") and k not in ("generic_btech", "needs_marks_confirmation"):
+            known[k] = v
 
     # Programme switch detection
     if said.get("program") and intake.get("program"):
@@ -293,35 +425,320 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             new_level = data.get("programs", {}).get(new_prog_key, {}).get("level", "ug")
             known["program"] = said["program"]
             if old_level != new_level:
-                for k_clr in ("percent", "board", "board_label", "eapcet_rank", "jee_percentile", "ib_score", "pending_raw_marks"):
+                for k_clr in (
+                    "percent", "board", "board_label", "board_key", "academic_stage", "stage_label",
+                    "raw_marks", "max_marks", "is_projected", "admission_route", "route_label",
+                    "eapcet_rank", "jee_percentile", "ib_score", "pending_raw_marks"
+                ):
                     known.pop(k_clr, None)
+                    intake.pop(k_clr, None)
                 intake.pop("waiting_for", None)
                 intake.pop("pending_raw_marks", None)
-                asked = set()
-            else:
-                asked = set(intake.get("asked", [])) - {"entrance", "program"}
-        else:
-            asked = set(intake.get("asked", []))
-    else:
-        if said.get("program"):
-            known["program"] = said["program"]
-        elif not known.get("program") and profile.get("program_interest") and not said.get("generic_btech"):
-            known["program"] = profile["program_interest"]
-        asked = set(intake.get("asked", []))
+                counsellor_mode = False
+                intake["counsellor_mode"] = False
 
+    # Handle bare numbers based on what we are waiting for
+    if active:
+        waiting = intake.get("waiting_for")
+        if waiting == "marks":
+            b_key = known.get("board_key")
+            s_key = known.get("academic_stage")
+            max_m = get_max_marks(b_key, s_key)
+            if number is not None:
+                if max_m > 100:
+                    if number <= max_m:
+                        known["raw_marks"] = number
+                        known["max_marks"] = max_m
+                        known["percent"] = round((number / max_m) * 100, 2)
+                    elif 35 <= number <= 100:
+                        known["percent"] = number
+                        known["raw_marks"] = number
+                else:
+                    known["percent"] = number
+                    known["raw_marks"] = number
+        elif waiting == "rank":
+            if number is not None:
+                if known.get("admission_route") == "jee_main" or number <= 100:
+                    known["jee_percentile"] = number
+                else:
+                    known["eapcet_rank"] = int(number)
+            elif said.get("skip") or _ROUTE_NOT_DECIDED.search(message) or _NO_ENTRANCE.search(message):
+                known["no_entrance"] = True
+        elif waiting == "ib" and number is not None and number <= 45:
+            known["ib_score"] = int(number)
+        elif waiting == "marks_max":
+            raw = intake.get("pending_raw_marks")
+            if number is not None:
+                if number >= (raw or 0) and (raw or 0) > 0:
+                    known["percent"] = round((float(raw) / float(number)) * 100, 2)
+                elif 35 <= number <= 100:
+                    known["percent"] = float(number)
+            elif re.search(r"\b(?:1000|thousand|yes|correct|right|inter|intermediate)\b", (message or "").lower()):
+                if raw:
+                    known["percent"] = round((float(raw) / 1000.0) * 100, 2)
+            elif re.search(r"\b600\b", (message or "").lower()):
+                if raw:
+                    known["percent"] = round((float(raw) / 600.0) * 100, 2)
+        elif number is not None:
+            if 35 <= number <= 100:
+                known.setdefault("percent", number)
+            elif 100 < number <= 1000:
+                if counsellor_mode:
+                    b_key = known.get("board_key")
+                    s_key = known.get("academic_stage")
+                    max_m = get_max_marks(b_key, s_key)
+                    if number <= max_m:
+                        known["raw_marks"] = number
+                        known["max_marks"] = max_m
+                        known["percent"] = round((number / max_m) * 100, 2)
+                else:
+                    said["needs_marks_confirmation"] = int(number)
+                    known["needs_marks_confirmation"] = int(number)
+            elif number > 1000:
+                known.setdefault("eapcet_rank", int(number))
+
+    # Update is_projected
+    if known.get("academic_stage") in ("1st_year", "2nd_year"):
+        known["is_projected"] = True
+    elif known.get("academic_stage") == "completed":
+        known["is_projected"] = False
+
+    # Check program key
+    prog_key = fees.find_program(str(known.get("program") or ""))
+    if prog_key:
+        known["program"] = prog_key
+
+    asked = set(intake.get("asked", []))
     if intake.get("board"):
         asked |= {"board", "entrance"}
     state = {**{k: v for k, v in known.items() if k != "standard_only"}, "asked": sorted(asked),
              "turns": int(intake.get("turns", 0)) + 1}
+    if counsellor_mode:
+        state["counsellor_mode"] = True
 
-    prog_key = fees.find_program(str(known.get("program") or ""))
+    # =========================================================================
+    # GUIDED ADMISSION COUNSELLOR WORKFLOW
+    # =========================================================================
+    if counsellor_mode:
+        if known.get("eapcet_rank") is not None:
+            if not known.get("board"):
+                known["board"] = "state_board"
+                known["board_key"] = "ts_state_board"
+                known["board_label"] = "Telangana / AP State Board"
+            if not known.get("admission_route"):
+                known["admission_route"] = "tg_eapcet"
+                known["route_label"] = "TG EAPCET"
+            if not known.get("academic_stage") and (known.get("percent") is not None or known.get("raw_marks") is not None):
+                known["academic_stage"] = "completed"
+                known["stage_label"] = "Completed Intermediate (Passed out)"
+                known["is_projected"] = False
 
-    # -------------------------------------------------------------------------
-    # STEP 1: If Course is not known, ask for Course and Board first
-    # -------------------------------------------------------------------------
+        if known.get("jee_percentile") is not None:
+            if not known.get("admission_route"):
+                known["admission_route"] = "jee_main"
+                known["route_label"] = "JEE Main"
+            if not known.get("academic_stage") and (known.get("percent") is not None or known.get("raw_marks") is not None):
+                known["academic_stage"] = "completed"
+                known["stage_label"] = "Completed Intermediate (Passed out)"
+                known["is_projected"] = False
+
+        has_board = bool(known.get("board"))
+        has_stage = bool(known.get("academic_stage"))
+        has_marks = bool(known.get("percent") is not None or known.get("raw_marks") is not None)
+        has_route = bool(known.get("admission_route"))
+        has_prog = bool(prog_key)
+
+        # Single-shot query completion: if user gave course, board and marks in a single message, don't block on stage/route
+        is_single_shot = bool(said.get("program") and said.get("board") and (said.get("percent") is not None or said.get("raw_marks") is not None))
+        if is_single_shot and has_prog and has_board and has_marks:
+            if not has_stage:
+                known["academic_stage"] = "completed"
+                known["stage_label"] = "Completed Intermediate (Passed out)"
+                known["is_projected"] = False
+                has_stage = True
+            if not has_route:
+                known["admission_route"] = "not_decided"
+                known["route_label"] = "Not decided yet"
+                known["no_entrance"] = True
+                has_route = True
+
+        # Check if this is a re-query (all details were already known)
+        is_all_known = has_board and has_stage and has_marks and has_route and has_prog
+        is_re_query = is_all_known and (intake.get("waiting_for") == "done" or int(intake.get("turns", 0)) > 0)
+
+        # Step 1: Board selection (if not already known)
+        if not has_board:
+            state["waiting_for"] = "board"
+            text = (
+                "Absolutely! I can help you understand your potential scholarship and the fee you may need to pay at SR University.\n\n"
+                "To give you a relevant estimate, let me first understand your academic background. I'll guide you through a few quick questions.\n\n"
+                "Where did you complete your schooling / Intermediate education?\n"
+                "Select the board under which you studied so I can use the appropriate academic assessment criteria."
+            )
+            chips = [
+                "Telangana Intermediate (TSBIE)",
+                "AP Intermediate (BIEAP)",
+                "CBSE",
+                "ISC",
+                "Other State Board",
+                "IB",
+            ]
+            card = build_counsellor_board_card(selected_board=known.get("board_key"))
+            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+
+        # Step 2: Academic stage selection (if not already known)
+        if not has_stage:
+            state["waiting_for"] = "stage"
+            board_lbl = known.get("board_label") or _BOARD_LABEL.get(known.get("board") or "", "your board")
+            text = (
+                f"Great! You've selected {board_lbl}.\n\n"
+                f"Next, let's understand your current academic stage so I can ask for the correct marks.\n\n"
+                f"Which year are you currently studying in?"
+            )
+            chips = [
+                "Intermediate 1st Year (11th)",
+                "Intermediate 2nd Year (12th)",
+                "Completed Intermediate (Passed out)",
+            ]
+            card = build_counsellor_stage_card(board_label=board_lbl, selected_stage=known.get("academic_stage"))
+            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+
+        # Step 3: Marks input (if not already known)
+        if not has_marks:
+            state["waiting_for"] = "marks"
+            b_key = known.get("board_key") or "ts_state_board"
+            s_key = known.get("academic_stage") or "completed"
+            board_lbl = known.get("board_label") or "your board"
+            max_m = get_max_marks(b_key, s_key)
+
+            if s_key == "1st_year":
+                text = (
+                    f"Got it! You're currently studying Intermediate 1st Year under {board_lbl}. "
+                    f"Let's start with your academic performance. What marks have you scored in your Intermediate 1st Year examinations?"
+                )
+                chips = [f"{int(max_m * 0.9)} out of {max_m}", f"{int(max_m * 0.94)} out of {max_m}", f"{int(max_m * 0.98)} out of {max_m}"] if max_m > 100 else ["85%", "92%", "96%"]
+            elif s_key == "2nd_year":
+                text = (
+                    f"Perfect! Since you're currently studying Intermediate 2nd Year, let's use your completed "
+                    f"first-year academic performance for a preliminary assessment. What marks did you score in Intermediate 1st Year?"
+                )
+                chips = [f"{int(max_m * 0.9)} out of {max_m}", f"{int(max_m * 0.94)} out of {max_m}", f"{int(max_m * 0.98)} out of {max_m}"] if max_m > 100 else ["85%", "92%", "96%"]
+            else:
+                text = (
+                    f"Great! Since you've already completed Intermediate, we'll use your actual final examination "
+                    f"marks for the assessment. Let's get your final Intermediate score."
+                )
+                chips = [f"{int(max_m * 0.85)} out of {max_m}", f"{int(max_m * 0.92)} out of {max_m}", f"{int(max_m * 0.96)} out of {max_m}"] if max_m > 100 else ["85%", "92%", "96%"]
+
+            card = build_counsellor_marks_card(
+                board_key=b_key, stage_key=s_key, max_marks=max_m, board_label=board_lbl, default_val=known.get("raw_marks")
+            )
+            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+
+        # Step 4: Admission route selection (if not already known)
+        if not has_route:
+            state["waiting_for"] = "route"
+            raw_m = known.get("raw_marks")
+            max_m = known.get("max_marks") or get_max_marks(known.get("board_key"), known.get("academic_stage"))
+            pct = known.get("percent")
+            score_str = f"**{int(raw_m) if raw_m == int(raw_m) else raw_m}/{max_m} ({pct}%)**" if raw_m and max_m > 100 else f"**{pct}%**"
+            proj_str = " (projected based on 1st-year performance)" if known.get("is_projected") else ""
+
+            text = (
+                f"Thank you! Based on your academic score of {score_str}{proj_str}, you have a strong academic profile for SR University.\n\n"
+                f"Which admission route are you planning to use for B.Tech?\n"
+                f"Select your admission pathway so we can factor in any entrance rank scholarships."
+            )
+            card = build_counsellor_route_card(selected_route=known.get("admission_route"))
+            chips = ["TG EAPCET", "AP EAPCET", "JEE Main", "SR University SRSAT", "Other", "Not decided yet"]
+            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+
+        # Step 4b: Entrance rank (skippable) if entrance route selected but score missing
+        if (
+            known.get("admission_route") in ("tg_eapcet", "ap_eapcet", "jee_main")
+            and not known.get("no_entrance")
+            and not known.get("eapcet_rank")
+            and not known.get("jee_percentile")
+            and "rank" not in asked
+        ):
+            state["waiting_for"] = "rank"
+            state["asked"] = sorted(asked | {"rank"})
+            route_lbl = known.get("route_label") or "entrance exam"
+            if "jee" in (known.get("admission_route") or ""):
+                text = (
+                    f"Got it! What is your JEE Main percentile? If you haven't received your percentile yet or "
+                    f"haven't appeared, you can skip this step and we'll calculate based on your Intermediate marks alone."
+                )
+                chips = ["85 percentile", "92 percentile", "Skip this step", "Not appeared yet"]
+            else:
+                text = (
+                    f"Got it! What is your {route_lbl} rank? If you haven't received your rank yet or haven't "
+                    f"appeared, you can skip this step and we'll calculate based on your Intermediate marks alone."
+                )
+                chips = ["Rank 5000", "Rank 15000", "Skip this step", "Not appeared yet"]
+            return {"action": "ask", "text": text, "chips": chips, "cards": [], "state": state}
+
+        # Step 5: Programme selection (if not already known)
+        if not has_prog:
+            state["waiting_for"] = "program"
+            text = (
+                "Which B.Tech programme are you interested in?\n"
+                "Choose an engineering programme or branch to view your exact fee and scholarship breakdown."
+            )
+            card = build_counsellor_program_card(selected_program=known.get("program"))
+            chips = ["B.Tech CSE", "B.Tech AI & Robotics", "B.Tech ECE", "B.Tech EEE", "B.Tech Mechanical", "B.Tech Civil"]
+            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+
+        # Step 6: All details known -> Calculate!
+        state["waiting_for"] = "done"
+        state["program"] = prog_key
+        args = {"program": prog_key}
+        if known.get("percent") is not None:
+            args["percent"] = known["percent"]
+        if known.get("board") in ("cbse", "state_board", "ib"):
+            args["board"] = "cbse" if known["board"] == "cbse" else "state_board"
+        if known.get("eapcet_rank") is not None:
+            args["eapcet_rank"] = known["eapcet_rank"]
+        if known.get("jee_percentile") is not None:
+            args["jee_percentile"] = known["jee_percentile"]
+        if known.get("ib_score") is not None:
+            args["ib_score"] = known["ib_score"]
+
+        prog_data = fees.load_data()["programs"].get(prog_key, {})
+        prog_name = prog_data.get("name", "B.Tech CSE")
+
+        return {
+            "action": "calculate",
+            "args": args,
+            "state": state,
+            "counsellor": True,
+            "counsellor_details": {
+                "board": known.get("board"),
+                "board_label": known.get("board_label") or _BOARD_LABEL.get(known.get("board") or "", "Intermediate Board"),
+                "board_key": known.get("board_key") or "ts_state_board",
+                "academic_stage": known.get("academic_stage"),
+                "stage_label": known.get("stage_label") or ("Completed Intermediate" if not known.get("is_projected") else "Intermediate 1st Year"),
+                "raw_marks": known.get("raw_marks"),
+                "max_marks": known.get("max_marks") or get_max_marks(known.get("board_key"), known.get("academic_stage")),
+                "percent": known.get("percent"),
+                "is_projected": bool(known.get("is_projected")),
+                "admission_route": known.get("admission_route"),
+                "route_label": known.get("route_label") or "Direct Merit / 10+2 Marks",
+                "eapcet_rank": known.get("eapcet_rank"),
+                "jee_percentile": known.get("jee_percentile"),
+                "ib_score": known.get("ib_score"),
+                "program": prog_key,
+                "program_name": prog_name,
+                "re_query": is_re_query,
+            },
+        }
+
+    # =========================================================================
+    # STANDARD FEE FORM INTAKE (for generic university fee structure queries)
+    # =========================================================================
     if not prog_key:
         if "program" in asked:
-            return None  # Asked once already; let general agent assist
+            return None
         state["asked"] = sorted(asked | {"program"})
         state["waiting_for"] = "program"
 
@@ -422,7 +839,7 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         return {
             "action": "calculate",
             "args": args,
-            "state": None,
+            "state": state,
             "details": {
                 "board": _BOARD_LABEL.get(known.get("board") or "", ""),
                 "board_label": known.get("board_label"),
@@ -447,11 +864,9 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             "state": state,
         }
 
-    # -------------------------------------------------------------------------
-    # CONFIRMATION: Raw 3-digit marks without maximum marks (e.g. "890")
-    # -------------------------------------------------------------------------
-    if said.get("needs_marks_confirmation") and not known.get("percent") and not has_score:
-        raw_val = said["needs_marks_confirmation"]
+    # Confirmation: Raw 3-digit marks without maximum marks
+    if (said.get("needs_marks_confirmation") or known.get("needs_marks_confirmation")) and not known.get("percent") and not has_score:
+        raw_val = said.get("needs_marks_confirmation") or known.get("needs_marks_confirmation")
         state["waiting_for"] = "marks_max"
         state["pending_raw_marks"] = raw_val
         pct_1000 = round(raw_val / 10.0, 1)
@@ -484,9 +899,7 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         )
         return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
 
-    # -------------------------------------------------------------------------
-    # STEP 2 / 3: No marks or scores yet
-    # -------------------------------------------------------------------------
+    # UG: ask for 10+2 board first if not known
     if not has_score:
         if "scores" in asked:
             return calculate()
@@ -503,7 +916,6 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             form_card = build_fee_scholarship_form_card(selected_program=prog_key, level="pg", only_selected=True)
             return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
 
-        # UG: ask for 10+2 board first if not known
         if not known.get("board"):
             if "board" in asked:
                 return calculate()
@@ -531,7 +943,6 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             form_card = build_fee_scholarship_form_card(selected_program=prog_key, level=level, only_selected=True)
             return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
 
-        # UG: board is known, but marks/rank are not known
         if "marks" in asked:
             return calculate()
         state["asked"] = sorted(asked | {"marks"})
@@ -561,9 +972,7 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         )
         return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
 
-    # -------------------------------------------------------------------------
-    # STEP 4: Only an entrance score given: board marks may give a higher scholarship
-    # -------------------------------------------------------------------------
+    # Only entrance score given
     if (level != "pg" and known.get("percent") is None and not known.get("ib_score")
             and "marks" not in asked and "scores" not in asked and not known.get("skip")):
         state["asked"] = sorted(asked | {"marks"})
@@ -585,9 +994,6 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             ),
         }
 
-    # -------------------------------------------------------------------------
-    # STEP 5: The board changes the scholarship only for some percentages: ask only then
-    # -------------------------------------------------------------------------
     pct = known.get("percent")
     if level != "pg" and pct is not None and not known.get("board") and "board" not in asked:
         as_state = fees.scholarship_for(prog_key, percent=pct, board="state_board")["percent"]
@@ -612,9 +1018,6 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 ),
             }
 
-    # -------------------------------------------------------------------------
-    # STEP 6: B.Tech / B.Sc Agriculture: an entrance score may give more; ask once
-    # -------------------------------------------------------------------------
     if (level != "pg" and prog_key.startswith(_ENTRANCE_PROGRAMS) and "entrance" not in asked
             and not known.get("no_entrance") and not known.get("eapcet_rank") and not known.get("jee_percentile")):
         board = "cbse" if known.get("board") == "cbse" else "state_board"
@@ -640,8 +1043,5 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 ),
             }
 
-    # -------------------------------------------------------------------------
-    # STEP 7: All necessary details are known -> Calculate!
-    # -------------------------------------------------------------------------
     return calculate()
 
