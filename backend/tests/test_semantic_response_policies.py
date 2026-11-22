@@ -144,6 +144,21 @@ def test_compound_query_with_specific_subtopic_does_not_override_question():
     assert decision.is_fallback is True
     assert decision.response_mode == ResponseMode.RAG
     assert decision.policy_id is None
+    assert decision.intent_id == "MULTI_QUESTION_QUERY"
+
+
+def test_decompose_multi_questions():
+    """Verify decompose_multi_questions properly isolates distinct sub-questions."""
+    q = "what is the hostel fee, are scholarships available, and how can I apply?"
+    subs = semantic_router.decompose_multi_questions(q)
+    assert len(subs) == 3
+    assert any("hostel fee" in s for s in subs)
+    assert any("scholarships available" in s for s in subs)
+    assert any("how can I apply" in s for s in subs)
+
+    # Standalone single question stays single
+    single = "Why should I pick SR University over other colleges?"
+    assert len(semantic_router.decompose_multi_questions(single)) == 1
 
 
 # ----------------------------------------------------------------------------------------

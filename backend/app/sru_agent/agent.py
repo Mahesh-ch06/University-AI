@@ -733,15 +733,29 @@ def _contextual_query(
 
 
 def _handbook_context(query: str) -> str:
-    """Handbook passages for this query, found by keyword search (no AI call)."""
-    try:
-        found = knowledge.search(query, k=3, min_score=2.5)
-    except Exception:
+    """Handbook passages for this query (and decomposed sub-questions), found by keyword search."""
+    sub_questions = semantic_router.decompose_multi_questions(query)
+    search_queries = [query]
+    if len(sub_questions) > 1:
+        search_queries.extend(sub_questions)
+
+    found_by_id = {}
+    for q in search_queries:
+        try:
+            results = knowledge.search(q, k=3, min_score=2.2)
+            for r in results:
+                doc_key = r.get("title", "") + r.get("text", "")[:60]
+                if doc_key not in found_by_id or r.get("score", 0) > found_by_id[doc_key].get("score", 0):
+                    found_by_id[doc_key] = r
+        except Exception:
+            continue
+
+    if not found_by_id:
         return ""
-    if not found:
-        return ""
-    top = found[0]["score"]
-    parts = [f"[{f['title'].split(' > ')[-1]}]\n{f['text'][:750]}" for f in found if f["score"] >= 0.50 * top]
+
+    sorted_found = sorted(found_by_id.values(), key=lambda x: x.get("score", 0), reverse=True)[:4]
+    top = sorted_found[0]["score"]
+    parts = [f"[{f['title'].split(' > ')[-1]}]\n{f['text'][:750]}" for f in sorted_found if f["score"] >= 0.40 * top]
     return "\n\n".join(parts)
 
 

@@ -106,6 +106,47 @@ def _compute_semantic_similarity(query: str, anchor: str) -> float:
     return round(max(min(combined, 1.0), 0.0), 3)
 
 
+_INQUIRY_INDICATORS = {
+    "is", "are", "can", "could", "would", "will", "do", "does", "did",
+    "what", "where", "how", "why", "which", "who", "tell", "explain", "describe", "show", "give",
+}
+
+
+def _is_inquiry(chunk: str) -> bool:
+    c = chunk.strip().lower()
+    if c.endswith("?"):
+        return True
+    words = set(re.findall(r"\b\w+\b", c))
+    return bool(words.intersection(_INQUIRY_INDICATORS))
+
+
+def decompose_multi_questions(text: str) -> list[str]:
+    """Split compound or multi-part student inquiries into individual sub-questions."""
+    s = re.sub(r"\?+", " ? <SPLIT> ", text or "")
+    s = re.sub(r"(?i)\s+(?:and(?:\s+also)?|also|as\s+well\s+as|plus)\s+(?=(?:is|are|can|do|does|what|where|how|why|which|who|tell|explain|give)\b)", " <SPLIT> ", s)
+    s = re.sub(r"(?i),\s*(?=(?:is|are|can|do|does|what|where|how|why|which|who)\b)", " <SPLIT> ", s)
+    s = re.sub(r"[;\n]+", " <SPLIT> ", s)
+    
+    parts = [p.strip() for p in s.split("<SPLIT>") if p.strip() and p.strip() != "?"]
+    inquiries = []
+    prefix = ""
+    for p in parts:
+        p_clean = re.sub(r"\s+\?", "?", p).strip()
+        p_clean = re.sub(r"[,\s;]+$", "", p_clean).strip()
+        if not p_clean:
+            continue
+        if _is_inquiry(p_clean):
+            if prefix:
+                inquiries.append(f"{prefix} {p_clean}")
+                prefix = ""
+            else:
+                inquiries.append(p_clean)
+        else:
+            prefix = p_clean
+
+    return inquiries if inquiries else ([text.strip()] if text and text.strip() else [])
+
+
 class SemanticRouter:
     """Routes user queries semantically to Approved Answer Policies or RAG fallback."""
 
@@ -125,6 +166,20 @@ class SemanticRouter:
         intake = state.get("fee_intake") or {}
         admission_stage = state.get("admission_stage")
         norm_msg = _normalize_query(message)
+
+        # Multi-question understanding: Detect compound inquiries containing distinct questions
+        sub_questions = decompose_multi_questions(message)
+        if len(sub_questions) > 1:
+            return RoutingDecision(
+                intent_id="MULTI_QUESTION_QUERY",
+                policy_id=None,
+                response_mode=ResponseMode.RAG,
+                confidence=0.92,
+                evidence_ids=[],
+                is_fallback=True,
+                fallback_reason=f"Multi-question inquiry decomposed into {len(sub_questions)} questions: {sub_questions}",
+                reasoning=f"Compound question requiring multi-topic retrieval: {sub_questions}",
+            )
 
         # Resume signals: "continue my admission", "continue counselling", "ok continue"
         is_resume_signal = bool(re.search(r"\b(?:continue(?:\s+my)?\s+(?:admission|counselling|intake)|resume(?:\s+my)?\s+admission|go\s+back\s+to\s+admission)\b", norm_msg))

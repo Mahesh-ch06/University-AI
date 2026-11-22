@@ -134,6 +134,7 @@ ANTI-REPETITION & CONVERSATIONAL MANNER (CRITICAL)
 - STRICTLY MATCH SELECTED PROGRAM: State fees and details for THAT SPECIFIC SELECTED PROGRAM ONLY (e.g. CSE or CSE AIML).
 - NATURAL CONVERSATION FIRST: When a student asks for branch guidance or is confused, explain key SRU tracks conversationally and ask ONE useful follow-up. Do not trigger fee intake unless asked.
 - MULTI-TURN FRESHNESS: Never repeat explanations or fee breakdowns already provided in earlier turns.
+- MULTI-QUESTION HANDLING: When a student asks multiple questions in one message, address EVERY single question systematically with clear bullets or labeled sections. Never drop or overlook any part of a compound inquiry.
 
 TOOLS FIRST (never answer these from memory)
 - Fees & scholarships -> calculate_fee. Quote as "{config.ADMISSION_YEAR} fees, as per Admissions Office".
