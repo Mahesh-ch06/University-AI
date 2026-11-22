@@ -16,3 +16,10 @@ Define retention and deletion behavior before production.
 ## Context strategy
 Use a bounded recent-message window plus optional summaries rather than sending an
 unbounded conversation to the LLM.
+
+## Smart Conversation Recovery (v4.0.0)
+- Preserves conversation journey and counsellor intake state between sessions and reloads.
+- Differentiates active ongoing conversations from genuine returns via strict trigger rules (page reload, fresh session, or 30+ minutes of inactivity).
+- Provides personalized greetings contextually mapped to scholarship outcomes (40%, 30%, 25%, unmatched, incomplete, or general inquiry).
+- Offers two explicit actions: Continue (restores exact message history and state without asking duplicate questions) or Start Fresh (resets active conversation state while isolating history and preserving verified lead identity).
+

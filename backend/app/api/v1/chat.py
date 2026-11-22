@@ -123,11 +123,38 @@ async def get_conversation(
         db, conversation_id, session_id
     )
     if detail is None:
+        from app.sru_agent import memory as agent_memory
+        history = await agent_memory.get_history(session_id, str(conversation_id))
+        if not history and str(conversation_id):
+            history = await agent_memory.get_history(session_id)
+        if history:
+            import uuid as _uuid
+            from datetime import datetime, timezone
+            from app.schemas.chat import MessageResponse
+            now = datetime.now(timezone.utc)
+            messages = [
+                MessageResponse(
+                    id=_uuid.uuid4(),
+                    role="assistant" if h.get("role") == "model" else (h.get("role") or "user"),
+                    content=h.get("text") or "",
+                    suggestions=[],
+                    cards=[],
+                    created_at=now,
+                )
+                for h in history
+            ]
+            return ConversationDetail(
+                id=conversation_id,
+                title="Chat",
+                messages=messages,
+                created_at=now,
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found",
         )
     return detail
+
 
 
 @router.get(

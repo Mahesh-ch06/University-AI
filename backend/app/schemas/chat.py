@@ -94,3 +94,42 @@ class FeedbackResponse(BaseModel):
 
     id: UUID
     status: str = "received"
+
+
+class ConversationRecoveryContext(BaseModel):
+    """Structured information for recovering a previous student conversation."""
+
+    has_resumable_conversation: bool
+    conversation_id: str | None = None
+    title: str | None = None
+    last_active_at: datetime | None = None
+    student_name: str | None = None
+    topic: str | None = None
+    program_name: str | None = None
+    board_name: str | None = None
+    academic_stage: str | None = None
+    score_text: str | None = None
+    assessment_status: str = "none"  # "completed" | "in_progress" | "none"
+    scholarship_percent: float | None = None
+    scholarship_label: str | None = None
+    is_projected: bool = False
+    welcome_message: str | None = None
+    total_messages: int = 0
+    workflow_step: str | None = None
+
+
+class ResetSessionRequest(BaseModel):
+    """Request to reset active conversation state while preserving identity and history."""
+
+    session_id: str = Field(..., min_length=1, max_length=64)
+    conversation_id: str | None = None
+
+
+class ResetSessionResponse(BaseModel):
+    """Response confirming session conversation reset."""
+
+    status: str = "ok"
+    session_id: str
+    active_conversation_id: str | None = None
+    new_conversation_id: str | None = None
+

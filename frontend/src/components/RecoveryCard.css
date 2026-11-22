@@ -1,0 +1,355 @@
+/* SRU Buddy — Smart Conversation Recovery Card Styling */
+
+.sru-recovery-card {
+  position: relative;
+  margin: 1.25rem 0.75rem 1.75rem;
+  border-radius: 18px;
+  background: rgba(18, 22, 34, 0.88);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.45),
+              0 0 25px -5px rgba(139, 92, 246, 0.25);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+  animation: sruRecoveryEntrance 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 5;
+}
+
+@keyframes sruRecoveryEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Subtle top radiant aura */
+.sru-recovery-aura {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899, #38bdf8);
+  opacity: 0.9;
+}
+
+.sru-recovery-inner {
+  padding: 1.35rem 1.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+/* Header */
+.sru-recovery-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.sru-recovery-icon-wrap {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.35));
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+}
+
+.sru-recovery-header-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sru-recovery-greeting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sru-recovery-title {
+  margin: 0;
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: -0.015em;
+  font-family: inherit;
+}
+
+.sru-recovery-time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+.sru-recovery-desc {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.48;
+  color: #cbd5e1;
+}
+
+/* Summary Box */
+.sru-recovery-summary-box {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.sru-recovery-topic-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sru-recovery-topic-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.sru-recovery-scholarship-pill {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+
+/* Key Facts Grid */
+.sru-recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.sru-recovery-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sru-recovery-fact-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.sru-recovery-fact-val {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sru-val-success {
+  color: #4ade80 !important;
+  font-weight: 600;
+}
+
+.sru-val-progress {
+  color: #facc15 !important;
+  font-weight: 600;
+}
+
+/* Actions */
+.sru-recovery-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.25rem;
+}
+
+.sru-recovery-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+  outline: none;
+}
+
+.sru-recovery-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sru-recovery-btn-continue {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #ffffff;
+  box-shadow: 0 4px 14px -2px rgba(99, 102, 241, 0.45);
+}
+
+.sru-recovery-btn-continue:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -2px rgba(99, 102, 241, 0.6);
+}
+
+.sru-recovery-btn-continue:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sru-recovery-btn-fresh {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.sru-recovery-btn-fresh:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+.sru-recovery-btn-fresh:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sru-spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: sruSpin 0.7s linear infinite;
+}
+
+@keyframes sruSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Light Mode Overrides */
+@media (prefers-color-scheme: light) {
+  :root:not(.dark) .sru-recovery-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: 0 16px 35px -8px rgba(99, 102, 241, 0.18),
+                0 0 1px 1px rgba(0, 0, 0, 0.05);
+  }
+
+  :root:not(.dark) .sru-recovery-title {
+    color: #0f172a;
+  }
+
+  :root:not(.dark) .sru-recovery-desc {
+    color: #334155;
+  }
+
+  :root:not(.dark) .sru-recovery-summary-box {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  :root:not(.dark) .sru-recovery-topic-tag {
+    color: #1e293b;
+  }
+
+  :root:not(.dark) .sru-recovery-fact-label {
+    color: #64748b;
+  }
+
+  :root:not(.dark) .sru-recovery-fact-val {
+    color: #0f172a;
+  }
+
+  :root:not(.dark) .sru-recovery-btn-fresh {
+    background: #f1f5f9;
+    color: #334155;
+    border-color: #cbd5e1;
+  }
+
+  :root:not(.dark) .sru-recovery-btn-fresh:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 640px) {
+  .sru-recovery-card {
+    margin: 0.75rem 0.5rem 1.25rem;
+  }
+
+  .sru-recovery-inner {
+    padding: 1rem 1.1rem 1rem;
+    gap: 0.9rem;
+  }
+
+  .sru-recovery-icon-wrap {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+  }
+
+  .sru-recovery-title {
+    font-size: 1.05rem;
+  }
+
+  .sru-recovery-desc {
+    font-size: 0.86rem;
+  }
+
+  .sru-recovery-grid {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .sru-recovery-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sru-recovery-btn {
+    width: 100%;
+  }
+}

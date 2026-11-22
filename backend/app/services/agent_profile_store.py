@@ -23,9 +23,12 @@ logger = logging.getLogger(__name__)
 
 PREFIX = "agent."
 # Small facts only. The last fee estimate is recalculated on demand, so it is not stored.
-DURABLE_KEYS = ("name", "phone", "program_interest", "percent", "board", "eapcet_rank", "jee_percentile",
-                "ib_score", "city", "is_parent", "language", "phone_saved", "last_lead_id",
-                "last_lead_type", "last_lead_key", "open_request")
+DURABLE_KEYS = ("name", "phone", "program_interest", "percent", "board", "board_label",
+                "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks",
+                "is_projected", "admission_route", "route_label", "scholarship_percent",
+                "last_active_at", "eapcet_rank", "jee_percentile", "ib_score", "city",
+                "is_parent", "language", "phone_saved", "last_lead_id", "last_lead_type",
+                "last_lead_key", "open_request")
 _last_saved: dict[str, dict] = {}
 
 

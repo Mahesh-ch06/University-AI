@@ -456,6 +456,58 @@ export async function deleteConversation(
   }
 }
 
+export interface ConversationRecoveryContext {
+  has_resumable_conversation: boolean;
+  conversation_id?: string | null;
+  title?: string | null;
+  last_active_at?: string | null;
+  student_name?: string | null;
+  topic?: string | null;
+  program_name?: string | null;
+  board_name?: string | null;
+  academic_stage?: string | null;
+  score_text?: string | null;
+  assessment_status: "completed" | "in_progress" | "none";
+  scholarship_percent?: number | null;
+  scholarship_label?: string | null;
+  is_projected?: boolean;
+  welcome_message?: string | null;
+  total_messages?: number;
+  workflow_step?: string | null;
+}
+
+/**
+ * Fetch structured recovery context for returning students.
+ */
+export async function fetchRecoveryContext(sessionId: string): Promise<ConversationRecoveryContext> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/agent/recovery-context?session_id=${encodeURIComponent(sessionId)}`);
+    return await handleResponse<ConversationRecoveryContext>(res, "Failed to load recovery context");
+  } catch {
+    return { has_resumable_conversation: false, assessment_status: "none" };
+  }
+}
+
+/**
+ * Reset active conversation state for a fresh start while preserving verified identity & database records.
+ */
+export async function resetSessionConversation(sessionId: string, conversationId?: string | null): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/v1/agent/reset-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        conversation_id: conversationId || null,
+      }),
+    });
+    invalidateConversationCache(sessionId);
+  } catch {
+    // Graceful fallback
+  }
+}
+
+
 // ---- Admin API ----
 
 export interface DocumentItem {

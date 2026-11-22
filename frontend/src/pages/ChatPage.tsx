@@ -5,8 +5,13 @@ import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
 import { applyServerProfile, cleanPhone, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import { deduplicateCards } from "../components/Cards";
+import RecoveryCard from "../components/RecoveryCard";
 import {
   sendMessageStream,
+  fetchRecoveryContext,
+  resetSessionConversation,
+  getConversation,
+  type ConversationRecoveryContext,
   type MessageData,
   type ChatResponse,
 } from "../services/api";
@@ -88,6 +93,7 @@ export function getInitialWelcomeMessage(seed: string = ""): MessageData {
 export const DEFAULT_WELCOME_MESSAGE: MessageData = getInitialWelcomeMessage();
 
 const MESSAGE_RENDER_WINDOW = 60;
+const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000; // 30-minute inactivity threshold for conversation recovery
 
 export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const isWidget = variant === "widget";
@@ -166,6 +172,111 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
   const messagesAreaRef = useRef<HTMLDivElement>(null);
   const cancelStreamRef = useRef<(() => void) | null>(null);
+
+  // Smart Conversation Recovery state
+  const [recoveryContext, setRecoveryContext] = useState<ConversationRecoveryContext | null>(null);
+  const [showRecoveryCard, setShowRecoveryCard] = useState<boolean>(false);
+  const [isRestoringConv, setIsRestoringConv] = useState<boolean>(false);
+
+  const isLoadingRef = useRef(isLoading);
+  const dockQueryRef = useRef(dockQuery);
+  const widgetInputRef = useRef(widgetInput);
+
+  useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
+  useEffect(() => { dockQueryRef.current = dockQuery; }, [dockQuery]);
+  useEffect(() => { widgetInputRef.current = widgetInput; }, [widgetInput]);
+
+  const recordUserActivity = () => {
+    try {
+      localStorage.setItem("sru_last_active_time", Date.now().toString());
+    } catch {}
+  };
+
+  // Condition A: Immediate check on page reload / fresh session mount
+  useEffect(() => {
+    recordUserActivity();
+    let isMounted = true;
+    fetchRecoveryContext(sessionId)
+      .then((ctx) => {
+        if (isMounted && ctx && ctx.has_resumable_conversation) {
+          setRecoveryContext(ctx);
+          setShowRecoveryCard(true);
+          setIsWidgetOpen(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [sessionId]);
+
+  // Condition B: 30-minute inactivity threshold check
+  useEffect(() => {
+    const checkInactivity = () => {
+      if (document.visibilityState !== "visible") return;
+      if (isLoadingRef.current || widgetInputRef.current || dockQueryRef.current) return;
+      const lastActiveStr = localStorage.getItem("sru_last_active_time");
+      const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : 0;
+      if (lastActive > 0 && Date.now() - lastActive >= INACTIVITY_THRESHOLD_MS) {
+        fetchRecoveryContext(sessionId)
+          .then((ctx) => {
+            if (ctx && ctx.has_resumable_conversation) {
+              setRecoveryContext(ctx);
+              setShowRecoveryCard(true);
+              setIsWidgetOpen(true);
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    document.addEventListener("visibilitychange", checkInactivity);
+    window.addEventListener("focus", checkInactivity);
+    return () => {
+      document.removeEventListener("visibilitychange", checkInactivity);
+      window.removeEventListener("focus", checkInactivity);
+    };
+  }, [sessionId]);
+
+  const handleContinueConversation = async () => {
+    if (!recoveryContext?.conversation_id) {
+      setShowRecoveryCard(false);
+      return;
+    }
+    setIsRestoringConv(true);
+    try {
+      const conv = await getConversation(recoveryContext.conversation_id, sessionId);
+      if (conv && conv.messages && conv.messages.length > 0) {
+        setMessages(conv.messages);
+        setActiveConvId(recoveryContext.conversation_id);
+        activeConvIdRef.current = recoveryContext.conversation_id;
+        setShowRecoveryCard(false);
+        recordUserActivity();
+        requestAnimationFrame(() => {
+          if (messagesAreaRef.current) {
+            messagesAreaRef.current.scrollTo({
+              top: messagesAreaRef.current.scrollHeight,
+              behavior: "smooth",
+            });
+          }
+        });
+      } else {
+        setShowRecoveryCard(false);
+      }
+    } catch {
+      setShowRecoveryCard(false);
+    } finally {
+      setIsRestoringConv(false);
+    }
+  };
+
+  const handleStartNewConversation = async () => {
+    setShowRecoveryCard(false);
+    setRecoveryContext(null);
+    handleResetChat();
+    recordUserActivity();
+    await resetSessionConversation(sessionId, activeConvId);
+  };
 
   // Real-time connection status: setting_up -> connected -> thinking
   const [connStatus, setConnStatus] = useState<"setting_up" | "connected">("setting_up");
@@ -269,6 +380,11 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   async function handleSendMessage(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
+
+    recordUserActivity();
+    if (showRecoveryCard) {
+      setShowRecoveryCard(false);
+    }
 
     // Check for calculator trigger
     if (/^\s*(🧮\s*)?(scholarship\s*calculator|calculate\s*(?:my\s*)?scholarship|fee\s*calculator|open\s*calculator|calculator)\s*$/i.test(trimmed)) {
@@ -597,6 +713,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
           {/* Body */}
           <div className="sru-widget-body" ref={messagesAreaRef}>
+            {showRecoveryCard && recoveryContext && (
+              <RecoveryCard
+                context={recoveryContext}
+                onContinue={handleContinueConversation}
+                onStartFresh={handleStartNewConversation}
+                isContinuing={isRestoringConv}
+              />
+            )}
             {messages.length > visibleMessages.length && (
               <button
                 type="button"
@@ -606,7 +730,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 Load older messages
               </button>
             )}
-            {visibleMessages.map((msg, index) => (
+            {visibleMessages
+              .filter((msg) => !(showRecoveryCard && msg.id.startsWith("welcome-sru-buddy")))
+              .map((msg, index) => (
               <div
                 key={msg.id || index}
                 id={msg.id ? `sru-msg-${msg.id}` : undefined}
@@ -1050,6 +1176,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           {!isMinimized && (
             <>
               <div className="sru-widget-body" ref={messagesAreaRef}>
+                {showRecoveryCard && recoveryContext && (
+                  <RecoveryCard
+                    context={recoveryContext}
+                    onContinue={handleContinueConversation}
+                    onStartFresh={handleStartNewConversation}
+                    isContinuing={isRestoringConv}
+                  />
+                )}
                 {messages.length > visibleMessages.length && (
                   <button
                     type="button"
@@ -1059,7 +1193,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     Load older messages
                   </button>
                 )}
-                {visibleMessages.map((msg, index) => (
+                {visibleMessages
+                  .filter((msg) => !(showRecoveryCard && msg.id.startsWith("welcome-sru-buddy")))
+                  .map((msg, index) => (
                   <div
                     key={msg.id || index}
                     id={msg.id ? `sru-msg-${msg.id}` : undefined}

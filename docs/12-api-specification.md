@@ -12,6 +12,14 @@ GET /api/v1/conversations
 GET /api/v1/conversations/{conversation_id}
 DELETE /api/v1/conversations/{conversation_id}
 
+## Conversation Recovery (v4.0.0)
+GET /api/v1/agent/recovery-context?session_id=...
+POST /api/v1/agent/reset-session
+
+Returns structured previous conversation context for returning students (Section 4 personalized welcome message, scholarship status, calculated fee waiver, program, board, stage, and relative active time).
+The reset endpoint starts a fresh conversation while preserving verified identity (name, phone) and historical database records.
+
+
 ## Feedback
 POST /api/v1/feedback
 

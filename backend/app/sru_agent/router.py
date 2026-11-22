@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.schemas.chat import ConversationRecoveryContext, ResetSessionRequest, ResetSessionResponse
 from . import config, fees, memory
 from .agent import run_agent
 
@@ -209,3 +210,18 @@ async def fee_config():
     one accepts, scholarship slabs, hostel and one-time fees. Read from the same fee file the
     agent uses, so the calculator never carries its own copy of the numbers."""
     return fees.fee_config()
+
+
+@router.get("/recovery-context", response_model=ConversationRecoveryContext)
+async def get_recovery_context(session_id: str = Query(..., min_length=1, max_length=64)):
+    """Retrieve structured recovery context for returning students."""
+    from app.services import recovery_service
+    return await recovery_service.get_recovery_context(session_id)
+
+
+@router.post("/reset-session", response_model=ResetSessionResponse)
+async def reset_session(body: ResetSessionRequest):
+    """Reset active conversation state while preserving verified identity & database records."""
+    from app.services import recovery_service
+    return await recovery_service.reset_session_conversation(body.session_id, body.conversation_id)
+
