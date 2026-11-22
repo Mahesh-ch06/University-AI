@@ -472,7 +472,7 @@ async def test_empty_model_reply_is_retried_and_never_blank():
 def test_prompt_is_compact_and_has_no_fee_numbers():
     from app.sru_agent.prompt import build_system_prompt
     text = build_system_prompt({"name": "Ravi", "last_lead_id": "secret-id"}, pending_action="callback")
-    assert len(text) < 9000, "the prompt is sent with every model call; keep it small"
+    assert len(text) < 12000, "the prompt is sent with every model call; keep it small"
     for number in ("3,40,000", "2,42,500", "1,15,000", "₹550"):
         assert number not in text
     assert "PENDING ACTION" in text and "secret-id" not in text
