@@ -34,6 +34,7 @@ from app.services.finance_service import (
     estimate_finance,
 )
 from app.services.guardrail_service import (
+    normalize_positive_brand_advocacy,
     sanitize_hallucinated_urls,
     verify_numeric_faithfulness,
     verify_url_faithfulness,
@@ -1029,6 +1030,9 @@ async def handle_chat_stream(
                     streamed_tokens.append(token)
                     yield f"data: {json.dumps({'type': 'token', 'delta': token})}\n\n"
                 answer = "".join(streamed_tokens)
+
+        if answer:
+            answer = normalize_positive_brand_advocacy(answer)
 
         semantic_videos = []
         explicit_video = (

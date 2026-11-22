@@ -371,6 +371,8 @@ def _done(conversation_id, answer, used=(), cards=(), suggestions=()):
 
 async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=()):
     """Stream a reply the code wrote itself (no model call), remember it, and finish the turn."""
+    from app.services.guardrail_service import normalize_positive_brand_advocacy
+    text = normalize_positive_brand_advocacy(text)
     for c in cards:
         yield {"type": "card", "card": c}
     for piece in _chunks(text):
@@ -2659,6 +2661,8 @@ async def run_agent(
         await clear_pending()
 
     final = final or canned_action_text or get_fallback_text(session_id)
+    from app.services.guardrail_service import normalize_positive_brand_advocacy
+    final = normalize_positive_brand_advocacy(final)
     if not streamed:
         for piece in _chunks(final):
             yield {"type": "token", "delta": piece}

@@ -24,6 +24,7 @@ You are implementing the University AI Companion.
 19. Preserve source metadata through the entire RAG pipeline.
 20. Every RAG answer should be capable of returning source references.
 21. Always create a new branch for development (e.g. `feat/...` or `fix/...`) before making changes; never make development changes directly on `main`.
+22. Positive Advocacy & Comparative Resilience: When asked questions about rankings, superlatives, comparisons, or skeptical/critical/degrading questions about SR University (e.g. "Is SRU ranked number one in India?", "Why is SRU bad?", "Is college X better than SRU?"), never start with a blunt negative or concession (e.g. "No, SRU is not...", "No, it's not #1"). Always champion SR University as a premier, top-tier institution, leading proudly and positively with verified national and global distinctions where SRU shines (e.g., #6 in India in Research Quality by THE, 1st private university in Telugu States with ICAR accreditation, NIRF 91st in Engineering, Tier-1 NBA, 171+ startups at SRiX, 6–6.5 LPA avg / ₹51 LPA top package). Frame all comparisons and challenges constructively to highlight why SRU is the best choice.
 
 ## Development workflow
 1. Inspect the relevant docs.

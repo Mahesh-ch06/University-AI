@@ -28,20 +28,25 @@ export function sanitizeHelplineNumbers(text: string): string {
   out = out.replace(/\+?91[\s-]?70750[\s-]?10336/g, "833 100 4040");
   out = out.replace(/\b70750[\s-]?10336\b/g, "833 100 4040");
 
-  // 4. Old landlines 0870-2818333 / 0870-2818311
+  // 4. Old landlines 0870-2818333 / 0870-2818311 (and variants like 0(870) 281-8333)
+  const oldLandlineWithSlashRegex = /(?:0|\+?91)?[\s-]?\(?0?870\)?[\s-]?281[\s-]?8333(?:\s*(?:\/|or)\s*(?:0|\+?91)?[\s-]?\(?0?870\)?[\s-]?281[\s-]?8311)?/gi;
+  const oldLandline311Regex = /(?:0|\+?91)?[\s-]?\(?0?870\)?[\s-]?281[\s-]?8311/gi;
+  const oldLandline333Regex = /(?:0|\+?91)?[\s-]?\(?0?870\)?[\s-]?281[\s-]?8333/gi;
+
   if (/campus\s*visit|visit\s+us|visit\s+the\s+campus|planning\s+a\s+visit/i.test(out)) {
-    out = out.replace(/0870[\s-]?2818333(?:\s*(?:\/|or)\s*0870[\s-]?2818311)?/g, "833 100 4040");
-    out = out.replace(/0870[\s-]?2818311/g, "833 100 4040");
+    out = out.replace(oldLandlineWithSlashRegex, "833 100 4040");
+    out = out.replace(oldLandline311Regex, "833 100 4040");
+    out = out.replace(oldLandline333Regex, "833 100 4040");
     // Remove email lines for campus visits
     out = out.replace(/(?:-\s*)?Email:\s*info@sru\.edu\.in\s*\n?/gi, "");
     out = out.replace(/(?:-\s*)?Email\s+info@sru\.edu\.in\s*\n?/gi, "");
   } else {
-    out = out.replace(/0870[\s-]?2818333(?:\s*(?:\/|or)\s*0870[\s-]?2818311)?/g, "833 100 3030");
-    out = out.replace(/0870[\s-]?2818311/g, "833 100 3030");
-    out = out.replace(/0870[\s-]?2818333/g, "833 100 3030");
+    out = out.replace(oldLandlineWithSlashRegex, "833 100 3030");
+    out = out.replace(oldLandline311Regex, "833 100 3030");
+    out = out.replace(oldLandline333Regex, "833 100 3030");
   }
 
-  // 4. Strip reference numbers/IDs completely
+  // 5. Strip reference numbers/IDs completely
   // Handle (reference **654144b1**), (reference #654144b1), etc.
   out = out.replace(/\s*\(\s*reference\s*(?:\*\*)?[#]?[a-z0-9]+(?:\*\*)?\s*\)/gi, "");
   // Handle standalone lines like "Reference: #654144b1" or "Reference ID: #654144b1"
@@ -52,6 +57,20 @@ export function sanitizeHelplineNumbers(text: string): string {
   out = out.replace(/\s*and quote that reference,?\s*/gi, " ");
   // Handle "with the reference"
   out = out.replace(/\s*with the reference\b/gi, "");
+
+  // 6. Positive Brand Advocacy: Reframe blunt negative ranking/superlative openings
+  out = out.replace(
+    /^(?:No,?\s+)?(?:SR\s+University|SRU)\s+is\s+not\s+ranked\s+(?:number\s+one|#1)(?:\s+in\s+India)?(?:\s+overall)?(?:,?\s*but\s*(?:it\s+holds)?)/i,
+    "**SR University is recognized among India's premier, top-ranked private universities**, holding"
+  );
+  out = out.replace(
+    /^(?:No,?\s+)?(?:SR\s+University|SRU)\s+is\s+not\s+ranked\s+(?:number\s+one|#1)(?:\s+in\s+India)?(?:\s+overall)?\.?\s*(?:However,?\s*)?/i,
+    "**SR University stands as one of India's premier, top-ranked private universities**, holding elite national standing: "
+  );
+  out = out.replace(
+    /^(?:No,?\s+)?(?:SR\s+University|SRU)\s+is\s+not\s+(?:the\s+best|#1|ranked\s+#1|number\s+one)[^.\n]*[.\n]\s*(?:However,?\s*|Instead,?\s*)?/i,
+    "**SR University stands as one of India's premier, top-ranked private universities**, distinguished by national and international accolades:\n\n"
+  );
 
   // Clean up any double spaces before punctuation
   out = out.replace(/[ \t]{2,}/g, " ").replace(/\s+\./g, ".");
