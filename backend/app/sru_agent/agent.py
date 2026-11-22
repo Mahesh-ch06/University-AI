@@ -2399,11 +2399,16 @@ async def run_agent(
             r"scholarship\s+counsell?or|fee\s+counsell?or)\b",
             low_msg,
         ))
-        if bool(re.search(
-            r"\b(?:what\s+scholarships|which\s+scholarships|scholarships\s+available|scholarship\s+options|list\s+of\s+scholarships)\b",
+        is_multi_q = len(semantic_router.decompose_multi_questions(message)) > 1
+        is_general_scholarship = bool(re.search(
+            r"\b(?:what\s+(?:are\s+the\s+)?scholarships|which\s+scholarships|scholarships\s+available|"
+            r"are\s+there\s+scholarships|any\s+scholarships|do\s+you\s+(?:have|offer|provide)\s+scholarships|"
+            r"scholarship\s+options|list\s+of\s+scholarships|details\s+about\s+scholarships)\b",
             low_msg,
-        )):
+        ))
+        if is_multi_q or is_general_scholarship:
             is_scholarship_calc_q = False
+
         if is_other_fee_inquiry and conv_state.get("fee_intake"):
             await set_state(fee_intake=None)
             intake_state = {}
@@ -2420,7 +2425,7 @@ async def run_agent(
                 await set_state(fee_intake=None)
                 intake_state = {}
 
-        intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for"))
+        intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for")) and not is_multi_q
         if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (intake_in_progress or is_scholarship_calc_q or (is_bare_score_msg and client is None)):
             intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
