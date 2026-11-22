@@ -297,12 +297,23 @@ def parse_details(message: str) -> dict:
     if m and float(m.group(1)) <= 100 and not out.get("percent"):
         out["percent"] = float(m.group(1))
 
-    # Raw 3-digit marks without maximum marks specified (e.g. "890 marks", "scored 430")
+    # Raw 3-4 digit marks without maximum marks specified (e.g. "890 marks", "scored 430", "actually I scored 931")
     if not out.get("percent") and not out.get("raw_marks"):
-        raw_marks_m = re.search(r"\b(?:scored|got|secured|obtained|have)?\s*(\d{3,4})\s*marks\b", low)
-        if raw_marks_m and 100 < int(raw_marks_m.group(1)) <= 1000:
-            out["raw_marks"] = int(raw_marks_m.group(1))
-            out["needs_marks_confirmation"] = int(raw_marks_m.group(1))
+        raw_marks_m = re.search(
+            r"\b(?:scored|got|secured|obtained|have|actually\s+(?:i\s+)?(?:scored|got))\s*(\d{3,4})\b|"
+            r"\b(\d{3,4})\s*marks\b|"
+            r"\b(?:marks?\s*(?:are|is|=|:)\s*)(\d{3,4})\b|"
+            r"^\s*(?:actually\s+)?(\d{3,4})\s*$",
+            low,
+        )
+        if raw_marks_m:
+            raw_val = int(raw_marks_m.group(1) or raw_marks_m.group(2) or raw_marks_m.group(3) or raw_marks_m.group(4))
+            if 100 < raw_val <= 1000:
+                out["raw_marks"] = raw_val
+                default_max = 1000 if raw_val > 500 else 470
+                out["max_marks"] = default_max
+                out["percent"] = round((raw_val / default_max) * 100, 2)
+                out["needs_marks_confirmation"] = raw_val
 
     # EAPCET rank
     m = re.search(
