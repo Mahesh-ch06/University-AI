@@ -1630,6 +1630,12 @@ async def run_agent(
             if profile is not None:
                 profile[k] = early_details[k]
             academic_updates[k] = early_details[k]
+    if early_details.get("generic_btech") and not (profile or {}).get("degree_interest") and not (profile or {}).get("program_interest"):
+        academic_updates["degree_interest"] = "btech"
+        academic_updates["generic_btech"] = True
+        if profile is not None:
+            profile["degree_interest"] = "btech"
+            profile["generic_btech"] = True
     if academic_updates:
         await memory.update_profile(session_id, **academic_updates)
         current_intake = dict(conv_state.get("fee_intake") or {})
@@ -1824,6 +1830,16 @@ async def run_agent(
                              suggestions=_ABOUT_SRU_CHIPS):
             yield ev
         return
+
+    if intent == "BRANCH_GUIDANCE_QUERY" or intents.is_branch_guidance_query(message):
+        await set_state(active_topic="career_guidance")
+        if client is None or _is_mock_or_test_client(client):
+            raw_marks = early_details.get("raw_marks") or (profile.get("raw_marks") if profile else None)
+            bg_text = responses.get_branch_guidance_text(raw_marks, session_id=session_id)
+            async for ev in _say(bg_text, message, session_id, conversation_id,
+                                 suggestions=responses._BRANCH_GUIDANCE_CHIPS):
+                yield ev
+            return
 
     if intent == "FEE_TREE_QUERY":
         if client is None or _is_mock_or_test_client(client):
@@ -2239,7 +2255,7 @@ async def run_agent(
         is_scholarship_calc_q = not is_other_fee_inquiry and bool(re.search(
             r"\b(?:schol\w*|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
             r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee|expected\s+scholarship|"
-            r"counsell?or|guide\s+me)\b",
+            r"scholarship\s+counsell?or|fee\s+counsell?or)\b",
             low_msg,
         ))
         if bool(re.search(
@@ -2250,13 +2266,13 @@ async def run_agent(
         if is_other_fee_inquiry and conv_state.get("fee_intake"):
             await set_state(fee_intake=None)
             intake_state = {}
-        is_score_msg = bool(re.search(
-            r"\b(?:\d{2,4}\s*marks?|scored\s+\d{2,4}|got\s+\d{2,4}|secured\s+\d{2,4}|obtained\s+\d{2,4}|"
-            r"\d{2,4}\s*(?:/|out\s+of)\s*\d{3,4}|\d{1,2}(?:\.\d+)?\s*%|cgpa\s*[:=]?\s*\d|\d\s*cgpa)\b",
+        is_bare_score_msg = bool(re.match(
+            r"^\s*(?:i\s+(?:got|scored|have|secured|obtained)\s+)?\d{2,4}(?:\.\d+)?\s*(?:marks?|%|percent)?\s*$",
             low_msg,
         )) or bool(re.fullmatch(r"\s*\d{2,4}(?:\.\d+)?\s*%?\s*", low_msg))
+        is_branch_guidance = (intent == "BRANCH_GUIDANCE_QUERY") or intents.is_branch_guidance_query(message)
         intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for"))
-        if not is_other_fee_inquiry and (intake_in_progress or is_scholarship_calc_q or (is_score_msg and client is None)):
+        if not is_other_fee_inquiry and not is_branch_guidance and (intake_in_progress or is_scholarship_calc_q or (is_bare_score_msg and client is None)):
             intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
                 await _apply_intake_updates(intake_decision["state"])
@@ -2284,7 +2300,7 @@ async def run_agent(
         # 2. Check exploratory school & course browsing flow ONLY when user is actively in selection or asked to explore schools
         in_selection_flow = conv_state.get("fee_flow_state") in ("awaiting_school_selection", "awaiting_course_selection")
         wants_course_explore = any(k in low_msg for k in ("explore programs", "explore schools", "browse courses", "browse schools", "change school", "different course", "change programme"))
-        if in_selection_flow or wants_course_explore or _is_mock_or_test_client(client):
+        if not is_branch_guidance and (in_selection_flow or wants_course_explore or _is_mock_or_test_client(client)):
             flow_result = fee_flow.process_fee_flow(message, session_id, profile, conv_state)
             if flow_result is not None:
                 await set_state(**flow_result["new_state"])
@@ -2295,7 +2311,7 @@ async def run_agent(
                 return
 
         # 3. Fallback check for fee intake ONLY if user wants to calculate fee
-        if not is_other_fee_inquiry and (is_scholarship_calc_q or intake_in_progress):
+        if not is_other_fee_inquiry and not is_branch_guidance and (is_scholarship_calc_q or intake_in_progress):
             if not intake_decision:
                 intake_decision = fee_intake.decide(message, profile, intake_state)
             if intake_decision and intake_decision["action"] == "ask":
@@ -2574,6 +2590,12 @@ async def run_agent(
                 async for ev in _say(why_text, message, session_id, conversation_id,
                                      cards=why_cards,
                                      suggestions=responses._WHY_CHOOSE_SRU_CHIPS):
+                    yield ev
+            if intent == "BRANCH_GUIDANCE_QUERY" or intents.is_branch_guidance_query(message):
+                raw_marks = profile.get("raw_marks") or early_details.get("raw_marks")
+                bg_text = responses.get_branch_guidance_text(raw_marks, session_id=session_id)
+                async for ev in _say(bg_text, message, session_id, conversation_id,
+                                     suggestions=responses._BRANCH_GUIDANCE_CHIPS):
                     yield ev
                 return
 

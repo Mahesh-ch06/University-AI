@@ -583,6 +583,28 @@ There is no separate "admission fee" charged on the 2027-28 fee card."""
 
 _OTHER_FEES_CHIPS = ["B.Tech CSE tuition", "Calculate my scholarship", "Hostel accommodation", "Plan a campus visit"]
 
+_BRANCH_GUIDANCE_CHIPS = [
+    "Software & Artificial Intelligence",
+    "Hardware, VLSI & Robotics",
+    "Core Engineering (Mech, Civil, EEE)",
+    "Talk to an admission counsellor",
+]
+
+
+def get_branch_guidance_text(marks: int | float | None = None, session_id: str | None = None) -> str:
+    """Natural branch guidance response explaining SRU engineering tracks and asking one follow-up question."""
+    ack = f"With **{marks} marks in Intermediate**, you have a strong academic foundation for engineering at SR University." if marks else "Choosing the right engineering branch is an important decision, and we can help you find the best fit."
+    return f"""{ack}
+
+Here is a quick overview of the key B.Tech engineering pathways available at SR University:
+
+• 💻 **Computer Science & Engineering (CSE)**: Ideal if you enjoy software programming, algorithms, AI & Machine Learning, Data Science, and cybersecurity. High campus recruitment and coding focus.
+• 🤖 **AI & Robotics**: Best if you want to work at the intersection of intelligent software, automated mechanical systems, autonomous robots, and drone engineering.
+• ⚡ **Electronics & Communication (ECE)**: Excellent if you are interested in VLSI chip design, embedded systems, IoT devices, wireless communications, and hardware-software integration.
+• ⚙️ **Core Engineering (Mechanical, EEE, Civil)**: Strong hands-on focus in smart manufacturing, electric vehicle (EV) powertrains, sustainable infrastructure, and renewable energy.
+
+Which area interests you more — building software and apps, working with hardware and robotics, or core physical engineering?"""
+
 
 
 

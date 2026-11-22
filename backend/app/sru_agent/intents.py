@@ -40,6 +40,7 @@ AgentIntent = Literal[
     "WHY_CHOOSE_SRU_QUERY",
     "ABOUT_SRU_QUERY",
     "JOIN_SRU_QUERY",
+    "BRANCH_GUIDANCE_QUERY",
     "GENERAL",
 ]
 
@@ -66,6 +67,18 @@ _JOIN_SRU_PATTERN = re.compile(
     r"how\s+to\s+get\s+admission\s+in\s+(?:sru|sr\s*u(?:niversity)?)|"
     r"admission\s+in\s+(?:sru|sr\s*u(?:niversity)?)|"
     r"i\s+want\s+to\s+join)[?!.,\s]*$",
+    re.IGNORECASE,
+)
+
+_BRANCH_GUIDANCE_PATTERN = re.compile(
+    r"\b(?:confused\s+(?:about\s+)?(?:which\s+)?(?:branch|course|stream|speciali[sz]ation)|"
+    r"which\s+(?:branch|course|stream|speciali[sz]ation)\s+(?:should\s+i|to)\s+(?:choose|take|pick|join|study|opt)|"
+    r"which\s+(?:branch|course|stream)\s+is\s+(?:best|better|good)|"
+    r"(?:help|guide)\s+me\s+(?:to\s+)?(?:choose|pick|select|decide)\s+(?:a\s+)?(?:branch|course)|"
+    r"(?:not\s+sure|unsure)\s+(?:about\s+)?(?:which\s+)?(?:branch|course)|"
+    r"suggest\s+(?:a\s+|me\s+a\s+)?(?:branch|course)|"
+    r"(?:cse\s+vs\s+ece|ece\s+vs\s+cse|cse\s+or\s+ece|ai\s+vs\s+cse|cse\s+vs\s+ai)|"
+    r"which\s+engineering\s+branch)\b",
     re.IGNORECASE,
 )
 
@@ -482,13 +495,22 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
         if _DESIGN_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:design|b\.?\s?des)\b", msg)):
             return "DESIGN_FEE_QUERY"
 
-    # 8. University overview & "Why choose SRU" queries
+    # 8. Branch & Career Guidance
+    if _BRANCH_GUIDANCE_PATTERN.search(msg):
+        return "BRANCH_GUIDANCE_QUERY"
+
+    # 9. University overview & "Why choose SRU" queries
     if _WHY_CHOOSE_SRU_PATTERN.search(msg):
         return "WHY_CHOOSE_SRU_QUERY"
     if _ABOUT_SRU_PATTERN.search(msg):
         return "ABOUT_SRU_QUERY"
 
     return "GENERAL"
+
+
+def is_branch_guidance_query(message: str) -> bool:
+    """True if message is asking for branch or career guidance / confused about branch."""
+    return bool(_BRANCH_GUIDANCE_PATTERN.search(message or ""))
 
 
 # ----------------------------------------------------------------------------

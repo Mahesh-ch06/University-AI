@@ -44,9 +44,9 @@ _OTHER_FEE_TOPIC = re.compile(
 )
 
 _COUNSELLOR_TRIGGER = re.compile(
-    r"\b(?:schol\w*|waiver|concession|discount|counsell?or|admission\s+counsell?or|guide\s+me|guided\s+assessment|"
-    r"potential\s+scholarship|calculate\s+(?:my\s+)?scholarship|fee\s+after\s+scholarship|expected\s+scholarship|"
-    r"scholarship\s+assessment)\b",
+    r"\b(?:schol\w*|waiver|concession|discount|scholarship\s+counsell?or|fee\s+counsell?or|fee\s+assessment|"
+    r"scholarship\s+assessment|guided\s+assessment|potential\s+scholarship|calculate\s+(?:my\s+)?scholarship|"
+    r"fee\s+after\s+scholarship|expected\s+scholarship)\b",
     re.IGNORECASE,
 )
 
@@ -342,19 +342,23 @@ def _bare_number(message: str):
     return float(m.group(1)) if m else None
 
 
-_SCORE_OR_MARKS_QUERY = re.compile(
-    r"\b(?:\d{2,4}\s*marks?|scored\s+\d{2,4}|got\s+\d{2,4}|secured\s+\d{2,4}|obtained\s+\d{2,4}|"
-    r"\d{2,4}\s*(?:/|out\s+of)\s*\d{3,4}|\d{1,2}(?:\.\d+)?\s*%|cgpa\s*[:=]?\s*\d|\d\s*cgpa)\b",
+_BARE_SCORE_OR_MARKS = re.compile(
+    r"^\s*(?:i\s+(?:got|scored|have|secured|obtained)\s+)?\d{2,4}(?:\.\d+)?\s*(?:marks?|%|percent)?\s*$",
     re.IGNORECASE,
 )
 
 
 def is_fee_enquiry(message: str) -> bool:
+    from . import intents
+    if intents.is_branch_guidance_query(message or ""):
+        return False
     if _OTHER_FEE_TOPIC.search(message or ""):
         return False
     if bool(_FEE_WORDS.search(message or "")):
         return True
-    if _SCORE_OR_MARKS_QUERY.search(message or ""):
+    if _COUNSELLOR_TRIGGER.search(message or ""):
+        return True
+    if _BARE_SCORE_OR_MARKS.match((message or "").strip()):
         return True
     num = _bare_number(message)
     if num is not None and (35 <= num <= 1000):
@@ -402,9 +406,13 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         "program",
         "no_entrance",
         "pending_raw_marks",
+        "generic_btech",
+        "degree_interest",
     ):
         if profile.get(k) not in (None, ""):
             known[k] = profile[k]
+    if profile.get("degree_interest") == "btech" or profile.get("generic_btech"):
+        known["generic_btech"] = True
     if not known.get("program") and profile.get("program_interest") and not said.get("generic_btech"):
         known["program"] = profile["program_interest"]
 
@@ -715,6 +723,10 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         state["waiting_for"] = "done"
         state["program"] = prog_key
         args = {"program": prog_key}
+        if known.get("percent") is None and known.get("raw_marks") is not None:
+            max_m = known.get("max_marks") or get_max_marks(known.get("board_key"), known.get("academic_stage"))
+            if max_m and max_m > 0:
+                known["percent"] = round((float(known["raw_marks"]) / float(max_m)) * 100, 2)
         if known.get("percent") is not None:
             args["percent"] = known["percent"]
         if known.get("board") in ("cbse", "state_board", "ib"):
