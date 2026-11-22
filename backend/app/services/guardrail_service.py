@@ -198,6 +198,11 @@ def normalize_positive_brand_advocacy(text: str) -> str:
         out,
         flags=re.I,
     )
+    # 6. Normalize legacy landlines (0870-2818333 / 2818311 -> 833 100 3030 or 833 100 4040)
+    if re.search(r"campus\s*visit|visit\s+us|visit\s+the\s+campus", out, re.I):
+        out = re.sub(r"(?:0|\+?91)?[\s-]?\(?0?870\)?[\s-]?281[\s-]?(?:8333|8311)", "833 100 4040", out)
+    else:
+        out = re.sub(r"(?:0|\+?91)?[\s-]?\(?0?870\)?[\s-]?281[\s-]?(?:8333|8311)", "833 100 3030", out)
     return out
 
 
