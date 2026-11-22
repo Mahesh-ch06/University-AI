@@ -24,8 +24,10 @@ def generate_welcome_message(
     topic: Optional[str] = None,
 ) -> str:
     """Generate context-aware personalized welcome messages adhering strictly to Section 4 specifications."""
-    clean_name = (student_name or '').strip()
-    name_part = f', {clean_name}' if clean_name else ''
+    clean_name = (student_name or "").strip().strip(",").strip()
+    if clean_name:
+        clean_name = clean_name.capitalize()
+    name_part = f", {clean_name}" if clean_name else ""
 
     if assessment_status == 'completed':
         if scholarship_percent is not None and scholarship_percent >= 40:
@@ -187,8 +189,49 @@ async def get_recovery_context(
         or fee_known.get('program')
         or state.get('active_program')
     )
+    if program_name:
+        prog_key = str(program_name).lower().strip()
+        PROGRAM_LABELS = {
+            "btech_cse": "B.Tech Computer Science & Engineering",
+            "btech_ai_ds": "B.Tech AI & Data Science",
+            "btech_ece": "B.Tech Electronics & Communication",
+            "btech_eee": "B.Tech Electrical & Electronics",
+            "btech_mech": "B.Tech Mechanical Engineering",
+            "btech_civil": "B.Tech Civil Engineering",
+        }
+        program_name = PROGRAM_LABELS.get(prog_key) or (
+            str(program_name).replace("_", " ").title() if "_" in str(program_name) else str(program_name)
+        )
+
     board_name = profile.get('board_label') or profile.get('board')
+    if board_name:
+        b_key = str(board_name).lower().strip()
+        BOARD_LABELS = {
+            "state_board": "Telangana / AP State Board",
+            "ts_state_board": "Telangana State Board (TSBIE)",
+            "bieap": "Andhra Pradesh (BIEAP)",
+            "cbse": "CBSE",
+            "icse": "ICSE / ISC",
+            "ib": "International Baccalaureate (IB)",
+        }
+        board_name = BOARD_LABELS.get(b_key) or (
+            str(board_name).replace("_", " ").title() if "_" in str(board_name) else str(board_name)
+        )
+
     academic_stage = profile.get('stage_label') or profile.get('academic_stage')
+    if academic_stage:
+        s_key = str(academic_stage).lower().strip()
+        STAGE_LABELS = {
+            "inter_1st": "Intermediate 1st Year",
+            "inter_2nd": "Intermediate 2nd Year",
+            "1st_year": "Intermediate 1st Year",
+            "2nd_year": "Intermediate 2nd Year",
+            "completed": "Completed Intermediate",
+        }
+        academic_stage = STAGE_LABELS.get(s_key) or (
+            str(academic_stage).replace("_", " ").title() if "_" in str(academic_stage) else str(academic_stage)
+        )
+
     is_projected = bool(profile.get('is_projected'))
 
     # Compute formatted score text
