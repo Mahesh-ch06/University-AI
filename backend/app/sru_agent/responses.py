@@ -146,9 +146,19 @@ For **B.Tech (Bachelor of Technology)**, SR University offers several engineerin
 
 👉 **Select a branch below to see the complete semester breakdown:**"""
 
-_BTECH_CSE_FEE_TEXT = """### 💻 B.Tech CSE & Allied Streams — Fee Structure (2027–28)
+def get_btech_cse_fee_text(specialization: str | None = None, user_msg: str | None = None) -> str:
+    from app.sru_agent import fees
+    clean_name = fees.clean_program_name("btech_cse", specialization=specialization, user_text=user_msg)
+    if user_msg and "allied" in user_msg.lower():
+        title = "B.Tech CSE & Allied Streams"
+        intro = "Official fee schedule for **B.Tech Computer Science & Engineering** and its specialized streams:"
+    else:
+        title = clean_name
+        intro = f"Official fee schedule for **{clean_name}**:"
 
-Official fee schedule for **B.Tech Computer Science & Engineering** and its specialized streams (AIML, Data Science, Cyber Security, Quantum AI, Precision Agriculture):
+    return f"""### 💻 {title} — Fee Structure (2027–28)
+
+{intro}
 
 | Component | Semester Fee | Annual Total | Notes |
 | :--- | :--- | :--- | :--- |
@@ -168,6 +178,9 @@ Official fee schedule for **B.Tech Computer Science & Engineering** and its spec
 > [!NOTE]
 > - Annual tuition escalation: ₹9,000/year for subsequent academic years.
 > - Hostel is optional: ₹1,15,000 to ₹1,35,000/year (includes 4 meals daily, AC/Non-AC options, Wi-Fi & laundry)."""
+
+
+_BTECH_CSE_FEE_TEXT = get_btech_cse_fee_text()
 
 _BTECH_AI_ROBOTICS_FEE_TEXT = """### 🤖 B.Tech in Artificial Intelligence & Robotics — Fee Structure (2027–28)
 

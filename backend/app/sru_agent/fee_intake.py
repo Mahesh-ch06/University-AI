@@ -187,6 +187,28 @@ def parse_details(message: str) -> dict:
         elif re.search(r"\b(?:agri|agriculture)\b", low):
             out["program"] = "bsc_agri"
 
+    if out.get("program") == "btech_cse":
+        if re.search(r"\b(?:aiml|ai\s*&?\s*ml|ai\s*and\s*ml|ai/ml|aml|machine\s+learning)\b", low):
+            out["specialization"] = "AIML"
+            out["program_raw"] = "AIML"
+        elif re.search(r"\b(?:data\s+science|datascience|ds)\b", low):
+            out["specialization"] = "Data Science"
+            out["program_raw"] = "Data Science"
+        elif re.search(r"\b(?:cyber\s*security|cybersecurity|cyber|infosec)\b", low):
+            out["specialization"] = "Cyber Security"
+            out["program_raw"] = "Cyber Security"
+        elif re.search(r"\b(?:quantum\s*ai|quantum)\b", low):
+            out["specialization"] = "Quantum AI"
+            out["program_raw"] = "Quantum AI"
+        elif re.search(r"\b(?:robotics\s*(?:&|and)\s*automation)\b", low):
+            out["specialization"] = "Robotics & Automation"
+            out["program_raw"] = "Robotics & Automation"
+        elif re.search(r"\b(?:core\s*cse|core)\b", low):
+            out["specialization"] = "Core CSE"
+            out["program_raw"] = "Core CSE"
+        else:
+            out["program_raw"] = "CSE"
+
     # Board detection
     if _IB.search(message or ""):
         out["board"] = "ib"
@@ -671,8 +693,7 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             pct = known.get("percent")
             score_str = f"**{int(raw_m) if raw_m == int(raw_m) else raw_m}/{max_m} ({pct}%)**" if raw_m and max_m > 100 else f"**{pct}%**"
             proj_str = " (projected based on 1st-year performance)" if known.get("is_projected") else ""
-            prog_data = fees.load_data()["programs"].get(prog_key or "btech_cse", {})
-            prog_title = "B.Tech" if (said.get("generic_btech") or known.get("generic_btech") or not prog_key) else prog_data.get("name", "B.Tech")
+            prog_title = "B.Tech" if (said.get("generic_btech") or known.get("generic_btech") or not prog_key) else fees.clean_program_name(prog_key, specialization=known.get("specialization"), user_text=known.get("program_raw"))
 
             text = (
                 f"Thank you! Based on your academic score of {score_str}{proj_str}, you have a strong academic profile for SR University.\n\n"
@@ -738,8 +759,11 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         if known.get("ib_score") is not None:
             args["ib_score"] = known["ib_score"]
 
-        prog_data = fees.load_data()["programs"].get(prog_key, {})
-        prog_name = prog_data.get("name", "B.Tech CSE")
+        prog_name = fees.clean_program_name(
+            prog_key,
+            specialization=known.get("specialization"),
+            user_text=known.get("program_raw"),
+        )
 
         return {
             "action": "calculate",
@@ -763,6 +787,8 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 "ib_score": known.get("ib_score"),
                 "program": prog_key,
                 "program_name": prog_name,
+                "specialization": known.get("specialization"),
+                "program_raw": known.get("program_raw"),
                 "re_query": is_re_query,
             },
         }

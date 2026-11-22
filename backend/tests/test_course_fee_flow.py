@@ -249,3 +249,64 @@ async def test_scenario_10_unverified_academic_year_honesty():
     # Must honestly mention that 2029-30 is not yet finalized, and present the latest verified (2027-28)
     assert "not yet been finalized" in answer or "latest verified" in answer or "2027-28" in answer
     assert "3,40,000" in answer
+
+
+# ---- Scenario 11: Exact selected program reporting (No all-specialization dumping) ----
+@pytest.mark.asyncio
+async def test_exact_selected_program_cse_only_reply():
+    session_id = "test-fee-exact-cse"
+    conv_id = "conv-exact-cse"
+    await memory.clear_profile(session_id)
+    await memory.clear_conversation_state(session_id, conv_id)
+
+    events = await _run("What is the fee for CSE?", session_id, conv_id)
+    assert events[-1]["type"] == "done"
+    answer = events[-1]["answer"]
+    cards = events[-1]["cards"]
+
+    # Must state CSE specifically and NOT dump all specializations
+    assert "B.Tech Computer Science & Engineering (CSE)" in answer or "B.Tech CSE" in answer
+    assert "Robotics and Automation, Quantum AI" not in answer
+
+    detailed_card = next(c for c in cards if c.get("type") == "fee_structure_detailed")
+    assert detailed_card["program_name"] == "B.Tech Computer Science & Engineering (CSE)"
+    assert detailed_card["title"] == "Fee Structure — B.Tech Computer Science & Engineering (CSE)"
+
+
+@pytest.mark.asyncio
+async def test_exact_selected_program_aiml_reply():
+    session_id = "test-fee-exact-aiml"
+    conv_id = "conv-exact-aiml"
+    await memory.clear_profile(session_id)
+    await memory.clear_conversation_state(session_id, conv_id)
+
+    events = await _run("What is the fee for AIML?", session_id, conv_id)
+    assert events[-1]["type"] == "done"
+    answer = events[-1]["answer"]
+    cards = events[-1]["cards"]
+
+    assert "B.Tech CSE (Artificial Intelligence & Machine Learning)" in answer
+    assert "Robotics and Automation, Quantum AI" not in answer
+
+    detailed_card = next(c for c in cards if c.get("type") == "fee_structure_detailed")
+    assert detailed_card["program_name"] == "B.Tech CSE (Artificial Intelligence & Machine Learning)"
+
+
+@pytest.mark.asyncio
+async def test_exact_selected_program_data_science_reply():
+    session_id = "test-fee-exact-ds"
+    conv_id = "conv-exact-ds"
+    await memory.clear_profile(session_id)
+    await memory.clear_conversation_state(session_id, conv_id)
+
+    events = await _run("What is the fee for Data Science?", session_id, conv_id)
+    assert events[-1]["type"] == "done"
+    answer = events[-1]["answer"]
+    cards = events[-1]["cards"]
+
+    assert "B.Tech CSE (Data Science)" in answer
+    assert "Robotics and Automation, Quantum AI" not in answer
+
+    detailed_card = next(c for c in cards if c.get("type") == "fee_structure_detailed")
+    assert detailed_card["program_name"] == "B.Tech CSE (Data Science)"
+

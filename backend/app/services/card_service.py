@@ -1375,7 +1375,7 @@ def build_counsellor_program_card(selected_program: str | None = None, step_labe
         "step_label": step_label,
         "selected_program": selected_program or None,
         "programs": [
-            {"key": "btech_cse", "name": "B.Tech CSE (AIML, Data Science, Cyber Security, Quantum AI)", "short": "B.Tech CSE", "annual_tuition": "₹3,40,000"},
+            {"key": "btech_cse", "name": "B.Tech Computer Science & Engineering (CSE)", "short": "B.Tech CSE", "annual_tuition": "₹3,40,000"},
             {"key": "btech_ai_robotics", "name": "B.Tech in Artificial Intelligence & Robotics", "short": "AI & Robotics", "annual_tuition": "₹4,00,000"},
             {"key": "btech_ece", "name": "B.Tech ECE (AIML, VLSI, Robotics)", "short": "B.Tech ECE", "annual_tuition": "₹2,70,000"},
             {"key": "btech_mech", "name": "B.Tech Mechanical / Civil / EEE", "short": "Core Engineering", "annual_tuition": "₹2,00,000"},

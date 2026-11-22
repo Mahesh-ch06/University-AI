@@ -490,13 +490,23 @@ def detect_program_under_school(message: str, school: dict | None) -> dict | Non
 
 def detect_specialization(message: str, prog: dict) -> str | None:
     low = (message or "").lower()
-    specs = prog.get("specializations", [])
-    for spec in specs:
-        spec_low = spec.lower()
-        # Clean words from spec like (AIML) -> aiml
-        words = re.findall(r"[a-z0-9]+", spec_low)
-        if any(w in low for w in words if len(w) >= 3):
-            return spec
+    if not prog.get("has_specializations"):
+        return None
+
+    # Precise keyword mappings (avoids false positive substring hits like 'and')
+    if re.search(r"\b(?:aiml|ai\s*&?\s*ml|ai\s*and\s*ml|ai/ml|aml|machine\s+learning)\b", low):
+        return "Artificial Intelligence & Machine Learning (AIML)"
+    if re.search(r"\b(?:data\s+science|datascience|ds)\b", low):
+        return "Data Science"
+    if re.search(r"\b(?:cyber\s*security|cybersecurity|cyber|infosec)\b", low):
+        return "Cyber Security"
+    if re.search(r"\b(?:quantum\s*ai|quantum)\b", low):
+        return "Quantum AI"
+    if re.search(r"\b(?:robotics\s*(?:&|and)\s*automation)\b", low):
+        return "Robotics and Automation"
+    if re.search(r"\b(?:core\s*cse|core)\b", low):
+        return "Core CSE"
+
     return None
 
 
@@ -553,7 +563,7 @@ def build_course_selection_card(school: dict, level: str | None = None) -> dict:
     }
 
 
-def build_detailed_fee_card(prog: dict, school: dict, year: str, spec: str | None = None) -> dict:
+def build_detailed_fee_card(prog: dict, school: dict, year: str, spec: str | None = None, user_text: str | None = None) -> dict:
     tuition = prog.get("tuition_per_year", 0)
     sem_tuition = tuition // 2
     duration = prog.get("duration_years", 4)
@@ -580,12 +590,14 @@ def build_detailed_fee_card(prog: dict, school: dict, year: str, spec: str | Non
     first_year_academic = tuition + one_time_total + annual_academic_other
     total_programme_tuition = tuition * duration
 
+    clean_p_name = fees.clean_program_name(prog.get("key", ""), specialization=spec, user_text=user_text)
+
     return {
         "type": "fee_structure_detailed",
-        "title": f"Fee Structure — {prog['name']}",
+        "title": f"Fee Structure — {clean_p_name}",
         "academic_year": year,
         "school_name": school["display_name"],
-        "program_name": prog["name"],
+        "program_name": clean_p_name,
         "specialization": spec,
         "degree": prog.get("degree", "Degree"),
         "duration_years": duration,
@@ -782,7 +794,8 @@ def process_fee_flow(
         matched_school = detect_school(msg)
         has_specific_prog_word = bool(re.search(
             r"\b(?:b\.?\s?tech|m\.?\s?tech|b\.?\s?sc|m\.?\s?sc|bba|mba|bca|mca|b\.?\s?com|b\.?\s?des|"
-            r"cse|ece|eee|mech|civil|food\s*tech|biotech|physics|chemistry|design)\b",
+            r"cse|aiml|ai\s*&?\s*ml|ai\s*and\s*ml|ai/ml|aml|data\s*science|cyber\s*security|quantum\s*ai|robotics|"
+            r"ece|eee|mech|civil|food\s*tech|biotech|physics|chemistry|design)\b",
             low,
         ))
         matched_prog = detect_program_under_school(msg, matched_school) if (has_specific_prog_word or not matched_school) else None
@@ -806,7 +819,8 @@ def process_fee_flow(
                         break
             sch = sch or SCHOOLS_DATA[0]
             spec = detect_specialization(msg, matched_prog)
-            fee_card = build_detailed_fee_card(matched_prog, sch, saved_year, spec)
+            fee_card = build_detailed_fee_card(matched_prog, sch, saved_year, spec, user_text=msg)
+            clean_p_name = fees.clean_program_name(matched_prog["key"], specialization=spec, user_text=msg)
 
             tuition_fmt = fee_card["tuition"]["formatted_annual"]
             sem_fmt = fee_card["tuition"]["formatted_semester"]
@@ -815,7 +829,7 @@ def process_fee_flow(
 
             reply_text = (
                 f"{year_unverified_notice}Sure{name_part}! Here is the complete verified fee breakdown for "
-                f"**{matched_prog['name']}** ({sch['short_name']}) for Academic Year **{saved_year}**:\n\n"
+                f"**{clean_p_name}** ({sch['short_name']}) for Academic Year **{saved_year}**:\n\n"
                 f"• **Tuition Fee**: {tuition_fmt} per year ({sem_fmt} per semester)\n"
                 f"• **One-Time Charges**: {one_time_fmt} (Enrolment ₹5,000 + Application ₹1,100)\n"
                 f"• **Annual Academic Charges**: {annual_other_fmt} (Other fee ₹15,000 + Exam fee ₹5,000)\n"
@@ -919,10 +933,12 @@ def process_fee_flow(
                         sch = s
                         break
             sch = sch or SCHOOLS_DATA[0]
-            fee_card = build_detailed_fee_card(matched_prog, sch, saved_year)
+            spec = detect_specialization(msg, matched_prog)
+            fee_card = build_detailed_fee_card(matched_prog, sch, saved_year, spec, user_text=msg)
+            clean_p_name = fees.clean_program_name(matched_prog["key"], specialization=spec, user_text=msg)
             reply_text = (
                 f"Excellent choice{name_part}! Here is the complete verified fee breakdown for "
-                f"**{matched_prog['name']}** ({sch['short_name']}) for Academic Year **{saved_year}**:\n\n"
+                f"**{clean_p_name}** ({sch['short_name']}) for Academic Year **{saved_year}**:\n\n"
                 f"• **Tuition Fee**: {fee_card['tuition']['formatted_annual']} per year ({fee_card['tuition']['formatted_semester']} per semester)\n"
                 f"• **One-Time Charges**: {fee_card['formatted_one_time_total']} (Enrolment ₹5,000 + Application ₹1,100)\n"
                 f"• **Annual Academic Charges**: {fee_card['formatted_annual_other']} (Other fee ₹15,000 + Exam fee ₹5,000)\n"
@@ -996,7 +1012,8 @@ def process_fee_flow(
         if matched_prog:
             sch = school or SCHOOLS_DATA[0]
             spec = detect_specialization(msg, matched_prog)
-            fee_card = build_detailed_fee_card(matched_prog, sch, saved_year, spec)
+            fee_card = build_detailed_fee_card(matched_prog, sch, saved_year, spec, user_text=msg)
+            clean_p_name = fees.clean_program_name(matched_prog["key"], specialization=spec, user_text=msg)
 
             tuition_fmt = fee_card["tuition"]["formatted_annual"]
             sem_fmt = fee_card["tuition"]["formatted_semester"]
@@ -1004,7 +1021,7 @@ def process_fee_flow(
             annual_other_fmt = fee_card["formatted_annual_other"]
 
             reply_text = (
-                f"Here is the complete verified fee structure for **{matched_prog['name']}** ({sch['short_name']}) "
+                f"Here is the complete verified fee structure for **{clean_p_name}** ({sch['short_name']}) "
                 f"for Academic Year **{saved_year}**:\n\n"
                 f"• **Tuition Fee**: {tuition_fmt} per year ({sem_fmt} per semester)\n"
                 f"• **One-Time Charges**: {one_time_fmt} (Enrolment ₹5,000 + Application ₹1,100)\n"

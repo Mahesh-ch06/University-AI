@@ -553,7 +553,12 @@ def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
     else:
         route_str = route_lbl
 
-    prog_name = fee_res.get("program") or details.get("program_name") or details.get("program") or "B.Tech CSE"
+    prog_key = fee_res.get("program_key") or details.get("program") or "btech_cse"
+    prog_name = fees.clean_program_name(
+        prog_key,
+        specialization=details.get("specialization"),
+        user_text=details.get("program_raw") or details.get("user_query") or fee_res.get("program") or details.get("program_name"),
+    )
 
     pct_waiver = fee_res.get("scholarship_percent", 0)
     matching_cat = fee_res.get("scholarship_basis_text") or (
@@ -890,6 +895,7 @@ from .responses import (
     _FEE_TREE_TEXT,
     _BTECH_TREE_TEXT,
     _BTECH_CSE_FEE_TEXT,
+    get_btech_cse_fee_text,
     _BTECH_AI_ROBOTICS_FEE_TEXT,
     _BTECH_ECE_FEE_TEXT,
     _BTECH_CORE_FEE_TEXT,
@@ -1871,8 +1877,11 @@ async def run_agent(
         await memory.update_profile(session_id, program_interest="btech_cse")
         await set_state(fee_tree_step=None, active_program="btech_cse", fee_flow_prog="btech_cse")
         if client is None or _is_mock_or_test_client(client):
-            fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[0], "2027-28")
-            async for ev in _say(_BTECH_CSE_FEE_TEXT, message, session_id, conversation_id,
+            cse_prog = fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0]
+            spec = fee_flow.detect_specialization(message, cse_prog)
+            fee_card = fee_flow.build_detailed_fee_card(cse_prog, fee_flow.SCHOOLS_DATA[0], "2027-28", spec=spec, user_text=message)
+            fee_text = get_btech_cse_fee_text(specialization=spec, user_msg=message)
+            async for ev in _say(fee_text, message, session_id, conversation_id,
                                  cards=[fee_card],
                                  suggestions=["Calculate my scholarship", "Hostel details",
                                               "Special category concessions", "How do I apply?"]):

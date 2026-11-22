@@ -97,6 +97,79 @@ def _is_generic_btech(text: str) -> bool:
     return " btech " in t or " engineering " in t
 
 
+def clean_program_name(key: str, specialization: str | bool | None = None, user_text: str | None = None) -> str:
+    """Returns the exact, clean program name based on user selection without dumping all specializations."""
+    low_text = (user_text or "").lower()
+    spec = specialization.lower() if isinstance(specialization, str) else ""
+
+    if key in ("btech_cse", "btech_cse_core", "cse"):
+        # Check for specific specializations
+        if any(k in spec for k in ("aiml", "ai & ml", "ai and ml", "ai/ml", "aml", "machine learning")) or re.search(r"\b(?:aiml|ai\s*&?\s*ml|ai\s*and\s*ml|ai/ml|aml|machine\s+learning)\b", low_text):
+            return "B.Tech CSE (Artificial Intelligence & Machine Learning)"
+        if any(k in spec for k in ("data science", "datascience", "ds")) or re.search(r"\b(?:data\s+science|datascience|ds)\b", low_text):
+            return "B.Tech CSE (Data Science)"
+        if any(k in spec for k in ("cyber security", "cybersecurity", "cyber", "infosec")) or re.search(r"\b(?:cyber\s*security|cybersecurity|cyber|infosec)\b", low_text):
+            return "B.Tech CSE (Cyber Security)"
+        if any(k in spec for k in ("quantum ai", "quantum")) or re.search(r"\b(?:quantum\s*ai|quantum)\b", low_text):
+            return "B.Tech CSE (Quantum AI)"
+        if any(k in spec for k in ("robotics & automation", "robotics and automation")) or re.search(r"\b(?:robotics\s*(?:&|and)\s*automation)\b", low_text):
+            return "B.Tech CSE (Robotics & Automation)"
+        return "B.Tech Computer Science & Engineering (CSE)"
+
+    if key == "btech_ai_robotics":
+        return "B.Tech in Artificial Intelligence & Robotics"
+
+    if key == "btech_ece":
+        return "B.Tech Electronics & Communication Engineering (ECE)"
+
+    if key == "btech_eee":
+        return "B.Tech Electrical & Electronics Engineering (EEE)"
+
+    if key == "btech_mech":
+        return "B.Tech Mechanical Engineering"
+
+    if key == "btech_civil":
+        return "B.Tech Civil Engineering"
+
+    if key == "btech_biotech":
+        return "B.Tech Biotechnology"
+
+    if key == "btech_food_tech":
+        return "B.Tech Food Technology"
+
+    if key == "btech_iep":
+        return "B.Tech International Engineering Program (IEP)"
+
+    if key == "bsc_agri":
+        return "B.Sc (Hons.) Agriculture"
+
+    if key == "mba":
+        return "Master of Business Administration (MBA)"
+
+    if key == "bba":
+        return "Bachelor of Business Administration (BBA)"
+
+    if key == "bca":
+        return "BCA (Bachelor of Computer Applications)"
+
+    if key == "mca":
+        return "MCA (Master of Computer Applications)"
+
+    if key == "mtech":
+        return "M.Tech Computer Science & Engineering"
+
+    try:
+        data = load_data()
+        prog = data.get("programs", {}).get(key, {})
+        raw_name = prog.get("name", key)
+        if "(AIML," in raw_name or "(Core," in raw_name:
+            return "B.Tech Computer Science & Engineering (CSE)"
+        return raw_name
+    except Exception:
+        return key
+
+
+
 def _match_slab(slabs, value):
     val = round(value, 2)
     for slab in slabs:
@@ -359,7 +432,8 @@ def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=N
         "data_status": "verified" if data.get("verified") else
         "UNVERIFIED: tell the student the final fee will be confirmed by the Admissions Office",
         "program_key": key,
-        "program": prog["name"],
+        "program": clean_program_name(key, specialization=specialization, user_text=program),
+        "raw_program_name": prog["name"],
         "scholarship_percent": pct,
         "scholarship_basis": sch["basis"],
         "scholarship_basis_text": sch["basis_text"],

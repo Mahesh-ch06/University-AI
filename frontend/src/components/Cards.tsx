@@ -533,9 +533,21 @@ export function ProgramsOfferedCard(_props: CardProps) {
   return null;
 }
 
+export function cleanDisplayProgramName(name: string, specialization?: string): string {
+  if (!name) return name;
+  if (name.includes("(AIML,") || name.includes("Robotics and Automation, Quantum AI")) {
+    if (specialization) {
+      return `B.Tech CSE (${specialization})`;
+    }
+    return "B.Tech Computer Science & Engineering (CSE)";
+  }
+  return name;
+}
+
 export function AgentFeeCard({ card }: CardProps) {
   const d = card.data || {};
-  const progName = d.program_name || d.program || "Academic Program";
+  const rawProgName = d.program_name || d.program || "Academic Program";
+  const progName = cleanDisplayProgramName(rawProgName, d.specialization);
   const semTuition = d.net_tuition_per_sem ?? d.base_tuition_per_sem ?? (d.per_semester_after_scholarship || "—");
   const waiver = d.scholarship_percent || 0;
   const hasHostel = Boolean(d.has_hostel || (d.hostel && d.hostel.per_year));
@@ -1098,7 +1110,7 @@ export function DetailedFeeStructureCard({ card, onSelect }: { card: any; onSele
           </span>
           <span className="academic-year-badge">{card.academic_year || "2027-28"}</span>
         </div>
-        <h4 className="card-title">{card.title || card.program_name}</h4>
+        <h4 className="card-title">{cleanDisplayProgramName(card.title || card.program_name || "", card.specialization)}</h4>
         <p className="card-subtitle">{card.school_name}</p>
       </div>
 
