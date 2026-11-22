@@ -1930,6 +1930,17 @@ async def run_agent(
         if intent in canned_intents:
             intent = "GENERAL"
 
+    _SPECIFIC_SUBTOPIC_KEYWORDS = (
+        "cyber", "cybersecurity", "security", "cloud", "data science",
+        "robotics", "ece", "vlsi", "eee", "civil", "mechanical", "biotech", "agriculture",
+        "bba", "mba", "bca", "mca", "b.des", "design", "fee", "fees", "cost", "price",
+        "scholarship", "eligibility", "hostel", "cutoff", "sports",
+        "library", "canteen", "mess", "curfew", "timing", "bus", "transport", "syllabus",
+        "curriculum", "available", "offered", "how to apply",
+    )
+    if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") and any(k in (message or "").lower() for k in _SPECIFIC_SUBTOPIC_KEYWORDS):
+        intent = "GENERAL"
+
     if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY"):
         from app.services.video_service import get_relevant_videos, get_keyword_videos, create_video_card
         vids = get_relevant_videos(message, limit=2)

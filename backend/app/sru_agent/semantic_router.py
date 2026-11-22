@@ -156,8 +156,12 @@ class SemanticRouter:
         matched_anchor = None
 
         for pol in policies:
-            if pol.intent_id == "ABOUT_SRU":
-                if any(k in norm_msg for k in ("fee", "fees", "cost", "eligibility", "hostel", "placement", "placements", "branch", "branches", "curfew", "scholarship")):
+            if pol.intent_id in ("ABOUT_SRU", "WHY_CHOOSE_SRU"):
+                if any(k in norm_msg for k in (
+                    "fee", "fees", "cost", "eligibility", "hostel", "placement", "placements",
+                    "branch", "branches", "curfew", "scholarship", "cyber", "cybersecurity",
+                    "security", "cloud", "data science", "syllabus", "available", "library",
+                )):
                     continue
             if pol.intent_id == "FUTURE_YEAR_FEE":
                 has_future = bool(re.search(r"\b(?:202[8-9]|203\d|future|upcoming)\b", norm_msg))

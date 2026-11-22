@@ -135,6 +135,17 @@ def test_confidence_aware_routing_and_rag_fallback():
     assert "No approved policy met confidence threshold" in (decision.fallback_reason or "")
 
 
+def test_compound_query_with_specific_subtopic_does_not_override_question():
+    """Compound questions (e.g. 'is CyberSecurity Available and why should I join sru?')
+    must fall back to RAG/general routing so specific questions are not dropped by static policies."""
+    compound_query = "is CyberSecurity Available and can I why should I join sru?"
+    decision = semantic_router.route_message(compound_query)
+
+    assert decision.is_fallback is True
+    assert decision.response_mode == ResponseMode.RAG
+    assert decision.policy_id is None
+
+
 # ----------------------------------------------------------------------------------------
 # 6. Preservation of Admission Context & Interruption Resumption
 # ----------------------------------------------------------------------------------------
