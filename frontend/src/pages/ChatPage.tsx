@@ -37,50 +37,29 @@ function closeWidget() {
   }
 }
 
+const LOCKED_WELCOME_CONTENT =
+  "Welcome to SR University! 👋\n" +
+  "I’m SRU Buddy, your AI companion at a Next-Gen Living and Learning Campus.\n\n" +
+  "🏆 Top Private University in Telangana & AP\n\n" +
+  "Which program are you interested in? I’ll guide you on eligibility, fees, scholarships and campus life.\n\n" +
+  "🌐 Ask in English, हिंदी, తెలుగు or any language.";
+
+const LOCKED_WELCOME_SUGGESTIONS = [
+  "B.Tech programmes offered",
+  "Calculate my scholarship",
+  "Hostel fees & facilities",
+  "How to apply for 2027-28",
+];
+
 const WELCOME_VARIANTS: Array<{ content: string; suggestions: string[] }> = [
   {
-    content:
-      "Welcome to SR University! I'm SRU Buddy, your official AI admissions guide.\n\nI can help you explore programs, calculate fees and scholarships, or learn about campus life.\n\nWhich course or stream are you interested in?\n\n🌐 Ask in English, తెలుగు, or हिंदी.",
-    suggestions: [
-      "B.Tech programmes offered",
-      "Calculate my scholarship",
-      "Hostel fees & facilities",
-      "How to apply for 2027-28",
-    ],
-  },
-  {
-    content:
-      "Hello! Welcome to SR University. I'm SRU Buddy.\n\nWhether you're deciding on a course, calculating fee waivers, or exploring hostel life, I'm here to help.\n\nWhat would you like to explore first?\n\n🌐 Feel free to ask in English, తెలుగు, or हिंदी.",
-    suggestions: [
-      "B.Tech CSE fees",
-      "Help me choose a course",
-      "Campus life & hostels",
-      "Placement records",
-    ],
-  },
-  {
-    content:
-      "Welcome! I'm SRU Buddy, your AI companion for SR University admissions.\n\nAsk me anything about programs, eligibility criteria, merit scholarships up to 40%, or life on our 170-acre campus.\n\nHow can I help you today?\n\n🌐 You can chat in English, తెలుగు, or हिंदी.",
-    suggestions: [
-      "Scholarship for my marks",
-      "Explore B.Tech streams",
-      "Hostel rooms & mess food",
-      "Talk to a counsellor",
-    ],
+    content: LOCKED_WELCOME_CONTENT,
+    suggestions: LOCKED_WELCOME_SUGGESTIONS,
   },
 ];
 
-export function getInitialWelcomeMessage(seed: string = ""): MessageData {
-  let idx = 0;
-  if (seed) {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = (hash << 5) - hash + seed.charCodeAt(i);
-      hash |= 0;
-    }
-    idx = Math.abs(hash) % WELCOME_VARIANTS.length;
-  }
-  const v = WELCOME_VARIANTS[idx];
+export function getInitialWelcomeMessage(_seed: string = ""): MessageData {
+  const v = WELCOME_VARIANTS[0];
   return {
     id: "welcome-sru-buddy",
     role: "assistant",
