@@ -78,6 +78,20 @@ export function sanitizeHelplineNumbers(text: string): string {
     "$1833 100 4040"
   );
 
+  // 8. Normalize placement leadership references (GuruCharn Singh -> Mr. D. Sridhar / Mr. G. Sunil)
+  out = out.replace(
+    /(?:The\s+)?Director\s+of\s+Placements\s+(?:at\s+SR\s+University\s+)?is\s+GuruCharn\s+Singh(?:\s*\(director\.placements@sru\.edu\.in\))?/gi,
+    "The Placement Cell (Centre for Student Services and Placements - CSSP) is headed by **Mr. D. Sridhar** (Head CSSP, stu.cssp@sru.edu.in) alongside **Mr. G. Sunil** (Placement Operations)"
+  );
+  out = out.replace(
+    /GuruCharn\s+Singh(?:\s*\(director\.placements@sru\.edu\.in\))?/gi,
+    "Mr. D. Sridhar (Head CSSP) and Mr. G. Sunil (Placement Operations)"
+  );
+  out = out.replace(
+    /\b(?:Mr\.\s+)?Gurcharan\b/gi,
+    "Mr. G. Sunil"
+  );
+
   // Clean up any double spaces before punctuation
   out = out.replace(/[ \t]{2,}/g, " ").replace(/\s+\./g, ".");
 

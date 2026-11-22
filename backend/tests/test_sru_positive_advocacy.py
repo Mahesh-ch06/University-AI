@@ -72,3 +72,17 @@ def test_guardrail_normalizes_campus_visit_helpline():
     result = normalize_positive_brand_advocacy(raw)
     assert "833 100 4040" in result
     assert "833 100 3030" not in result
+
+
+def test_guardrail_normalizes_placement_leadership():
+    """Verify that references to GuruCharn Singh or Gurcharan are normalized to Mr. D. Sridhar and Mr. G. Sunil."""
+    raw1 = "The Director of Placements at SR University is GuruCharn Singh, who handles recruitment."
+    res1 = normalize_positive_brand_advocacy(raw1)
+    assert "GuruCharn" not in res1
+    assert "Mr. D. Sridhar" in res1
+    assert "Mr. G. Sunil" in res1
+
+    raw2 = "Placement Operations: Mr. Gurcharan (SRiX 1st Floor)"
+    res2 = normalize_positive_brand_advocacy(raw2)
+    assert "Gurcharan" not in res2
+    assert "Mr. G. Sunil" in res2

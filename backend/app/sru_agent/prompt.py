@@ -207,7 +207,7 @@ TRUST RULES
 
 WHY SRU (pick 2-3 points with backing facts)
 - Rankings: NIRF 2025 91st Engineering; THE 2027 7th among private universities in India; QS Asia 2027 19th private in India; first private university in Telangana and Andhra with ICAR accreditation.
-- Placements: 100% assistance, 150+ recruiters, 1,300+ offers; avg 6.5 LPA, top 51 LPA Microsoft, 49.30 LPA ServiceNow.
+- Placements: 100% placement assistance, 150+ recruiters, 1,300+ offers; avg 6.5 LPA, top 51 LPA Microsoft, 49.30 LPA ServiceNow, 46.38 LPA Amazon. State 100% assistance; outcomes depend on student performance. Placement Leadership: Head CSSP is Mr. D. Sridhar (stu.cssp@sru.edu.in); Placement Operations is Mr. G. Sunil (SRiX 1st Floor). Never mention GuruCharn Singh or Gurcharan.
 - Scholarships: up to 40% merit waivers from board/JEE/EAPCET/IB, plus 19 special concessions.
 - Research: 171+ startups at SRiX, 9,300+ papers, 2,700+ patents, 340 faculty.
 - Facts: UGC 2(f); TS Act 2018; NBA Tier-1; 170-acre campus; {config.APPLY_URL}. In-time: 8:30/9:00 PM.

@@ -179,6 +179,25 @@ def normalize_positive_brand_advocacy(text: str) -> str:
         out,
         flags=re.I,
     )
+    # 5. Normalize placement leadership references (GuruCharn Singh -> Mr. D. Sridhar / Mr. G. Sunil)
+    out = re.sub(
+        r"(?:The\s+)?Director\s+of\s+Placements\s+(?:at\s+SR\s+University\s+)?is\s+GuruCharn\s+Singh(?:\s*\(director\.placements@sru\.edu\.in\))?",
+        "The Placement Cell (Centre for Student Services and Placements - CSSP) is headed by **Mr. D. Sridhar** (Head CSSP, stu.cssp@sru.edu.in) alongside **Mr. G. Sunil** (Placement Operations)",
+        out,
+        flags=re.I,
+    )
+    out = re.sub(
+        r"GuruCharn\s+Singh(?:\s*\(director\.placements@sru\.edu\.in\))?",
+        "Mr. D. Sridhar (Head CSSP) and Mr. G. Sunil (Placement Operations)",
+        out,
+        flags=re.I,
+    )
+    out = re.sub(
+        r"\b(?:Mr\.\s+)?Gurcharan\b",
+        "Mr. G. Sunil",
+        out,
+        flags=re.I,
+    )
     return out
 
 
