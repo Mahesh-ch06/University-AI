@@ -1,19 +1,20 @@
 /* SRU Buddy — Minimal Conversation Recovery Card */
 
 .sru-rec-card-mini {
-  position: relative;
-  margin: 6px 4px 10px 4px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: 0 0 10px 0;
   padding: 10px 12px;
   border-radius: 12px;
-  background: #ffffff;
-  border: 1px solid rgba(99, 102, 241, 0.28);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05),
-              0 0 10px -2px rgba(99, 102, 241, 0.15);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.1),
+              0 0 12px -2px rgba(99, 102, 241, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   overflow: hidden;
   animation: sruRecMiniEntrance 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  z-index: 5;
 }
 
 @keyframes sruRecMiniEntrance {

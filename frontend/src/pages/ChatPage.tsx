@@ -3,7 +3,7 @@ import MessageBubble from "../components/MessageBubble";
 import ChatLeadForm from "../components/ChatLeadForm";
 import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
-import { applyServerProfile, cleanPhone, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
+import { applyServerProfile, cleanPhone, forgetStudentDetails, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import { deduplicateCards } from "../components/Cards";
 import RecoveryCard from "../components/RecoveryCard";
 import {
@@ -177,6 +177,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const [recoveryContext, setRecoveryContext] = useState<ConversationRecoveryContext | null>(null);
   const [showRecoveryCard, setShowRecoveryCard] = useState<boolean>(false);
   const [isRestoringConv, setIsRestoringConv] = useState<boolean>(false);
+  const [pendingRecoveryQuery, setPendingRecoveryQuery] = useState<string | null>(null);
+  const pendingRecoveryQueryRef = useRef<string | null>(null);
 
   const isLoadingRef = useRef(isLoading);
   const dockQueryRef = useRef(dockQuery);
@@ -241,6 +243,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const handleContinueConversation = async () => {
     if (!recoveryContext?.conversation_id) {
       setShowRecoveryCard(false);
+      setRecoveryContext(null);
       return;
     }
     setIsRestoringConv(true);
@@ -251,20 +254,34 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         setActiveConvId(recoveryContext.conversation_id);
         activeConvIdRef.current = recoveryContext.conversation_id;
         setShowRecoveryCard(false);
+        setRecoveryContext(null);
         recordUserActivity();
-        requestAnimationFrame(() => {
-          if (messagesAreaRef.current) {
-            messagesAreaRef.current.scrollTo({
-              top: messagesAreaRef.current.scrollHeight,
-              behavior: "smooth",
-            });
-          }
-        });
+
+        const pending = pendingRecoveryQueryRef.current || pendingRecoveryQuery;
+        pendingRecoveryQueryRef.current = null;
+        setPendingRecoveryQuery(null);
+
+        if (pending) {
+          setTimeout(() => {
+            executeSendMessage(pending, false);
+          }, 150);
+        } else {
+          requestAnimationFrame(() => {
+            if (messagesAreaRef.current) {
+              messagesAreaRef.current.scrollTo({
+                top: messagesAreaRef.current.scrollHeight,
+                behavior: "smooth",
+              });
+            }
+          });
+        }
       } else {
         setShowRecoveryCard(false);
+        setRecoveryContext(null);
       }
     } catch {
       setShowRecoveryCard(false);
+      setRecoveryContext(null);
     } finally {
       setIsRestoringConv(false);
     }
@@ -272,10 +289,39 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
   const handleStartNewConversation = async () => {
     setShowRecoveryCard(false);
+    const prevContext = recoveryContext;
+    const prevConvId = activeConvId || prevContext?.conversation_id;
     setRecoveryContext(null);
+
+    // Forget verified student identity so fresh start requires name & phone intake
+    try {
+      await forgetStudentDetails(sessionId);
+    } catch {}
+    try {
+      localStorage.removeItem("sru_student_lead");
+    } catch {}
+
     handleResetChat();
     recordUserActivity();
-    await resetSessionConversation(sessionId, activeConvId);
+    await resetSessionConversation(sessionId, prevConvId);
+
+    const pending = pendingRecoveryQueryRef.current || pendingRecoveryQuery;
+    pendingRecoveryQueryRef.current = null;
+    setPendingRecoveryQuery(null);
+
+    if (pending) {
+      const userMsgId = crypto.randomUUID();
+      const userMsg: MessageData = {
+        id: userMsgId,
+        role: "user",
+        content: pending,
+        created_at: new Date().toISOString(),
+      };
+      setMessages([getInitialWelcomeMessage(`${sessionId}-fresh`), userMsg]);
+      setPendingQuestion(pending);
+      pendingQuestionRef.current = pending;
+      setShowInlineLeadForm(true);
+    }
   };
 
   // Real-time connection status: setting_up -> connected -> thinking
@@ -382,8 +428,48 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     if (!trimmed) return;
 
     recordUserActivity();
-    if (showRecoveryCard) {
-      setShowRecoveryCard(false);
+
+    // 1. Direct triggers for recovery choices (from chips, buttons, or typed commands)
+    if (/^\s*(?:[▶\s]*(?:continue|resume|pick\s*up)(?:\s+(?:previous|prior|my))?\s*(?:conversation|chat)?)\s*$/i.test(trimmed)) {
+      if (showRecoveryCard || recoveryContext) {
+        handleContinueConversation();
+        return;
+      }
+    }
+    if (/^\s*(?:[↺\s]*(?:start\s*fresh|new\s*(?:chat|conversation)|restart(?:\s*fresh)?|refresh(?:\s*chat)?))\s*$/i.test(trimmed)) {
+      if (showRecoveryCard || recoveryContext) {
+        handleStartNewConversation();
+        return;
+      }
+    }
+
+    // 2. Strict Recovery Guard:
+    // If recovery card is active, do NOT dismiss it!
+    // Intercept the query, keep the card visible, and prompt the student to choose.
+    if (showRecoveryCard && recoveryContext) {
+      setPendingRecoveryQuery(trimmed);
+      pendingRecoveryQueryRef.current = trimmed;
+
+      const userMsgId = crypto.randomUUID();
+      const promptMsgId = crypto.randomUUID();
+
+      const userMsg: MessageData = {
+        id: userMsgId,
+        role: "user",
+        content: trimmed,
+        created_at: new Date().toISOString(),
+      };
+
+      const promptMsg: MessageData = {
+        id: promptMsgId,
+        role: "assistant",
+        content: `Welcome back! To best assist you with **"${trimmed}"**, please let me know:\n\nWould you like to **continue your previous conversation** or **start a fresh session**?`,
+        suggestions: ["▶ Continue Previous Chat", "↺ Start Fresh"],
+        created_at: new Date().toISOString(),
+      };
+
+      setMessages((prev) => [...prev, userMsg, promptMsg]);
+      return;
     }
 
     // Check for calculator trigger
@@ -791,7 +877,13 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               <textarea
                 ref={widgetTextareaRef}
                 className="sru-widget-textarea"
-                placeholder={showInlineLeadForm ? "Please share your name & mobile number above to chat" : "Ask SRU Buddy..."}
+                placeholder={
+                  showRecoveryCard
+                    ? "Choose Continue or Start Fresh above..."
+                    : showInlineLeadForm
+                    ? "Please share your name & mobile number above to chat"
+                    : "Ask SRU Buddy..."
+                }
                 rows={1}
                 value={widgetInput}
                 disabled={showInlineLeadForm || isLoading}
@@ -799,6 +891,11 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 onChange={(e) => {
                   setWidgetInput(e.target.value);
                   adjustTextareaHeight(e.target);
+                }}
+                onFocus={() => {
+                  if (showRecoveryCard && messagesAreaRef.current) {
+                    messagesAreaRef.current.scrollTo({ top: 0, behavior: "smooth" });
+                  }
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -1254,7 +1351,13 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   <textarea
                     ref={portalTextareaRef}
                     className="sru-widget-textarea"
-                    placeholder={showInlineLeadForm ? "Please share your name & mobile number above to chat" : "Ask SRU Buddy..."}
+                    placeholder={
+                      showRecoveryCard
+                        ? "Choose Continue or Start Fresh above..."
+                        : showInlineLeadForm
+                        ? "Please share your name & mobile number above to chat"
+                        : "Ask SRU Buddy..."
+                    }
                     rows={1}
                     value={widgetInput}
                     disabled={showInlineLeadForm || isLoading}
@@ -1262,6 +1365,11 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     onChange={(e) => {
                       setWidgetInput(e.target.value);
                       adjustTextareaHeight(e.target);
+                    }}
+                    onFocus={() => {
+                      if (showRecoveryCard && messagesAreaRef.current) {
+                        messagesAreaRef.current.scrollTo({ top: 0, behavior: "smooth" });
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
