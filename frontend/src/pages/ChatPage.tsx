@@ -332,6 +332,29 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     return () => window.removeEventListener("message", handleWidgetMessage);
   }, []);
 
+  // Dynamically bind to visualViewport for mobile virtual keyboards to prevent blank screen & panning
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleViewportChange = () => {
+      const height = Math.round(vv.height);
+      document.documentElement.style.setProperty("--visual-viewport-height", `${height}px`);
+      // Keep document at 0, 0 so mobile browser doesn't scroll the fixed page upwards
+      if (window.scrollY > 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    handleViewportChange();
+    vv.addEventListener("resize", handleViewportChange);
+    vv.addEventListener("scroll", handleViewportChange);
+    return () => {
+      vv.removeEventListener("resize", handleViewportChange);
+      vv.removeEventListener("scroll", handleViewportChange);
+    };
+  }, []);
+
   const currentStatus = isLoading
     ? { text: activeToolStatus || "Thinking...", type: "thinking" }
     : connStatus === "setting_up"
@@ -852,6 +875,46 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
           {/* Footer / Input Bar */}
           <div className="sru-widget-footer">
+            {showRecoveryCard && recoveryContext && (
+              <div className="sru-recovery-dock" role="region" aria-label="Conversation recovery choices">
+                <div className="sru-recovery-dock-header">
+                  <span className="sru-recovery-dock-badge">✨ Session Saved</span>
+                  <span className="sru-recovery-dock-text">Please choose to proceed:</span>
+                </div>
+                <div className="sru-recovery-dock-actions">
+                  <button
+                    type="button"
+                    className="sru-recovery-dock-btn sru-recovery-dock-btn--continue"
+                    onClick={handleContinueConversation}
+                    disabled={isRestoringConv}
+                    aria-label="Continue previous conversation"
+                  >
+                    {isRestoringConv ? (
+                      <span>Restoring...</span>
+                    ) : (
+                      <>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                          <polygon points="6 4 20 12 6 20 6 4" />
+                        </svg>
+                        <span>Continue Chat</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="sru-recovery-dock-btn sru-recovery-dock-btn--fresh"
+                    onClick={handleStartNewConversation}
+                    disabled={isRestoringConv}
+                    aria-label="Start fresh conversation"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                    </svg>
+                    <span>Start Fresh</span>
+                  </button>
+                </div>
+              </div>
+            )}
             <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
               <textarea
                 ref={widgetTextareaRef}
@@ -873,7 +936,10 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 }}
                 onFocus={() => {
                   if (showRecoveryCard && messagesAreaRef.current) {
-                    messagesAreaRef.current.scrollTo({ top: 0, behavior: "smooth" });
+                    messagesAreaRef.current.scrollTo({
+                      top: messagesAreaRef.current.scrollHeight,
+                      behavior: "smooth",
+                    });
                   }
                 }}
                 onKeyDown={(e) => {
@@ -1326,6 +1392,46 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
               {/* Footer / Input Bar */}
               <div className="sru-widget-footer">
+                {showRecoveryCard && recoveryContext && (
+                  <div className="sru-recovery-dock" role="region" aria-label="Conversation recovery choices">
+                    <div className="sru-recovery-dock-header">
+                      <span className="sru-recovery-dock-badge">✨ Session Saved</span>
+                      <span className="sru-recovery-dock-text">Please choose to proceed:</span>
+                    </div>
+                    <div className="sru-recovery-dock-actions">
+                      <button
+                        type="button"
+                        className="sru-recovery-dock-btn sru-recovery-dock-btn--continue"
+                        onClick={handleContinueConversation}
+                        disabled={isRestoringConv}
+                        aria-label="Continue previous conversation"
+                      >
+                        {isRestoringConv ? (
+                          <span>Restoring...</span>
+                        ) : (
+                          <>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                              <polygon points="6 4 20 12 6 20 6 4" />
+                            </svg>
+                            <span>Continue Chat</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="sru-recovery-dock-btn sru-recovery-dock-btn--fresh"
+                        onClick={handleStartNewConversation}
+                        disabled={isRestoringConv}
+                        aria-label="Start fresh conversation"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                        </svg>
+                        <span>Start Fresh</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
                   <textarea
                     ref={portalTextareaRef}
@@ -1347,7 +1453,10 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     }}
                     onFocus={() => {
                       if (showRecoveryCard && messagesAreaRef.current) {
-                        messagesAreaRef.current.scrollTo({ top: 0, behavior: "smooth" });
+                        messagesAreaRef.current.scrollTo({
+                          top: messagesAreaRef.current.scrollHeight,
+                          behavior: "smooth",
+                        });
                       }
                     }}
                     onKeyDown={(e) => {

@@ -248,6 +248,19 @@
     close();
   });
 
+  if (window.visualViewport) {
+    var syncPanelVV = function () {
+      if (isOpen && window.innerWidth <= 768) {
+        var vvHeight = Math.round(window.visualViewport.height);
+        var vvTop = Math.round(window.visualViewport.offsetTop || 0);
+        panel.style.setProperty("height", vvHeight + "px", "important");
+        panel.style.setProperty("top", vvTop + "px", "important");
+      }
+    };
+    window.visualViewport.addEventListener("resize", syncPanelVV);
+    window.visualViewport.addEventListener("scroll", syncPanelVV);
+  }
+
   function mount() {
     document.body.appendChild(host);
     var greeted = false;

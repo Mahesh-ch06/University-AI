@@ -1662,8 +1662,7 @@
 .sru-widget-iframe-root {
   min-height: 100% !important;
   height: 100% !important;
-  height: 100dvh !important;
-  height: -webkit-fill-available !important;
+  height: var(--visual-viewport-height, 100dvh) !important;
   width: 100% !important;
   width: 100vw !important;
   position: fixed !important;
@@ -1679,10 +1678,9 @@
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  height: 100dvh !important;
-  height: -webkit-fill-available !important;
+  height: var(--visual-viewport-height, 100dvh) !important;
   max-width: 100% !important;
-  max-height: 100% !important;
+  max-height: var(--visual-viewport-height, 100dvh) !important;
   border-radius: 0 !important;
   border: none !important;
   box-shadow: none !important;
@@ -2210,9 +2208,121 @@
   padding: 8px max(14px, env(safe-area-inset-right, 14px)) max(8px, env(safe-area-inset-bottom, 8px)) max(14px, env(safe-area-inset-left, 14px));
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   flex-shrink: 0;
   z-index: 20;
+}
+
+/* Pinned Recovery Dock inside Footer (Always visible above keyboard & input) */
+.sru-recovery-dock {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e0f2fe 100%);
+  border: 1.5px solid #bae6fd;
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 2px 10px rgba(0, 85, 164, 0.08);
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-bottom: 2px;
+}
+
+[data-theme="dark"] .sru-recovery-dock {
+  background: linear-gradient(135deg, #182234 0%, #101726 100%);
+  border-color: #2b3952;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.sru-recovery-dock-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #0055a4;
+  line-height: 1.2;
+}
+
+[data-theme="dark"] .sru-recovery-dock-header {
+  color: #60a5fa;
+}
+
+.sru-recovery-dock-badge {
+  font-weight: 800;
+  color: #004382;
+}
+
+[data-theme="dark"] .sru-recovery-dock-badge {
+  color: #93c5fd;
+}
+
+.sru-recovery-dock-text {
+  color: #334155;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .sru-recovery-dock-text {
+  color: #cbd5e1;
+}
+
+.sru-recovery-dock-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.sru-recovery-dock-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sru-recovery-dock-btn--continue {
+  background: linear-gradient(135deg, #0055a4 0%, #2979e2 100%);
+  color: #ffffff !important;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 85, 164, 0.3);
+}
+
+.sru-recovery-dock-btn--continue:hover:not(:disabled) {
+  background: linear-gradient(135deg, #004382 0%, #1c66c9 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 85, 164, 0.4);
+}
+
+.sru-recovery-dock-btn--fresh {
+  background: #ffffff;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .sru-recovery-dock-btn--fresh {
+  background: #1e293b;
+  color: #f8fafc !important;
+  border-color: #475569;
+}
+
+.sru-recovery-dock-btn--fresh:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+.sru-recovery-dock-btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .sru-widget-input-row {
@@ -2588,11 +2698,8 @@
     bottom: 0 !important;
     width: 100% !important;
     width: 100vw !important;
-    height: 100% !important;
-    height: 100dvh !important;
-    height: -webkit-fill-available !important;
-    max-width: 100vw !important;
-    max-height: none !important;
+    height: var(--visual-viewport-height, 100dvh) !important;
+    max-height: var(--visual-viewport-height, 100dvh) !important;
     border-radius: 0 !important;
     border: none !important;
     box-shadow: none !important;
