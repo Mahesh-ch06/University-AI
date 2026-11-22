@@ -203,7 +203,7 @@ SR University hosts 37 active student clubs categorized by scope:
 | **Student Help Desk** | Ms. Divya | `helpdesk@sru.edu.in` |
 | **Examination Cell** | Mr. K. Kiran Babu | `examcell@sru.edu.in` |
 | **Placement Cell (CSSP)** | Mr. D. Sridhar | `stu.cssp@sru.edu.in` |
-| **Placement Operations** | Mr. Gurcharan | — | (SRiX 1st Floor) |
+| **Placement Operations** | Mr. G. Sunil | — | (SRiX 1st Floor) |
 | **Student Grievance Cell** | Dr. D. Rajababu | `stu.grievance@sru.edu.in` |
 | **Counselling (Girls)** | Ms. Swapna | `stu.counseling@sru.edu.in` |
 | **Counselling (Boys)** | Mr. Benson | `stu.counseling@sru.edu.in` |

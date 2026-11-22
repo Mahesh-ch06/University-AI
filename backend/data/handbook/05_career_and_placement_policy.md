@@ -5,7 +5,7 @@ The **Centre for Student Services and Placements (CSSP)** and the **Career and J
 * **Placement Cell Location**: SRiX Block, 1st Floor.
 * **Key Contacts**:
   - Mr. D. Sridhar (Head CSSP): `stu.cssp@sru.edu.in`
-  - Mr. Gurcharan (Placement Operations): `stu.cssp@sru.edu.in` (SRiX 1st Floor)
+  - Mr. G. Sunil (Placement Operations): `stu.cssp@sru.edu.in` (SRiX 1st Floor)
 
 ---
 
