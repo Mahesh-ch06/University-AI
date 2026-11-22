@@ -911,6 +911,50 @@ PROGRAMS_OFFERED_CARD = {
 }
 
 
+# ---------------------------------------------------------------------------
+# WELCOME QUICK-ACTION CARDS (Shown once right after lead collection)
+# ---------------------------------------------------------------------------
+WELCOME_ACTIONS_CARD = {
+    "type": "welcome_actions",
+    "title": "Welcome to SR University",
+    "subtitle": "Select an option to get started with SRU Buddy",
+    "items": [
+        {
+            "id": "explore_programs",
+            "icon": "graduation-cap",
+            "color": "blue",
+            "title": "Explore Programs",
+            "subtitle": "Find your preferred course",
+            "prompt": "Explore programs offered at SR University",
+        },
+        {
+            "id": "calculate_scholarship",
+            "icon": "calculator",
+            "color": "green",
+            "title": "Calculate Scholarship",
+            "subtitle": "Check your scholarship eligibility",
+            "prompt": "Calculate my scholarship",
+        },
+        {
+            "id": "fee_structure",
+            "icon": "wallet",
+            "color": "purple",
+            "title": "Fee Structure",
+            "subtitle": "Understand course fees",
+            "prompt": "What is the fee structure for 2027-28?",
+        },
+        {
+            "id": "campus_admissions",
+            "icon": "building",
+            "color": "amber",
+            "title": "Campus & Admissions",
+            "subtitle": "Explore campus and admission process",
+            "prompt": "Tell me about campus facilities and admission process",
+        },
+    ],
+}
+
+
 # Session memory for shown cards to prevent repeating cards within the same session
 _SESSION_SHOWN_CARDS: dict[str, set[str]] = {}
 

@@ -382,7 +382,11 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     for piece in _chunks(text):
         yield {"type": "token", "delta": piece}
     await memory.append_history(session_id, message, text, conversation_id)
-    yield _done(conversation_id, text, used, cards, suggestions, telemetry=telemetry)
+    if suggestions:
+        final_suggestions = followups.ensure_fixed_chips(list(suggestions), answer=text, message=message)
+    else:
+        final_suggestions = ()
+    yield _done(conversation_id, text, used, cards, final_suggestions, telemetry=telemetry)
 
 
 async def _run_action(name: str, args: dict, ctx: dict, used: list, cards: list):
@@ -1635,6 +1639,33 @@ async def run_agent(
     async def set_state(**fields):
         conv_state.update(fields)
         await memory.update_conversation_state(session_id, conversation_id, **fields)
+
+    # Check if welcome quick-action cards have been shown after lead collection
+    welcome_actions_shown = bool(
+        conv_state.get("welcome_actions_shown")
+        or profile.get("welcome_actions_shown")
+    )
+    if require_contact_details and not welcome_actions_shown and existing_name and existing_phone:
+        await set_state(welcome_actions_shown=True)
+        await memory.update_profile(session_id, welcome_actions_shown=True)
+        from app.services import card_service
+        card_service.record_session_card(session_id, "welcome_actions")
+        first_name = _first_name(existing_name)
+        welcome_text = (
+            f"Welcome to SR University, **{first_name}**! 🎓\n\n"
+            "I'm **SRU Buddy**, your official AI companion. Explore our programs, fee structure, scholarships, or campus life.\n\n"
+            "Select an option below to get started, or ask any question directly:"
+        )
+        async for ev in _say(
+            welcome_text,
+            message,
+            session_id,
+            conversation_id,
+            cards=[card_service.WELCOME_ACTIONS_CARD],
+            suggestions=["Explore all programs", "Calculate my scholarship"],
+        ):
+            yield ev
+        return
 
     # Persist preserved state variables
     await set_state(
@@ -3024,7 +3055,7 @@ async def run_agent(
         if fac:
             department = fac.get("department") or next(
                 (p.get("department") for p in fac.get("faculty") or [] if p.get("department")), None)
-        suggestions = followups.suggest(message, used, ctx.get("profile"), department, history=history, active_topic=active_topic)
+        suggestions = followups.suggest(message, used, ctx.get("profile"), department, history=history, active_topic=active_topic, answer=final)
     except Exception as sugg_err:
         log.warning("Could not generate suggestions for agent: %s", sugg_err)
 

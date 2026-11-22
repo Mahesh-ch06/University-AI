@@ -1882,10 +1882,125 @@ export function CounsellorProgramCard({ card, onSelect }: { card: any; onSelect?
   );
 }
 
+export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
+  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+
+  const items = card.items || [
+    {
+      id: "explore_programs",
+      icon: "graduation-cap",
+      color: "blue",
+      title: "Explore Programs",
+      subtitle: "Find your preferred course",
+      prompt: "Explore programs offered at SR University",
+    },
+    {
+      id: "calculate_scholarship",
+      icon: "calculator",
+      color: "green",
+      title: "Calculate Scholarship",
+      subtitle: "Check your scholarship eligibility",
+      prompt: "Calculate my scholarship",
+    },
+    {
+      id: "fee_structure",
+      icon: "wallet",
+      color: "purple",
+      title: "Fee Structure",
+      subtitle: "Understand course fees",
+      prompt: "What is the fee structure for 2027-28?",
+    },
+    {
+      id: "campus_admissions",
+      icon: "building",
+      color: "amber",
+      title: "Campus & Admissions",
+      subtitle: "Explore campus and admission process",
+      prompt: "Tell me about campus facilities and admission process",
+    },
+  ];
+
+  const handleClick = (prompt: string) => {
+    if (selectedPrompt) return;
+    setSelectedPrompt(prompt);
+    onSelect?.(prompt);
+  };
+
+  const renderIcon = (iconName: string) => {
+    switch (iconName) {
+      case "graduation-cap":
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+            <path d="M6 12v5c3 3 9 3 12 0v-5" />
+          </svg>
+        );
+      case "calculator":
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="2" width="16" height="20" rx="2" />
+            <line x1="8" y1="6" x2="16" y2="6" />
+            <line x1="16" y1="14" x2="16" y2="18" />
+            <path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01" />
+          </svg>
+        );
+      case "wallet":
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <line x1="2" y1="10" x2="22" y2="10" />
+          </svg>
+        );
+      case "building":
+      default:
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="21" x2="21" y2="21" />
+            <line x1="6" y1="21" x2="6" y2="11" />
+            <line x1="10" y1="21" x2="10" y2="11" />
+            <line x1="14" y1="21" x2="14" y2="11" />
+            <line x1="18" y1="21" x2="18" y2="11" />
+            <polygon points="12 3 2 8 22 8 12 3" />
+          </svg>
+        );
+    }
+  };
+
+  return (
+    <div className="welcome-actions-card-wrapper">
+      <div className="welcome-actions-grid">
+        {items.map((item: any) => {
+          const isSelected = selectedPrompt === item.prompt;
+          const isDimmed = Boolean(selectedPrompt && !isSelected);
+          return (
+            <button
+              key={item.id || item.title}
+              type="button"
+              className={`welcome-action-tile tile-${item.color || "blue"} ${isSelected ? "selected" : ""} ${isDimmed ? "dimmed" : ""}`}
+              onClick={() => handleClick(item.prompt)}
+              disabled={Boolean(selectedPrompt)}
+            >
+              <div className={`welcome-action-icon-box icon-box-${item.color || "blue"}`}>
+                {renderIcon(item.icon)}
+              </div>
+              <div className="welcome-action-info">
+                <span className="welcome-action-title">{item.title}</span>
+                <span className="welcome-action-subtitle">{item.subtitle}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
   if (!card || !card.type) return null;
 
   switch (card.type) {
+    case "welcome_actions":
+      return <WelcomeActionsCard card={card} onSelect={onSelect} />;
     case "counsellor_board_selection":
       return <CounsellorBoardCard card={card} onSelect={onSelect} />;
     case "counsellor_stage_selection":

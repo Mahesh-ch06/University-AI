@@ -51,11 +51,10 @@ async def test_program_name_does_not_dump_fees():
     assert "Robot Operating System (ROS)" in answer or "ROS" in answer
     assert "What would you like to explore" in answer
 
-    # Must provide exploration chips
+    # Must provide exploration chips (2 contextual + 2 fixed)
     assert "Fee & scholarships" in done["suggestions"]
     assert "Laboratories & facilities" in done["suggestions"]
-    assert "Eligibility criteria" in done["suggestions"]
-    assert "Placements for this branch" in done["suggestions"]
+    assert len(done["suggestions"]) == 4
 
     # Must remember program interest in state
     state = await memory.get_conversation_state(session_id)
@@ -137,7 +136,10 @@ async def test_eligibility_criteria_response():
     assert "Admission Eligibility Criteria at SR University" in answer
     assert "60% aggregate marks" in answer
     assert "MPC" in answer
-    assert "Calculate my scholarship" in done["suggestions"]
+    # Binary question at end of eligibility response yields Yes/No + fixed chips
+    assert "Yes" in done["suggestions"]
+    assert "No" in done["suggestions"]
+    assert len(done["suggestions"]) == 4
 
 
 @pytest.mark.asyncio
