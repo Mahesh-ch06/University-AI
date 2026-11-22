@@ -1872,6 +1872,18 @@
   border-radius: 4px;
 }
 
+/* Resilient Recovery Card Container inside Widget Body */
+.sru-widget-body .sru-rec-card-mini {
+  position: relative !important;
+  flex-shrink: 0 !important;
+  min-height: fit-content !important;
+  height: auto !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  max-height: none !important;
+  width: 100% !important;
+}
+
 /* ==========================================================================
    Widget Message Bubbles (Matching Reference Image 1: Superbot style)
    ========================================================================== */

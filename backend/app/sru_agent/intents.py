@@ -22,6 +22,16 @@ AgentIntent = Literal[
     "FEE_TREE_QUERY",
     "ALL_PROGRAMS_QUERY",
     "BTECH_TREE_QUERY",
+    "BTECH_PROGRAMS_QUERY",
+    "PROGRAM_AI_ROBOTICS_QUERY",
+    "PROGRAM_CSE_QUERY",
+    "PROGRAM_ECE_QUERY",
+    "PROGRAM_CORE_QUERY",
+    "PROGRAM_MANAGEMENT_QUERY",
+    "PROGRAM_AGRICULTURE_QUERY",
+    "PROGRAM_COMP_APP_QUERY",
+    "PROGRAM_DESIGN_QUERY",
+    "ELIGIBILITY_QUERY",
     "BTECH_CSE_FEE_QUERY",
     "BTECH_AI_ROBOTICS_FEE_QUERY",
     "BTECH_ECE_FEE_QUERY",
@@ -221,8 +231,9 @@ _ALL_PROGRAMS_PATTERN = re.compile(
 )
 
 _BTECH_ENGINEERING_PATTERN = re.compile(
-    r"^\s*(?:b\.?\s?tech\s+engineering|b\.?\s?tech\s+programs?|b\.?\s?tech\s+branches?|"
-    r"engineering\s+programs?|b\.?\s?tech)\s*$",
+    r"^\s*(?:b\.?\s?tech\s+program(?:me)?s?(?:\s+offered)?|b\.?\s?tech\s+branches?|"
+    r"b\.?\s?tech\s+courses?|engineering\s+program(?:me)?s?|engineering\s+branches?|"
+    r"b\.?\s?tech\s+engineering|b\.?\s?tech)\s*$",
     re.IGNORECASE,
 )
 
@@ -231,18 +242,27 @@ _BTECH_CSE_ALLIED_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_BTECH_CSE_PATTERN = re.compile(
+    r"^\s*(?:b\.?\s?tech\s+(?:in\s+)?cse|b\.?\s?tech\s+(?:in\s+)?computer\s+science(?:(?:\s+and|&)\s*engineering)?|"
+    r"cse\s+branch|computer\s+science\s+branch|b\.?\s?tech\s+cse)\s*$",
+    re.IGNORECASE,
+)
+
 _BTECH_AI_ROBOTICS_PATTERN = re.compile(
-    r"^\s*(?:b\.?\s?tech\s+(?:in\s+)?(?:ai|artificial\s+intelligence)\s*(?:&|and)\s*robotics|ai\s*(?:&|and)\s*robotics\s+branch)\s*$",
+    r"^\s*(?:b\.?\s?tech\s+(?:in\s+)?(?:ai|artificial\s+intelligence)\s*(?:&|and)\s*robotics|"
+    r"ai\s*(?:&|and)\s*robotics\s+branch|b\.?\s?tech\s+ai\s*(?:&|and)\s*robotics|"
+    r"(?:ai|artificial\s+intelligence)\s*(?:&|and)\s*robotics)\s*$",
     re.IGNORECASE,
 )
 
 _BTECH_ECE_PATTERN = re.compile(
-    r"^\s*(?:b\.?\s?tech\s+ece|ece\s+branch)\s*$",
+    r"^\s*(?:b\.?\s?tech\s+(?:in\s+)?ece|b\.?\s?tech\s+(?:in\s+)?electronics(?:(?:\s+and|&)\s*communication)?|ece\s+branch)\s*$",
     re.IGNORECASE,
 )
 
 _BTECH_CORE_PATTERN = re.compile(
-    r"^\s*(?:b\.?\s?tech\s+core(?:\s+engineering)?|core\s+engineering\s+branch)\s*$",
+    r"^\s*(?:b\.?\s?tech\s+core(?:\s+engineering)?|core\s+engineering(?:\s+branch|\s+branches)?|"
+    r"mechanical\s+branch|civil\s+branch|eee\s+branch)\s*$",
     re.IGNORECASE,
 )
 
@@ -263,6 +283,57 @@ _COMP_APP_PATTERN = re.compile(
 
 _DESIGN_PATTERN = re.compile(
     r"^\s*(?:design\s*(?:\(\s*b\.?\s?des\s*\))?|b\.?\s?des)\s*$",
+    re.IGNORECASE,
+)
+
+_BTECH_FEE_CHIP_PATTERN = re.compile(
+    r"^\s*b\.?\s?tech\s+engineering\s*$",
+    re.IGNORECASE,
+)
+
+_MGMT_FEE_CHIP_PATTERN = re.compile(
+    r"^\s*management\s*\(\s*bba\s*/\s*mba\s*\)\s*$",
+    re.IGNORECASE,
+)
+
+_AGRI_FEE_CHIP_PATTERN = re.compile(
+    r"^\s*b\.?\s?sc\.?\s*\(hons\)\s*agriculture\s*$",
+    re.IGNORECASE,
+)
+
+_COMP_APP_FEE_CHIP_PATTERN = re.compile(
+    r"^\s*computer\s+applications\s*\(\s*bca\s*/\s*mca\s*\)\s*$",
+    re.IGNORECASE,
+)
+
+_DESIGN_FEE_CHIP_PATTERN = re.compile(
+    r"^\s*design\s*\(\s*b\.?\s?des\s*\)\s*$",
+    re.IGNORECASE,
+)
+
+_ELIGIBILITY_PATTERN = re.compile(
+    r"^\s*(?:eligibility\s+criteria|eligibility|admission\s+eligibility|"
+    r"eligibility\s+requirements?|what\s+is\s+the\s+eligibility|"
+    r"who\s+is\s+eligible|eligibility\s+for\s+b\.?tech|eligibility\s+cutoffs?|"
+    r"minimum\s+eligibility)\s*$",
+    re.IGNORECASE,
+)
+
+_PLACEMENT_QUERY_PATTERN = re.compile(
+    r"\b(?:placements?\s+for\s+this\s+branch|campus\s+placements?|"
+    r"placement\s+records?|highest\s+package|average\s+package|"
+    r"top\s+recruiters|placement\s+statistics|placement\s+details?)\b",
+    re.IGNORECASE,
+)
+
+_FEE_KEYWORD_PATTERN = re.compile(
+    r"\b(?:fees?|tuition|cost|costs|pricing|charges?|how\s+much)\b",
+    re.IGNORECASE,
+)
+
+_FEE_OR_SCHOLARSHIP_SHORT_PATTERN = re.compile(
+    r"^\s*(?:fees?|fee\s+structure|fee\s*&\s*scholarships?|fees?\s*(?:and|&)\s*scholarships?|"
+    r"tuition\s*fees?|what\s+is\s+the\s+fee|fee\s+details?|check\s+fees?|fee\s+and\s+scholarship)\s*$",
     re.IGNORECASE,
 )
 
@@ -346,6 +417,7 @@ _LAB_FACILITIES_PATTERN = re.compile(
     r"which\s+labs(?:\s+are\s+there|\s+do\s+you\s+have|\s+available)?|"
     r"what\s+laboratories(?:\s+are\s+there|\s+do\s+you\s+have|\s+available)?|"
     r"which\s+laboratories(?:\s+are\s+there|\s+do\s+you\s+have|\s+available)?|"
+    r"laborator(?:y|ies)\s*(?:&|and)\s*facilities|labs?\s*(?:&|and)\s*facilities|"
     r"lab\s+facilities|laboratory\s+facilities|research\s+centres?|research\s+centers?|"
     r"list\s+of\s+labs|list\s+of\s+laboratories|"
     r"tell\s+me\s+about\s+(?:the\s+)?labs?|tell\s+me\s+about\s+(?:the\s+)?laboratories|"
@@ -464,7 +536,7 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
         return "CAMPUS_VISIT_INFO"
 
     # 6b. Placement guarantee / 100% placement assistance inquiry
-    if _PLACEMENT_GUARANTEE_PATTERN.search(msg):
+    if _PLACEMENT_GUARANTEE_PATTERN.search(msg) or _PLACEMENT_QUERY_PATTERN.search(msg):
         return "PLACEMENT_GUARANTEE_QUERY"
 
     # 6bb. Admission / Seat guarantee inquiry (evaluated before fee / score checks)
@@ -487,6 +559,10 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
     if _HOSTEL_INFO_PATTERN.search(msg):
         return "HOSTEL_INFO_QUERY"
 
+    # 6d. Eligibility criteria inquiry
+    if _ELIGIBILITY_PATTERN.match(msg):
+        return "ELIGIBILITY_QUERY"
+
     # 7. Deterministic quick responses (when user hasn't provided a specific score/rank to calculate)
     if not _has_score_or_rank(msg):
         if _OTHER_FEES_PATTERN.search(msg):
@@ -500,26 +576,84 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
         if _ALL_PROGRAMS_PATTERN.search(msg):
             return "ALL_PROGRAMS_QUERY"
 
-        # Tree sub-selections (exact chip clicks or active tree exploration)
         in_tree = bool(state.get("fee_tree_step"))
-        if _BTECH_CSE_ALLIED_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:cse|computer\s+science)\b", msg)):
-            return "BTECH_CSE_FEE_QUERY"
-        if _BTECH_AI_ROBOTICS_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:ai\s*&?\s*robotics|artificial\s+intelligence\s*&?\s*robotics)\b", msg)):
-            return "BTECH_AI_ROBOTICS_FEE_QUERY"
-        if _BTECH_ECE_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:ece|electronics)\b", msg)):
-            return "BTECH_ECE_FEE_QUERY"
-        if _BTECH_CORE_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:core|mech|civil|eee|biotech)\b", msg)):
-            return "BTECH_CORE_FEE_QUERY"
-        if _BTECH_ENGINEERING_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:b\.?\s?tech|engineering)\b", msg)):
+        active_prog = state.get("active_program") or state.get("fee_flow_prog") or state.get("program_interest")
+        has_fee_word = bool(_FEE_KEYWORD_PATTERN.search(msg))
+
+        # Contextual fee query: user asks "Fee & scholarships" or "Fee structure" while an active program is selected
+        if _FEE_OR_SCHOLARSHIP_SHORT_PATTERN.match(msg) and active_prog:
+            if active_prog in ("btech_ai_robotics", "ai_robotics"):
+                return "BTECH_AI_ROBOTICS_FEE_QUERY"
+            if active_prog in ("btech_cse", "cse"):
+                return "BTECH_CSE_FEE_QUERY"
+            if active_prog in ("btech_ece", "ece"):
+                return "BTECH_ECE_FEE_QUERY"
+            if active_prog in ("btech_mech", "btech_core", "core"):
+                return "BTECH_CORE_FEE_QUERY"
+            if active_prog in ("mba", "bba", "management"):
+                return "MANAGEMENT_FEE_QUERY"
+            if active_prog in ("bsc_agri", "agri"):
+                return "AGRICULTURE_FEE_QUERY"
+            if active_prog in ("bca", "mca", "comp_app"):
+                return "COMP_APP_FEE_QUERY"
+            if active_prog in ("design", "bdes"):
+                return "DESIGN_FEE_QUERY"
+
+
+        # Active fee tree sub-selections
+        if in_tree:
+            if _BTECH_CSE_ALLIED_PATTERN.match(msg) or re.search(r"\b(?:cse|computer\s+science)\b", msg):
+                return "BTECH_CSE_FEE_QUERY"
+            if _BTECH_AI_ROBOTICS_PATTERN.match(msg) or re.search(r"\b(?:ai\s*&?\s*robotics|artificial\s+intelligence\s*&?\s*robotics)\b", msg):
+                return "BTECH_AI_ROBOTICS_FEE_QUERY"
+            if _BTECH_ECE_PATTERN.match(msg) or re.search(r"\b(?:ece|electronics)\b", msg):
+                return "BTECH_ECE_FEE_QUERY"
+            if _BTECH_CORE_PATTERN.match(msg) or re.search(r"\b(?:core|mech|civil|eee|biotech)\b", msg):
+                return "BTECH_CORE_FEE_QUERY"
+            if _BTECH_ENGINEERING_PATTERN.match(msg) or re.search(r"\b(?:b\.?\s?tech|engineering)\b", msg):
+                return "BTECH_TREE_QUERY"
+            if _MANAGEMENT_PATTERN.match(msg) or re.search(r"\b(?:bba|mba|management)\b", msg):
+                return "MANAGEMENT_FEE_QUERY"
+            if _AGRICULTURE_PATTERN.match(msg) or re.search(r"\b(?:agri|agriculture)\b", msg):
+                return "AGRICULTURE_FEE_QUERY"
+            if _COMP_APP_PATTERN.match(msg) or re.search(r"\b(?:bca|mca)\b", msg):
+                return "COMP_APP_FEE_QUERY"
+            if _DESIGN_PATTERN.match(msg) or re.search(r"\b(?:design|b\.?\s?des)\b", msg):
+                return "DESIGN_FEE_QUERY"
+
+        # Explicit fee tree chip clicks outside in_tree
+        if _BTECH_FEE_CHIP_PATTERN.match(msg):
             return "BTECH_TREE_QUERY"
-        if _MANAGEMENT_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:bba|mba|management)\b", msg)):
+        if _BTECH_CSE_ALLIED_PATTERN.match(msg):
+            return "BTECH_CSE_FEE_QUERY"
+        if _MGMT_FEE_CHIP_PATTERN.match(msg):
             return "MANAGEMENT_FEE_QUERY"
-        if _AGRICULTURE_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:agri|agriculture)\b", msg)):
+        if _AGRI_FEE_CHIP_PATTERN.match(msg):
             return "AGRICULTURE_FEE_QUERY"
-        if _COMP_APP_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:bca|mca)\b", msg)):
+        if _COMP_APP_FEE_CHIP_PATTERN.match(msg):
             return "COMP_APP_FEE_QUERY"
-        if _DESIGN_PATTERN.match(msg) or (in_tree and re.search(r"\b(?:design|b\.?\s?des)\b", msg)):
+        if _DESIGN_FEE_CHIP_PATTERN.match(msg):
             return "DESIGN_FEE_QUERY"
+
+        # Program exploration queries (without fee intent)
+        if _BTECH_AI_ROBOTICS_PATTERN.match(msg):
+            return "PROGRAM_AI_ROBOTICS_QUERY"
+        if _BTECH_CSE_PATTERN.match(msg):
+            return "PROGRAM_CSE_QUERY"
+        if _BTECH_ECE_PATTERN.match(msg):
+            return "PROGRAM_ECE_QUERY"
+        if _BTECH_CORE_PATTERN.match(msg):
+            return "PROGRAM_CORE_QUERY"
+        if _BTECH_ENGINEERING_PATTERN.match(msg):
+            return "BTECH_PROGRAMS_QUERY"
+        if _MANAGEMENT_PATTERN.match(msg):
+            return "PROGRAM_MANAGEMENT_QUERY"
+        if _AGRICULTURE_PATTERN.match(msg):
+            return "PROGRAM_AGRICULTURE_QUERY"
+        if _COMP_APP_PATTERN.match(msg):
+            return "PROGRAM_COMP_APP_QUERY"
+        if _DESIGN_PATTERN.match(msg):
+            return "PROGRAM_DESIGN_QUERY"
 
     # 8. Branch & Career Guidance
     if _BRANCH_GUIDANCE_PATTERN.search(msg):

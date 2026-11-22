@@ -647,6 +647,196 @@ Would you like to review the official 2027-28 fee schedule or calculate your sch
 _FUTURE_YEAR_FEE_CHIPS = ["2027-28 Fee Structure", "Merit Scholarships", "Hostel Fees", "Contact Admissions"]
 
 
+# ----------------------------------------------------------------------------
+# Program Explorations & Branch Overviews
+# ----------------------------------------------------------------------------
+
+_BTECH_PROGRAMS_OVERVIEW_TEXT = """### 🚀 B.Tech Engineering Programs at SR University (2027–28)
+
+SR University offers industry-aligned B.Tech programs recognized nationally for academic and research excellence (**#6 in India for Research Quality by Times Higher Education**, **NIRF 91st in Engineering**, Tier-1 NBA accredited):
+
+1. 🤖 **B.Tech Artificial Intelligence & Robotics**: Advanced interdisciplinary degree covering Robot Operating System (ROS), Autonomous Systems, Computer Vision, and Industrial Automation.
+2. 💻 **B.Tech Computer Science & Engineering (CSE) & Allied**: Flagship engineering program with cutting-edge specializations in AI & ML, Data Science, Cyber Security, Quantum AI, and Cloud Computing.
+3. ⚡ **B.Tech Electronics & Communication Engineering (ECE)**: Core industry focus on VLSI Chip Design, Embedded Systems, IoT, and Next-Gen 5G/6G Wireless Networks.
+4. 🏗️ **B.Tech Core Engineering (Mechanical, Civil, EEE)**: Smart industry 4.0 manufacturing, Electric Vehicle (EV) engineering, Smart Grids, and Sustainable Infrastructure.
+5. 🌐 **2+2 International Engineering Program (IEP)**: Study 2 years at SRU and 2 years at premier partner universities in the USA/UK with global degree pathways.
+
+Which engineering branch would you like to explore?"""
+
+_BTECH_PROGRAMS_OVERVIEW_CHIPS = [
+    "B.Tech AI & Robotics",
+    "B.Tech CSE & Allied",
+    "B.Tech ECE",
+    "B.Tech Core Engineering",
+]
+
+_BTECH_AI_ROBOTICS_OVERVIEW_TEXT = """### 🤖 B.Tech in Artificial Intelligence & Robotics at SR University
+
+The **B.Tech in Artificial Intelligence & Robotics** is a specialized, future-ready program designed to prepare engineers at the intersection of intelligent software and physical machines:
+
+• 🛠️ **Project-Based Experiential Learning**: Hands-on curriculum covering Robot Operating System (ROS), Computer Vision, Autonomous Navigation, Deep Learning, and Industrial Robotics from Year 1.
+• 🔬 **Cutting-Edge Labs & Innovation**: Specialized Robotics & AI Lab, NVIDIA AI computing workstations, Maker Spaces, and incubation support at **SRiX (SR Innovation Exchange)** hosting 171+ startups.
+• 🏆 **National & Global Distinctions**: SR University ranks **#6 in India for Research Quality** by Times Higher Education (THE) and **NIRF 91st in Engineering** (Tier-1 NBA accredited).
+• 💼 **Placements & Career Pathways**: High-demand roles as Robotics Engineer, AI/ML Specialist, and Autonomous Vehicle Engineer with leading tech innovators (top package ₹51 LPA, avg ₹6–6.5 LPA).
+
+What would you like to explore about **B.Tech in AI & Robotics**?"""
+
+_BTECH_AI_ROBOTICS_OVERVIEW_CHIPS = [
+    "Fee & scholarships",
+    "Laboratories & facilities",
+    "Eligibility criteria",
+    "Placements for this branch",
+]
+
+_BTECH_CSE_OVERVIEW_TEXT = """### 💻 B.Tech in Computer Science & Engineering (CSE) at SR University
+
+The **B.Tech CSE** program is SR University's flagship engineering degree, designed for high-impact careers in software innovation:
+
+• 🎯 **Specialization Tracks**: AI & Machine Learning, Data Science, Cyber Security, Quantum AI, and Cloud Computing.
+• 💡 **Experiential Pedagogy**: Project-based learning from Year 1, competitive coding sprints, hackathons, and industry mentorship.
+• 🏢 **High Placement Track Record**: Top recruiters including Microsoft, Amazon, Cisco, TCS, Cognizant, and Infosys (top package ₹51 LPA, avg ₹6–6.5 LPA).
+• 🌐 **Global Opportunities**: Active IEEE and ACM student branches, collaborative faculty research, and 2+2 International Engineering Programs.
+
+What would you like to explore about **B.Tech CSE**?"""
+
+_BTECH_CSE_OVERVIEW_CHIPS = [
+    "Fee & scholarships",
+    "Laboratories & facilities",
+    "Eligibility criteria",
+    "Placements for this branch",
+]
+
+_BTECH_ECE_OVERVIEW_TEXT = """### ⚡ B.Tech in Electronics & Communication Engineering (ECE)
+
+The **B.Tech ECE** program bridges advanced silicon engineering, intelligent hardware, and wireless communications:
+
+• 🔌 **Specialized Focus**: VLSI Chip Design, Embedded Systems, Internet of Things (IoT), and 5G/6G Wireless Networks.
+• 🔬 **Advanced Labs**: Cadence VLSI Lab, Embedded IoT Development Lab, and High-Frequency RF testing facilities.
+• 💼 **Career Pathways**: Core hardware majors (Qualcomm, Intel, AMD, Texas Instruments) and top technology consulting firms.
+
+What would you like to explore about **B.Tech ECE**?"""
+
+_BTECH_ECE_OVERVIEW_CHIPS = [
+    "Fee & scholarships",
+    "Laboratories & facilities",
+    "Eligibility criteria",
+    "Placements for this branch",
+]
+
+_BTECH_CORE_OVERVIEW_TEXT = """### 🏗️ B.Tech Core Engineering (Mechanical, Civil & EEE)
+
+SR University redefines core engineering by embedding AI, robotics, and smart industry 4.0 automation:
+
+• ⚙️ **Mechanical Engineering**: Smart manufacturing, 3D printing, CAD/CAM/CAE, and electric vehicle (EV) engineering.
+• 🏢 **Civil Engineering**: Smart infrastructure, structural design, GIS, and sustainable green construction.
+• ⚡ **Electrical & Electronics (EEE)**: Smart grids, renewable energy systems, power electronics, and EV battery tech.
+
+What would you like to explore about **Core Engineering**?"""
+
+_BTECH_CORE_OVERVIEW_CHIPS = [
+    "Fee & scholarships",
+    "Laboratories & facilities",
+    "Eligibility criteria",
+    "Placements for this branch",
+]
+
+_PROGRAM_MANAGEMENT_OVERVIEW_TEXT = """### 📊 Astra School of Business (BBA & MBA)
+
+Astra School of Business at SR University delivers modern management education driven by experiential case studies and business analytics:
+
+• 🎓 **Programs**: BBA (General & Specializations in Analytics, Finance, Marketing, HR) and MBA (Dual Specializations).
+• 📈 **Pedagogy**: Case-study methodology, industry simulations, Bloomberg terminal training, and leadership conclaves.
+• 💼 **Placements**: Top corporate recruiters across consulting, banking, FMCG, and tech management.
+
+What would you like to explore about **Management Programs**?"""
+
+_PROGRAM_MANAGEMENT_OVERVIEW_CHIPS = [
+    "Fee & scholarships",
+    "MBA specializations",
+    "Eligibility criteria",
+    "Placements for MBA",
+]
+
+_PROGRAM_AGRICULTURE_OVERVIEW_TEXT = """### 🌾 School of Agriculture (B.Sc. Hons Agriculture)
+
+The School of Agriculture at SR University is the **1st private university in Telangana & AP with prestigious ICAR accreditation**:
+
+• 🚜 **Hands-on Farming**: 100+ acres of dedicated agricultural research farms, hi-tech greenhouses, and precision agriculture technology.
+• 🌱 **Specializations**: Agronomy, Genetics & Plant Breeding, Soil Science, Horticulture, and Plant Pathology.
+• 💼 **Career Pathways**: Agricultural Officer (AO), agri-business managers, research scientists, and agri-entrepreneurship via SRiX.
+
+What would you like to explore about **B.Sc. (Hons) Agriculture**?"""
+
+_PROGRAM_AGRICULTURE_OVERVIEW_CHIPS = [
+    "Fee & scholarships",
+    "ICAR Accreditation & Farm",
+    "Eligibility criteria",
+    "Career opportunities",
+]
+
+_PROGRAM_COMP_APP_OVERVIEW_TEXT = """### 🖥️ Computer Applications (BCA & MCA)
+
+The Department of Computer Applications offers practical, career-oriented computing degrees:
+
+• 💻 **Curriculum**: Full-stack web development, Python, mobile apps, database systems, cloud architectures, and machine learning.
+• 🚀 **Career Outcomes**: Software developer, cloud engineer, systems analyst, and database administrator.
+
+What would you like to explore about **BCA / MCA**?"""
+
+_PROGRAM_COMP_APP_OVERVIEW_CHIPS = [
+    "Fee & scholarships",
+    "MCA specializations",
+    "Eligibility criteria",
+    "Placements",
+]
+
+_PROGRAM_DESIGN_OVERVIEW_TEXT = """### 🎨 School of Design (B.Des)
+
+The School of Design provides an immersive, studio-based learning environment for creative innovators:
+
+• 📐 **Programs**: B.Des in Interior Design and B.Des in Fashion Design.
+• 🎨 **Facilities**: Digital design studios, material testing labs, prototyping workshops, and fashion runways.
+
+What would you like to explore about **Design Programs**?"""
+
+_PROGRAM_DESIGN_OVERVIEW_CHIPS = [
+    "Fee & scholarships",
+    "Design studios & labs",
+    "Eligibility criteria",
+    "Career paths",
+]
+
+_ELIGIBILITY_TEXT = """### 📋 Admission Eligibility Criteria at SR University (2027–28)
+
+Official eligibility criteria by program:
+
+• **B.Tech (All Branches & Specializations)**:
+  - Passed **10+2 / Intermediate** with Mathematics, Physics, and Chemistry (MPC) with a minimum **60% aggregate marks** (or equivalent grade).
+  - Valid score in **SRUEE**, **JEE Main**, or **TS EAPCET / AP EAPCET**.
+
+• **B.Sc. (Hons) Agriculture (ICAR-Accredited)**:
+  - Passed 10+2 / Intermediate with Physics, Chemistry, and Biology (BiPC/PCB) or 2-year Agriculture/Seed Tech diploma with first class.
+
+• **BBA / B.Com**:
+  - Passed 10+2 / Intermediate in any stream with a minimum of **50% aggregate marks**.
+
+• **MBA**:
+  - Recognized Bachelor's degree (minimum 3 years) with **50% aggregate marks** + valid score in TS ICET, CAT, MAT, or SRU-MAT.
+
+• **BCA / MCA**:
+  - BCA: 10+2 with Mathematics/CS/IT/Stats (50% aggregate).
+  - MCA: BCA or B.Sc/B.Com with Mathematics at 10+2 or degree level (50% aggregate) + TS ICET.
+
+Would you like to check fee structure, calculate your merit scholarship, or start your application?"""
+
+_ELIGIBILITY_CHIPS = [
+    "Calculate my scholarship",
+    "Fee Structure 2027-28",
+    "Hostel details",
+    "How do I apply?",
+]
+
+
 
 
 

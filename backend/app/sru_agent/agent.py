@@ -1955,7 +1955,9 @@ async def run_agent(
             "HOSTEL_CURFEW_RULES_QUERY", "HOSTEL_SAFETY_QUERY", "HOSTEL_FEE_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
             "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY", "OTHER_FEES_QUERY",
             "LAB_FACILITIES_QUERY", "WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY", "ADMISSION_GUARANTEE_QUERY",
-            "FUTURE_YEAR_FEE_QUERY",
+            "FUTURE_YEAR_FEE_QUERY", "BTECH_PROGRAMS_QUERY", "PROGRAM_AI_ROBOTICS_QUERY", "PROGRAM_CSE_QUERY",
+            "PROGRAM_ECE_QUERY", "PROGRAM_CORE_QUERY", "PROGRAM_MANAGEMENT_QUERY", "PROGRAM_AGRICULTURE_QUERY",
+            "PROGRAM_COMP_APP_QUERY", "PROGRAM_DESIGN_QUERY", "ELIGIBILITY_QUERY",
         )
         if intent in canned_intents:
             intent = "GENERAL"
@@ -2121,6 +2123,99 @@ async def run_agent(
                                  cards=[course_card],
                                  suggestions=["Calculate my scholarship", "Hostel details",
                                               "Special category concessions", "How do I apply?"]):
+                yield ev
+            return
+
+    if intent == "BTECH_PROGRAMS_QUERY":
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._BTECH_PROGRAMS_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._BTECH_PROGRAMS_OVERVIEW_CHIPS):
+                yield ev
+            return
+
+    if intent == "PROGRAM_AI_ROBOTICS_QUERY":
+        if profile is not None:
+            profile["program_interest"] = "btech_ai_robotics"
+        await memory.update_profile(session_id, program_interest="btech_ai_robotics")
+        await set_state(fee_tree_step=None, active_program="btech_ai_robotics", fee_flow_prog="btech_ai_robotics")
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._BTECH_AI_ROBOTICS_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._BTECH_AI_ROBOTICS_OVERVIEW_CHIPS):
+                yield ev
+            return
+
+    if intent == "PROGRAM_CSE_QUERY":
+        if profile is not None:
+            profile["program_interest"] = "btech_cse"
+        await memory.update_profile(session_id, program_interest="btech_cse")
+        await set_state(fee_tree_step=None, active_program="btech_cse", fee_flow_prog="btech_cse")
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._BTECH_CSE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._BTECH_CSE_OVERVIEW_CHIPS):
+                yield ev
+            return
+
+    if intent == "PROGRAM_ECE_QUERY":
+        if profile is not None:
+            profile["program_interest"] = "btech_ece"
+        await memory.update_profile(session_id, program_interest="btech_ece")
+        await set_state(fee_tree_step=None, active_program="btech_ece", fee_flow_prog="btech_ece")
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._BTECH_ECE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._BTECH_ECE_OVERVIEW_CHIPS):
+                yield ev
+            return
+
+    if intent == "PROGRAM_CORE_QUERY":
+        if profile is not None:
+            profile["program_interest"] = "btech_core"
+        await memory.update_profile(session_id, program_interest="btech_core")
+        await set_state(fee_tree_step=None, active_program="btech_core", fee_flow_prog="btech_core")
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._BTECH_CORE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._BTECH_CORE_OVERVIEW_CHIPS):
+                yield ev
+            return
+
+    if intent == "PROGRAM_MANAGEMENT_QUERY":
+        await set_state(fee_tree_step=None, active_program="mba", fee_flow_prog="mba")
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._PROGRAM_MANAGEMENT_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._PROGRAM_MANAGEMENT_OVERVIEW_CHIPS):
+                yield ev
+            return
+
+    if intent == "PROGRAM_AGRICULTURE_QUERY":
+        if profile is not None:
+            profile["program_interest"] = "bsc_agri"
+        await memory.update_profile(session_id, program_interest="bsc_agri")
+        await set_state(fee_tree_step=None, active_program="bsc_agri", fee_flow_prog="bsc_agri")
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._PROGRAM_AGRICULTURE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._PROGRAM_AGRICULTURE_OVERVIEW_CHIPS):
+                yield ev
+            return
+
+    if intent == "PROGRAM_COMP_APP_QUERY":
+        await set_state(fee_tree_step=None, active_program="bca", fee_flow_prog="bca")
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._PROGRAM_COMP_APP_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._PROGRAM_COMP_APP_OVERVIEW_CHIPS):
+                yield ev
+            return
+
+    if intent == "PROGRAM_DESIGN_QUERY":
+        await set_state(fee_tree_step=None, active_program="bdes", fee_flow_prog="bdes")
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._PROGRAM_DESIGN_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._PROGRAM_DESIGN_OVERVIEW_CHIPS):
+                yield ev
+            return
+
+    if intent == "ELIGIBILITY_QUERY":
+        if client is None or _is_mock_or_test_client(client):
+            async for ev in _say(responses._ELIGIBILITY_TEXT, message, session_id, conversation_id,
+                                 suggestions=responses._ELIGIBILITY_CHIPS):
                 yield ev
             return
 
@@ -2767,6 +2862,56 @@ async def run_agent(
                 bg_text = responses.get_branch_guidance_text(raw_marks, session_id=session_id)
                 async for ev in _say(bg_text, message, session_id, conversation_id,
                                      suggestions=responses._BRANCH_GUIDANCE_CHIPS):
+                    yield ev
+                return
+            if intent == "BTECH_PROGRAMS_QUERY":
+                async for ev in _say(responses._BTECH_PROGRAMS_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_PROGRAMS_OVERVIEW_CHIPS):
+                    yield ev
+                return
+            if intent == "PROGRAM_AI_ROBOTICS_QUERY":
+                async for ev in _say(responses._BTECH_AI_ROBOTICS_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_AI_ROBOTICS_OVERVIEW_CHIPS):
+                    yield ev
+                return
+            if intent == "PROGRAM_CSE_QUERY":
+                async for ev in _say(responses._BTECH_CSE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_CSE_OVERVIEW_CHIPS):
+                    yield ev
+                return
+            if intent == "PROGRAM_ECE_QUERY":
+                async for ev in _say(responses._BTECH_ECE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_ECE_OVERVIEW_CHIPS):
+                    yield ev
+                return
+            if intent == "PROGRAM_CORE_QUERY":
+                async for ev in _say(responses._BTECH_CORE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_CORE_OVERVIEW_CHIPS):
+                    yield ev
+                return
+            if intent == "PROGRAM_MANAGEMENT_QUERY":
+                async for ev in _say(responses._PROGRAM_MANAGEMENT_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._PROGRAM_MANAGEMENT_OVERVIEW_CHIPS):
+                    yield ev
+                return
+            if intent == "PROGRAM_AGRICULTURE_QUERY":
+                async for ev in _say(responses._PROGRAM_AGRICULTURE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._PROGRAM_AGRICULTURE_OVERVIEW_CHIPS):
+                    yield ev
+                return
+            if intent == "PROGRAM_COMP_APP_QUERY":
+                async for ev in _say(responses._PROGRAM_COMP_APP_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._PROGRAM_COMP_APP_OVERVIEW_CHIPS):
+                    yield ev
+                return
+            if intent == "PROGRAM_DESIGN_QUERY":
+                async for ev in _say(responses._PROGRAM_DESIGN_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._PROGRAM_DESIGN_OVERVIEW_CHIPS):
+                    yield ev
+                return
+            if intent == "ELIGIBILITY_QUERY":
+                async for ev in _say(responses._ELIGIBILITY_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._ELIGIBILITY_CHIPS):
                     yield ev
                 return
 

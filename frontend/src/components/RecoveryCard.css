@@ -1,19 +1,22 @@
 /* SRU Buddy — Minimal Conversation Recovery Card */
 
 .sru-rec-card-mini {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  margin: 0 0 10px 0;
-  padding: 10px 12px;
-  border-radius: 12px;
+  position: relative;
+  flex-shrink: 0 !important;
+  min-height: fit-content !important;
+  height: auto !important;
+  box-sizing: border-box !important;
+  z-index: 5;
+  margin: 0 0 12px 0;
+  padding: 12px 14px 14px 14px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(99, 102, 241, 0.35);
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.1),
-              0 0 12px -2px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 6px 20px -3px rgba(0, 0, 0, 0.08),
+              0 0 12px -2px rgba(99, 102, 241, 0.18);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  overflow: hidden;
+  overflow: visible;
   animation: sruRecMiniEntrance 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -35,6 +38,8 @@
   right: 0;
   height: 2.5px;
   background: linear-gradient(90deg, #0055a4, #2979e2, #8b5cf6, #ec4899);
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
 }
 
 /* Header */
@@ -126,10 +131,11 @@
 
 /* Short Note */
 .sru-rec-note {
-  margin: 6px 0 8px 0;
-  font-size: 0.79rem;
-  line-height: 1.35;
+  margin: 8px 0 10px 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
   color: #475569;
+  word-break: break-word;
 }
 
 /* Action Buttons */
@@ -137,7 +143,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 2px;
+  margin-top: 4px;
+  width: 100%;
 }
 
 .sru-rec-btn-action {
