@@ -757,12 +757,12 @@ _LIMIT_REPLY_OPTIONS = [
     (f"Many students are using SRU Buddy right now and the free AI limit has been reached, so I cannot "
      f"answer that question at the moment. I can still do these without it: calculate a fee or "
      f"scholarship (for example \"CSE fee with 85%\"), arrange a counsellor callback (\"call me\"), "
-     f"find a faculty member, or share the campus visit contacts. You can also call the Admissions Office at {config.ADMISSIONS_PHONE}."),
+     f"find a faculty member, or plan a campus visit ({config.CAMPUS_VISIT_PHONE}). You can also call the Admissions Office at {config.ADMISSIONS_PHONE}."),
     (f"SRU Buddy is receiving high student traffic right now and the free AI limit has been reached momentarily. "
      f"However, our fee & scholarship calculator (e.g. \"CSE fee with 85%\"), counsellor callbacks (\"call me\"), "
-     f"faculty search, and campus visit details still work without it. You can also call Admissions at {config.ADMISSIONS_PHONE}."),
+     f"faculty search, and campus visit planning ({config.CAMPUS_VISIT_PHONE}) still work without it. You can also call Admissions at {config.ADMISSIONS_PHONE}."),
     (f"The free AI limit has been reached due to heavy traffic. I can still calculate your fees and scholarships, "
-     f"arrange a counsellor callback (\"call me\"), or share campus visit contacts. For immediate support, please call "
+     f"arrange a counsellor callback (\"call me\"), or help plan a campus visit ({config.CAMPUS_VISIT_PHONE}). For admissions support, please call "
      f"the Admissions Office at {config.ADMISSIONS_PHONE}."),
 ]
 _LIMIT_REPLY = _LIMIT_REPLY_OPTIONS[0]

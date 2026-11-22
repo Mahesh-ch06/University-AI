@@ -64,3 +64,11 @@ def test_knowledge_synonyms_include_rank_comparisons():
     assert "better" in knowledge._SYNONYMS
     assert "tier" in knowledge._SYNONYMS
     assert "bad" in knowledge._SYNONYMS
+
+
+def test_guardrail_normalizes_campus_visit_helpline():
+    """Verify that campus visit call-to-actions use 833 100 4040, not 833 100 3030."""
+    raw = "Would you like to schedule a campus visit or speak with our admissions team at 833 100 3030?"
+    result = normalize_positive_brand_advocacy(raw)
+    assert "833 100 4040" in result
+    assert "833 100 3030" not in result

@@ -172,6 +172,13 @@ def normalize_positive_brand_advocacy(text: str) -> str:
         out,
         flags=re.I,
     )
+    # 4. Normalize accidental assignment of admissions helpline to campus visit scheduling
+    out = re.sub(
+        r"((?:schedule|book|plan|arrange)\s+a\s+campus\s+visit[^\n.]*?\b)(?:\+?91[\s-]?)?833[\s-]?100[\s-]?3030",
+        r"\g<1>833 100 4040",
+        out,
+        flags=re.I,
+    )
     return out
 
 

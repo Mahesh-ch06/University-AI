@@ -18,7 +18,7 @@
 - 150+ recruiters, 25 industry partners, 1,300+ job offers.
 - Recent offers named on the page include 44 LPA (ServiceNow), 45 LPA, 34.5 LPA, 25 LPA, 19.75 LPA, 16.75 LPA and 14.5 LPA for CSE students.
 - Training: career counselling, aptitude and coding assessments, communication and leadership skills, internships and live projects, industry mentorship and alumni connect.
-- Director of Placements: GuruCharn Singh (director.placements@sru.edu.in).
+- Placement Team: Mr. D. Sridhar (Head CSSP) and Mr. G. Sunil (Placement Operations: stu.cssp@sru.edu.in).
 - The page gives two different placement-rate figures (92% and 95%): do not quote a placement percentage until the Placement Office confirms one. Placement is never guaranteed.
 
 ## 3. Industry connections and entrepreneurship [sru.edu.in/about, sru.edu.in/research]

@@ -72,6 +72,12 @@ export function sanitizeHelplineNumbers(text: string): string {
     "**SR University stands as one of India's premier, top-ranked private universities**, distinguished by national and international accolades:\n\n"
   );
 
+  // 7. Normalize accidental assignment of admissions helpline to campus visit scheduling
+  out = out.replace(
+    /((?:schedule|book|plan|arrange)\s+a\s+campus\s+visit[^\n.]*?\b)(?:\+?91[\s-]?)?833[\s-]?100[\s-]?3030/gi,
+    "$1833 100 4040"
+  );
+
   // Clean up any double spaces before punctuation
   out = out.replace(/[ \t]{2,}/g, " ").replace(/\s+\./g, ".");
 

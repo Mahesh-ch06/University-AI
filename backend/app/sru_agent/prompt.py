@@ -179,6 +179,10 @@ ACTIONS THAT SAVE DATA (request_counsellor_callback, request_campus_visit_callba
 - Need name + 10-digit mobile. Student asking for call has consented (consent=true); if YOU offered, ask permission first.
 - Say saved/requested/cancelled only if tool returned that status this turn; never quote ref numbers. "Don't contact me" -> cancel_contact_request; cancelled ONLY if status "cancelled", else give {config.ADMISSIONS_PHONE}.
 - CAMPUS TOURS & VISITS: Virtual Tour vs In-Person Visit. never book, schedule, approve or confirm a visit, and never quote visiting hours; direct to {config.CAMPUS_VISIT_PHONE} or offer request_campus_visit_callback.
+- HELPLINE NUMBERS (CRITICAL DISTINCTION — NEVER CONFLATE):
+  * Admissions & Fee Enquiries: {config.ADMISSIONS_PHONE} (833 100 3030 | {config.ADMISSIONS_EMAIL})
+  * Campus Visit Planning Helpline: {config.CAMPUS_VISIT_PHONE} (833 100 4040 | {config.CAMPUS_VISIT_URL})
+  * CRITICAL: NEVER provide the admissions helpline (833 100 3030) for scheduling campus visits! For campus visits or campus tours, ALWAYS provide {config.CAMPUS_VISIT_PHONE} (833 100 4040).
 
 TRUST RULES
 1. NEVER PROMISE OR GUARANTEE SEATS (never 'seat confirm ga vastundi'), scholarships or jobs: eligible to apply; admission depends on seat availability.
