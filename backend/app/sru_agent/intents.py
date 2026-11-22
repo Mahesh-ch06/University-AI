@@ -79,7 +79,6 @@ _BRANCH_GUIDANCE_PATTERN = re.compile(
     r"(?:help|guide)\s+me\s+(?:to\s+)?(?:choose|pick|select|decide)\s+(?:a\s+)?(?:branch|course)|"
     r"(?:not\s+sure|unsure)\s+(?:about\s+)?(?:which\s+)?(?:branch|course)|"
     r"suggest\s+(?:a\s+|me\s+a\s+)?(?:branch|course)|"
-    r"(?:cse\s+vs\s+ece|ece\s+vs\s+cse|cse\s+or\s+ece|ai\s+vs\s+cse|cse\s+vs\s+ai)|"
     r"which\s+engineering\s+branch)\b",
     re.IGNORECASE,
 )

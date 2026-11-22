@@ -1969,7 +1969,8 @@ async def run_agent(
             yield ev
         return
 
-    if intent == "BRANCH_GUIDANCE_QUERY" or intents.is_branch_guidance_query(message):
+    is_course_comparison = bool(re.search(r"\b(?:vs|versus|better|easier|compare|difference\s+between)\b", message or "", re.IGNORECASE))
+    if (intent == "BRANCH_GUIDANCE_QUERY" or intents.is_branch_guidance_query(message)) and not is_course_comparison:
         await set_state(active_topic="career_guidance")
         if client is None or _is_mock_or_test_client(client):
             raw_marks = early_details.get("raw_marks") or (profile.get("raw_marks") if profile else None)
