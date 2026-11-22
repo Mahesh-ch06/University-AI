@@ -5,10 +5,10 @@
   margin: 6px 4px 10px 4px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(18, 22, 34, 0.94);
-  border: 1px solid rgba(139, 92, 246, 0.35);
-  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.35),
-              0 0 14px -3px rgba(139, 92, 246, 0.2);
+  background: #ffffff;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05),
+              0 0 10px -2px rgba(99, 102, 241, 0.15);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   overflow: hidden;
@@ -33,7 +33,7 @@
   left: 0;
   right: 0;
   height: 2.5px;
-  background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899, #38bdf8);
+  background: linear-gradient(90deg, #0055a4, #2979e2, #8b5cf6, #ec4899);
 }
 
 /* Header */
@@ -51,15 +51,18 @@
   min-width: 0;
 }
 
+.sru-rec-icon,
 .sru-rec-sparkle {
   font-size: 0.95rem;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
 .sru-rec-heading {
   font-size: 0.92rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: #0f172a;
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
@@ -69,9 +72,9 @@
 .sru-rec-time-chip {
   font-size: 0.68rem;
   font-weight: 500;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
   padding: 1.5px 6.5px;
   border-radius: 999px;
   white-space: nowrap;
@@ -95,29 +98,29 @@
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
   white-space: nowrap;
   line-height: 1.35;
 }
 
 .sru-chip-success {
-  background: rgba(16, 185, 129, 0.15) !important;
-  color: #34d399 !important;
-  border-color: rgba(16, 185, 129, 0.35) !important;
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #059669 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
 }
 
 .sru-chip-progress {
-  background: rgba(234, 179, 8, 0.15) !important;
-  color: #facc15 !important;
-  border-color: rgba(234, 179, 8, 0.35) !important;
+  background: rgba(234, 179, 8, 0.14) !important;
+  color: #b45309 !important;
+  border-color: rgba(234, 179, 8, 0.3) !important;
 }
 
 .sru-chip-neutral {
-  background: rgba(99, 102, 241, 0.15) !important;
-  color: #a5b4fc !important;
-  border-color: rgba(99, 102, 241, 0.3) !important;
+  background: rgba(0, 85, 164, 0.08) !important;
+  color: #0055a4 !important;
+  border-color: rgba(0, 85, 164, 0.2) !important;
 }
 
 /* Short Note */
@@ -125,7 +128,7 @@
   margin: 6px 0 8px 0;
   font-size: 0.79rem;
   line-height: 1.35;
-  color: #cbd5e1;
+  color: #475569;
 }
 
 /* Action Buttons */
@@ -161,15 +164,15 @@
 }
 
 .sru-rec-btn-primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #0055a4, #2979e2);
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 85, 164, 0.3);
 }
 
 .sru-rec-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #004382, #1c66c9);
   transform: translateY(-0.5px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.45);
+  box-shadow: 0 4px 12px rgba(0, 85, 164, 0.4);
 }
 
 .sru-rec-btn-primary:active:not(:disabled) {
@@ -177,15 +180,15 @@
 }
 
 .sru-rec-btn-secondary {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e2e8f0;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #f1f5f9;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
 }
 
 .sru-rec-btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.25);
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
   transform: translateY(-0.5px);
 }
 
@@ -208,43 +211,77 @@
   }
 }
 
-/* Light Mode */
-@media (prefers-color-scheme: light) {
-  :root:not(.dark) .sru-rec-card-mini {
-    background: rgba(255, 255, 255, 0.96);
-    border-color: rgba(99, 102, 241, 0.3);
-    box-shadow: 0 6px 18px -4px rgba(99, 102, 241, 0.16),
-                0 0 1px rgba(0, 0, 0, 0.1);
-  }
+/* Dark Theme Support */
+[data-theme="dark"] .sru-rec-card-mini,
+.dark .sru-rec-card-mini {
+  background: rgba(18, 22, 34, 0.94);
+  border-color: rgba(139, 92, 246, 0.35);
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.4),
+              0 0 14px -3px rgba(139, 92, 246, 0.2);
+}
 
-  :root:not(.dark) .sru-rec-heading {
-    color: #0f172a;
-  }
+[data-theme="dark"] .sru-rec-heading,
+.dark .sru-rec-heading {
+  color: #f8fafc;
+}
 
-  :root:not(.dark) .sru-rec-time-chip {
-    background: #f1f5f9;
-    border-color: #e2e8f0;
-    color: #64748b;
-  }
+[data-theme="dark"] .sru-rec-time-chip,
+.dark .sru-rec-time-chip {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
 
-  :root:not(.dark) .sru-rec-chip {
-    background: #f8fafc;
-    border-color: #e2e8f0;
-    color: #1e293b;
-  }
+[data-theme="dark"] .sru-rec-chip,
+.dark .sru-rec-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
 
-  :root:not(.dark) .sru-rec-note {
-    color: #334155;
-  }
+[data-theme="dark"] .sru-chip-success,
+.dark .sru-chip-success {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
 
-  :root:not(.dark) .sru-rec-btn-secondary {
-    background: #f1f5f9;
-    color: #1e293b;
-    border-color: #cbd5e1;
-  }
+[data-theme="dark"] .sru-chip-progress,
+.dark .sru-chip-progress {
+  background: rgba(234, 179, 8, 0.15) !important;
+  color: #facc15 !important;
+  border-color: rgba(234, 179, 8, 0.35) !important;
+}
 
-  :root:not(.dark) .sru-rec-btn-secondary:hover:not(:disabled) {
-    background: #e2e8f0;
-    color: #0f172a;
-  }
+[data-theme="dark"] .sru-chip-neutral,
+.dark .sru-chip-neutral {
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #a5b4fc !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+[data-theme="dark"] .sru-rec-note,
+.dark .sru-rec-note {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .sru-rec-btn-primary,
+.dark .sru-rec-btn-primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+}
+
+[data-theme="dark"] .sru-rec-btn-secondary,
+.dark .sru-rec-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+[data-theme="dark"] .sru-rec-btn-secondary:hover:not(:disabled),
+.dark .sru-rec-btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
 }
