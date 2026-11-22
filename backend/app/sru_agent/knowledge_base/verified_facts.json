@@ -1,0 +1,241 @@
+{
+  "version": "2027-28.1",
+  "academic_year": "2027-28",
+  "last_updated": "2026-11-22T17:00:00Z",
+  "facts": [
+    {
+      "fact_id": "fact.rankings.the_2027_research",
+      "category": "rankings",
+      "academic_year": "2027-28",
+      "statement": "Times Higher Education (THE) World University Rankings 2027 ranks SR University #6 in India in Research Quality and #7 among private universities nationwide.",
+      "source": "Times Higher Education (THE) World University Rankings 2027",
+      "verification_status": "verified",
+      "valid_from": "2026-10-01",
+      "valid_until": "2027-10-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "the_rank_private_india": 7, "the_rank_research_quality": 6 }
+    },
+    {
+      "fact_id": "fact.rankings.icar_accreditation",
+      "category": "rankings",
+      "academic_year": "2027-28",
+      "statement": "SR University is the 1st private university across the Telugu States (Telangana and Andhra Pradesh) to earn coveted ICAR accreditation for its School of Agricultural Sciences.",
+      "source": "Indian Council of Agricultural Research (ICAR) Accreditation Order",
+      "verification_status": "verified",
+      "valid_from": "2024-01-01",
+      "valid_until": "2029-12-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "scope": "Telangana & Andhra Pradesh", "field": "Agricultural Sciences" }
+    },
+    {
+      "fact_id": "fact.rankings.nirf_engineering_2025",
+      "category": "rankings",
+      "academic_year": "2027-28",
+      "statement": "NIRF 2025 ranked SR University 91st in India in the Engineering category, marking 4 consecutive years in India's Top 100 engineering institutions.",
+      "source": "National Institutional Ranking Framework (NIRF) 2025, Ministry of Education, Govt of India",
+      "verification_status": "verified",
+      "valid_from": "2025-06-01",
+      "valid_until": "2026-06-01",
+      "last_audited": "2026-11-22",
+      "metadata": { "nirf_engineering_rank": 91, "consecutive_years_top_100": 4 }
+    },
+    {
+      "fact_id": "fact.rankings.qs_asia_2027",
+      "category": "rankings",
+      "academic_year": "2027-28",
+      "statement": "QS Asia University Rankings 2027 ranks SR University 19th among private universities in India (band 701-710 in Asia).",
+      "source": "QS Asia University Rankings 2027 Edition",
+      "verification_status": "verified",
+      "valid_from": "2026-11-01",
+      "valid_until": "2027-11-01",
+      "last_audited": "2026-11-22",
+      "metadata": { "qs_private_rank_india": 19, "qs_asia_band": "701-710" }
+    },
+    {
+      "fact_id": "fact.rankings.accreditations_charter",
+      "category": "rankings",
+      "academic_year": "2027-28",
+      "statement": "SR University is established under Telangana State Private Universities Act 2018, recognized under UGC Section 2(f), and holds Tier-1 NBA accreditation across eligible B.Tech programs.",
+      "source": "Telangana State Gazette Act No. 13 of 2018 & UGC 2(f) Notification",
+      "verification_status": "verified",
+      "valid_from": "2018-05-01",
+      "valid_until": "2030-12-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "ugc": "2(f)", "nba": "Tier-1" }
+    },
+    {
+      "fact_id": "fact.placements.packages_and_averages",
+      "category": "placements",
+      "academic_year": "2027-28",
+      "statement": "SR University maintains a 6 to 6.5 LPA average package across engineering disciplines, with top offers reaching ₹51 LPA (Microsoft, Batch 2025), ₹49.30 LPA (ServiceNow, Batch 2027), and ₹46.38 LPA (Amazon, Batch 2026).",
+      "source": "Center for Student Services and Placements (CSSP) Official Placement Audit 2025-2027",
+      "verification_status": "verified",
+      "valid_from": "2026-07-01",
+      "valid_until": "2027-06-30",
+      "last_audited": "2026-11-22",
+      "metadata": {
+        "average_lpa_min": 6.0,
+        "average_lpa_max": 6.5,
+        "highest_lpa": 51.0,
+        "superstars": [
+          { "company": "Microsoft", "package_lpa": 51.0, "batch": "2025" },
+          { "company": "ServiceNow", "package_lpa": 49.30, "batch": "2027" },
+          { "company": "Amazon", "package_lpa": 46.38, "batch": "2026" }
+        ]
+      }
+    },
+    {
+      "fact_id": "fact.placements.assistance_policy",
+      "category": "placements",
+      "academic_year": "2027-28",
+      "statement": "SR University provides 100% placement assistance and rigorous interview/coding preparation through the Center for Student Services and Placements (CSSP) and Career Guidance Cell (CGC). Individual job offers depend on student interview performance and skill clearance; offers are never blindly guaranteed.",
+      "source": "CSSP Placement Regulations Charter 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-08-01",
+      "valid_until": "2027-07-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "assistance_percent": 100, "guarantee": false }
+    },
+    {
+      "fact_id": "fact.infrastructure.srix_incubator",
+      "category": "infrastructure",
+      "academic_year": "2027-28",
+      "statement": "SR Innovation Exchange (SRiX) is a DST-supported Technology Business Incubator hosting 171+ startups, ₹76+ Cr in funding, 14+ maker spaces, an IoT & ESDM lab, and a 3D rapid prototyping facility.",
+      "source": "Department of Science and Technology (DST) & SRiX Annual Report",
+      "verification_status": "verified",
+      "valid_from": "2026-04-01",
+      "valid_until": "2027-03-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "startups_count": 171, "funding_cr": 76, "maker_spaces": 14 }
+    },
+    {
+      "fact_id": "fact.infrastructure.laboratories_count",
+      "category": "infrastructure",
+      "academic_year": "2027-28",
+      "statement": "SR University hosts 11 interdisciplinary research centers, 14+ maker spaces at SRiX, and dedicated departmental teaching laboratories across all 6 specialized schools on its 170-acre campus.",
+      "source": "Academic Affairs & Dean of Engineering Infrastructure Directory 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-08-01",
+      "valid_until": "2027-07-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "research_centers_count": 11, "campus_acres": 170 }
+    },
+    {
+      "fact_id": "fact.hostel.curfew_and_timings",
+      "category": "hostel",
+      "academic_year": "2027-28",
+      "statement": "Hostel in-time is strictly 8:30 PM for first-year residential students (with biometric roll call). For senior students, in-time is 9:00 PM on weekdays and 9:30 PM on weekends. Campus operates 24/7 security, wardens, CCTV, and an on-campus health dispensary.",
+      "source": "Office of Chief Warden, Student Residential Handbook 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-08-01",
+      "valid_until": "2027-07-31",
+      "last_audited": "2026-11-22",
+      "metadata": {
+        "first_year_curfew": "8:30 PM",
+        "senior_weekday_curfew": "9:00 PM",
+        "senior_weekend_curfew": "9:30 PM"
+      }
+    },
+    {
+      "fact_id": "fact.hostel.dining_and_rooms",
+      "category": "hostel",
+      "academic_year": "2027-28",
+      "statement": "Hostels offer 3-sharing and 4-sharing AC and Non-AC rooms (ranging from ₹1,15,000 to ₹1,35,000/year). All hostel packages include 4 nutritious daily meals in the 4,000-seat Mega Dining Hall, Wi-Fi, laundry, and round-the-clock maintenance.",
+      "source": "Admissions & Hostel Fee Circular 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-10-01",
+      "valid_until": "2027-10-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "dining_capacity": 4000, "meals_per_day": 4, "sharing": ["3-sharing", "4-sharing"] }
+    },
+    {
+      "fact_id": "fact.fees.btech_cse_base",
+      "category": "fees",
+      "academic_year": "2027-28",
+      "statement": "For academic session 2027-28, B.Tech Computer Science & Engineering (CSE) tuition is ₹3,40,000 per year (₹1,70,000 per semester), plus ₹5,000 one-time enrollment, ₹15,000/yr other academic charges, and ₹5,000/yr examination fee. An annual ₹9,000 escalation applies to tuition in future academic years.",
+      "source": "Admissions Office Fee Circular 2027-28 (Ref: SRU/ADM/2026/FEE-01)",
+      "verification_status": "verified",
+      "valid_from": "2026-10-01",
+      "valid_until": "2027-10-31",
+      "last_audited": "2026-11-22",
+      "metadata": {
+        "annual_tuition": 340000,
+        "semester_tuition": 170000,
+        "escalation_per_year": 9000,
+        "enrollment_one_time": 5000
+      }
+    },
+    {
+      "fact_id": "fact.fees.btech_ai_robotics",
+      "category": "fees",
+      "academic_year": "2027-28",
+      "statement": "For academic session 2027-28, B.Tech Artificial Intelligence & Robotics tuition is ₹4,00,000 per year (₹2,00,000 per semester). Merit scholarships up to 40% apply.",
+      "source": "Admissions Office Fee Circular 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-10-01",
+      "valid_until": "2027-10-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "annual_tuition": 400000, "semester_tuition": 200000 }
+    },
+    {
+      "fact_id": "fact.admissions.merit_scholarships",
+      "category": "scholarships",
+      "academic_year": "2027-28",
+      "statement": "SR University awards merit scholarships of 10% to 40% tuition fee waiver based on 10+2 Intermediate board percentage (95%+ / 985+ marks: 40%; 80%+: 25%; 70%+: 20%; 60%+: 10%), JEE Main percentile, or TG/AP EAPCET rank.",
+      "source": "SRU Merit Scholarship Scheme 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-10-01",
+      "valid_until": "2027-10-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "max_merit_percent": 40, "slabs": [40, 25, 20, 10] }
+    },
+    {
+      "fact_id": "fact.admissions.special_concessions_count",
+      "category": "scholarships",
+      "academic_year": "2027-28",
+      "statement": "SR University provides 19 special-category fee concessions ranging from ₹15,000 to ₹50,000 per year (for orphans, sports champions, staff children, single parent, defence ward, sibling at SRU, AP residents, girl child non-TS).",
+      "source": "Special Category Concession Circular 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-10-01",
+      "valid_until": "2027-10-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "categories_count": 19, "max_concession": 50000, "min_concession": 15000 }
+    },
+    {
+      "fact_id": "fact.admissions.eligibility_and_guarantee_policy",
+      "category": "admissions",
+      "academic_year": "2027-28",
+      "statement": "Minimum eligibility for B.Tech programs is 50% aggregate marks in 10+2 / Intermediate PCM/B. Admission is strictly merit-based, subject to seat availability and certificate verification. SR University never guarantees or reserves seats unconditionally for any score.",
+      "source": "Admissions Regulations Handbook 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-10-01",
+      "valid_until": "2027-10-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "btech_min_percent": 50.0, "seat_guarantee": false }
+    },
+    {
+      "fact_id": "fact.leadership.placement_officers",
+      "category": "leadership",
+      "academic_year": "2027-28",
+      "statement": "Placement Leadership at SR University is headed by Mr. D. Sridhar (Head CSSP, stu.cssp@sru.edu.in) and Mr. G. Sunil (Placement Operations, SRiX 1st Floor).",
+      "source": "Administrative Directory 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-08-01",
+      "valid_until": "2027-07-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "head_cssp": "Mr. D. Sridhar", "ops_head": "Mr. G. Sunil" }
+    },
+    {
+      "fact_id": "fact.contact.helpline_numbers",
+      "category": "general",
+      "academic_year": "2027-28",
+      "statement": "Admissions & Fee Enquiries: 833 100 3030 (info@sru.edu.in). Campus Visit Planning Helpline: 833 100 4040 (sru.edu.in/visit-us).",
+      "source": "Official University Directory 2027-28",
+      "verification_status": "verified",
+      "valid_from": "2026-08-01",
+      "valid_until": "2027-07-31",
+      "last_audited": "2026-11-22",
+      "metadata": { "admissions_phone": "833 100 3030", "campus_visit_phone": "833 100 4040" }
+    }
+  ]
+}

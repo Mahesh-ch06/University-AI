@@ -1,0 +1,333 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-11-22T17:00:00Z",
+  "policies": [
+    {
+      "policy_id": "policy.about_sru",
+      "intent_id": "ABOUT_SRU",
+      "description": "General overview, background, and campus introduction to SR University.",
+      "response_mode": "guided",
+      "required_points": [
+        "SR University is recognized as the Top Private University of Telangana & AP",
+        "Pioneering ICAR accreditation for Agricultural Sciences",
+        "170-Acre vast lush green master-planned campus ecosystem in Warangal",
+        "Outcome-Based Education under Fully Flexible Credit System (FFCS)",
+        "State-of-the-art research centers and DST-backed SRiX incubator with 171+ startups"
+      ],
+      "prohibited_claims": [
+        "Never invent unverified statistics"
+      ],
+      "preferred_tone": "Warm, welcoming, confident senior overview",
+      "preferred_length": "70-110 words",
+      "evidence_requirements": [
+        "fact.rankings.accreditations_charter",
+        "fact.infrastructure.laboratories_count",
+        "fact.infrastructure.srix_incubator"
+      ],
+      "semantic_anchors": [
+        "tell me about sru",
+        "about sru",
+        "describe sru",
+        "what is sru",
+        "what is sr university",
+        "overview of sru",
+        "explain about sru",
+        "sru overview",
+        "brief about sru",
+        "introduction to sru"
+      ],
+      "suggested_chips": ["B.Tech CSE fees", "Why choose SRU", "Campus Life & Hostels", "Plan a campus visit"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    },
+    {
+      "policy_id": "policy.why_choose_sru",
+      "intent_id": "WHY_CHOOSE_SRU",
+      "description": "Questions asking why to choose SRU, what makes SRU special, whether SRU is worth joining, or comparisons with other institutions.",
+      "response_mode": "guided",
+      "required_points": [
+        "Times Higher Education (THE) 2027 ranks SRU #6 in India in Research Quality and #7 among private universities nationwide",
+        "First private university in Telugu States (Telangana & Andhra Pradesh) with ICAR accreditation for Agricultural Sciences",
+        "NIRF 2025 #91 in Engineering (Top 100 for 4 consecutive years) and Tier-1 NBA accreditation",
+        "100% placement assistance with 6–6.5 LPA average package and peak packages up to ₹51 LPA (Microsoft)",
+        "171+ startups incubated at DST-supported SRiX incubator with ₹76+ Cr funding"
+      ],
+      "prohibited_claims": [
+        "Never start with a negative, concession, or blunt 'No' (e.g. 'No, SRU is not #1' or 'SR University is not ranked #1 overall')",
+        "Never criticize or insult other universities or colleges",
+        "Never guarantee 100% placement offers or confirm seats unconditionally"
+      ],
+      "preferred_tone": "Warm, encouraging, confident senior championing SR University's verified national leadership",
+      "preferred_length": "40-80 words (or 80-120 words for detailed comparisons)",
+      "evidence_requirements": [
+        "fact.rankings.the_2027_research",
+        "fact.rankings.icar_accreditation",
+        "fact.rankings.nirf_engineering_2025",
+        "fact.placements.packages_and_averages",
+        "fact.infrastructure.srix_incubator"
+      ],
+      "semantic_anchors": [
+        "why should i choose sru",
+        "why should i choose sru over other colleges",
+        "why sru",
+        "what makes sru different",
+        "why choose sr university",
+        "is sru actually worth joining",
+        "bro sru lo join avvadam worth ah kaada",
+        "what makes sru stand out as a top engineering destination",
+        "is sr university actually a good choice for my future",
+        "is sru actually a good choice for my future",
+        "give me compelling reasons to consider sru for btech",
+        "give me compelling reasons to consider sru for b tech",
+        "why sru over other colleges",
+        "sru vs other colleges why sru",
+        "is sru good for engineering"
+      ],
+      "suggested_chips": ["B.Tech CSE fees", "Placements at SRU", "Campus Life & Clubs", "Plan a campus visit"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    },
+    {
+      "policy.placement_guarantee": "policy.placement_guarantee",
+      "policy_id": "policy.placement_guarantee",
+      "intent_id": "PLACEMENT_GUARANTEE",
+      "description": "Questions asking if SRU guarantees placements, offers 100% job guarantees, or assures employment.",
+      "response_mode": "guided",
+      "required_points": [
+        "SR University provides 100% placement assistance and career readiness training through CSSP and CGC",
+        "Individual job offers depend on student interview performance, coding skills, and recruiter selection",
+        "6 to 6.5 LPA average engineering salary with top packages reaching ₹51 LPA (Microsoft), ₹49.30 LPA (ServiceNow), and ₹46.38 LPA (Amazon)",
+        "150+ marquee recruiters and 1,300+ campus offers",
+        "Entrepreneurship and startup venture incubation available through DST-backed SRiX"
+      ],
+      "prohibited_claims": [
+        "Never say a blunt 'No, SR University does not guarantee placements'",
+        "Never guarantee an unconditional job offer to any student regardless of interview results"
+      ],
+      "preferred_tone": "Reassuring, objective, and transparent senior advisor",
+      "preferred_length": "40-80 words",
+      "evidence_requirements": [
+        "fact.placements.assistance_policy",
+        "fact.placements.packages_and_averages",
+        "fact.infrastructure.srix_incubator"
+      ],
+      "semantic_anchors": [
+        "does sru guarantee placements",
+        "is there 100% placement guarantee",
+        "job guarantee unda",
+        "do you promise job after btech",
+        "is placement 100 percent guaranteed",
+        "does college guarantee job",
+        "placement guarantee",
+        "100% placement assured"
+      ],
+      "suggested_chips": ["Top Recruiters & Packages", "Startup Incubator (SRiX)", "Placement Eligibility Rules", "Book a Campus Visit"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    },
+    {
+      "policy_id": "policy.admission_guarantee",
+      "intent_id": "ADMISSION_GUARANTEE",
+      "description": "Questions asking if admission or a seat is guaranteed based on a high mark or rank.",
+      "response_mode": "guided",
+      "required_points": [
+        "A strong academic score makes the student strongly eligible to apply",
+        "Admission is strictly merit-based and subject to seat availability, document verification, and official counselling",
+        "SR University never guarantees or reserves seats unconditionally for any score",
+        "Encourage applying early at apply.sru.edu.in or speaking with admissions"
+      ],
+      "prohibited_claims": [
+        "Never promise or confirm a seat (never say 'seat confirm ga vastundi' or 'you are guaranteed a seat')",
+        "Do not ask user for marks if they already provided them"
+      ],
+      "preferred_tone": "Encouraging, ethical, transparent admissions guidance",
+      "preferred_length": "35-65 words",
+      "evidence_requirements": [
+        "fact.admissions.eligibility_and_guarantee_policy",
+        "fact.contact.helpline_numbers"
+      ],
+      "semantic_anchors": [
+        "is admission guaranteed if i score 95%",
+        "seat confirm ga vastunda",
+        "can you guarantee my admission",
+        "will i definitely get a seat in cse",
+        "is my seat confirmed",
+        "if i get 985 marks is seat guaranteed",
+        "seat guarantee"
+      ],
+      "suggested_chips": ["Calculate my scholarship", "Check eligibility", "How to apply", "Talk to Admissions"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    },
+    {
+      "policy_id": "policy.hostel_curfew",
+      "intent_id": "HOSTEL_CURFEW",
+      "description": "Inquiries regarding hostel curfew, in-time timings, night rules, and security.",
+      "response_mode": "guided",
+      "required_points": [
+        "First-year residential students have an 8:30 PM in-time curfew with biometric roll call",
+        "Senior residential students have a 9:00 PM curfew on weekdays and 9:30 PM on weekends",
+        "24/7 biometric security, resident wardens, CCTV monitoring, and an on-campus health dispensary"
+      ],
+      "prohibited_claims": [
+        "Never quote 9:30 AM as visiting hours",
+        "Never claim opposite genders can visit each other's hostel rooms"
+      ],
+      "preferred_tone": "Reassuring, clear, and security-conscious",
+      "preferred_length": "35-65 words",
+      "evidence_requirements": [
+        "fact.hostel.curfew_and_timings"
+      ],
+      "semantic_anchors": [
+        "what are the hostel timings",
+        "hostel curfew",
+        "what is the in time for hostel",
+        "hostel closing time",
+        "what time do gates close in hostel",
+        "hostel night rules",
+        "girls hostel timings"
+      ],
+      "suggested_chips": ["Hostel Fee & Room Types", "Mess & Dining Hall", "Campus Safety & Dispensary", "Plan a campus visit"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    },
+    {
+      "policy_id": "policy.hostel_info",
+      "intent_id": "HOSTEL_INFO",
+      "description": "Questions about hostel facilities, room types, food, and dining.",
+      "response_mode": "guided",
+      "required_points": [
+        "Offers 3-sharing and 4-sharing AC and Non-AC room options (ranging ₹1,15,000 to ₹1,35,000/year)",
+        "Includes 4 nutritious meals daily in the 4,000-seat Mega Dining Hall",
+        "Includes high-speed Wi-Fi, laundry facilities, and 24/7 security with biometric access"
+      ],
+      "prohibited_claims": [
+        "Never offer 2-sharing as a standard circular room option (clarify 3 and 4 sharing are standard)",
+        "Do not invent warden names"
+      ],
+      "preferred_tone": "Warm, relatable senior sharing campus living reality",
+      "preferred_length": "40-75 words",
+      "evidence_requirements": [
+        "fact.hostel.dining_and_rooms",
+        "fact.hostel.curfew_and_timings"
+      ],
+      "semantic_anchors": [
+        "what are the hostel facilities",
+        "tell me about sru hostel",
+        "hostel food ela untadi",
+        "is mess food included",
+        "how is campus hostel life",
+        "hostel rooms and mess"
+      ],
+      "suggested_chips": ["Hostel curfew & rules", "Hostel fee breakdown", "Calculate total with hostel", "Book campus visit"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    },
+    {
+      "policy_id": "policy.future_year_fee",
+      "intent_id": "FUTURE_YEAR_FEE",
+      "description": "Questions asking about fees for future academic years (2028, 2029, 2030, etc.).",
+      "response_mode": "guided",
+      "required_points": [
+        "Official fee structures are formally published for the current 2027-28 academic session",
+        "SR University adheres to a transparent fee policy with an annual ₹9,000 escalation on tuition for subsequent academic years",
+        "Cite the current 2027-28 B.Tech CSE base tuition (₹3,40,000/year) as the baseline",
+        "Direct to the Admissions Office (833 100 3030) for forward projections"
+      ],
+      "prohibited_claims": [
+        "Never invent an unverified future fee circular",
+        "Never claim fees are locked without mentioning the ₹9,000 annual escalation policy"
+      ],
+      "preferred_tone": "Transparent, grounded, policy-accurate",
+      "preferred_length": "40-70 words",
+      "evidence_requirements": [
+        "fact.fees.btech_cse_base",
+        "fact.contact.helpline_numbers"
+      ],
+      "semantic_anchors": [
+        "what are the fees for 2029",
+        "fees in 2028",
+        "fee structure for 2030",
+        "how much will i pay in 2029",
+        "future year fees"
+      ],
+      "suggested_chips": ["Current 2027-28 Fee Structure", "Merit Scholarships", "Talk to Admissions", "Special Concessions"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    },
+    {
+      "policy_id": "policy.special_concessions",
+      "intent_id": "SPECIAL_CONCESSIONS",
+      "description": "Questions asking about special category concessions, fee discounts for sports, defense, single parent, orphans, etc.",
+      "response_mode": "fixed",
+      "fixed_template": "### 🎖️ Special Category Fee Concessions (2027–28)\n\nAt SR University, special category tuition fee concessions are offered annually to eligible students across 19 categories. These concessions are applied directly to your annual tuition fee upon verification of valid certificates by the Admissions Office:\n\n| Category / Eligibility | Annual Concession |\n| :--- | :--- |\n| **Students who have lost both parents (Orphans)** | **₹50,000 / year** |\n| **International-level sports achievers** | **₹50,000 / year** |\n| **Children of regular SR University employees** | **₹50,000 / year** |\n| **Students with 50% or above disability (Differently Abled)** | **₹20,000 / year** |\n| **Children of Defence personnel, CRPF personnel & Martyrs** | **₹15,000 / year** |\n| **Children of State Police personnel** | **₹15,000 / year** |\n| **Only Girl Child from Telangana** | **₹15,000 / year** |\n| **Girl students from states other than Telangana** | **₹15,000 / year** |\n| **Students with a single living parent / Divorced parents** | **₹15,000 / year** |\n| **Sibling enrolled at SR University (concurrent 2027–28)** | **₹15,000 / year** |\n| **SRU Alumni, their children and siblings** | **₹15,000 / year** |\n| **Students of SR Junior College** | **₹15,000 / year** |\n| **NCC 'C' Certificate holders** | **₹15,000 / year** |\n| **National-level sports achievers** | **₹15,000 / year** |\n| **Children of Padma / Gallantry awardees & J&K migrant families** | **₹15,000 / year** |\n| **Non-Local students (outside Telangana & Andhra Pradesh)** | **₹15,000 / year** |\n| **Students from Andhra Pradesh** | **₹15,000 / year** |\n| **Lateral Entry students** | **₹15,000 / year** |\n| **International students** | **₹15,000 / year** |\n\n> [!NOTE]\n> - Concessions are applicable per academic year on tuition fees.\n> - Required certificates and documentation must be submitted directly to the Admissions Office (833 100 3030 / info@sru.edu.in) during admission counselling.",
+      "required_points": ["19 special concession categories", "₹15,000 to ₹50,000 per year waiver on tuition"],
+      "prohibited_claims": ["Never ask students for sensitive personal hardship details in chat"],
+      "preferred_tone": "Objective statutory circular",
+      "preferred_length": "Table",
+      "evidence_requirements": ["fact.admissions.special_concessions_count"],
+      "semantic_anchors": [
+        "special category concessions",
+        "what about special concessions",
+        "concessions for sports",
+        "defence concession",
+        "single parent discount",
+        "sibling concession amount",
+        "19 special concessions"
+      ],
+      "suggested_chips": ["Calculate my fee with scholarship", "Documents for concession", "Fee Structure 2027-28", "Talk to a counsellor"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    },
+    {
+      "policy_id": "policy.date_query",
+      "intent_id": "DATE_QUERY",
+      "description": "Questions asking for the current date or today's date.",
+      "response_mode": "fixed",
+      "fixed_template": "Today is {today}.",
+      "required_points": ["Current date"],
+      "prohibited_claims": [],
+      "preferred_tone": "Direct and concise",
+      "preferred_length": "1 sentence",
+      "evidence_requirements": [],
+      "semantic_anchors": [
+        "what is today's date",
+        "today's date",
+        "what date is today",
+        "current date",
+        "what day is it today"
+      ],
+      "suggested_chips": ["Plan a campus visit", "What are the B.Tech CSE fees?", "Hostel rules & curfew"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    },
+    {
+      "policy_id": "policy.lab_facilities",
+      "intent_id": "LAB_FACILITIES",
+      "description": "Inquiries regarding the number of labs, research centers, and prototyping facilities at SRU.",
+      "response_mode": "guided",
+      "required_points": [
+        "Laboratories are organized across 11 specialized interdisciplinary research centers",
+        "14+ maker spaces, an IoT & ESDM lab, and a 3D rapid prototyping facility at DST-backed SRiX",
+        "Dedicated departmental teaching laboratories across all 6 schools on the 170-acre campus"
+      ],
+      "prohibited_claims": ["Never give vague marketing filler or push an unrequested virtual campus tour"],
+      "preferred_tone": "Technical, confident, well-structured",
+      "preferred_length": "45-80 words",
+      "evidence_requirements": [
+        "fact.infrastructure.laboratories_count",
+        "fact.infrastructure.srix_incubator"
+      ],
+      "semantic_anchors": [
+        "how many labs are there in the university",
+        "what labs does sru have",
+        "tell me about research centers and labs",
+        "laboratories at sru",
+        "robotics and ai lab facilities"
+      ],
+      "suggested_chips": ["B.Tech CSE specializations", "Startup Incubator (SRiX)", "Visit Campus Labs", "Talk to Admissions"],
+      "version": "1.0.0",
+      "approval_status": "approved"
+    }
+  ]
+}

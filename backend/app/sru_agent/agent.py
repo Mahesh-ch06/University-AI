@@ -31,6 +31,7 @@ except ImportError:
     types = None
 
 from . import affordability, config, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
+from . import fact_service, policy_engine, policy_models, policy_service, semantic_router, observability
 from .prompt import build_system_prompt
 
 log = logging.getLogger("sru_agent")
@@ -362,14 +363,17 @@ def _chunks(text: str, words_per_chunk: int = 6):
 
 
 # ------------------------------------------------------- small reply helpers ----
-def _done(conversation_id, answer, used=(), cards=(), suggestions=()):
-    return {"type": "done", "conversation_id": conversation_id, "answer": answer,
-            "tools_used": list(used), "model": config.AGENT_MODEL,
-            # kept so the existing frontend 'done' handler does not break
-            "sources": [], "suggestions": list(suggestions), "cards": list(cards), "flow": None}
+def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None):
+    d = {"type": "done", "conversation_id": conversation_id, "answer": answer,
+         "tools_used": list(used), "model": config.AGENT_MODEL,
+         # kept so the existing frontend 'done' handler does not break
+         "sources": [], "suggestions": list(suggestions), "cards": list(cards), "flow": None}
+    if telemetry is not None:
+        d["telemetry"] = telemetry
+    return d
 
 
-async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=()):
+async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None):
     """Stream a reply the code wrote itself (no model call), remember it, and finish the turn."""
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     text = normalize_positive_brand_advocacy(text)
@@ -378,7 +382,7 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     for piece in _chunks(text):
         yield {"type": "token", "delta": piece}
     await memory.append_history(session_id, message, text, conversation_id)
-    yield _done(conversation_id, text, used, cards, suggestions)
+    yield _done(conversation_id, text, used, cards, suggestions, telemetry=telemetry)
 
 
 async def _run_action(name: str, args: dict, ctx: dict, used: list, cards: list):
@@ -1525,6 +1529,7 @@ async def run_agent(
     require_contact_details: bool = False,
 ):
     """Async generator of events for one student message."""
+    started = time.perf_counter()
     message = (message or "").strip()[:config.AGENT_MAX_MESSAGE_CHARS]
     yield {"type": "start", "conversation_id": conversation_id}
     if not message:
@@ -1566,12 +1571,79 @@ async def run_agent(
                 yield ev
             return
 
-    intent = intents.classify_agent_intent(message, conv_state)
+    # ---- Semantic Routing & Approved Answer Policy Matching ----
+    t0_routing = time.perf_counter()
+    routing_decision = semantic_router.route_message(message, history, conv_state)
+    routing_latency_ms = round((time.perf_counter() - t0_routing) * 1000, 2)
+
+    # State preservation: detect interruptions to active admission dialogue
+    is_admission_in_progress = bool(
+        (conv_state.get("fee_intake") or {}).get("waiting_for")
+        or conv_state.get("admission_stage")
+    )
+    paused_intent = conv_state.get("paused_intent")
+    if is_admission_in_progress and routing_decision.intent_id not in ("ADMISSION_DATA_INPUT", "ADMISSION_COUNSELLING"):
+        paused_intent = conv_state.get("current_intent") or "ADMISSION_COUNSELLING"
+
+    # Map semantic policy intent to agent execution intent
+    _SEMANTIC_TO_AGENT_INTENT = {
+        "ABOUT_SRU": "ABOUT_SRU_QUERY",
+        "WHY_CHOOSE_SRU": "WHY_CHOOSE_SRU_QUERY",
+        "PLACEMENT_GUARANTEE": "PLACEMENT_GUARANTEE_QUERY",
+        "ADMISSION_GUARANTEE": "ADMISSION_GUARANTEE_QUERY",
+        "HOSTEL_CURFEW": "HOSTEL_CURFEW_RULES_QUERY",
+        "HOSTEL_INFO": "HOSTEL_INFO_QUERY",
+        "FUTURE_YEAR_FEE": "FUTURE_YEAR_FEE_QUERY",
+        "SPECIAL_CONCESSIONS": "SPECIAL_CONCESSIONS_QUERY",
+        "DATE_QUERY": "DATE_QUERY",
+        "LAB_FACILITIES": "LAB_FACILITIES_QUERY",
+    }
+    legacy_intent = intents.classify_agent_intent(message, conv_state)
+    _SPECIFIC_FLOW_INTENTS = {
+        "FEE_TREE_QUERY", "BTECH_TREE_QUERY", "BTECH_CSE_FEE_QUERY", "BTECH_AI_ROBOTICS_FEE_QUERY",
+        "BTECH_ECE_FEE_QUERY", "BTECH_CORE_FEE_QUERY", "MANAGEMENT_FEE_QUERY", "AGRICULTURE_FEE_QUERY",
+        "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "CAMPUS_TOUR_DISPATCH", "CAMPUS_TOUR_VIRTUAL",
+        "CAMPUS_VISIT_BOOKING_WITH_DATE", "CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_INFO", "JOIN_SRU_QUERY",
+        "CONFUSION_QUERY", "NEXT_GEN_TECH_QUERY", "ALL_PROGRAMS_QUERY", "OTHER_FEES_QUERY",
+        "HOSTEL_FEE_QUERY", "HOSTEL_MESS_QUERY", "HOSTEL_SAFETY_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
+        "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ABOUT_SRU_QUERY",
+    }
+    if legacy_intent in _SPECIFIC_FLOW_INTENTS:
+        intent = legacy_intent
+    elif routing_decision.policy_id and not routing_decision.is_fallback:
+        mapped_intent = _SEMANTIC_TO_AGENT_INTENT.get(routing_decision.intent_id)
+        intent = mapped_intent if mapped_intent else legacy_intent
+    else:
+        intent = legacy_intent
+
     used, cards = [], []
 
     async def set_state(**fields):
         conv_state.update(fields)
         await memory.update_conversation_state(session_id, conversation_id, **fields)
+
+    # Persist preserved state variables
+    await set_state(
+        current_intent=routing_decision.intent_id,
+        paused_intent=paused_intent,
+        collected_data=profile or {},
+        pending_question=conv_state.get("pending_user_question"),
+    )
+
+    turn_telemetry = observability.PolicyTurnTelemetry(
+        session_id=session_id,
+        conversation_id=conversation_id,
+        message=message,
+        detected_intent=routing_decision.intent_id,
+        selected_policy_id=routing_decision.policy_id,
+        policy_version=routing_decision.policy_version,
+        response_mode=routing_decision.response_mode.value if hasattr(routing_decision.response_mode, "value") else str(routing_decision.response_mode),
+        retrieved_evidence_ids=routing_decision.evidence_ids,
+        routing_confidence=routing_decision.confidence,
+        fallback_decision=routing_decision.is_fallback,
+        fallback_reason=routing_decision.fallback_reason,
+        routing_latency_ms=routing_latency_ms,
+    )
 
     async def clear_pending():
         await set_state(pending_action=None, pending_phone=None, pending_name=None, pending_turns=0)
@@ -2767,4 +2839,6 @@ async def run_agent(
     if cacheable and final != FALLBACK and not any(t["is_action"] for t in used):
         await memory.set_cached_answer(_cache_key(message), {
             "answer": final, "used": used, "cards": cards, "suggestions": suggestions})
-    yield _done(conversation_id, final, used, cards, suggestions)
+    turn_telemetry.total_latency_ms = round((time.perf_counter() - started) * 1000, 2)
+    observability.record_policy_telemetry(turn_telemetry)
+    yield _done(conversation_id, final, used, cards, suggestions, telemetry=turn_telemetry.to_dict())

@@ -1,0 +1,144 @@
+{
+  "version": "1.0.0",
+  "name": "SRU Buddy Semantic Policy & Routing Evaluation Benchmark",
+  "description": "Evaluation dataset containing paraphrases, ambiguous questions, multilingual inputs, and multi-turn admission scenarios.",
+  "test_cases": [
+    {
+      "category": "why_choose_sru_paraphrases",
+      "description": "Five differently worded questions about choosing SRU routed to policy.why_choose_sru without keyword matching",
+      "cases": [
+        {
+          "id": "wc_1",
+          "query": "Why should I pick SR University over other colleges?",
+          "expected_intent": "WHY_CHOOSE_SRU",
+          "expected_policy_id": "policy.why_choose_sru",
+          "expected_response_mode": "guided",
+          "min_confidence": 0.65
+        },
+        {
+          "id": "wc_2",
+          "query": "bro sru lo join avvadam worth ah kaada?",
+          "expected_intent": "WHY_CHOOSE_SRU",
+          "expected_policy_id": "policy.why_choose_sru",
+          "expected_response_mode": "guided",
+          "min_confidence": 0.65
+        },
+        {
+          "id": "wc_3",
+          "query": "What makes SRU stand out as a top engineering destination?",
+          "expected_intent": "WHY_CHOOSE_SRU",
+          "expected_policy_id": "policy.why_choose_sru",
+          "expected_response_mode": "guided",
+          "min_confidence": 0.65
+        },
+        {
+          "id": "wc_4",
+          "query": "Is SR University actually a good choice for my future?",
+          "expected_intent": "WHY_CHOOSE_SRU",
+          "expected_policy_id": "policy.why_choose_sru",
+          "expected_response_mode": "guided",
+          "min_confidence": 0.65
+        },
+        {
+          "id": "wc_5",
+          "query": "Give me compelling reasons to consider SRU for B.Tech.",
+          "expected_intent": "WHY_CHOOSE_SRU",
+          "expected_policy_id": "policy.why_choose_sru",
+          "expected_response_mode": "guided",
+          "min_confidence": 0.65
+        }
+      ]
+    },
+    {
+      "category": "placement_guarantee_paraphrases",
+      "description": "Inquiries testing placement assistance and anti-job-guarantee policies",
+      "cases": [
+        {
+          "id": "pg_1",
+          "query": "Do you promise a 100% placement or job guarantee?",
+          "expected_intent": "PLACEMENT_GUARANTEE",
+          "expected_policy_id": "policy.placement_guarantee",
+          "expected_response_mode": "guided"
+        },
+        {
+          "id": "pg_2",
+          "query": "job guarantee unda sru lo?",
+          "expected_intent": "PLACEMENT_GUARANTEE",
+          "expected_policy_id": "policy.placement_guarantee",
+          "expected_response_mode": "guided"
+        }
+      ]
+    },
+    {
+      "category": "hostel_curfew_paraphrases",
+      "description": "Hostel in-time and safety rules",
+      "cases": [
+        {
+          "id": "hc_1",
+          "query": "what time do the gates close at night for hostelers?",
+          "expected_intent": "HOSTEL_CURFEW",
+          "expected_policy_id": "policy.hostel_curfew",
+          "expected_response_mode": "guided"
+        },
+        {
+          "id": "hc_2",
+          "query": "what is the curfew time for first year girls?",
+          "expected_intent": "HOSTEL_CURFEW",
+          "expected_policy_id": "policy.hostel_curfew",
+          "expected_response_mode": "guided"
+        }
+      ]
+    },
+    {
+      "category": "ambiguous_and_fallback",
+      "description": "Queries that should fall back to RAG due to low policy confidence or novelty",
+      "cases": [
+        {
+          "id": "fb_1",
+          "query": "Who is the student coordinator for the annual cultural dance festival?",
+          "expected_intent": "GENERAL_RAG_QUERY",
+          "expected_policy_id": null,
+          "expected_response_mode": "rag",
+          "expect_fallback": true
+        },
+        {
+          "id": "fb_2",
+          "query": "Can I bring my pet cat into the lecture hall?",
+          "expected_intent": "GENERAL_RAG_QUERY",
+          "expected_policy_id": null,
+          "expected_response_mode": "rag",
+          "expect_fallback": true
+        }
+      ]
+    },
+    {
+      "category": "multi_turn_admission_context",
+      "description": "Interruption and resumption of admission workflow with preserved state",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "I want admission in B.Tech.",
+          "expected_stage": "program_selection"
+        },
+        {
+          "turn": 2,
+          "user": "I studied MPC.",
+          "expected_stage": "marks_intake"
+        },
+        {
+          "turn": 3,
+          "user": "Before that, why should I choose SRU?",
+          "expected_intent": "WHY_CHOOSE_SRU",
+          "expected_paused_intent": "ADMISSION_COUNSELLING",
+          "expected_response_mode": "guided"
+        },
+        {
+          "turn": 4,
+          "user": "Okay, continue my admission.",
+          "expected_resume": true,
+          "expected_resumed_stage": "marks_intake"
+        }
+      ]
+    }
+  ]
+}
