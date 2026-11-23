@@ -109,6 +109,26 @@ _BOARD_LABEL = {
 _ENTRANCE_PROGRAMS = ("btech_", "bsc_agri")
 
 
+def _num(value):
+    """850.0 -> 850 and 91.49 -> 91.49, so marks are shown the way a student writes them."""
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return value
+    return int(f) if f == int(f) else round(f, 2)
+
+
+def _program_level(prog_key: str | None) -> str | None:
+    if not prog_key:
+        return None
+    return fees.load_data()["programs"].get(prog_key, {}).get("level", "ug")
+
+
+def _uses_entrance(prog_key: str | None) -> bool:
+    """Only B.Tech and B.Sc Agriculture students are asked about EAPCET / JEE Main."""
+    return bool(prog_key) and str(prog_key).startswith(_ENTRANCE_PROGRAMS)
+
+
 def get_max_marks(board_key: str | None, stage_key: str | None) -> int:
     """Returns official maximum marks according to the board and academic stage."""
     if board_key in ("ts_state_board", "ap_state_board"):
@@ -138,10 +158,10 @@ def get_marks_acknowledgment(
 
     if percent >= 90.0:
         variants = [
-            f"🌟 **Outstanding academic performance!** With **{score_str}**{proj_note}, you have a stellar academic profile and are eligible for admission with our **top-tier merit scholarship** at SR University!",
-            f"🏆 **Sensational achievement!** Scoring **{score_str}**{proj_note} places you among the top achievers. You are eligible for admission and qualify for **SR University's premier merit scholarship**!",
-            f"✨ **Brilliant academic record!** With an exceptional score of **{score_str}**{proj_note}, you comfortably secure admission eligibility and qualify for our **highest tuition fee waiver**!",
-            f"🥇 **Exceptional marks!** Scoring **{score_str}**{proj_note} reflects academic excellence. You are fully eligible for admission with **maximum merit scholarship benefits** at SR University!",
+            f"🌟 **Outstanding academic performance!** With **{score_str}**{proj_note}, you have a stellar academic profile, are eligible for admission and qualify for a **strong merit scholarship** at SR University!",
+            f"🏆 **Sensational achievement!** Scoring **{score_str}**{proj_note} places you among the top achievers. You are eligible for admission and qualify for a **valuable merit scholarship** at SR University!",
+            f"✨ **Brilliant academic record!** With an exceptional score of **{score_str}**{proj_note}, you comfortably secure admission eligibility and qualify for a **generous tuition fee waiver**!",
+            f"🥇 **Exceptional marks!** Scoring **{score_str}**{proj_note} reflects academic excellence. You are fully eligible for admission with **excellent merit scholarship benefits** at SR University!",
         ]
     elif percent >= 80.0:
         variants = [
@@ -196,17 +216,16 @@ def format_ineligible_response(known: dict, state: dict) -> dict:
         pct = float(pct)
 
     if raw_m and max_m and max_m > 100:
-        clean_raw = int(raw_m) if raw_m == int(raw_m) else raw_m
-        clean_max = int(max_m) if max_m == int(max_m) else max_m
-        score_str = f"**{clean_raw}/{clean_max} ({pct:.1f}%)**"
+        score_str = f"**{_num(raw_m)}/{_num(max_m)} ({_num(round(pct, 2))}%)**"
     elif pct is not None:
-        score_str = f"**{pct:.1f}%**"
+        score_str = f"**{_num(round(pct, 2))}%**"
     else:
         score_str = "your entered score"
+    qualifying = "the qualifying degree" if known.get("level") == "pg" else "10+2 / Intermediate"
 
     rejection_text = (
         f"I am sorry, but with an academic score of {score_str}, you are not eligible for admission at SR University.\n\n"
-        "The minimum academic eligibility requirement for admission is **50% aggregate marks** in 10+2 / Intermediate. "
+        f"The minimum academic eligibility requirement for admission is **50% aggregate marks** in {qualifying}. "
         "Because your score does not meet this 50% threshold, fee and scholarship calculations cannot be provided.\n\n"
         "If you believe there is an error in the recorded score or would like to discuss alternative diploma/lateral entry opportunities, "
         "please feel free to contact our Admissions Office at **0870-2818333** or email **admissions@sru.edu.in**."
@@ -502,6 +521,54 @@ def is_fee_enquiry(message: str) -> bool:
     return False
 
 
+def _counsellor_pg(prog_key: str, known: dict, said: dict, state: dict, intake: dict) -> dict:
+    """Scholarship counselling for a PG programme: one question (the degree %), then the result.
+    No board, year of study or entrance exam: PG slabs use the qualifying-degree percentage."""
+    degree_pct = known.get("degree_percent")
+    prog_name = fees.clean_program_name(
+        prog_key, specialization=known.get("specialization"), user_text=known.get("program_raw"),
+    )
+    wants_standard = bool(said.get("standard_only") or said.get("skip"))
+    if degree_pct is None and not wants_standard:
+        state["waiting_for"] = "degree_percent"
+        text = (
+            f"Great choice! For **{prog_name}**, the merit scholarship is based on your percentage in the "
+            "qualifying degree (for example B.Tech, B.Sc, B.Com or BBA), not your 12th marks.\n\n"
+            "What percentage did you score (or expect to score) in your degree?"
+        )
+        card = build_counsellor_marks_card(
+            board_key=None, stage_key="completed", max_marks=100, board_label="your qualifying degree",
+            title="What percentage did you score in your degree?",
+            subtitle="Enter your aggregate percentage in the qualifying degree (final or expected).",
+            step_label="Step 1: Degree Percentage",
+        )
+        return {"action": "ask", "text": text, "chips": ["70%", "80%", "90%", "Just the standard fee"],
+                "cards": [card], "state": state}
+
+    state["waiting_for"] = "done"
+    state["program"] = prog_key
+    args = {"program": prog_key}
+    if degree_pct is not None:
+        args["percent"] = degree_pct
+    return {
+        "action": "calculate",
+        "args": args,
+        "state": state,
+        "counsellor": True,
+        "counsellor_details": {
+            "level": "pg",
+            "board_label": "Qualifying degree",
+            "percent": degree_pct,
+            "program": prog_key,
+            "program_name": prog_name,
+            "specialization": known.get("specialization"),
+            "program_raw": known.get("program_raw"),
+            "re_query": intake.get("waiting_for") == "done",
+            "ack_shown": False,
+        },
+    }
+
+
 def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
     """What to do with a fee enquiry. Multi-step intake with counsellor workflow and anti-repetition."""
     from . import intents
@@ -614,6 +681,8 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 known["no_entrance"] = True
         elif waiting == "ib" and number is not None and number <= 45:
             known["ib_score"] = int(number)
+        elif waiting == "degree_percent":
+            pass  # read below, once the programme level is known
         elif waiting == "marks_max":
             raw = intake.get("pending_raw_marks")
             if number is not None:
@@ -664,14 +733,30 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
     if counsellor_mode:
         state["counsellor_mode"] = True
 
+    # PG scholarships use the qualifying-degree percentage, never the 12th marks.
+    pg_counsellor = counsellor_mode and _program_level(prog_key) == "pg"
+    if pg_counsellor:
+        degree_val = None
+        if intake.get("waiting_for") == "degree_percent":
+            degree_val = number if number is not None else said.get("percent")
+        elif said.get("percent") is not None:
+            degree_val = said.get("percent")
+        if degree_val is not None and 0 < float(degree_val) <= 100:
+            known["degree_percent"] = float(degree_val)
+            state["degree_percent"] = float(degree_val)
+
     # Strict eligibility check: if marks are below 50%, immediately reject and withhold fee details
-    if is_below_minimum_eligibility(known):
-        return format_ineligible_response(known, state)
+    eligibility_basis = {"percent": known.get("degree_percent"), "level": "pg"} if pg_counsellor else known
+    if is_below_minimum_eligibility(eligibility_basis):
+        return format_ineligible_response(eligibility_basis, state)
 
     # =========================================================================
     # GUIDED ADMISSION COUNSELLOR WORKFLOW
     # =========================================================================
     if counsellor_mode:
+        if pg_counsellor:
+            return _counsellor_pg(prog_key, known, said, state, intake)
+
         if known.get("eapcet_rank") is not None:
             if not known.get("board"):
                 known["board"] = "state_board"
@@ -715,27 +800,29 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 has_route = True
 
         # Check if this is a re-query (all details were already known)
-        is_all_known = has_board and has_stage and has_marks and has_route and has_prog
-        is_re_query = is_all_known and (intake.get("waiting_for") == "done" or int(intake.get("turns", 0)) > 0)
+        needs_route = _uses_entrance(prog_key)
+        is_all_known = has_board and has_stage and has_marks and has_prog and (has_route or not needs_route)
+        is_re_query = is_all_known and (
+            intake.get("waiting_for") == "done"
+            or (not intake.get("waiting_for") and int(intake.get("turns", 0)) == 0)
+        )
 
-        # Step 0: If course/degree is completely unknown (neither specific programme nor generic B.Tech)
-        # Prompt user to choose or state their course first before board/marks questions (only for general fee inquiries, not guided scholarship counselling)
-        has_any_course = bool(has_prog or said.get("generic_btech") or known.get("generic_btech") or intake.get("generic_btech"))
-        if not counsellor_mode and not has_any_course and not intake.get("waiting_for"):
-            state["waiting_for"] = "program"
-            text = (
-                "Sure! I can help you with fee and scholarship details at SR University.\n\n"
-                "Which course or degree are you considering?"
-            )
-            chips = [
-                "B.Tech CSE",
-                "B.Tech (Other Branches)",
-                "MBA",
-                "BBA",
-                "B.Sc Agriculture",
-            ]
-            card = build_counsellor_program_card(selected_program=known.get("program"), step_label="Step 1: Preferred Programme")
-            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+        def _score_plain() -> str:
+            raw_v, pct_v = known.get("raw_marks"), known.get("percent")
+            max_v = known.get("max_marks") or get_max_marks(known.get("board_key"), known.get("academic_stage"))
+            if raw_v and max_v and max_v > 100:
+                return f"{_num(raw_v)}/{_num(max_v)} ({_num(pct_v)}%)"
+            return f"{_num(pct_v)}%"
+
+        def _ack() -> str:
+            """The marks compliment, shown once: on the first step after the marks were given."""
+            if not has_marks or intake.get("ack_shown"):
+                return ""
+            state["ack_shown"] = True
+            return get_marks_acknowledgment(
+                _score_plain(), float(known.get("percent") or 0), is_projected=bool(known.get("is_projected")),
+                stage_label=known.get("stage_label", ""), variant_idx=int(state.get("turns", 0)),
+            ) + "\n\n"
 
         # Step 1: Board selection (if not already known)
         if not has_board:
@@ -806,32 +893,36 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             )
             return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
 
-        # Step 4: Admission route selection (if not already known)
-        if not has_route:
-            state["waiting_for"] = "route"
-            raw_m = known.get("raw_marks")
-            max_m = known.get("max_marks") or get_max_marks(known.get("board_key"), known.get("academic_stage"))
-            pct = known.get("percent")
-            score_str = f"**{int(raw_m) if raw_m == int(raw_m) else raw_m}/{max_m} ({pct}%)**" if raw_m and max_m > 100 else f"**{pct}%**"
-            proj_str = " (projected based on 1st-year performance)" if known.get("is_projected") else ""
-            prog_title = "B.Tech" if (said.get("generic_btech") or known.get("generic_btech") or not prog_key) else fees.clean_program_name(prog_key, specialization=known.get("specialization"), user_text=known.get("program_raw"))
-
-            ack_msg = get_marks_acknowledgment(
-                score_str, float(pct or 0), is_projected=bool(known.get("is_projected")), stage_label=known.get("stage_label", ""), variant_idx=int(state.get("turns", 0))
-            )
-
-            text = (
-                f"{ack_msg}\n\n"
-                f"Which admission route are you planning to use for {prog_title}?\n"
-                f"Select your admission pathway so we can factor in any entrance rank scholarships."
-            )
-            card = build_counsellor_route_card(selected_route=known.get("admission_route"))
-            chips = ["TG EAPCET", "AP EAPCET", "JEE Main", "SR University SRSAT", "Other", "Not decided yet"]
+        # Step 4: Programme (if not already known). Asked before the entrance route, because only
+        # B.Tech and B.Sc Agriculture use EAPCET / JEE Main, and PG programmes use the degree %.
+        if not has_prog:
+            state["waiting_for"] = "program"
+            ack = _ack()
+            if said.get("generic_btech") or known.get("generic_btech"):
+                text = f"{ack}Which B.Tech branch are you interested in?\nChoose a branch to see your exact fee and scholarship."
+                chips = ["B.Tech CSE", "B.Tech AI & Robotics", "B.Tech ECE", "B.Tech Mechanical"]
+            else:
+                text = f"{ack}Which programme are you interested in?\nChoose a programme to see your exact fee and scholarship."
+                chips = ["B.Tech CSE", "B.Tech ECE", "BBA", "B.Sc Agriculture"]
+            card = build_counsellor_program_card(selected_program=known.get("program"), step_label="Step 4: Preferred Programme")
             return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
 
-        # Step 4b: Entrance rank (skippable) if entrance route selected but score missing
+        # Step 5: Admission route (B.Tech / B.Sc Agriculture only)
+        if needs_route and not has_route:
+            state["waiting_for"] = "route"
+            prog_title = fees.clean_program_name(prog_key, specialization=known.get("specialization"), user_text=known.get("program_raw"))
+            text = (
+                f"{_ack()}Which admission route are you planning to use for {prog_title}?\n"
+                f"Select your admission pathway so we can factor in any entrance rank scholarships."
+            )
+            card = build_counsellor_route_card(selected_route=known.get("admission_route"), program_title=prog_title)
+            chips = ["TG EAPCET", "AP EAPCET", "JEE Main", "Not decided yet"]
+            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+
+        # Step 5b: Entrance rank (skippable) if entrance route selected but score missing
         if (
-            known.get("admission_route") in ("tg_eapcet", "ap_eapcet", "jee_main")
+            needs_route
+            and known.get("admission_route") in ("tg_eapcet", "ap_eapcet", "jee_main")
             and not known.get("no_entrance")
             and not known.get("eapcet_rank")
             and not known.get("jee_percentile")
@@ -854,17 +945,6 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 chips = ["Rank 5000", "Rank 15000", "Skip this step", "Not appeared yet"]
             return {"action": "ask", "text": text, "chips": chips, "cards": [], "state": state}
 
-        # Step 5: Programme selection (if not already known)
-        if not has_prog:
-            state["waiting_for"] = "program"
-            text = (
-                "Which B.Tech programme are you interested in?\n"
-                "Choose an engineering programme or branch to view your exact fee and scholarship breakdown."
-            )
-            card = build_counsellor_program_card(selected_program=known.get("program"), step_label="Step 5: Preferred Programme")
-            chips = ["B.Tech CSE", "B.Tech AI & Robotics", "B.Tech ECE", "B.Tech EEE", "B.Tech Mechanical", "B.Tech Civil"]
-            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
-
         # Step 6: All details known -> Calculate!
         state["waiting_for"] = "done"
         state["program"] = prog_key
@@ -877,9 +957,9 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             args["percent"] = known["percent"]
         if known.get("board") in ("cbse", "state_board", "ib"):
             args["board"] = "cbse" if known["board"] == "cbse" else "state_board"
-        if known.get("eapcet_rank") is not None:
+        if needs_route and known.get("eapcet_rank") is not None:
             args["eapcet_rank"] = known["eapcet_rank"]
-        if known.get("jee_percentile") is not None:
+        if needs_route and known.get("jee_percentile") is not None:
             args["jee_percentile"] = known["jee_percentile"]
         if known.get("ib_score") is not None:
             args["ib_score"] = known["ib_score"]
@@ -915,6 +995,9 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 "specialization": known.get("specialization"),
                 "program_raw": known.get("program_raw"),
                 "re_query": is_re_query,
+                "ack_shown": bool(intake.get("ack_shown")),
+                "level": "ug",
+                "uses_entrance": needs_route,
             },
         }
 

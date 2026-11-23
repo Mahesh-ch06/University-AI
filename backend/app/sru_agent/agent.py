@@ -363,6 +363,12 @@ def _chunks(text: str, words_per_chunk: int = 6):
 
 
 # ------------------------------------------------------- small reply helpers ----
+def _is_personal_eligibility(fee: dict | None) -> bool:
+    """True only for a successful fee calculation that used the student's own score (marks, rank, IB...).
+    A plain programme fee ("CSE fee") or a hostel answer is not an eligibility result."""
+    return bool(isinstance(fee, dict) and fee.get("status") == "ok" and fee.get("scores_considered"))
+
+
 def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None):
     d = {"type": "done", "conversation_id": conversation_id, "answer": answer,
          "tools_used": list(used), "model": config.AGENT_MODEL,
@@ -376,14 +382,18 @@ def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=
         d["eligible"] = eligible
     else:
         cards_list = list(cards)
-        has_fee_ok = any(isinstance(c, dict) and c.get("type") == "calculate_fee" and (c.get("data") or {}).get("status") == "ok" for c in cards_list)
-        if has_fee_ok:
+        if any(isinstance(c, dict) and c.get("type") == "calculate_fee" and _is_personal_eligibility(c.get("data"))
+               for c in cards_list):
             d["eligible"] = True
     return d
 
 
-async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None):
-    """Stream a reply the code wrote itself (no model call), remember it, and finish the turn."""
+async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None, profile=None,
+               eligible=None, exact_chips=False):
+    """Stream a reply the code wrote itself (no model call), remember it, and finish the turn.
+    exact_chips=True: show these chips as given (at most 4), without adding the general
+    "Fee & Scholarship" / "Why SRU" chips. Used when a reply asks one question (board, marks,
+    programme...) and the chips are the answers to it."""
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     text = normalize_positive_brand_advocacy(text)
     for c in cards:
@@ -391,7 +401,9 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     for piece in _chunks(text):
         yield {"type": "token", "delta": piece}
     await memory.append_history(session_id, message, text, conversation_id)
-    if suggestions:
+    if suggestions and exact_chips:
+        final_suggestions = list(dict.fromkeys(suggestions))[:4]
+    elif suggestions:
         final_suggestions = followups.ensure_fixed_chips(list(suggestions), answer=text, message=message)
     else:
         final_suggestions = ()
@@ -551,17 +563,21 @@ def _offline_fee_text(fee: dict) -> str:
 
 def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
     """Formats structured scholarship assessment and fee details following admission counsellor standards."""
+    is_pg = details.get("level") == "pg"
     board_lbl = details.get("board_label") or details.get("board") or "10+2 / Intermediate"
     stage_lbl = details.get("stage_label") or ""
     qual_str = f"{board_lbl} ({stage_lbl})" if stage_lbl else board_lbl
+    if is_pg:
+        qual_str = "Qualifying degree (PG admission)"
 
+    num = fee_intake._num
     raw_m = details.get("raw_marks")
     max_m = details.get("max_marks")
     pct = details.get("percent")
     if raw_m and max_m and max_m > 100:
-        score_str = f"{int(raw_m) if raw_m == int(raw_m) else raw_m}/{max_m} ({pct}%)"
+        score_str = f"{num(raw_m)}/{num(max_m)} ({num(pct)}%)"
     elif pct:
-        score_str = f"{pct}%"
+        score_str = f"{num(pct)}%"
     elif details.get("ib_score"):
         score_str = f"{details['ib_score']} points (out of 45)"
     else:
@@ -583,15 +599,17 @@ def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
     )
 
     pct_waiver = fee_res.get("scholarship_percent", 0)
-    matching_cat = fee_res.get("scholarship_basis_text") or (
-        f"{pct_waiver}% Merit Scholarship" if pct_waiver > 0 else "Standard Fee / Minimum Eligibility"
-    )
+    basis = fee_res.get("scholarship_basis_text")
+    if basis and pct_waiver > 0:
+        matching_cat = f"{basis} → {pct_waiver}% merit slab"
+    else:
+        matching_cat = basis or ("Standard Fee / Minimum Eligibility" if pct_waiver <= 0 else f"{pct_waiver}% Merit Scholarship")
 
     orig_tuition = fee_res.get("tuition_first_year", "₹3,40,000")
     num_match = re.search(r"[\d,]+", orig_tuition.replace("₹", ""))
     if num_match:
         orig_annual_int = int(num_match.group(0).replace(",", ""))
-        orig_sem = f"₹{orig_annual_int // 2:,}"
+        orig_sem = fees.inr(orig_annual_int // 2)
     else:
         orig_sem = "₹1,70,000"
 
@@ -612,7 +630,7 @@ def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
 
     if details.get("re_query"):
         lines.append("Thanks! I already have your academic details. Let's continue with your scholarship assessment.\n")
-    if pct is not None and float(pct) >= 50.0:
+    if pct is not None and float(pct) >= 50.0 and not details.get("ack_shown"):
         ack_banner = fee_intake.get_marks_acknowledgment(
             score_str, float(pct), is_projected=bool(details.get("is_projected")), stage_label=stage_lbl
         )
@@ -621,7 +639,8 @@ def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
     lines.append("### Your Scholarship Assessment")
     lines.append(f"• **Academic Qualification**: {qual_str}")
     lines.append(f"• **Academic Score**: {score_str}")
-    lines.append(f"• **Admission Route**: {route_str}")
+    if not is_pg:
+        lines.append(f"• **Admission Route**: {route_str}")
     lines.append(f"• **Selected Programme**: {prog_name}")
     lines.append(f"• **Matching Scholarship Category**: {matching_cat}\n")
 
@@ -1679,18 +1698,20 @@ async def run_agent(
         from app.services import card_service
         card_service.record_session_card(session_id, "welcome_actions")
         first_name = _first_name(existing_name)
+        first_name = first_name[:1].upper() + first_name[1:]
+        # The quick-action tiles are already on the opening welcome message, so they are not repeated here.
         welcome_text = (
             f"Welcome to SR University, **{first_name}**! 🎓\n\n"
-            "I'm **SRU Buddy**, your official AI companion. Explore our programs, fee structure, scholarships, or campus life.\n\n"
-            "Select an option below to get started, or ask any question directly:"
+            "I'm **SRU Buddy**, your official AI companion. Tap one of the quick options above, or ask me "
+            "anything about programmes, fees, scholarships or campus life."
         )
         async for ev in _say(
             welcome_text,
             message,
             session_id,
             conversation_id,
-            cards=[card_service.WELCOME_ACTIONS_CARD],
-            suggestions=["Explore all programs", "Calculate my scholarship"],
+            suggestions=list(card_service.POST_WELCOME_CHIPS),
+            exact_chips=True,
         ):
             yield ev
         return
@@ -2611,7 +2632,7 @@ async def run_agent(
                 await _apply_intake_updates(intake_decision["state"])
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=intake_decision.get("cards", []),
-                                     suggestions=intake_decision["chips"]):
+                                     suggestions=intake_decision["chips"], exact_chips=True):
                     yield ev
                 return
             elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
@@ -2660,7 +2681,7 @@ async def run_agent(
                 await _apply_intake_updates(intake_decision["state"])
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=intake_decision.get("cards", []),
-                                     suggestions=intake_decision["chips"]):
+                                     suggestions=intake_decision["chips"], exact_chips=True):
                     yield ev
                 return
             elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
@@ -3000,7 +3021,7 @@ async def run_agent(
                 async for ev in _say(text, message, session_id, conversation_id,
                                      [{"name": "calculate_fee", "status": "ok", "is_action": False}],
                                      [{"type": "calculate_fee", "data": fee}],
-                                     eligible=True):
+                                     eligible=True if _is_personal_eligibility(fee) else None):
                     yield ev
                 return
 

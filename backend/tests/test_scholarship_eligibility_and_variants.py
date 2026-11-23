@@ -64,7 +64,7 @@ def test_scholarship_below_50_raw_marks_out_of_1000_rejected():
     assert res["action"] == "ineligible"
     assert res["cards"] == []
     assert "not eligible for admission at SR University" in res["text"]
-    assert "450/1000 (45.0%)" in res["text"]
+    assert "450/1000 (45%)" in res["text"]
     assert "fee and scholarship calculations cannot be provided" in res["text"]
     assert res["state"]["waiting_for"] is None
 
@@ -181,9 +181,14 @@ def test_done_helper_eligible_flag_handling():
     ev_true = agent._done("conv-2", "Eligible for scholarship", eligible=True)
     assert ev_true.get("eligible") is True
 
-    # Inferred True from calculate_fee card
-    ev_inferred = agent._done("conv-3", "Fee calculated", cards=[{"type": "calculate_fee", "data": {"status": "ok"}}])
+    # Inferred True only from a personal assessment (a fee card that used the student's own score)
+    personal = {"status": "ok", "scores_considered": [{"score": "Intermediate 85%", "scholarship_percent": 25}]}
+    ev_inferred = agent._done("conv-3", "Fee calculated", cards=[{"type": "calculate_fee", "data": personal}])
     assert ev_inferred.get("eligible") is True
+
+    # A plain programme fee ("CSE fee", no marks) is not an eligibility result: no confetti
+    ev_plain = agent._done("conv-3b", "CSE fee", cards=[{"type": "calculate_fee", "data": {"status": "ok", "scores_considered": []}}])
+    assert "eligible" not in ev_plain
 
     # General chat without fee card does not set eligible: True
     ev_general = agent._done("conv-4", "Hello there")

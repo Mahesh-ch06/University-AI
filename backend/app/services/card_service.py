@@ -912,47 +912,58 @@ PROGRAMS_OFFERED_CARD = {
 
 
 # ---------------------------------------------------------------------------
-# WELCOME QUICK-ACTION CARDS (Shown once right after lead collection)
+# WELCOME QUICK-ACTION TILES (shown under the opening welcome message, each with an incentive badge).
+# The opening message is built in the browser (frontend/src/pages/ChatPage.tsx, WELCOME_QUICK_ACTIONS
+# in components/Cards.tsx); keep the two lists the same. Badges use verified facts only: fee card
+# slabs (up to 40%), NIRF 2025 Engineering rank 91, placements page (highest 51 LPA, 150+ recruiters,
+# 1,300+ offers).
 # ---------------------------------------------------------------------------
 WELCOME_ACTIONS_CARD = {
     "type": "welcome_actions",
-    "title": "Welcome to SR University",
-    "subtitle": "Select an option to get started with SRU Buddy",
+    "heading": "⚡ Quick start",
     "items": [
-        {
-            "id": "explore_programs",
-            "icon": "graduation-cap",
-            "color": "blue",
-            "title": "Explore Programs",
-            "subtitle": "Find your preferred course",
-            "prompt": "Explore programs offered at SR University",
-        },
         {
             "id": "calculate_scholarship",
             "icon": "calculator",
             "color": "green",
-            "title": "Calculate Scholarship",
-            "subtitle": "Check your scholarship eligibility",
+            "badge": "Up to 40% off",
+            "title": "Calculate My Scholarship",
+            "subtitle": "Instant fee estimate in a few steps",
             "prompt": "Calculate my scholarship",
         },
         {
-            "id": "fee_structure",
-            "icon": "wallet",
-            "color": "purple",
-            "title": "Fee Structure",
-            "subtitle": "Understand course fees",
-            "prompt": "What is the fee structure for 2027-28?",
+            "id": "explore_programs",
+            "icon": "graduation-cap",
+            "color": "blue",
+            "badge": "NIRF #91",
+            "title": "Explore Programmes",
+            "subtitle": "B.Tech, MBA, Agriculture & more",
+            "prompt": "Explore programs offered at SR University",
         },
         {
-            "id": "campus_admissions",
-            "icon": "building",
+            "id": "placements",
+            "icon": "briefcase",
+            "color": "purple",
+            "badge": "₹51 LPA",
+            "title": "Placements & Careers",
+            "subtitle": "150+ recruiters, 1,300+ offers",
+            "prompt": "Tell me about placements at SRU",
+        },
+        {
+            "id": "how_to_apply",
+            "icon": "send",
             "color": "amber",
-            "title": "Campus & Admissions",
-            "subtitle": "Explore campus and admission process",
-            "prompt": "Tell me about campus facilities and admission process",
+            "badge": "2027-28",
+            "title": "How to Apply",
+            "subtitle": "Steps, documents & admissions help",
+            "prompt": "How do I apply for 2027-28?",
         },
     ],
 }
+
+
+# Chips after the personal greeting: different topics from the four welcome tiles, so nothing repeats.
+POST_WELCOME_CHIPS = ("B.Tech CSE fees", "Hostel fees & facilities", "Placements at SRU", "Plan a campus visit")
 
 
 # Session memory for shown cards to prevent repeating cards within the same session
@@ -1374,14 +1385,18 @@ def build_counsellor_marks_card(
     max_marks: int = 1000,
     board_label: str | None = None,
     default_val: float | None = None,
+    title: str | None = None,
+    subtitle: str | None = None,
+    step_label: str = "Step 3: Academic Marks",
 ) -> dict:
     """Builds interactive marks input card with inline validation and continue button."""
     unit = "%" if max_marks <= 100 else f"/ {max_marks}"
     stage_name = "Intermediate 1st Year" if stage_key in ("1st_year", "2nd_year") else "Intermediate"
     return {
         "type": "counsellor_marks_input",
-        "title": f"What marks have you scored in {stage_name}?",
-        "subtitle": f"Enter your marks scored out of {max_marks} under {board_label or 'your board'}." if max_marks > 100 else f"Enter your percentage scored under {board_label or 'your board'}.",
+        "step_label": step_label,
+        "title": title or f"What marks have you scored in {stage_name}?",
+        "subtitle": subtitle or (f"Enter your marks scored out of {max_marks} under {board_label or 'your board'}." if max_marks > 100 else f"Enter your percentage scored under {board_label or 'your board'}."),
         "board_key": board_key or "ts_state_board",
         "stage_key": stage_key or "completed",
         "max_marks": max_marks,
@@ -1392,11 +1407,13 @@ def build_counsellor_marks_card(
     }
 
 
-def build_counsellor_route_card(selected_route: str | None = None) -> dict:
+def build_counsellor_route_card(selected_route: str | None = None, program_title: str = "B.Tech",
+                                step_label: str = "Step 5: Admission Route") -> dict:
     """Builds interactive admission route card for guided scholarship counselling."""
     return {
         "type": "counsellor_route_selection",
-        "title": "Which admission route are you planning to use for B.Tech?",
+        "step_label": step_label,
+        "title": f"Which admission route are you planning to use for {program_title}?",
         "subtitle": "Select your admission pathway so we can factor in any entrance rank scholarships.",
         "selected_route": selected_route,
         "options": [

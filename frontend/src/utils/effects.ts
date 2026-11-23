@@ -141,79 +141,33 @@ export function triggerConfetti() {
 }
 
 /**
- * Accurately determines if the assistant response indicates the student IS eligible for admission or scholarship.
- * Strictly guarantees that ineligible responses (e.g. below 50% threshold, rejection messages) NEVER trigger the effect.
+ * True only when the server marked this reply as the student's own eligibility result
+ * (a fee / scholarship assessment that used their marks or rank). Reply text is not read:
+ * phrases like "tuition fee waiver" also appear in hostel, fee-structure and general answers.
  */
 export function isEligibleResponse(data: { answer?: string; cards?: any[]; eligible?: boolean }): boolean {
-  // Explicit server flag wins if provided
-  if (data.eligible === true) return true;
-  if (data.eligible === false) return false;
+  return data.eligible === true;
+}
 
-  const text = (data.answer || "").toLowerCase();
-  if (!text) return false;
+const CELEBRATED_KEY = "sru-buddy:eligibility-celebrated";
+const celebratedInMemory = new Set<string>();
 
-  // Strict negative exclusions: If any rejection indicator is found, student is NOT eligible!
-  const ineligiblePhrases = [
-    "not eligible",
-    "not be eligible",
-    "ineligible",
-    "below 50%",
-    "below the 50%",
-    "does not meet",
-    "do not meet",
-    "cannot be provided",
-    "sorry, but with",
-    "sorry you are not",
-    "unfortunately",
-  ];
-  if (ineligiblePhrases.some((phrase) => text.includes(phrase))) {
-    return false;
+/**
+ * Returns true the first time it is called for a chat session, false afterwards, so the
+ * eligibility confetti plays once per session, not after every later answer.
+ */
+export function claimEligibilityCelebration(sessionId: string): boolean {
+  const id = sessionId || "default";
+  if (celebratedInMemory.has(id)) return false;
+  celebratedInMemory.add(id);
+  try {
+    const seen = JSON.parse(window.localStorage.getItem(CELEBRATED_KEY) || "[]");
+    const list: string[] = Array.isArray(seen) ? seen : [];
+    if (list.includes(id)) return false;
+    window.localStorage.setItem(CELEBRATED_KEY, JSON.stringify([...list.slice(-49), id]));
+  } catch {
+    // Storage blocked (private mode, previews): the in-memory guard above still limits it to once per page.
   }
-
-  // Positive eligibility affirmations
-  const eligiblePhrases = [
-    "eligible for admission",
-    "eligible for our",
-    "eligible to apply",
-    "qualify for our",
-    "qualify for an",
-    "qualify for a",
-    "qualify for merit",
-    "qualify for the",
-    "qualifies you for",
-    "qualifies for",
-    "fully eligible",
-    "congratulations on qualifying",
-    "you are eligible",
-    "you're eligible",
-    "top-tier merit scholarship",
-    "premier merit scholarship",
-    "highest merit scholarship",
-    "merit scholarship tier",
-    "tuition fee waiver",
-    "scholarship reduction",
-    "### your scholarship assessment",
-    "matching scholarship category",
-    "meets the academic eligibility",
-    "meet the academic eligibility",
-    "meets the eligibility",
-    "meet the eligibility",
-    "fulfill sr university's academic eligibility",
-    "fulfills sr university's academic eligibility",
-  ];
-
-  if (eligiblePhrases.some((phrase) => text.includes(phrase))) {
-    return true;
-  }
-
-  // Check if cards contain calculate_fee or scholarship assessment data
-  if (data.cards && Array.isArray(data.cards)) {
-    const hasFeeCalc = data.cards.some((c) => c?.type === "calculate_fee" && c?.data?.status === "ok");
-    if (hasFeeCalc) {
-      return true;
-    }
-  }
-
-  return false;
+  return true;
 }
 

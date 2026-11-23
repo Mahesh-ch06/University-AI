@@ -207,3 +207,23 @@ fee structure", "I can't afford the fee", "How do I apply for 2027-28?", "start 
 Existing tests: `test_course_fee_flow`, `test_fee_form_flow`, `test_fee_scoping`, `test_fee_single_source`,
 `test_fees`, `test_scholarship_counselling_workflow`, `test_scholarship_eligibility_and_variants`,
 `test_affordability_and_level_filtering`, `test_admissions_accuracy`: **116 passed**.
+
+## 8. Fixes applied (v4.3.1, 23 Nov 2026)
+
+From a live conversation review. The board-first order of the scholarship flow (commit `dc3dfb0`) is kept.
+
+| Problem seen | Fix |
+|---|---|
+| "Which admission route… for B.Tech?" asked before the programme; programme asked last as "Which B.Tech programme" while MBA / BBA were offered | Scholarship flow is now board → year of study → marks → **programme** → route → rank. The route and rank are asked only for B.Tech and B.Sc Agriculture (the only programmes with EAPCET / JEE slabs); other UG programmes go straight to the result. Card labels are Step 4 (programme) and Step 5 (route) |
+| PG scholarship worked out from 12th marks (P1) | A PG programme asks one question, the qualifying-degree %, with no board, year or entrance questions. Below 50% gets the ineligible reply worded for the degree. Choosing a PG programme after giving 12th marks also asks for the degree % |
+| Marks compliment repeated, plus "Thanks! I already have your academic details" on a normal last step | The compliment is shown once, on the step right after the marks. "Thanks! I already have…" only appears when the assessment was already complete, or everything was known from the start |
+| `****92.0%****`, `850/1000.0`, `₹170,000 per semester`, `45.0%` | Scores show as typed (`850/1000 (85%)`, `92%`); semester amounts use the Indian format (`₹1,70,000`) |
+| 90%+ compliments promised the "highest tuition fee waiver" / "maximum merit scholarship" (90% State Board is 25%) | Wording no longer claims the top slab |
+| Hostel table labelled "Merit Scholarship Alert" | The label is "Note" unless the note is about scholarships |
+| Confetti on hostel and other answers, every time | The browser no longer reads reply text. Only the server's `eligible` flag counts, which is set only for an assessment that used the student's own score (not "CSE fee" or hostel answers). It plays once per chat session (`claimEligibilityCelebration`) |
+| "Fee & Scholarship Info" / "Why Choose SRU?" chips in the middle of every question step, with only 2 of the step's answers | While a question is being asked, the chips are the answers to that question only (up to 4) |
+| Four plain chips under the opening welcome | Replaced by four quick-action tiles, each with a verified incentive badge: Calculate My Scholarship (up to 40% off), Explore Programmes (NIRF #91), Placements & Careers (₹51 LPA), How to Apply (2027-28). The welcome text is unchanged |
+| The same four options shown again after "hi" | The personal greeting ("Welcome to SR University, **Mahesh**!", name capitalised) no longer repeats the tiles; its chips are other topics (CSE fees, hostel, placements, campus visit) |
+
+Not changed: "Would you like to schedule a campus visit…" after the hostel answer was written by the AI. The prompt
+already forbids booking language, so this is a model slip, not fixed text.
