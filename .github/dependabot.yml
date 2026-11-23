@@ -1,0 +1,18 @@
+# Weekly pull requests for vulnerable or outdated dependencies (security/DEPLOYMENT_SECURITY.md).
+# Review every update before merging; nothing is merged or deployed automatically.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

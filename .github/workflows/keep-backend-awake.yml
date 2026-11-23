@@ -14,6 +14,9 @@ on:
     - cron: "*/10 1-17 * * *"
   workflow_dispatch:
 
+# The job only runs curl: it needs no repository token permissions.
+permissions: {}
+
 jobs:
   ping:
     runs-on: ubuntu-latest

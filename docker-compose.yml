@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: university_ai_dev
       POSTGRES_DB: university_ai
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"   # local machine only (development password)
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
     image: redis:7-alpine
     container_name: university-ai-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"   # local machine only (no Redis password in development)
     volumes:
       - redis_data:/data
     healthcheck:
@@ -33,7 +33,7 @@ services:
     image: chromadb/chroma:latest
     container_name: university-ai-chromadb
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"   # local machine only (Chroma server API has unauthenticated CVEs)
     volumes:
       - chroma_data:/chroma/chroma
     environment:
