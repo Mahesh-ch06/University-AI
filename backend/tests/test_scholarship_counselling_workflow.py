@@ -162,8 +162,15 @@ def test_counsellor_programme_then_route_then_rank_to_calculation():
         "is_projected": True,
         "ack_shown": True,
     }
-    r_prog = fee_intake.decide("B.Tech CSE", profile={}, intake=intake)
+    r_subj = fee_intake.decide("B.Tech CSE", profile={}, intake=intake)
+    # B.Tech requires MPC: the 10+2 subjects are asked once, before the route
+    assert r_subj["action"] == "ask"
+    assert r_subj["state"]["waiting_for"] == "stream"
+    assert "MPC" in r_subj["text"]
+
+    r_prog = fee_intake.decide("MPC (Maths, Physics, Chemistry)", profile={}, intake=r_subj["state"])
     assert r_prog["action"] == "ask"
+    assert r_prog["state"]["stream"] == "MPC"
     assert r_prog["state"]["waiting_for"] == "route"
     assert "Which admission route are you planning to use for B.Tech" in r_prog["text"]
     assert "Outstanding" not in r_prog["text"]  # compliment already shown on the previous step
@@ -255,7 +262,8 @@ def test_counsellor_pg_below_50_degree_percent_is_ineligible():
     r1 = fee_intake.decide("Calculate my scholarship for MBA", profile={}, intake={})
     res = fee_intake.decide("45%", profile={}, intake=r1["state"])
     assert res["action"] == "ineligible"
-    assert "qualifying degree" in res["text"]
+    assert "below the official **50% minimum**" in res["text"]
+    assert "Master of Business Administration" in res["text"]
 
 
 def test_counsellor_assessment_formatting_matches_conversation_fixes():
@@ -340,6 +348,7 @@ def test_counsellor_anti_repetition_rule():
         "route_label": "TG EAPCET",
         "eapcet_rank": 12000,
         "program": "btech_cse",
+        "stream": "MPC",
     }
     res = fee_intake.decide("What is my scholarship?", profile=profile, intake={})
     assert res is not None
@@ -367,6 +376,7 @@ def test_counsellor_re_query_handling():
         "is_projected": True,
         "admission_route": "not_decided",
         "program": "btech_cse",
+        "stream": "MPC",
     }
     res = fee_intake.decide("Calculate my scholarship again", profile={}, intake=intake)
     assert res is not None
@@ -392,7 +402,9 @@ def test_counsellor_program_already_known_skips_program_step():
     r3 = fee_intake.decide("Completed Intermediate (Passed out)", profile={}, intake=r2["state"])
     assert r3["state"]["waiting_for"] == "marks"
 
-    r4 = fee_intake.decide("92%", profile={}, intake=r3["state"])
+    r4a = fee_intake.decide("92%", profile={}, intake=r3["state"])
+    assert r4a["state"]["waiting_for"] == "stream"
+    r4 = fee_intake.decide("MPC", profile={}, intake=r4a["state"])
     assert r4["state"]["waiting_for"] == "route"
 
     r5 = fee_intake.decide("Not decided yet", profile={}, intake=r4["state"])
@@ -400,3 +412,20 @@ def test_counsellor_program_already_known_skips_program_step():
     assert r5["action"] == "calculate"
     assert r5["args"]["program"] == "btech_cse"
     assert r5["args"]["percent"] == 92.0
+
+
+def test_counsellor_bipc_student_for_btech_is_told_clearly():
+    """B.Tech lists MPC. A BiPC student is told they do not meet the listed subject requirement, no fee."""
+    intake = {"counsellor_mode": True, "waiting_for": "stream", "board": "state_board",
+              "board_key": "ts_state_board", "board_label": "Telangana Intermediate (TSBIE)",
+              "academic_stage": "completed", "raw_marks": 900, "max_marks": 1000, "percent": 90.0,
+              "program": "btech_cse", "ack_shown": True}
+    res = fee_intake.decide("BiPC (Biology, Physics, Chemistry)", profile={}, intake=intake)
+    assert res["action"] == "ineligible"
+    assert "do not meet the listed subject requirement" in res["text"]
+    assert "₹" not in res["text"]
+
+
+def test_counsellor_non_science_answer_only_read_as_stream_when_asked():
+    """'commerce' is a subject answer only when we asked for subjects."""
+    assert "stream" not in fee_intake.decide("B.Com fee", profile={}, intake={})["state"]

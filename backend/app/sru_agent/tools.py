@@ -255,8 +255,11 @@ def _fee_summary(fee: dict) -> dict:
 
 async def tool_check_eligibility(args, ctx):
     p = ctx.get("profile") or {}
-    return fees.check_eligibility(args.get("program") or p.get("program_interest") or "",
-                                  args.get("percent", p.get("percent") or 0))
+    percent = args.get("percent")
+    if percent in (None, ""):
+        percent = p.get("percent")  # marks the student already gave; never a made-up default
+    return fees.check_eligibility(args.get("program") or p.get("program_interest") or "", percent,
+                                  stream=p.get("stream"))
 
 
 async def tool_get_program_info(args, ctx):
@@ -630,9 +633,10 @@ TOOLS = {
         }, ["program"])}),
 
     "check_eligibility": (tool_check_eligibility, "Checking eligibility", {
-        "description": "Checks if a student meets the minimum marks for a program. Call whenever marks "
-                       "and a program are known and the student asks 'can I join'.",
-        "parameters_json_schema": _obj({"program": _PROGRAM, "percent": _PERCENT}, ["program", "percent"])}),
+        "description": "The ONLY way to decide admission eligibility. Call whenever the student gives marks "
+                       "for a programme or asks 'can I join / am I eligible'. Never work eligibility out yourself. "
+                       "Without marks it returns need_marks: then ask for them.",
+        "parameters_json_schema": _obj({"program": _PROGRAM, "percent": _PERCENT}, ["program"])}),
     "get_program_info": (tool_get_program_info, "Looking up the course", {
         "description": "Eligibility, duration, yearly tuition and scholarship slabs of ONE course when the "
                        "student has NOT given marks, e.g. 'MBA eligibility', 'what is BBA fee', "

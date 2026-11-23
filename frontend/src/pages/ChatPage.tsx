@@ -1028,6 +1028,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </button>
             </form>
 
+            <div className="sru-response-disclaimer" role="note">
+              May contain inaccuracies. Verify with official university sources.
+            </div>
             <div className="sru-widget-watermark">
               <span className="sru-watermark-version">v{APP_VERSION}</span>
               <span className="sru-watermark-dot">•</span>
@@ -1567,7 +1570,10 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   </button>
                 </form>
 
-                <div className="sru-widget-watermark">
+                <div className="sru-response-disclaimer" role="note">
+              May contain inaccuracies. Verify with official university sources.
+            </div>
+            <div className="sru-widget-watermark">
                   <span className="sru-watermark-version">v{APP_VERSION}</span>
                   <span className="sru-watermark-dot">•</span>
                   <span className="sru-watermark-text">powered by</span>

@@ -93,7 +93,7 @@ async def test_scenario_b_scholarship_multiturn_flow():
     turns = [
         ("What scholarships are available?", "SR University offers merit scholarships up to 40% based on 10+2 marks and national entrance test ranks."),
         ("I scored 85% in intermediate.", "Congratulations on scoring 85%! That puts you in a strong bracket for merit scholarship consideration."),
-        ("Am I eligible?", "With 85% in Intermediate, you are eligible for up to a 20% tuition fee waiver depending on your board and engineering branch."),
+        ("Am I eligible?", None),
         ("What about 90%?", "Scoring 90% or above elevates your eligibility to the next scholarship tier, granting up to a 30% to 40% tuition fee waiver."),
     ]
     results, _ = await _run_session("sess-scenario-b", turns)
@@ -104,6 +104,11 @@ async def test_scenario_b_scholarship_multiturn_flow():
 
     # Turn 2: Score ingestion
     assert "85%" in results[1]["answer"] or "85" in results[1]["answer"]
+
+    # Turn 3: admission eligibility depends on the programme: the 85% is remembered (not asked again) and
+    # only the programme is asked. A scholarship waiver is never presented as admission eligibility.
+    assert "**85%**" in results[2]["answer"] and "Which programme" in results[2]["answer"]
+    assert "waiver" not in results[2]["answer"].lower()
 
     # Turn 4: 90% comparison
     assert "90%" in results[3]["answer"] or "tier" in results[3]["answer"].lower()
@@ -123,8 +128,10 @@ async def test_scenario_c_btech_branches_and_ai_flow():
     # Turn 2: AI branches identified
     assert "ai" in results[1]["answer"].lower()
 
-    # Turn 3: 50% PCM eligibility stated
-    assert "50%" in results[2]["answer"] and "pcm" in results[2]["answer"].lower()
+    # Turn 3: "its" names no single programme, so the verified overview (built from the fee data, both
+    # sources shown where they differ) is given and the student is asked which programme
+    assert "50%" in results[2]["answer"] and "mpc" in results[2]["answer"].lower()
+    assert "Which programme are you interested in?" in results[2]["answer"]
 
 
 @pytest.mark.asyncio
@@ -132,22 +139,27 @@ async def test_scenario_d_placements_and_guarantee_flow():
     """Scenario D: Tell me about SRU. -> What about placements? -> Is 98% guaranteed?"""
     turns = [
         ("Tell me about SRU.", None),
-        ("What about placements?", "SR University provides 100% placement assistance through CSSP, with 150+ recruiters, ₹51 LPA highest package, and the SRiX startup incubator."),
+        ("What about placements?", None),
+        ("Packages & record", None),  # answered by the fixed, verified placements reply (no AI call)
         ("Is 98% guaranteed?", "While SR University provides 100% placement assistance and dedicated career readiness training, actual job offers depend on individual student academic merit and interview performance; offers are not guaranteed at 98%."),
     ]
     results, _ = await _run_session("sess-scenario-d", turns)
 
-    assert len(results) == 3
+    assert len(results) == 4
     # Turn 1: About SRU 5-pillar response
     assert "SR University" in results[0]["answer"] or "Top Private University" in results[0]["answer"]
 
-    # Turn 2: Placements
-    assert "100% placement assistance" in results[1]["answer"]
-    assert "51" in results[1]["answer"]
+    # Turn 2: "What about placements?" is broad: ask which aspect, no information dump
+    assert "What would you like to know about placements" in results[1]["answer"]
+    assert "Packages & record" in results[1]["suggestions"]
 
-    # Turn 3: Honest clarification of guarantee
-    assert "not guaranteed" in results[2]["answer"].lower() or "depend" in results[2]["answer"].lower()
+    # Turn 3: the chosen aspect is answered
     assert "100% placement assistance" in results[2]["answer"]
+    assert "51" in results[2]["answer"]
+
+    # Turn 4: Honest clarification of guarantee
+    assert "not guaranteed" in results[3]["answer"].lower() or "depend" in results[3]["answer"].lower()
+    assert "100% placement assistance" in results[3]["answer"]
 
 
 def test_contextual_query_reformulation():

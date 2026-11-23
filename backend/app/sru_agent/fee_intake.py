@@ -156,80 +156,99 @@ def get_marks_acknowledgment(
     """Dynamic, diverse positive acknowledgment messages for scores >= 50%."""
     proj_note = f" (projected from your {stage_label or '1st year'} performance)" if is_projected else ""
 
+    # Compliments on the marks only. Admission eligibility depends on the programme and is stated
+    # separately by eligibility.py once the programme is known; these lines never claim it.
     if percent >= 90.0:
         variants = [
-            f"🌟 **Outstanding academic performance!** With **{score_str}**{proj_note}, you have a stellar academic profile, are eligible for admission and qualify for a **strong merit scholarship** at SR University!",
-            f"🏆 **Sensational achievement!** Scoring **{score_str}**{proj_note} places you among the top achievers. You are eligible for admission and qualify for a **valuable merit scholarship** at SR University!",
-            f"✨ **Brilliant academic record!** With an exceptional score of **{score_str}**{proj_note}, you comfortably secure admission eligibility and qualify for a **generous tuition fee waiver**!",
-            f"🥇 **Exceptional marks!** Scoring **{score_str}**{proj_note} reflects academic excellence. You are fully eligible for admission with **excellent merit scholarship benefits** at SR University!",
+            f"🌟 **Outstanding academic performance!** **{score_str}**{proj_note} is a stellar score, and it puts you in line for a **strong merit scholarship** at SR University.",
+            f"🏆 **Sensational achievement!** Scoring **{score_str}**{proj_note} places you among the top achievers, with a **valuable merit scholarship** in reach.",
+            f"✨ **Brilliant academic record!** With **{score_str}**{proj_note}, you can expect a **generous tuition fee waiver**.",
+            f"🥇 **Exceptional marks!** **{score_str}**{proj_note} reflects real academic excellence and earns **excellent merit scholarship benefits**.",
         ]
     elif percent >= 80.0:
         variants = [
-            f"🎉 **Great performance!** With **{score_str}**{proj_note}, you have a strong academic foundation and are eligible for admission with a **prestigious merit scholarship** at SR University!",
-            f"🌟 **Impressive score!** Scoring **{score_str}**{proj_note} makes you eligible for admission and qualifies you for a **substantial scholarship reduction** on your tuition at SR University!",
-            f"👏 **Fantastic achievement!** With **{score_str}**{proj_note}, you comfortably meet admission criteria and qualify for an **attractive merit scholarship** at SR University!",
-            f"🚀 **Commendable marks!** Scoring **{score_str}**{proj_note} puts you in an excellent position to secure admission and a **valuable merit scholarship** at SR University!",
+            f"🎉 **Great performance!** **{score_str}**{proj_note} is a strong academic foundation, and it earns a **merit scholarship** at SR University.",
+            f"🌟 **Impressive score!** **{score_str}**{proj_note} qualifies for a **substantial scholarship reduction** on tuition.",
+            f"👏 **Fantastic achievement!** With **{score_str}**{proj_note}, you qualify for an **attractive merit scholarship**.",
+            f"🚀 **Commendable marks!** **{score_str}**{proj_note} puts you in an excellent position for a **valuable merit scholarship**.",
         ]
-    elif percent >= 70.0:
+    elif percent >= 60.0:
         variants = [
-            f"👍 **Good marks!** With **{score_str}**{proj_note}, you are eligible for admission at SR University and qualify for our **merit scholarship categories**!",
-            f"🎯 **Solid score!** Scoring **{score_str}**{proj_note} fulfills SR University's admission criteria and puts you in line for **valuable scholarship opportunities**!",
-            f"✨ **Well done!** With an academic score of **{score_str}**{proj_note}, you have a competitive profile for admission and merit scholarship consideration at SR University!",
-            f"👏 **Strong effort!** Scoring **{score_str}**{proj_note} ensures your eligibility for admission and qualifies you to explore **merit-based scholarship concessions** at SR University!",
+            f"👍 **Good marks!** **{score_str}**{proj_note} falls within our **merit scholarship slabs**.",
+            f"🎯 **Solid score!** **{score_str}**{proj_note} puts you in line for **merit scholarship opportunities**.",
+            f"✨ **Well done!** **{score_str}**{proj_note} is a competitive score for merit scholarship consideration.",
+            f"👏 **Strong effort!** **{score_str}**{proj_note} qualifies you to explore **merit-based scholarships**.",
         ]
-    else:  # 50.0 <= percent < 70.0
+    else:  # below the 60% where merit scholarships start
         variants = [
-            f"✅ **You are eligible for admission!** With **{score_str}**{proj_note}, you fulfill SR University's academic eligibility criterion (minimum 50% marks in 10+2 / Intermediate).",
-            f"🎓 **Congratulations on qualifying!** Scoring **{score_str}**{proj_note} successfully meets the eligibility threshold (minimum 50%) for undergraduate admission at SR University.",
-            f"👏 **Good news!** With **{score_str}**{proj_note}, you meet the eligibility requirement for admission to SR University. Let's explore your program and fee pathways!",
+            f"✅ Thanks! I've noted **{score_str}**{proj_note}.",
+            f"📝 Got it: **{score_str}**{proj_note}.",
+            f"👍 Noted, **{score_str}**{proj_note}.",
         ]
 
     return variants[abs(int(variant_idx)) % len(variants)]
 
 
-def is_below_minimum_eligibility(known: dict) -> bool:
-    """Checks if known academic marks are strictly below 50% aggregate minimum."""
-    pct = known.get("percent")
-    if pct is not None:
+def _known_percent(known: dict):
+    """Exact percentage from what the student gave (percent, or raw marks with their total)."""
+    from . import eligibility
+    if known.get("degree_percent") is not None and known.get("level") == "pg":
+        return float(known["degree_percent"])
+    raw_m, max_m = known.get("raw_marks"), known.get("max_marks")
+    if raw_m is not None and max_m and float(max_m) > 100:
+        exact = eligibility.percent_from_marks(raw_m, max_m)  # unrounded: 499.99/1000 stays below 50
+        if exact is not None:
+            return exact
+    if known.get("percent") is not None:
         try:
-            return float(pct) < 50.0
-        except (ValueError, TypeError):
-            pass
-    raw_m = known.get("raw_marks")
-    max_m = known.get("max_marks")
-    if raw_m is not None and max_m is not None and max_m > 0:
-        try:
-            return (float(raw_m) / float(max_m)) * 100.0 < 50.0
-        except (ValueError, TypeError):
-            pass
-    return False
+            return float(known["percent"])
+        except (TypeError, ValueError):
+            return None
+    raw_m, max_m = known.get("raw_marks"), known.get("max_marks")
+    if raw_m is not None and max_m:
+        return eligibility.percent_from_marks(raw_m, max_m)
+    return None
 
 
-def format_ineligible_response(known: dict, state: dict) -> dict:
-    """Formats explicit polite rejection message when marks are below 50% minimum criteria, withholding all fee details."""
-    raw_m = known.get("raw_marks")
-    max_m = known.get("max_marks")
-    pct = known.get("percent")
-    if pct is None and raw_m is not None and max_m is not None and max_m > 0:
-        pct = round((float(raw_m) / float(max_m)) * 100.0, 2)
-    elif pct is not None:
-        pct = float(pct)
+def is_below_minimum_eligibility(known: dict, prog_key: str | None = None) -> bool:
+    """True when the marks are below the programme's minimum (or, before the programme is known, below the
+    lowest minimum of every programme at that level). Thresholds come only from eligibility.py."""
+    from . import eligibility
+    pct = _known_percent(known)
+    if pct is None:
+        return False
+    if prog_key:
+        return eligibility.assess(prog_key, pct)["status"] == eligibility.BELOW
+    return pct < eligibility.lowest_minimum_any_program(known.get("level") or "ug")
 
-    if raw_m and max_m and max_m > 100:
-        score_str = f"**{_num(raw_m)}/{_num(max_m)} ({_num(round(pct, 2))}%)**"
-    elif pct is not None:
-        score_str = f"**{_num(round(pct, 2))}%**"
+
+def _score_text(known: dict) -> str | None:
+    raw_m, max_m = known.get("raw_marks"), known.get("max_marks")
+    if raw_m and max_m and float(max_m) > 100:
+        return f"{_num(raw_m)} marks out of {_num(max_m)}"
+    return None
+
+
+def format_ineligible_response(known: dict, state: dict, prog_key: str | None = None) -> dict:
+    """Clear, polite reply when the marks are below the minimum. No fee or scholarship details, and no
+    alternative pathways (none are documented in the official sources)."""
+    from . import eligibility
+    pct = _known_percent(known) or 0.0
+    if prog_key:
+        rejection_text = eligibility.explain(eligibility.assess(prog_key, pct), _score_text(known))
     else:
-        score_str = "your entered score"
-    qualifying = "the qualifying degree" if known.get("level") == "pg" else "10+2 / Intermediate"
-
-    rejection_text = (
-        f"I am sorry, but with an academic score of {score_str}, you are not eligible for admission at SR University.\n\n"
-        f"The minimum academic eligibility requirement for admission is **50% aggregate marks** in {qualifying}. "
-        "Because your score does not meet this 50% threshold, fee and scholarship calculations cannot be provided.\n\n"
-        "If you believe there is an error in the recorded score or would like to discuss alternative diploma/lateral entry opportunities, "
-        "please feel free to contact our Admissions Office at **0870-2818333** or email **admissions@sru.edu.in**."
-    )
+        level = known.get("level") or "ug"
+        floor = eligibility.show_percent(eligibility.lowest_minimum_any_program(level))
+        qualifying = "the qualifying degree" if level == "pg" else "10+2 / Intermediate"
+        given = (f"Based on the {_score_text(known)} you provided, your percentage is **{eligibility.show_percent(pct)}**."
+                 if _score_text(known) else f"Your percentage is **{eligibility.show_percent(pct)}**.")
+        rejection_text = (
+            f"{given} This is below **{floor}**, the lowest minimum in {qualifying} for any SR University "
+            f"{'postgraduate' if level == 'pg' else 'undergraduate'} programme in the official sources, so you do "
+            f"not currently meet the general eligibility criteria based on these marks.\n\n"
+            f"If you think these marks are not right, or you would like to discuss your options, please contact "
+            f"{eligibility.ADMISSIONS_CONTACT}."
+        )
     chips = [
         "📞 Admissions Office",
         "📋 Eligibility Criteria",
@@ -406,7 +425,7 @@ def parse_details(message: str) -> dict:
             out["percent"] = round(cgpa_val * 9.5, 2)
 
     # Explicit fraction parsing (e.g. "890/1000", "890 out of 1000", "430/470", "430 out of 470")
-    frac = re.search(r"(?<![\d.])(\d{2,4})\s*(?:marks\s+)?(?:/|out\s+of)\s*(\d{2,4})", low)
+    frac = re.search(r"(?<![\d.])(\d{2,4}(?:\.\d+)?)\s*(?:marks\s+)?(?:/|out\s+of)\s*(\d{2,4})", low)
     if frac and not out.get("percent"):
         obt, tot = float(frac.group(1)), float(frac.group(2))
         if 0 < obt <= tot:
@@ -576,6 +595,13 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         return None
     intake = dict(intake or {})
     said = parse_details(message)
+    from . import eligibility
+    # The 10+2 subject group (MPC / BiPC / other). Acronyms are read anywhere; words like "commerce" or
+    # "arts" only as the answer to our own subjects question.
+    stream = eligibility.parse_stream(message)
+    if stream and (stream in ("MPC", "BiPC") and re.search(r"\b(?:mpc|pcm|bipc|pcb)\b", (message or "").lower())
+                   or (intake or {}).get("waiting_for") == "stream"):
+        said["stream"] = stream
     active = bool(intake) and int(intake.get("turns", 0)) < 10
     number = _bare_number(message)
 
@@ -614,6 +640,7 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         "pending_raw_marks",
         "generic_btech",
         "degree_interest",
+        "stream",
     ):
         if profile.get(k) not in (None, ""):
             known[k] = profile[k]
@@ -685,17 +712,26 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             pass  # read below, once the programme level is known
         elif waiting == "marks_max":
             raw = intake.get("pending_raw_marks")
-            if number is not None:
+            total = None
+            if said.get("max_marks"):
+                total = float(said["max_marks"])
+            elif number is not None:
                 if number >= (raw or 0) and (raw or 0) > 0:
-                    known["percent"] = round((float(raw) / float(number)) * 100, 2)
+                    total = float(number)
                 elif 35 <= number <= 100:
                     known["percent"] = float(number)
-            elif re.search(r"\b(?:1000|thousand|yes|correct|right|inter|intermediate)\b", (message or "").lower()):
-                if raw:
-                    known["percent"] = round((float(raw) / 1000.0) * 100, 2)
+            elif re.search(r"\b(?:1000|thousand|inter|intermediate)\b", (message or "").lower()):
+                total = 1000.0
             elif re.search(r"\b600\b", (message or "").lower()):
-                if raw:
-                    known["percent"] = round((float(raw) / 600.0) * 100, 2)
+                total = 600.0
+            elif re.search(r"\b500\b", (message or "").lower()):
+                total = 500.0
+            if total and raw:
+                known["raw_marks"], known["max_marks"] = float(raw), total
+                known["percent"] = round((float(raw) / total) * 100, 2)
+            if known.get("percent") is not None:
+                known.pop("needs_marks_confirmation", None)
+                known.pop("pending_raw_marks", None)
         elif number is not None:
             if 35 <= number <= 100:
                 known.setdefault("percent", number)
@@ -747,8 +783,8 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
 
     # Strict eligibility check: if marks are below 50%, immediately reject and withhold fee details
     eligibility_basis = {"percent": known.get("degree_percent"), "level": "pg"} if pg_counsellor else known
-    if is_below_minimum_eligibility(eligibility_basis):
-        return format_ineligible_response(eligibility_basis, state)
+    if is_below_minimum_eligibility(eligibility_basis, prog_key):
+        return format_ineligible_response(eligibility_basis, state, prog_key)
 
     # =========================================================================
     # GUIDED ADMISSION COUNSELLOR WORKFLOW
@@ -907,6 +943,22 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             card = build_counsellor_program_card(selected_program=known.get("program"), step_label="Step 4: Preferred Programme")
             return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
 
+        # Step 4b: 10+2 subjects, only for programmes whose fee card names them (B.Tech: MPC; B.Sc Agri:
+        # BiPC) and only when the marks do not already rule the student out. Needed to confirm eligibility.
+        req = eligibility.stream_requirement(prog_key)
+        if req.get("any_of") and not known.get("stream"):
+            state["waiting_for"] = "stream"
+            verdict = eligibility.assess(prog_key, _known_percent(known))
+            text = f"{_ack()}{eligibility.stream_question(verdict)}"
+            return {"action": "ask", "text": text, "chips": eligibility.stream_chips(verdict), "cards": [], "state": state}
+        if req.get("any_of"):
+            verdict = eligibility.assess(prog_key, _known_percent(known), known.get("stream"))
+            if verdict.get("stream_ok") is False:
+                state["waiting_for"] = None
+                return {"action": "ineligible", "text": eligibility.explain(verdict, _score_text(known)),
+                        "chips": ["📞 Admissions Office", "Explore other programmes", "📋 Eligibility Criteria"],
+                        "cards": [], "state": state}
+
         # Step 5: Admission route (B.Tech / B.Sc Agriculture only)
         if needs_route and not has_route:
             state["waiting_for"] = "route"
@@ -998,6 +1050,7 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 "ack_shown": bool(intake.get("ack_shown")),
                 "level": "ug",
                 "uses_entrance": needs_route,
+                "stream": known.get("stream"),
             },
         }
 
@@ -1005,7 +1058,8 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
     # STANDARD FEE FORM INTAKE (for generic university fee structure queries)
     # =========================================================================
     if not prog_key:
-        if "program" in asked:
+        answered_total = intake.get("waiting_for") == "marks_max" and known.get("percent") is not None
+        if "program" in asked and not answered_total:
             return None
         state["asked"] = sorted(asked | {"program"})
         state["waiting_for"] = "program"
@@ -1017,37 +1071,38 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         )
         pct_val = said.get("percent") or known.get("percent")
         if raw_val or pct_val:
-            calc_pct = pct_val or round((raw_val / 1000.0) * 100, 1)
-            state["percent"] = calc_pct
-            if raw_val:
+            from . import eligibility
+            if pct_val is None and not said.get("max_marks"):
+                # "230" or "I got 230 marks": the total is not known, so ask for it instead of assuming 1000.
+                state["waiting_for"] = "marks_max"
                 state["pending_raw_marks"] = raw_val
-
-            res = fees.calculate_fee("btech_cse", percent=calc_pct, board=known.get("board") or "state_board")
-            waiver = res.get("scholarship_percent", 0)
-            net_tuition = res.get("tuition_first_year_after_scholarship", "₹3,40,000")
-            per_sem = res.get("per_semester_after_scholarship", "₹1,70,000")
-            savings = res.get("saving_first_year", "₹0")
-
-            marks_str = f"**{raw_val} marks** (~{calc_pct}% in TS/AP Intermediate out of 1000)" if raw_val else f"**{calc_pct}%**"
-            if waiver > 0:
-                text = (
-                    f"With {marks_str}, you qualify for a **{waiver}% Merit Scholarship** on your tuition!\n\n"
-                    f"For example, in our flagship **B.Tech Computer Science & Engineering (CSE)** (standard tuition ₹3,40,000/year):\n"
-                    f"• **Net Tuition**: **{net_tuition} per year** ({per_sem} per semester)\n"
-                    f"• **Scholarship Savings**: You save **{savings} per year**\n\n"
-                    f"Which degree programme or engineering branch are you interested in exploring? "
-                    f"You can choose a programme below or use the interactive assessment form."
-                )
-                if raw_val and not said.get("max_marks"):
-                    text += f"\n\n*(Note: Calculated assuming {raw_val} out of 1000 in Intermediate State Board. If your score is out of 600 or CBSE, please let me know your board or maximum marks).*"
+                return {
+                    "action": "ask",
+                    "text": (f"Thanks! Out of how many total marks is **{raw_val}**? For example, 1000 for "
+                             f"TS / AP Intermediate, or 500 / 600 for some other boards."),
+                    "chips": [f"{raw_val} out of 1000", f"{raw_val} out of 600", f"{raw_val} out of 500"],
+                    "cards": [],
+                    "state": state,
+                }
+            raw_k, max_k = known.get("raw_marks"), known.get("max_marks")
+            exact = (eligibility.percent_from_marks(raw_k, max_k) if raw_k and max_k and float(max_k) > 100
+                     else float(pct_val))
+            state["percent"] = pct_val
+            if is_below_minimum_eligibility({"percent": exact}):
+                return format_ineligible_response({**known, "percent": exact}, state)
+            # Scholarship (by Intermediate marks) is separate from admission eligibility, which depends on
+            # the programme: ask for the programme before saying anything about eligibility.
+            sch = fees.scholarship_for("btech_cse", percent=exact, board=known.get("board") or "state_board")
+            score = (f"**{_num(raw_k)}/{_num(max_k)} ({eligibility.show_percent(exact)})**"
+                     if raw_k and max_k and float(max_k) > 100 else f"**{eligibility.show_percent(exact)}**")
+            if sch["percent"] > 0:
+                text = (f"Thanks! With {score}, your Intermediate marks fall in the **{sch['percent']}% merit "
+                        f"scholarship** slab (subject to your board and programme).\n\n")
             else:
-                text = (
-                    f"With {marks_str}, you meet the official 50% minimum eligibility requirement for B.Tech admission at SR University!\n\n"
-                    f"Standard tuition for **B.Tech CSE** is ₹3,40,000/year (₹1,70,000/semester). "
-                    f"We also offer B.Tech Core branches (Mechanical, Civil, EEE) at ₹2,00,000/year, and BBA/BCA at ₹1,50,000/year.\n\n"
-                    f"Which programme or branch would you like to explore?"
-                )
-            chips = ["B.Tech CSE", "B.Tech AI and Robotics", "B.Tech ECE", "B.Sc Agriculture", "BBA"]
+                text = f"Thanks! I've noted {score}.\n\n"
+            text += ("Which programme are you interested in? I'll check the admission eligibility and exact fee "
+                     "for that programme.")
+            chips = ["B.Tech CSE", "B.Tech ECE", "BBA", "B.Sc Agriculture"]
             form_card = build_fee_scholarship_form_card(level="ug")
             return {"action": "ask", "text": text, "chips": chips, "cards": [form_card], "state": state}
 
@@ -1137,26 +1192,15 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         raw_val = said.get("needs_marks_confirmation") or known.get("needs_marks_confirmation")
         state["waiting_for"] = "marks_max"
         state["pending_raw_marks"] = raw_val
-        pct_1000 = round(raw_val / 10.0, 1)
-        res = fees.calculate_fee(prog_key, percent=pct_1000, board=known.get("board") or "state_board")
-        waiver = res.get("scholarship_percent", 0)
-        net_tuition = res.get("tuition_first_year_after_scholarship", standard)
-        per_sem = res.get("per_semester_after_scholarship", "")
-        savings = res.get("saving_first_year", "₹0")
-        waiver_msg = (
-            f"qualify for a **{waiver}% Merit Scholarship** (Net tuition: **{net_tuition}/year** [{per_sem}/sem], saving {savings}/yr)"
-            if waiver > 0
-            else "meet the official 50% minimum eligibility criteria"
-        )
+        # The total is unknown: ask for it. Never assume 1000 and never state eligibility from a guess.
         text = (
-            f"Based on **{raw_val} marks** (assuming out of 1000 in Intermediate State Board = **{pct_1000}%**), you {waiver_msg} for **{name}**.\n\n"
-            f"Please confirm your maximum/total marks (e.g., out of 1000 for Intermediate State Board, or out of 600) or select below to view your full fee structure:"
+            f"Thanks! For **{name}**, out of how many total marks is **{_num(raw_val)}**? For example, 1000 for "
+            f"TS / AP Intermediate, or 500 / 600 for some other boards. I'll then check your eligibility and fee."
         )
         chips = [
-            f"{raw_val} out of 1000 ({pct_1000}%)",
-            f"{raw_val} out of 600",
-            f"{pct_1000}%",
-            "Hostel details",
+            f"{_num(raw_val)} out of 1000",
+            f"{_num(raw_val)} out of 600",
+            f"{_num(raw_val)} out of 500",
         ]
         board_key = _board_card_key(known.get("board"), known.get("board_label"))
         form_card = build_fee_scholarship_form_card(

@@ -261,7 +261,7 @@ Official fee schedule for Management & Commerce programs:
 | **MBA in Agri-Business Management** | **₹2,00,000** | ₹1,00,000 | +₹6,000 / yr |
 
 - **One-time enrollment**: ₹5,000 (Sem 1 only). Exam & other fees: ₹20,000/yr.
-- **Scholarships**: 10% to 40% merit waivers based on qualifying exam scores; eligible PG students receive an additional 10% scholarship."""
+- **Scholarships**: 10% to 40% merit waivers based on qualifying exam scores (2027-28 fee card)."""
 
 _AGRICULTURE_FEE_TEXT = """### 🌾 School of Agriculture — Fee Structure (2027–28)
 
@@ -806,28 +806,12 @@ _PROGRAM_DESIGN_OVERVIEW_CHIPS = [
     "Career paths",
 ]
 
-_ELIGIBILITY_TEXT = """### 📋 Admission Eligibility Criteria at SR University (2027–28)
+# Generated from fees_2027_28.json by eligibility.py (never hand-written thresholds: the official sources
+# disagree for several programmes, and both values are shown until the Admissions Office confirms one).
+from .eligibility import overview_text as _eligibility_overview
 
-Official eligibility criteria by program:
-
-• **B.Tech (All Branches & Specializations)**:
-  - Passed **10+2 / Intermediate** with Mathematics, Physics, and Chemistry (MPC) with a minimum **60% aggregate marks** (or equivalent grade).
-  - Valid score in **SRUEE**, **JEE Main**, or **TS EAPCET / AP EAPCET**.
-
-• **B.Sc. (Hons) Agriculture (ICAR-Accredited)**:
-  - Passed 10+2 / Intermediate with Physics, Chemistry, and Biology (BiPC/PCB) or 2-year Agriculture/Seed Tech diploma with first class.
-
-• **BBA / B.Com**:
-  - Passed 10+2 / Intermediate in any stream with a minimum of **50% aggregate marks**.
-
-• **MBA**:
-  - Recognized Bachelor's degree (minimum 3 years) with **50% aggregate marks** + valid score in TS ICET, CAT, MAT, or SRU-MAT.
-
-• **BCA / MCA**:
-  - BCA: 10+2 with Mathematics/CS/IT/Stats (50% aggregate).
-  - MCA: BCA or B.Sc/B.Com with Mathematics at 10+2 or degree level (50% aggregate) + TS ICET.
-
-Would you like to check fee structure, calculate your merit scholarship, or start your application?"""
+_ELIGIBILITY_TEXT = (_eligibility_overview() + "\n\nShare your programme and marks and I'll check your eligibility, "
+                     "or I can show the fees or calculate your scholarship.")
 
 _ELIGIBILITY_CHIPS = [
     "Calculate my scholarship",

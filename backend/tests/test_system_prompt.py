@@ -23,7 +23,9 @@ def test_system_prompt_contains_critical_rules():
     """Verify key facts and behavioral rules are present."""
     prompt = load_prompt("system")
     assert "SRU Buddy" in prompt
-    assert "60% aggregate marks" in prompt
+    # Eligibility: both official minimums are stated as differing, never one of them as THE cutoff
+    assert "minimum marks differ between official sources" in prompt
+    assert "60% aggregate marks" not in prompt
     assert "Fully Flexible Credit System" in prompt
     assert "Strictly No Double Questions" in prompt
 

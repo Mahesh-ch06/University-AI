@@ -52,9 +52,9 @@ BENCHMARK_POLICIES: dict[str, FactualityBenchmarkItem] = {
         question="What is the minimum eligibility criteria for B.Tech admission at SR University?",
         handbook_source="data/handbook/08_admissions_fees_scholarships_and_eligibility.md",
         ground_truth_claims=[
-            "Minimum 50% aggregate marks in 10+2 / Intermediate PCM",
-            "Corresponds to 500 marks out of 1000",
-            "Applies uniformly across all engineering branches",
+            "2027-28 fee card: standard fees from 50% in 10+2 / Intermediate with MPC (CSE / ECE fees from 55%)",
+            "2026-27 programme pages: 60% in 10+2 PCM; scores between the listed values need Admissions Office confirmation",
+            "50% corresponds to 500 marks out of 1000; below 50% does not meet any listed minimum",
         ],
         required_keywords_any=[
             ["50%", "50 percent", "500"],
@@ -62,15 +62,24 @@ BENCHMARK_POLICIES: dict[str, FactualityBenchmarkItem] = {
         ],
         prohibited_hallucinations=[
             (
-                re.compile(r"(?:(?:minimum|cutoff|aggregate|marks|percentage|required|eligibility)\b.*?\b(?:60|65|70|75|80)\s*%|(?:60|65|70|75|80)\s*%\s*(?:cutoff|aggregate|marks|percentage|required|eligibility))", re.I),
-                "Hallucinated cutoff: B.Tech cutoff is officially 50%, not 60%, 65%, 70%, 75%, or 80%",
+                # 50% (fee card), 55% (CSE / ECE fee band) and 60% (programme pages) are all documented.
+                re.compile(r"(?:(?:minimum|cutoff|aggregate|marks|percentage|required|eligibility)\b.*?\b(?:65|70|75|80)\s*%|(?:65|70|75|80)\s*%\s*(?:cutoff|aggregate|marks|percentage|required|eligibility))", re.I),
+                "Hallucinated cutoff: no official source lists 65%, 70%, 75% or 80% for B.Tech",
+            ),
+            (
+                # One source's figure stated as THE confirmed cutoff (the 2027-28 fee card and the 2026-27
+                # programme pages disagree, so neither 50% nor 60% alone may be presented as confirmed).
+                re.compile(r"(?:strictly|officially|only)\s+(?:is\s+)?(?:60|50)\s*%|cutoff\s+is\s+(?:strictly\s+)?(?:60|50)\s*%"
+                           r"|not\s+eligible\s+because[^.]*\b60\s*%|fully\s+eligible[^.]*\b5[0-9](?:\.\d+)?\s*%", re.I),
+                "Disputed cutoff presented as confirmed: the 2027-28 fee card lists 50% and the 2026-27 programme "
+                "pages 60%; scores between them need Admissions Office confirmation",
             ),
             (
                 re.compile(r"\b(499|480|450|400)\s*(?:out\s+of\s+1000|\/1000)?\s*(?:is\s+eligible|qualifies|accepted)\b", re.I),
                 "Hallucination: Marks below 500/1000 claimed as unconditionally eligible",
             ),
         ],
-        allowed_numbers=["50%", "500", "58%", "52%", "1000", "10+2", "12th", "833 100 3030", "8331003030"],
+        allowed_numbers=["50%", "55%", "60%", "500", "58%", "52%", "1000", "10+2", "12th", "833 100 3030", "8331003030"],
     ),
     "direct_admission_entrance_exam": FactualityBenchmarkItem(
         policy_id="direct_admission_entrance_exam",

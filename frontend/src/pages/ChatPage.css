@@ -2855,3 +2855,15 @@
   }
 }
 
+
+/* Required response disclaimer, shown once under the input (message bodies stay clean). */
+.sru-response-disclaimer {
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: #64748b;
+  text-align: center;
+  padding: 4px 12px 0;
+}
+[data-theme="dark"] .sru-response-disclaimer {
+  color: #94a3b8;
+}

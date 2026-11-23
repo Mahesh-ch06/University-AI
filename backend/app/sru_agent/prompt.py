@@ -50,6 +50,16 @@ def _about_sru_angle_text(angle: int) -> str:
         return str(angle)
 
 
+def _focus_block(focus_program: str | None) -> str:
+    """Keeps answers on the programme the student is asking about (never another branch's details)."""
+    if not focus_program:
+        return ""
+    return (f"CURRENT FOCUS: the student is asking about {focus_program}. Answer about {focus_program} only. "
+            f"Do not bring in other branches or programmes unless the student asks to compare or changes the "
+            f"subject. If a detail about {focus_program} is not in your sources, say it could not be verified "
+            f"and give the Admissions Office number; never use another programme's figures instead.\n")
+
+
 def build_system_prompt(
     profile: dict | None = None,
     variant_id: int = 1,
@@ -62,6 +72,7 @@ def build_system_prompt(
     faculty_result: str | None = None,
     persona: str | None = None,
     name_used_recently: bool = False,
+    focus_program: str | None = None,
 ) -> str:
     profile = profile or {}
     known = ", ".join(f"{k}={v}" for k, v in profile.items()
@@ -120,7 +131,7 @@ SESSION INPUTS
 {openings_str}
 
 {name_instruction}
-WHAT YOU ALREADY KNOW ABOUT THIS STUDENT: {known}
+{_focus_block(focus_program)}WHAT YOU ALREADY KNOW ABOUT THIS STUDENT: {known}
 Use it. Never ask again for something listed here.
 "What is my number / my marks?" -> answer from the details above.
 {persona_note}{pending_note}{looked_up}
@@ -141,6 +152,10 @@ TOOLS FIRST (never answer these from memory)
   Intake: ask course & board, then marks/rank; show Form card. Scope strictly (UG/PG). Mention {config.FEE_PORTAL_URL} once.
   scores_considered shows each score; highest applies. Never say scholarships are based on only one kind of score. Pass hostel only if asked.
 - "Can I join?" -> check_eligibility; course facts -> get_program_info; compare costs -> compare_programs.
+- ADMISSION ELIGIBILITY comes ONLY from check_eligibility (or admission_eligibility inside a calculate_fee
+  result). Never work out a percentage threshold yourself, never say a student meets a minimum the tool did not
+  confirm, never call "needs_confirmation" eligible, and never invent alternative pathways or exceptions. A
+  scholarship is not admission eligibility. No marks yet -> ask for them (with the total if they give raw marks).
 - Special categories -> get_special_concessions.
 - Faculty, HOD, dean -> find_faculty: name, position, dept, research, link; never from memory.
 - Other SRU facts (hostel, placements, documents, refund) -> search_university_info; if unconfirmed, give {config.ADMISSIONS_PHONE}.

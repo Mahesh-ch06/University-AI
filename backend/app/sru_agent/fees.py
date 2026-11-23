@@ -284,39 +284,39 @@ def _next_slab(program_key, pct_now, percent=None, board="state_board",
             "extra_saving_first_year": inr(extra)}
 
 
-def check_eligibility(program: str, percent: float) -> dict:
-    data = load_data()
+def check_eligibility(program: str, percent=None, stream: str | None = None) -> dict:
+    """Admission eligibility on marks, from the single eligibility module (never a threshold written here).
+    Admission eligibility is NOT scholarship eligibility: scholarships are calculate_fee / scholarship_for."""
+    from . import eligibility
     key = find_program(program)
-    generic = False
     if not key and _is_generic_btech(program):
-        # "btech" with no branch: every B.Tech branch has the same minimum
-        key, generic = "btech_mech", True
+        # "btech" with no branch: the minimums differ by branch (CSE / ECE fee band), so ask the branch.
+        return {"status": "need_branch",
+                "ask_student": "Ask which B.Tech branch they want; minimums differ between branches."}
     if not key:
         return {"status": "unknown_program", "known_programs": list_programs()["programs"]}
-    prog = data["programs"][key]
-    pct = float(percent)
-    eligible = pct >= prog["min_percent"]
-    result = {
+    if percent in (None, "") :
+        return {"status": "need_marks", "program": clean_program_name(key),
+                "ask_student": "Ask for their 10+2 / Intermediate marks (percentage, or marks with the total), "
+                               "or the degree percentage for a PG programme. Do not assume any marks."}
+    result = eligibility.assess(key, float(percent), stream)
+    return {
         "status": "ok",
-        "program": "B.Tech (any branch)" if generic else prog["name"],
-        "your_percent": pct,
-        "minimum_percent": prog["min_percent"], "eligible": eligible,
-        "requirement": prog["eligibility_note"],
-        "advice": None if eligible else
-        "Below the published minimum. Do not reject the student: suggest speaking "
-        "to the admissions office about options.",
-        "reminder": "Eligible means the student can apply. Admission depends on seat availability "
-                    "and document verification. Never promise a seat.",
+        "program": result["program"],
+        "your_percent": result["percent"],
+        "eligibility_status": result["status"],
+        "eligible": result["eligible"],
+        "lowest_listed_minimum": result["floor"],
+        "highest_listed_minimum": result["ceiling"],
+        "sources_disagree": result["conflict"],
+        "requirement": (result.get("stream_requirement") or {}).get("label") or load_data()["programs"][key]["eligibility_note"],
+        "explanation": eligibility.explain(result),
+        "instruction": ("Give the student the 'explanation' text in your own words without changing any figure. "
+                        "below_minimum: say clearly they do not meet the minimum on these marks; never say they "
+                        "qualify. needs_confirmation: the official sources disagree, so do not say eligible or "
+                        "not eligible; ask them to confirm with the Admissions Office. Never invent alternative "
+                        "pathways or exceptions."),
     }
-    band = prog.get("fee_band_min_percent")
-    if generic:
-        result["note"] = ("For CSE and ECE the fee card lists fees from 55%; "
-                          "for 50-54.9% ask the Admissions Office to confirm.")
-    elif eligible and band and pct < band:
-        result["confirm_with_admissions"] = (
-            f"The fee card lists {prog['name']} fees from {band}% marks. For {pct:g}% the "
-            f"Admissions Office must confirm admission and the applicable fee.")
-    return result
 
 
 def list_programs() -> dict:
@@ -506,6 +506,19 @@ def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=N
     if ib_score is not None and 30 <= float(ib_score) <= 37 and data.get("ib_overlap_note"):
         result["notes"].append(data["ib_overlap_note"])
     result["notes"].append("Scholarship is subject to marksheet verification; continuation rules are set by the university.")
+    if percent is not None:
+        # Admission eligibility is separate from the scholarship: a 23% student gets no "you qualify".
+        from . import eligibility
+        verdict = eligibility.assess(key, float(percent))
+        result["admission_eligibility"] = {
+            "status": verdict["status"], "eligible": verdict["eligible"],
+            "lowest_listed_minimum": verdict["floor"], "highest_listed_minimum": verdict["ceiling"],
+            "explanation": eligibility.explain(verdict),
+        }
+        if verdict["status"] == eligibility.BELOW:
+            result["instruction"] = ("The student's marks are BELOW the programme minimum. Lead with the "
+                                     "admission_eligibility explanation: they do not meet the minimum on these "
+                                     "marks. Do not present this fee as a fee they can pay or say they qualify.")
     return result
 
 

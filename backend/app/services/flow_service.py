@@ -124,9 +124,9 @@ def get_wizard_step_from_history(history: list[dict[str, str]], current_message:
         try:
             score_val = float(re.sub(r"[^\d.]", "", extracted_score))
         except ValueError:
-            score_val = 70.0
+            score_val = None
 
-        is_eligible = score_val >= 50.0
+        is_eligible = None  # decided in execute_wizard_step by eligibility.py
         return {
             "flow_name": "admission_wizard",
             "step": 4,
@@ -208,44 +208,36 @@ def execute_wizard_step(step_info: dict) -> tuple[str, dict]:
             f"🧭 **Step 3 of 4: Qualifying Percentage** ({branch})\n\n"
             f"Almost there! What was your 10+2 / Intermediate PCM aggregate percentage (or expected score)?"
         )
-    else:  # step == 4
+    else:  # step == 4: the verdict comes from eligibility.py and fees.py, never from fixed numbers here
+        from app.sru_agent import eligibility, fees
+
         degree = step_info.get("degree", "B.Tech")
-        branch = step_info.get("branch", "CSE")
-        score = step_info.get("score", "your score")
-        is_eligible = step_info.get("is_eligible", True)
+        branch = step_info.get("branch", "")
+        score = str(step_info.get("score", ""))
+        try:
+            score_num = float(re.sub(r"[^\d.]", "", score))
+        except ValueError:
+            score_num = None
+        program_key = fees.find_program(f"{degree} {branch}") or fees.find_program(degree)
+        verdict = eligibility.assess(program_key, score_num) if score_num is not None else {"status": "need_marks"}
+        step_info["is_eligible"] = verdict.get("eligible")
 
-        if is_eligible:
-            score_num = 0.0
-            try:
-                score_num = float(re.sub(r"[^\d.]", "", str(score)))
-            except ValueError:
-                score_num = 75.0
-
-            scholarship_note = (
-                "\n🌟 **Merit Scholarship:** With your score, you qualify for up to a **40% merit tuition waiver**!"
-                if score_num >= 90.0
-                else ""
-            )
-
-            text = (
-                f"🎉 **Instant Admission Verdict: FULLY ELIGIBLE!** (Step 4 of 4)\n\n"
-                f"With **{score}**, you meet and exceed our 50% minimum eligibility cutoff in 10+2 MPC for **{degree} {branch}**!{scholarship_note}\n\n"
-                f"**Personalized Next Steps:**\n"
-                f"1. **Online Application:** Visit [sru.edu.in](https://sru.edu.in) and register your basic details.\n"
-                f"2. **Document Verification:** Upload your 10th and 12th marksheets.\n"
-                f"3. **Seat Allocation & Offer Letter:** Receive your official branch admission letter.\n\n"
-                f"> *Note: Final admission and branch allocation are subject to original document verification and seat availability as per SR University guidelines.*\n\n"
-                f"What would you like to explore next about life at SR University?"
-            )
+        if score_num is None:
+            text = ("📋 **Step 3 of 4: Qualifying Percentage**\n\n"
+                    "I couldn't read your percentage. Please type it as a number, for example 78%.")
+        elif verdict.get("status") in ("unknown_program", "need_marks"):
+            text = (f"📋 **Admission Assessment** (Step 4 of 4)\n\n"
+                    f"I can't verify the eligibility rules for **{degree} {branch}** from the official fee card. "
+                    f"Please check with {eligibility.ADMISSIONS_CONTACT}.")
         else:
-            text = (
-                f"📋 **Admission Assessment: Additional Guidance** (Step 4 of 4)\n\n"
-                f"The standard minimum cutoff for B.Tech is 50% aggregate in 10+2 (MPC). With **{score}**, direct B.Tech admission requires special academic review or alternate pathways:\n\n"
-                f"• **Diploma Lateral Entry:** Join directly into 2nd year after a polytechnic diploma.\n"
-                f"• **Vocational & Certificate Tracks:** Specialized technology programs at SRU.\n"
-                f"• **Admissions Helpdesk:** We encourage you to speak directly with an SRU counsellor for seat guidance.\n\n"
-                f"> *Note: All admissions are subject to document verification and seat availability.*\n\n"
-                f"Would you like details on counsellor contacts or fee structures?"
-            )
+            text = f"📋 **Admission Assessment** (Step 4 of 4)\n\n{eligibility.explain(verdict)}"
+            if verdict["status"] != eligibility.BELOW:
+                sch = fees.scholarship_for(program_key, percent=score_num)
+                if sch["percent"]:
+                    text += (f"\n\n🌟 **Merit scholarship:** {sch['basis_text']} falls in the **{sch['percent']}%** "
+                             f"slab of the 2027-28 fee card (State Board slabs; CBSE slabs differ slightly).")
+                text += ("\n\n**How to apply** (from sru.edu.in/admission): register on https://apply.sru.edu.in, "
+                         "complete the application and upload documents, submit your scores, then accept the offer "
+                         "and pay the fee.")
 
-    return text, step_info
+        return text, step_info

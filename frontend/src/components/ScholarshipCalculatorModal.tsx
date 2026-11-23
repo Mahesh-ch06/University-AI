@@ -446,8 +446,9 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
               <div className="calc-matched-badge below-cutoff">
                 <InfoIcon size={14} />
                 <span>
-                  This course normally needs at least {program.minimum_percent}%. Please confirm your eligibility with
-                  the Admissions Office (833 100 3030) before applying.
+                  {parsed.value as number}% is below the {program.minimum_percent}% minimum for this course on the
+                  2027-28 fee card, so you do not meet the general eligibility on these marks. Please contact the
+                  Admissions Office (833 100 3030) to discuss your options.
                 </span>
               </div>
             )}

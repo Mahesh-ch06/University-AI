@@ -118,7 +118,9 @@ def test_wizard_step_progression():
         "93%",
     )
     assert step4["step"] == 4
-    assert step4["is_eligible"] is True
+    # The verdict comes from eligibility.py when the step is rendered
+    text, info = execute_wizard_step(step4)
+    assert "meets the minimum marks" in text and info["is_eligible"] is not False
 
 
 def test_wizard_completion_prevents_loop():
@@ -168,8 +170,8 @@ def test_calculator_handoff_query_does_not_trigger_wizard():
 
 
 def test_wizard_eligibility_50_percent_cutoff():
-    """Verify 50% minimum MPC cutoff for B.Tech."""
-    # 55% should be eligible (above 50% cutoff)
+    """The wizard uses eligibility.py: below every documented minimum is not eligible, and a score between
+    the fee card's 50% and the programme page's 60% for B.Tech is reported as needing confirmation."""
     step4_55 = get_wizard_step_from_history(
         [
             {"role": "user", "content": "admission wizard"},
@@ -178,7 +180,9 @@ def test_wizard_eligibility_50_percent_cutoff():
         ],
         "55%",
     )
-    assert step4_55["is_eligible"] is True
+    text55, info55 = execute_wizard_step(step4_55)
+    assert info55["is_eligible"] is None
+    assert "list different minimum marks" in text55 and "fully eligible" not in text55.lower()
 
     # 45% should require additional guidance (below 50% cutoff)
     step4_45 = get_wizard_step_from_history(
@@ -189,7 +193,9 @@ def test_wizard_eligibility_50_percent_cutoff():
         ],
         "45%",
     )
-    assert step4_45["is_eligible"] is False
+    text45, info45 = execute_wizard_step(step4_45)
+    assert info45["is_eligible"] is False
+    assert "below the official **50% minimum**" in text45
 
 
 def test_wizard_cancellation():
