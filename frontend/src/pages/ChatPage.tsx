@@ -267,11 +267,19 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     } catch {}
   };
 
+  // "Latest" appears only when the student scrolls UP, away from the newest messages (not while they read a
+  // new answer from its top, which is where a new answer is shown), and goes away near the bottom.
+  const lastScrollTopRef = useRef(0);
   const handleBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const show = fromBottom > 360;
-    setShowJumpToLatest((prev) => (prev === show ? prev : show));
+    const scrolledUp = el.scrollTop < lastScrollTopRef.current - 4;
+    lastScrollTopRef.current = el.scrollTop;
+    setShowJumpToLatest((prev) => {
+      if (fromBottom < 120) return false;
+      if (scrolledUp && fromBottom > 360) return true;
+      return prev;
+    });
   };
 
   const scrollToLatest = (behavior: ScrollBehavior = "auto") => {
@@ -554,9 +562,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       : error
         ? { text: "Setting up...", type: "setting_up" }
         : { text: "Connected", type: "connected" };
-  const visibleMessages = messages.length > visibleMessageCount
-    ? messages.slice(-visibleMessageCount)
+  // While a returning student chooses, the welcome-back panel is the greeting (no second, generic welcome
+  // above it pushing the choice below the fold).
+  const shownMessages = recovery?.mode === "returning"
+    ? messages.filter((m) => m.id !== "welcome-sru-buddy")
     : messages;
+  const visibleMessages = shownMessages.length > visibleMessageCount
+    ? shownMessages.slice(-visibleMessageCount)
+    : shownMessages;
 
   const lastSentUserMsgIdRef = useRef<string | null>(null);
 
@@ -986,7 +999,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
           {/* Body */}
           <div className="sru-widget-body" ref={messagesAreaRef} onScroll={handleBodyScroll}>
-            {messages.length > visibleMessages.length && (
+            {shownMessages.length > visibleMessages.length && (
               <button
                 type="button"
                 onClick={() => setVisibleMessageCount((count) => Math.min(messages.length, count + MESSAGE_RENDER_WINDOW))}
@@ -1004,7 +1017,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 <MessageBubble
                   role={msg.role}
                   content={msg.content}
-                  cards={recovery?.mode === "returning" && msg.id === "welcome-sru-buddy" ? undefined : msg.cards}
+                  cards={msg.cards}
                   suggestions={msg.suggestions}
                   flow={msg.flow}
                   messageId={msg.id}
@@ -1492,7 +1505,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           {!isMinimized && (
             <>
               <div className="sru-widget-body" ref={messagesAreaRef} onScroll={handleBodyScroll}>
-                {messages.length > visibleMessages.length && (
+                {shownMessages.length > visibleMessages.length && (
                   <button
                     type="button"
                     onClick={() => setVisibleMessageCount((count) => Math.min(messages.length, count + MESSAGE_RENDER_WINDOW))}
@@ -1510,7 +1523,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     <MessageBubble
                       role={msg.role}
                       content={msg.content}
-                      cards={recovery?.mode === "returning" && msg.id === "welcome-sru-buddy" ? undefined : msg.cards}
+                      cards={msg.cards}
                       suggestions={msg.suggestions}
                       flow={msg.flow}
                       messageId={msg.id}

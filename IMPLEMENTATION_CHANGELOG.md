@@ -192,3 +192,26 @@ No schema change; no new dependency; SRU-only scope, fee / eligibility engines a
 - **Frontend:** export-to-PDF XSS fixed; widget messages checked; stricter CSP.
 - **Supply chain / infra:** npm audit clean, Dependabot, CI token scope, development services on localhost.
 - Tests: 73 new backend security tests + 7 browser checks; full suite 896 passed (9 known environment failures).
+
+## v4.8.0 (23 Nov 2026): conversation memory, welcome-back choice, chat cards
+
+Full details: `docs/32-chat-memory-and-cards-nov-2026.md`. No fee / eligibility / placement logic or data changed.
+
+- **Memory:**
+  - A student who comes back after 30 minutes (the existing threshold, now on the server) gets an inline
+    "Continue chat / Start a new chat" choice. Sooner, the conversation simply continues.
+  - Continue restores the messages and that conversation's context.
+  - Start a new chat keeps the old conversation (no more deleting the student's details) and starts clean.
+- **Backend:**
+  - The latest *active* conversation is offered; ids are never invented.
+  - The old conversation's details are filed with it and restored when the student goes back to it.
+  - Cards already shown are remembered per conversation.
+- **Cards:**
+  - One card system (`ChatCards.css`): tokens, shell, badges, headings, buttons, container queries.
+  - Fixed: fee figures; a shorter, clearer placement card; hostel, curriculum, videos and form cards; icon
+    wrapping; control fonts.
+- **Chat:** full-width phone panel, opening at the latest message, "Latest" button, resume divider.
+- **Tests:**
+  - backend: 17 new memory tests (real PostgreSQL);
+  - browser: a 24-check memory journey, plus layout at 5 widths;
+  - full suite: 920 passed (8 known failures).

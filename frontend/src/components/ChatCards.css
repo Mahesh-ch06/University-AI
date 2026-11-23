@@ -1,0 +1,581 @@
+/* ==========================================================================
+   Chat card system (v4.8.0)
+
+   One visual language for every card shown inside a conversation. Loaded after Cards.css; rules are scoped
+   to .message-cards-container so the admin page and other surfaces are not affected.
+
+   Why this file exists:
+   * every card already shares .rich-card, but later per-card rules re-styled the shell (coloured top / left
+     stripes, different radii, padding and shadows) so cards looked unrelated;
+   * the global `img, svg { display: block }` (index.css) broke every icon inside an inline badge or button
+     onto its own line ("CAMPUS HOSTELS" with the icon above the text);
+   * footers and buttons used three different layouts (space-between, centred, left);
+   * layouts were tuned to the viewport, but the chat is 400 px wide on a desktop too. Card layouts now follow
+     the width of the conversation itself (container queries).
+
+   Content layouts stay card-specific (fee figures, placement statistics, the academic form...); only the
+   shared language is set here: shell, heading, inner boxes, actions, text wrapping, spacing.
+   ========================================================================== */
+
+:root {
+  --chat-card-radius: 14px;
+  --chat-card-inner-radius: 10px;
+  --chat-card-pad: 14px;
+  --chat-card-gap: 12px;
+  --chat-card-bg: var(--surface-1, #ffffff);
+  --chat-card-inner-bg: #f6f8fc;
+  --chat-card-border: var(--border, #e2e8f0);
+  --chat-card-shadow: 0 1px 2px rgba(0, 50, 110, 0.04), 0 4px 14px rgba(0, 50, 110, 0.05);
+  --chat-card-title: 0.98rem;
+  --chat-card-text: 0.86rem;
+  --chat-card-small: 0.76rem;
+  --chat-card-label: 0.7rem;
+  --chat-card-text-color: var(--text-1, #0a1b3a);
+  --chat-card-muted: var(--text-muted, #64748b);
+  --chat-card-action-h: 36px;
+}
+
+[data-theme="dark"] {
+  --chat-card-bg: var(--surface-1, #111827);
+  --chat-card-inner-bg: rgba(148, 163, 184, 0.08);
+  --chat-card-border: var(--border, #334155);
+  --chat-card-shadow: none;
+}
+
+/* The card column follows the conversation width (phone, 400 px desktop panel, wide page). */
+.message-cards-container {
+  container-type: inline-size;
+  container-name: chatcards;
+  gap: var(--chat-card-gap) !important;
+}
+
+/* Form controls do not inherit the page font by default (browsers use a system font for them): every
+   button, field and select in a conversation uses SRU Buddy's typeface. */
+.message-cards-container :is(button, input, select, textarea),
+.message-bubble-row :is(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+/* ---------- Shell ---------- */
+.message-cards-container .rich-card {
+  margin: 0 !important;
+  padding: var(--chat-card-pad) !important;
+  background: var(--chat-card-bg) !important;
+  border: 1px solid var(--chat-card-border) !important;
+  border-radius: var(--chat-card-radius) !important;
+  box-shadow: var(--chat-card-shadow) !important;
+  color: var(--chat-card-text-color);
+  overflow-wrap: anywhere;
+  transform: none !important;
+}
+
+.message-cards-container .rich-card:hover {
+  box-shadow: var(--chat-card-shadow) !important;
+}
+
+/* ---------- Heading: kicker badge, title, subtitle ---------- */
+.message-cards-container .rich-card .card-header {
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+}
+
+.message-cards-container .rich-card .card-badge {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: var(--chat-card-label) !important;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.message-cards-container .rich-card .card-badge svg,
+.message-cards-container .rich-card h6 svg,
+.message-cards-container .rich-card .hostel-section-title svg,
+.message-cards-container .rich-card button svg,
+.message-cards-container .rich-card a svg {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -2px;
+}
+
+.message-cards-container .rich-card .card-title {
+  font-size: var(--chat-card-title) !important;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--chat-card-text-color);
+}
+
+.message-cards-container .rich-card .card-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--chat-card-muted);
+}
+
+/* Section headings inside cards */
+.message-cards-container .rich-card h6,
+.message-cards-container .rich-card .hostel-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 8px;
+  font-size: var(--chat-card-label);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--chat-card-muted);
+}
+
+/* ---------- Inner boxes (stat tiles, list items, notes) ---------- */
+.message-cards-container .rich-card .agent-fee-stat,
+.message-cards-container .rich-card .placement-stat-box,
+.message-cards-container .rich-card .hostel-room-item,
+.message-cards-container .rich-card .hostel-amenity-card,
+.message-cards-container .rich-card .marquee-offer-item,
+.message-cards-container .rich-card .superstar-card,
+.message-cards-container .rich-card .agent-action-meta,
+.message-cards-container .rich-card .faculty-person {
+  background: var(--chat-card-inner-bg);
+  border: 1px solid var(--chat-card-border);
+  border-radius: var(--chat-card-inner-radius);
+}
+
+/* ---------- Actions: one footer and one button style ---------- */
+.message-cards-container .rich-card .agent-card-footer,
+.message-cards-container .rich-card .hostel-action-buttons {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start !important;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--chat-card-border);
+  text-align: left;
+}
+
+.message-cards-container .rich-card .agent-card-source-tag {
+  flex: 1 1 100%;
+  font-size: var(--chat-card-small);
+  font-style: normal;
+  line-height: 1.45;
+  color: var(--chat-card-muted);
+}
+
+.message-cards-container .rich-card .agent-card-wa-btn,
+.message-cards-container .rich-card .agent-card-map-btn,
+.message-cards-container .rich-card .agent-card-call-btn,
+.message-cards-container .rich-card .agent-contact-pill,
+.message-cards-container .rich-card .hostel-action-btn,
+.message-cards-container .rich-card .card-more-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--chat-card-action-h);
+  padding: 7px 14px !important;
+  border-radius: 10px !important;
+  font: inherit;
+  font-size: 0.8rem !important;
+  font-weight: 650 !important;
+  line-height: 1.2;
+  text-decoration: none;
+  text-align: center;
+  white-space: normal;
+  cursor: pointer;
+  transform: none !important;
+  box-shadow: none !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* secondary (outlined) */
+.message-cards-container .rich-card .agent-card-call-btn,
+.message-cards-container .rich-card .agent-contact-pill,
+.message-cards-container .rich-card .hostel-action-btn,
+.message-cards-container .rich-card .card-more-btn {
+  background: var(--chat-card-bg) !important;
+  color: var(--chat-card-text-color) !important;
+  border: 1px solid var(--chat-card-border) !important;
+}
+
+.message-cards-container .rich-card .agent-card-call-btn:hover,
+.message-cards-container .rich-card .agent-contact-pill:hover,
+.message-cards-container .rich-card .hostel-action-btn:hover,
+.message-cards-container .rich-card .card-more-btn:hover {
+  border-color: var(--primary, #0055a4) !important;
+  color: var(--primary, #0055a4) !important;
+}
+
+/* primary */
+.message-cards-container .rich-card .agent-card-map-btn,
+.message-cards-container .rich-card .agent-contact-pill.primary,
+.message-cards-container .rich-card .hostel-action-btn.fee-btn {
+  background: var(--primary, #0055a4) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--primary, #0055a4) !important;
+}
+
+.message-cards-container .rich-card .agent-card-map-btn:hover,
+.message-cards-container .rich-card .agent-contact-pill.primary:hover,
+.message-cards-container .rich-card .hostel-action-btn.fee-btn:hover {
+  background: var(--primary-hover, #004382) !important;
+  color: #ffffff !important;
+}
+
+/* WhatsApp */
+.message-cards-container .rich-card .agent-card-wa-btn,
+.message-cards-container .rich-card .agent-contact-pill.wa {
+  background: #e9f9ef !important;
+  color: #166534 !important;
+  border: 1px solid #b7ebc9 !important;
+}
+
+.message-cards-container .rich-card .agent-card-wa-btn:hover,
+.message-cards-container .rich-card .agent-contact-pill.wa:hover {
+  background: #d6f5e1 !important;
+}
+
+.message-cards-container .rich-card .card-more-btn {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.message-cards-container .rich-card :is(a, button):focus-visible {
+  outline: 2px solid var(--primary, #0055a4);
+  outline-offset: 2px;
+}
+
+/* ---------- Fee card ---------- */
+.message-cards-container .agent-fee-card .agent-fee-stats-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px;
+  margin: 0;
+}
+
+.message-cards-container .agent-fee-card .agent-fee-stat {
+  padding: 10px 12px;
+  gap: 2px;
+  min-width: 0;
+}
+
+.message-cards-container .agent-fee-card .agent-fee-stat-label {
+  font-size: var(--chat-card-label);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+.message-cards-container .agent-fee-card .agent-fee-stat-val {
+  margin: 2px 0 0;
+  font-size: 1.12rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+.message-cards-container .agent-fee-card .agent-fee-stat-val.bold-emerald {
+  color: #047857;
+}
+
+.message-cards-container .agent-fee-card .agent-fee-stat-sub {
+  font-size: var(--chat-card-small);
+  line-height: 1.35;
+}
+
+@container chatcards (max-width: 250px) {
+  .message-cards-container .agent-fee-card .agent-fee-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Fee tables: amounts in the chat's typeface (tabular figures, not a code font), never split across lines */
+.message-cards-container .fee-table .fee-amount-cell,
+.message-cards-container .fee-table .fee-frequency-cell {
+  font-family: inherit !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.message-cards-container .fee-table .fee-amount-cell {
+  font-weight: 700;
+  color: var(--chat-card-text-color);
+}
+
+/* Notes inside cards (scholarship alert...): the icon keeps its size */
+.message-cards-container .rich-card .card-callout {
+  align-items: flex-start;
+  border-radius: var(--chat-card-inner-radius);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.message-cards-container .rich-card .callout-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  margin-top: 1px;
+}
+
+.message-cards-container .rich-card .callout-icon svg {
+  width: 16px !important;
+  height: 16px !important;
+  max-width: none;
+}
+
+/* ---------- Placement card ---------- */
+.message-cards-container .placement-card .placement-banner-wrapper {
+  margin: 0 0 12px;
+  border-radius: var(--chat-card-inner-radius);
+  overflow: hidden;
+}
+
+.message-cards-container .placement-card .placement-stats-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+.message-cards-container .placement-card .placement-stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start !important;
+  text-align: left !important;
+  gap: 2px;
+  padding: 10px 12px !important;
+  min-width: 0;
+}
+
+.message-cards-container .placement-card .stat-val {
+  font-size: 1.12rem !important;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--primary, #0055a4);
+  font-variant-numeric: tabular-nums;
+}
+
+.message-cards-container .placement-card .stat-lbl {
+  font-size: 0.78rem !important;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--chat-card-text-color);
+}
+
+.message-cards-container .placement-card .stat-sub {
+  font-size: var(--chat-card-small) !important;
+  line-height: 1.3;
+  color: var(--chat-card-muted);
+}
+
+/* The three highest packages: a grid that wraps, never a clipped sideways strip */
+.message-cards-container .placement-card .superstars-showcase-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  scroll-snap-type: none !important;
+}
+
+.message-cards-container .placement-card .superstar-card {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 10px 12px !important;
+  gap: 3px !important;
+}
+
+.message-cards-container .placement-card .superstar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-cards-container .placement-card .superstar-package-pill,
+.message-cards-container .placement-card .marquee-package-tag {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.message-cards-container .placement-card .superstar-name {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.message-cards-container .placement-card .superstar-role,
+.message-cards-container .placement-card .superstar-company,
+.message-cards-container .placement-card .superstar-stipend {
+  font-size: var(--chat-card-small);
+  line-height: 1.35;
+}
+
+.message-cards-container .placement-card .superstar-company,
+.message-cards-container .placement-card .marquee-company-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.message-cards-container .placement-card .marquee-offers-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+}
+
+.message-cards-container .placement-card .marquee-offer-item {
+  padding: 9px 12px !important;
+  min-width: 0;
+}
+
+.message-cards-container .placement-card .marquee-offer-main,
+.message-cards-container .placement-card .marquee-offer-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-cards-container .placement-card .placement-mnc-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@container chatcards (min-width: 520px) {
+  .message-cards-container .placement-card .placement-stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .message-cards-container .placement-card .superstars-showcase-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .message-cards-container .placement-card .marquee-offers-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* ---------- Hostel card ---------- */
+.message-cards-container .hostel-facilities-card .hostel-section {
+  margin-top: 4px;
+}
+
+.message-cards-container .hostel-facilities-card .hostel-rooms-grid,
+.message-cards-container .hostel-facilities-card .hostel-amenities-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+}
+
+.message-cards-container .hostel-facilities-card .hostel-room-item,
+.message-cards-container .hostel-facilities-card .hostel-amenity-card {
+  padding: 9px 12px !important;
+  min-width: 0;
+}
+
+.message-cards-container .hostel-facilities-card .amenity-title {
+  font-size: 0.84rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.message-cards-container .hostel-facilities-card .amenity-desc,
+.message-cards-container .hostel-facilities-card .room-amenities-text {
+  margin: 2px 0 0;
+  font-size: var(--chat-card-small);
+  line-height: 1.4;
+  color: var(--chat-card-muted);
+}
+
+.message-cards-container .hostel-facilities-card .hostel-rules-box {
+  border-radius: var(--chat-card-inner-radius);
+}
+
+@container chatcards (min-width: 480px) {
+  .message-cards-container .hostel-facilities-card .hostel-rooms-grid,
+  .message-cards-container .hostel-facilities-card .hostel-amenities-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* ---------- Curriculum card ---------- */
+.message-cards-container .curriculum-card .curriculum-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.message-cards-container .curriculum-card .curriculum-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.message-cards-container .curriculum-card .tab-credits,
+.message-cards-container .curriculum-card .category-credits {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.message-cards-container .curriculum-card .curriculum-courses {
+  border-radius: var(--chat-card-inner-radius);
+}
+
+/* ---------- Faculty, visit and contact cards ---------- */
+.message-cards-container .agent-action-card .agent-action-msg {
+  font-size: var(--chat-card-text);
+  line-height: 1.5;
+}
+
+.message-cards-container .agent-action-card .agent-action-meta {
+  padding: 9px 12px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.message-cards-container .agent-action-card .agent-contacts-row {
+  margin-top: 2px;
+}
+
+/* ---------- Video card: brand colour only on the YouTube button ---------- */
+.message-cards-container .video-recommendations-card .video-card-header {
+  gap: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.message-cards-container .video-recommendations-card .video-card-header-left {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.message-cards-container .video-recommendations-card .video-card-title {
+  font-size: var(--chat-card-title);
+  line-height: 1.35;
+}
+
+.message-cards-container .video-recommendations-card .channel-link-btn {
+  flex: 0 0 auto;
+  border-radius: 10px;
+}
+
+/* ---------- Selection and form cards ---------- */
+.message-cards-container .counsellor-card .acad-marks-row input {
+  min-width: 0;
+}
+

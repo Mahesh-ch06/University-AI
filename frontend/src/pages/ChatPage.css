@@ -2736,6 +2736,7 @@
     bottom: 0 !important;
     width: 100% !important;
     width: 100vw !important;
+    max-width: 100vw !important; /* the desktop cap (100vw - 32px) left a strip and cut off the close button */
     height: var(--visual-viewport-height, 100dvh) !important;
     max-height: var(--visual-viewport-height, 100dvh) !important;
     border-radius: 0 !important;

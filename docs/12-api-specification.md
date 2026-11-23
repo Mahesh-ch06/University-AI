@@ -19,6 +19,21 @@ POST /api/v1/agent/reset-session
 Returns structured previous conversation context for returning students (Section 4 personalized welcome message, scholarship status, calculated fee waiver, program, board, stage, and relative active time).
 The reset endpoint starts a fresh conversation while preserving verified identity (name, phone) and historical database records.
 
+v4.8.0 additions to `GET /recovery-context`:
+
+| Field | Meaning |
+|---|---|
+| `inactive_minutes` | Minutes since the last message of that conversation (`null` when unknown) |
+| `resume_after_minutes` | The threshold (`RECOVERY_RESUME_AFTER_MINUTES`, 30) |
+| `offer_choice` | `true`: ask "continue or start new". `false`: the conversation simply continues |
+| `last_user_message` | The student's last question (up to 120 characters), shown in the choice |
+
+- The conversation offered is the one with the latest message (not the latest created). `last_active_at` is that
+  message's time.
+- `POST /reset-session` no longer clears the previous conversation's state. It files the academic details with the
+  previous conversation, removes the programme from the active profile, keeps name and mobile, and returns
+  `active_conversation_id` (the previous one) and `new_conversation_id`.
+
 
 ## Feedback
 POST /api/v1/feedback

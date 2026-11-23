@@ -19,6 +19,7 @@ import {
   SruHostelIcon,
 } from "./Icons";
 import "./Cards.css";
+import "./ChatCards.css";
 
 interface CardProps {
   card: any;
@@ -423,6 +424,9 @@ export function PlacementHighlightsCard({ card }: CardProps) {
 
   const topMncs = card.top_mnc_offers || [];
   const marqueeOffers = card.marquee_offers || [];
+  // Long lists are folded so the card stays a readable size in the chat; nothing is dropped.
+  const [showAllOffers, setShowAllOffers] = useState(false);
+  const visibleOffers = showAllOffers ? marqueeOffers : marqueeOffers.slice(0, 3);
 
   return (
     <div className="rich-card placement-card">
@@ -450,7 +454,21 @@ export function PlacementHighlightsCard({ card }: CardProps) {
         </div>
       </div>
 
+      {/* Key Milestone Stats (Non-repetitive university metrics) */}
+      <div className="placement-stats-grid">
+        {stats.map((s: any, idx: number) => (
+          <div key={idx} className="placement-stat-box">
+            <span className="stat-val">{s.value}</span>
+            <span className="stat-lbl">{s.label}</span>
+            {s.note && <span className="stat-sub">{s.note}</span>}
+          </div>
+        ))}
+      </div>
+
       {/* 3 Consecutive Years Superstars Showcase */}
+      <h6 className="placement-mnc-title">
+        <AwardIcon size={13} /> Highest packages, three consecutive years
+      </h6>
       <div className="superstars-showcase-grid">
         {superstars.map((star: any, idx: number) => (
           <div key={idx} className="superstar-card">
@@ -473,25 +491,14 @@ export function PlacementHighlightsCard({ card }: CardProps) {
         ))}
       </div>
 
-      {/* Key Milestone Stats (Non-repetitive university metrics) */}
-      <div className="placement-stats-grid">
-        {stats.map((s: any, idx: number) => (
-          <div key={idx} className="placement-stat-box">
-            <span className="stat-val">{s.value}</span>
-            <span className="stat-lbl">{s.label}</span>
-            {s.note && <span className="stat-sub">{s.note}</span>}
-          </div>
-        ))}
-      </div>
-
       {/* Other Marquee Superstar Achievers */}
       {marqueeOffers.length > 0 && (
         <div className="placement-marquee-section">
           <h6 className="placement-mnc-title">
-            <AwardIcon size={13} /> Other Marquee Superstar Achievers
+            <AwardIcon size={13} /> Other marquee offers
           </h6>
           <div className="marquee-offers-grid">
-            {marqueeOffers.map((m: any, idx: number) => (
+            {visibleOffers.map((m: any, idx: number) => (
               <div key={idx} className="marquee-offer-item">
                 <div className="marquee-offer-main">
                   <span className="marquee-student-name">{m.student}</span>
@@ -506,6 +513,16 @@ export function PlacementHighlightsCard({ card }: CardProps) {
               </div>
             ))}
           </div>
+          {marqueeOffers.length > 3 && (
+            <button
+              type="button"
+              className="card-more-btn"
+              aria-expanded={showAllOffers}
+              onClick={() => setShowAllOffers((v) => !v)}
+            >
+              {showAllOffers ? "Show fewer" : `Show all ${marqueeOffers.length} offers`}
+            </button>
+          )}
         </div>
       )}
 
@@ -1800,7 +1817,7 @@ export function AcademicDetailsFormCard({
               inputMode="decimal"
               min={0}
               step="any"
-              placeholder={isIb ? "e.g. 36" : "Marks obtained"}
+              placeholder={isIb ? "e.g. 36" : "Marks"}
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
             />
