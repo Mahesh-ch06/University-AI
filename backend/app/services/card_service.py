@@ -588,8 +588,8 @@ SRU_ADVANTAGE_CARD = {
         {
             "category": "Research Powerhouse",
             "icon": "🔬",
-            "sru_highlight": "9,300+ research papers in top journals, 2,900+ patents filed, 159 patents granted, and 130+ top 10% globally cited publications. Ranked 6th in India in Research Quality by THE World University Rankings.",
-            "standout": "9,300+ Papers, 2,900+ Patents",
+            "sru_highlight": "9,300+ research papers in top journals, 2,700+ patents filed, 159 patents granted, and 130+ top 10% globally cited publications. Ranked 6th in India in Research Quality by THE World University Rankings.",
+            "standout": "9,300+ Papers, 2,700+ Patents",
         },
         {
             "category": "50-Year Legacy & Ecosystem",

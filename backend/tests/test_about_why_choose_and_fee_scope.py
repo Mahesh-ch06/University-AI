@@ -30,46 +30,42 @@ def test_about_and_why_choose_intent_classification():
         assert intent == "ABOUT_SRU_QUERY", f"Query '{q}' classified as {intent}"
 
 
+def _bullets(answer: str) -> list[str]:
+    return [line for line in answer.splitlines() if line.startswith("• ")]
+
+
 @pytest.mark.asyncio
 async def test_about_sru_bullet_points_and_highlights():
-    """Verify that About SRU output highlights the 5 key pillars in bullet points."""
+    """About SRU (v4.10.0): 2-4 bullets built from the verified facts store, not a fixed text."""
+    from app.sru_agent import fact_service
     events = [e async for e in agent.run_agent("tell me about sru", "test_about_sess_1")]
     done = [e for e in events if e.get("type") == "done"][0]
     answer = done.get("answer", "")
-
-    # 1. Top private university of Telangana and AP
-    assert "Top Private University of Telangana & AP" in answer
-    # 2. Rankings & Accreditations
-    assert "Rankings & Accreditations" in answer
-    assert "NIRF" in answer
-    # 3. Placements & Industry Readiness
-    assert "Placements & Industry Readiness" in answer
-    assert "₹51 LPA" in answer
-    # 4. Global Collaborations
-    assert "Global Collaborations" in answer
-    # 5. Next-Gen Living & Learning Campus
-    assert "Next-Gen Living & Learning Campus" in answer
-
-    # Video recommendations preserved for promotional queries
+    bullets = _bullets(answer)
+    assert 2 <= len(bullets) <= 4
+    shorts = {f.metadata.get("short") for f in fact_service.get_all_facts() if f.metadata.get("short")}
+    assert all(b[2:] in shorts for b in bullets)          # every point is a verified / attributed fact
+    assert "95%" not in answer                            # the unverified draft figure is never used
+    # Video recommendations preserved for promotional queries (once per conversation)
     cards = done.get("cards", [])
     assert any(c.get("type") == "video_recommendations" for c in cards)
 
 
 @pytest.mark.asyncio
 async def test_why_choose_sru_bullet_points_and_highlights():
-    """Verify that Why Choose SRU output highlights the 5 key pillars in bullet points."""
-    events = [e async for e in agent.run_agent("why choose sru", "test_why_sess_1")]
-    done = [e for e in events if e.get("type") == "done"][0]
-    answer = done.get("answer", "")
-
-    assert "Top Private University of Telangana & AP" in answer
-    assert "Rankings" in answer
-    assert "Placements" in answer
-    assert "Global Collaborations" in answer
-    assert "Next-Gen Living & Learning Campus" in answer
-
-    cards = done.get("cards", [])
-    assert any(c.get("type") == "video_recommendations" for c in cards)
+    """Why SRU: verified highlights across aspects; asked again, new points instead of the same text."""
+    sid = "test_why_sess_1"
+    first = [e async for e in agent.run_agent("why choose sru", sid)][-1]
+    assert first["type"] == "done"
+    one = _bullets(first["answer"])
+    assert 3 <= len(one) <= 4
+    assert any(k in first["answer"] for k in ("NIRF", "QS Asia", "THE World", "ICAR"))
+    assert any(k in first["answer"] for k in ("LPA", "Placements"))
+    second = [e async for e in agent.run_agent("why choose sru", sid, first["conversation_id"])][-1]
+    two = _bullets(second["answer"])
+    assert two and not set(one) & set(two)                # nothing repeated
+    assert second["answer"].splitlines()[0] != first["answer"].splitlines()[0]
+    assert not any(c.get("type") == "video_recommendations" for c in second.get("cards", []))
 
 
 @pytest.mark.asyncio

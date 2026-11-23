@@ -35,7 +35,7 @@ No fee, scholarship, eligibility or placement logic or data was changed.
 | Back after 30 minutes, hours, or the next day | The **welcome-back panel**: when, the topic, the last question, the programme. Two buttons: **Continue chat** and **Start a new chat** |
 | Typed a question before choosing | It is shown, and answered after the choice in the chosen conversation |
 | Tab left open for 30+ minutes, then back | The same choice, once, at the end of the conversation |
-| Chose "Start a new chat" earlier | That old conversation is never offered again; the new one continues |
+| Chose "Start a new chat" earlier | That old conversation is never offered again; the new one continues (v4.10.0: in a new session, see docs/33) |
 | The conversation is gone | "That conversation is no longer available." Only "Start a new chat" is offered |
 | Connection dropped while restoring | "I couldn't reach SRU Buddy…" and "Try again"; nothing is lost |
 | Shared computer | "Not Asha?" forgets the name and number and starts a new chat |
@@ -48,7 +48,7 @@ No fee, scholarship, eligibility or placement logic or data was changed.
   - it uses that conversation's academic details (`journey.scope_profile`, with `saved_academic_conv` so they
     survive the cache);
   - a divider marks where it continues.
-- **Start a new chat:**
+- **Start a new chat** (changed in v4.10.0: it now starts a new session; see `docs/33-fresh-answers-and-fee-plans-nov-2026.md`):
   - the old conversation, its messages and its state are kept;
   - its academic details are filed with it and offered as "Use my saved details" (never applied by themselves);
   - the programme is not carried over;

@@ -10,7 +10,7 @@ from . import config
 
 # Change this whenever the wording below changes, so a chat log can be matched to the prompt
 # that produced it (AGENTS.md rule 13: prompts are versioned).
-PROMPT_VERSION = "2026-11-23.2"
+PROMPT_VERSION = "2026-11-23.3"
 
 _HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee",
                        # details from an EARLIER conversation: never used unless the student asks to reuse them
@@ -195,18 +195,16 @@ TRUST RULES
 4. POSITIVE ADVOCACY, RANKINGS & COMPARATIVE RESILIENCE:
    When asked if SRU is #1, ranked best, top tier, or skeptical/comparative queries:
    - NEVER open with a blunt "No", dismissal, or negative concession. Adapt wording dynamically to query.
-   - ALWAYS champion SRU as a premier, top-tier university, leading with verified distinctions:
-     * #1 in Agriculture in Telugu States: First private university across Telangana and Andhra Pradesh with coveted ICAR accreditation.
-     * #6 in India in Research Quality: Times Higher Education 2027 (7th among private universities in India); QS Asia 2027 19th private in India.
-     * Engineering & Innovation: NIRF 2025 #91 in Engineering, Tier-1 NBA, 171+ startups at DST-backed SRiX.
-     * Placements: 100% placement assistance, 150+ recruiters, 1,300+ offers, 6–6.5 LPA avg, peak ₹51 LPA (Microsoft).
-   - Comparisons: Highlight SRU strengths (Sem 1 research & AI, DST incubator, 170-acre campus) without attacking competitors.
+   - ALWAYS champion SRU as a premier, top-tier university, leading with verified distinctions, e.g.
+     #1 in Agriculture in Telugu States (first private university there with ICAR accreditation);
+     #6 in India in Research Quality (Times Higher Education). Take all other figures from
+     VERIFIED FACTS FOR THIS QUESTION below.
+   - Comparisons: Highlight SRU strengths without attacking competitors.
 
-WHY SRU (pick 2-3 points with backing facts)
-- Rankings: NIRF 2025 91st Engineering; THE 2027 7th among private universities in India; QS Asia 2027 19th private in India; first private university in Telangana and Andhra with ICAR accreditation.
-- Placements: 100% placement assistance, 150+ recruiters, 1,300+ offers; avg 6.5 LPA, top 51 LPA Microsoft, 49.30 LPA ServiceNow. Placement Leadership: Head CSSP is Mr. D. Sridhar (stu.cssp@sru.edu.in); Placement Operations is Mr. G. Sunil (SRiX 1st Floor). Never mention GuruCharn Singh or Gurcharan.
-- Scholarships: up to 40% merit waivers from board/JEE/EAPCET/IB, plus 19 special concessions.
-- Research: 171+ startups at SRiX, 9,300+ papers, 2,700+ patents, 340 faculty; UGC 2(f), TS Act 2018, NBA Tier-1, 170-acre campus; {config.APPLY_URL}.
+WHY SRU / RANKINGS / ACHIEVEMENTS: use only VERIFIED FACTS FOR THIS QUESTION (and handbook passages).
+Pick the 2-4 points that fit what was asked; skip points you already gave in this chat; say "as per SRU"
+for items marked so. Not in the facts: say it could not be verified. Never mention GuruCharn Singh or
+Gurcharan (Head CSSP: Mr. D. Sridhar; Placement Operations: Mr. G. Sunil). Apply: {config.APPLY_URL}.
 
 FORMAT (shape follows content): short bullets for lists/options; 1-2 short paragraphs for explanations.
 RESPONSE LENGTH & SCANNABILITY (CRITICAL):

@@ -196,6 +196,9 @@ class ProfileUpdate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=80)
     phone: Optional[str] = Field(default=None, max_length=20)
     program_interest: Optional[str] = Field(default=None, max_length=120)
+    # True when the browser copies its saved contact details into a session started with "Start afresh":
+    # the details are kept for the contact form and callbacks, but the new conversation does not use the name.
+    fresh_start: Optional[bool] = None
 
 
 @router.get("/profile")
@@ -221,6 +224,8 @@ async def update_profile(body: ProfileUpdate):
             raise HTTPException(status_code=503, detail="Could not save right now. Please try again.")
     if body.program_interest:
         await memory.update_profile(body.session_id, program_interest=body.program_interest.strip())
+    if body.fresh_start is not None:
+        await memory.update_profile(body.session_id, address_by_name=not body.fresh_start)
     return {"status": "ok", "profile": memory.public_profile(await memory.get_profile(body.session_id))}
 
 

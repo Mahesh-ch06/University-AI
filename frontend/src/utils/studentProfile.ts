@@ -10,6 +10,7 @@
  * and anything listening to "sru-profile-changed" redraws itself.
  */
 import { API_BASE } from "../services/api";
+import { isFreshSession } from "../hooks/useSession";
 
 export interface StudentDetails {
   name: string;
@@ -85,7 +86,7 @@ export async function fetchServerProfile(sessionId: string): Promise<Record<stri
  */
 export async function saveStudentDetails(
   sessionId: string,
-  details: { name?: string; phone?: string; program_interest?: string },
+  details: { name?: string; phone?: string; program_interest?: string; fresh_start?: boolean },
   invalidateSync = true,
 ): Promise<StudentDetails> {
   if (invalidateSync) profileSyncs.delete(sessionId);
@@ -102,6 +103,7 @@ export async function saveStudentDetails(
         name: name || null,
         phone: phone || null,
         program_interest: details.program_interest || null,
+        ...(details.fresh_start ? { fresh_start: true } : {}),
       }),
     });
     if (res.status === 422) throw new Error("Please enter a valid 10-digit mobile number.");
@@ -114,6 +116,22 @@ export async function saveStudentDetails(
 }
 
 /** "Forget my details": remove them from this browser and from the chat agent's memory. */
+/**
+ * "Start afresh": keep only the contact details this browser needs for the contact form, and drop the
+ * conversation details (programme, open request) so nothing from the old chat reaches the new one.
+ */
+export function keepContactOnly(): void {
+  const current = readStudentDetails();
+  try {
+    if (current?.name || current?.phone) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ name: current.name, phone: current.phone }));
+    }
+  } catch {
+    /* private mode */
+  }
+  window.dispatchEvent(new CustomEvent(PROFILE_EVENT));
+}
+
 export async function forgetStudentDetails(sessionId: string): Promise<void> {
   profileSyncs.delete(sessionId);
   writeLocal(null);
@@ -140,9 +158,17 @@ export async function syncStudentDetails(sessionId: string): Promise<void> {
       if (server.name || server.phone) {
         applyServerProfile(server);
       } else {
+        // Details typed earlier in this browser go to the server, so the contact form is not shown again.
+        // In a session started with "Start afresh" they are marked fresh_start: kept for the contact form
+        // and callbacks, but the new conversation does not address the student by name (and nothing else
+        // from the earlier chat, such as the programme or marks, is sent).
         const local = readStudentDetails();
         if (local?.name && cleanPhone(local.phone)) {
-          await saveStudentDetails(sessionId, { name: local.name, phone: local.phone }, false);
+          await saveStudentDetails(
+            sessionId,
+            { name: local.name, phone: local.phone, ...(isFreshSession(sessionId) ? { fresh_start: true } : {}) },
+            false,
+          );
         }
       }
       succeeded = true;

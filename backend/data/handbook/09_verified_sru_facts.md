@@ -27,7 +27,7 @@
     * **Distinction**: **India’s youngest and only private university in Telangana** to achieve prestigious National and Global Ranks.
   - **Research & Innovation Powerhouse**:
     * **9,300+ Research Papers Published** in peer-reviewed international journals.
-    * **2,900+ Patents Filed** & **159 Patents Granted**.
+    * **2,700+ Patents Filed** & **159 Patents Granted**.
     * **130+ Top 10 Percentile Publications** globally cited.
     * **SR Innovation Exchange (SRiX)**: DST-supported Technology Business Incubator with **171+ startups** and **₹76+ Crore** funding, featuring an open Makerspace.
   - **Academic & Research Infrastructure**: Modern digital classrooms, University Central Library, high-tech labs, industry-grade setups for AI, robotics, innovation hubs, incubation spaces, and project studios supporting prototypes, experiments, and real solutions; 80+ international academic collaborations; Career Guidance Cell.

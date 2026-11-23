@@ -234,3 +234,32 @@ Full details: `docs/32-chat-memory-and-cards-nov-2026.md`. No fee / eligibility 
   - a below-minimum result is not repeated word for word;
   - "Change my academic details" no longer opens the phone-number update;
   - Yes / No chips appear only for real yes / no questions.
+
+## v4.10.0 (23 Nov 2026): start afresh, fresh fact-based answers, relevant chips, concessions table, fee chart
+
+See `docs/33-fresh-answers-and-fee-plans-nov-2026.md`.
+
+- **Start afresh:** a new session ID.
+  - Nothing of the old chat (name use, programme, marks, eligibility, pending steps) can come back.
+  - A reply still in flight is dropped.
+  - The old chat stays saved.
+  - The saved name and number are kept only for the contact form (`fresh_start`).
+- **Fresh answers:**
+  - the 6-hour answer cache is removed;
+  - "Why SRU", "About SRU", rankings, accreditation, research, international links and challenges are built from
+    the verified facts retrieved for the question, and skip facts already given;
+  - fixed overviews are sent once per conversation;
+  - the prompt's fixed WHY SRU list is replaced by the retrieved facts (prompt `2026-11-23.3`).
+- **Knowledge:** the six drafts are broken into structured facts with sources and status (`verified_facts.json`
+  2027-28.2).
+  - Ranking claims were checked against the 2027-28 fee card, THE's profile and press reports.
+  - The 95% placement rate is marked unverified and never used.
+  - Research figures are consistent: 9,300+ papers, 2,700+ patents.
+- **Chips:** relevant only (at most 4). None after a callback or visit request, "thanks" or "bye".
+- **Special concessions:** a selectable table card, then one green "fee with concession" card with the proof note.
+- **Fee chart:** offered after a fee with hostel or transport. A shareable first-year chart (Share, WhatsApp).
+- **Fixes:**
+  - the "Research rankings" option no longer captures any sentence with "the";
+  - "my percentage is 85" and "98 percentile" are read correctly;
+  - no generic fee table next to the student's own fee.
+

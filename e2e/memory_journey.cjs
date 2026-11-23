@@ -106,22 +106,27 @@ async function send(page, text) {
   const fresh = await send(page, 'Tell me about the library');
   check('start new: model got NO earlier turns', /received 0 earlier turn/.test(fresh), fresh.slice(0, 160));
   check('start new: no previous course carried over', !/btech_cse/.test(fresh), fresh.slice(0, 200));
-  const convs = psql(`SELECT count(*) FROM conversations WHERE session_id='${sid}'`);
+  // v4.10.0: "Start a new chat" starts a NEW SESSION (nothing of the old one can come back); the old
+  // conversation stays saved under the old session.
+  const newSid = await page.evaluate(() => localStorage.getItem('university_ai_session_id'));
+  check('start new: a new session ID', newSid && newSid !== sid, `${sid} -> ${newSid}`);
   const oldMsgs = psql(`SELECT count(*) FROM messages WHERE conversation_id='${firstConv}'`);
-  check('start new: old conversation still saved with its messages', convs === '2' && Number(oldMsgs) >= 6, `conversations=${convs} old messages=${oldMsgs}`);
+  const newConvs = psql(`SELECT count(*) FROM conversations WHERE session_id='${newSid}'`);
+  check('start new: old conversation still saved with its messages; new one in the new session',
+    Number(oldMsgs) >= 6 && newConvs === '1', `old messages=${oldMsgs} new-session conversations=${newConvs}`);
   await page.screenshot({ path: `${outdir}/4-new-chat.png` });
   await ctx.close();
 
-  // 6. Reopen soon after: the NEW conversation continues; the old one is not offered
-  ({ ctx, page } = await open(browser, sid));
+  // 6. Reopen soon after (this browser now holds the new session): the NEW conversation continues
+  ({ ctx, page } = await open(browser, newSid));
   await page.waitForTimeout(1500);
   const users = await page.locator('.message-bubble-row.user').allInnerTexts();
   check('reopen: the new conversation continues, old one not offered', users.length === 1 && /library/.test(users[0]) && (await page.locator('.wb-panel').count()) === 0, users.join(' | '));
   await ctx.close();
 
   // 7. Connection drops while restoring: honest error, then retry works
-  age(sid, '3 hours');
-  ({ ctx, page } = await open(browser, sid));
+  age(newSid, '3 hours');
+  ({ ctx, page } = await open(browser, newSid));
   await page.waitForSelector('.wb-panel', { timeout: 8000 });
   await page.route('**/api/v1/conversations/**', (r) => r.abort('internetdisconnected'));
   await page.click('.wb-btn--primary');
