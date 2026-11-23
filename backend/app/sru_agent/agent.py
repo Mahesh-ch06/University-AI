@@ -1914,7 +1914,7 @@ async def run_agent(
     if require_contact_details and not welcome_actions_shown and existing_name and existing_phone:
         await set_state(welcome_actions_shown=True)
         await memory.update_profile(session_id, welcome_actions_shown=True)
-        card_service.record_session_card(session_id, "welcome_actions")
+        card_service.record_session_card(f"{session_id}:{conversation_id or ''}", "welcome_actions")
         first_name = _first_name(existing_name)
         first_name = first_name[:1].upper() + first_name[1:]
         # The quick-action tiles are already on the opening welcome message, so they are not repeated here.
@@ -2182,9 +2182,9 @@ async def run_agent(
         from app.services.card_service import PLACEMENT_EXCELLENCE_CARD, get_session_shown_cards, record_session_card
         reply = _select_variation(_PLACEMENT_ASSISTANCE_RESPONSES, session_id + str(len(history)))
         cards_to_show = []
-        if "placement_highlights" not in get_session_shown_cards(session_id):
+        if "placement_highlights" not in get_session_shown_cards(f"{session_id}:{conversation_id or ''}"):
             cards_to_show = [PLACEMENT_EXCELLENCE_CARD]
-            record_session_card(session_id, "placement_highlights")
+            record_session_card(f"{session_id}:{conversation_id or ''}", "placement_highlights")
         async for ev in _say(reply, message, session_id, conversation_id,
                              cards=cards_to_show,
                              suggestions=_PLACEMENT_ASSISTANCE_CHIPS):
@@ -2220,9 +2220,9 @@ async def run_agent(
     if intent == "SPECIAL_CONCESSIONS_QUERY":
         from app.services.card_service import get_session_shown_cards, record_session_card
         cards_to_show = []
-        if "get_special_concessions" not in get_session_shown_cards(session_id):
+        if "get_special_concessions" not in get_session_shown_cards(f"{session_id}:{conversation_id or ''}"):
             cards_to_show = [{"type": "get_special_concessions", "data": fees.special_concessions()}]
-            record_session_card(session_id, "get_special_concessions")
+            record_session_card(f"{session_id}:{conversation_id or ''}", "get_special_concessions")
         async for ev in _say(_SPECIAL_CONCESSIONS_TEXT, message, session_id, conversation_id,
                              used=[{"name": "get_special_concessions", "status": "ok", "is_action": False}],
                              cards=cards_to_show,
@@ -2248,9 +2248,9 @@ async def run_agent(
     if intent == "OTHER_FEES_QUERY" and (_is_mock_or_test_client(client) or client is None):
         from app.services.card_service import OTHER_FEES_CARD, get_session_shown_cards, record_session_card
         cards_to_show = []
-        if "fee_breakdown" not in get_session_shown_cards(session_id):
+        if "fee_breakdown" not in get_session_shown_cards(f"{session_id}:{conversation_id or ''}"):
             cards_to_show = [OTHER_FEES_CARD]
-            record_session_card(session_id, "fee_breakdown")
+            record_session_card(f"{session_id}:{conversation_id or ''}", "fee_breakdown")
         async for ev in _say(responses._OTHER_FEES_TEXT, message, session_id, conversation_id,
                              cards=cards_to_show,
                              suggestions=responses._OTHER_FEES_CHIPS):
@@ -3352,9 +3352,14 @@ async def run_agent(
             if isinstance(c, dict) and c.get("type"):
                 seen_card_types.add(c["type"])
 
+        # "Already shown" is remembered per CONVERSATION (a new chat may show a card again), and only for
+        # cards that are actually delivered below (a card dropped here must not block it later).
+        from app.services.card_service import get_session_shown_cards
+        card_scope = f"{session_id}:{conversation_id or ''}"
+        shown_before = set(get_session_shown_cards(card_scope))
         contextual_cards = generate_cards(
             user_message=message, answer=final, profile=ctx.get("profile"),
-            session_id=session_id, seen_card_types=seen_card_types,
+            session_id=card_scope, seen_card_types=seen_card_types,
             query_embedding=query_embedding, keyword_videos=True)
         personalised = any(t["name"] in _FEE_TOOLS for t in used)
         has_video_card = any(c.get("type") in ("get_university_videos", "video_recommendations") for c in cards)
@@ -3365,6 +3370,11 @@ async def run_agent(
                 continue  # tool already provided video card; do not duplicate
             if c not in cards:
                 cards.append(c)
+        delivered = {c.get("type") for c in cards if isinstance(c, dict)}
+        shown_now = get_session_shown_cards(card_scope)
+        for card_type in list(shown_now - shown_before):
+            if card_type not in delivered:
+                shown_now.discard(card_type)
     except Exception as card_err:
         log.warning("Could not generate contextual cards for agent: %s", card_err)
 

@@ -1872,16 +1872,42 @@
   border-radius: 4px;
 }
 
-/* Resilient Recovery Card Container inside Widget Body */
-.sru-widget-body .sru-rec-card-mini {
-  position: relative !important;
-  flex-shrink: 0 !important;
-  min-height: fit-content !important;
-  height: auto !important;
-  box-sizing: border-box !important;
-  overflow: visible !important;
-  max-height: none !important;
-  width: 100% !important;
+/* Welcome-back choice and the resume divider inside the chat body: never squeezed by the flex column */
+.sru-widget-body .wb-panel,
+.sru-widget-body .wb-resume-divider {
+  flex-shrink: 0;
+}
+
+/* "Latest" button: appears when the student has scrolled well above the newest message */
+.sru-jump-latest {
+  position: sticky;
+  bottom: 6px;
+  align-self: center;
+  flex-shrink: 0;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: -6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--surface-1, #ffffff);
+  color: var(--primary, #0055a4);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  box-shadow: var(--shadow-md, 0 4px 14px rgba(0, 50, 110, 0.08));
+  cursor: pointer;
+}
+
+.sru-jump-latest svg {
+  display: block;
+}
+
+.sru-jump-latest:focus-visible {
+  outline: 2px solid var(--primary, #0055a4);
+  outline-offset: 2px;
 }
 
 /* ==========================================================================

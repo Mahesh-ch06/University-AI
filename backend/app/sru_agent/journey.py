@@ -92,9 +92,17 @@ async def scope_profile(session_id: str, conversation_id, profile: dict, conv_st
     if current:
         await memory.update_conversation_state(session_id, owner, academic=current)
         profile["saved_academic"] = _compact(current)
+        profile["saved_academic_conv"] = owner
     for k in ACADEMIC_KEYS:
         profile.pop(k, None)
-    profile.update(conv_state.get("academic") or {})
+    own = conv_state.get("academic") or {}
+    if not own and profile.get("saved_academic_conv") == key:
+        # Back in the conversation the saved details came from (its cached state may have expired after a
+        # day): they are this conversation's own details, so they are restored, not merely offered.
+        own = expand(profile.get("saved_academic") or {})
+    profile.update(own)
+    if conv_state.get("program_interest") and not profile.get("program_interest"):
+        profile["program_interest"] = conv_state["program_interest"]  # the programme this chat was about
     profile["academic_conv"] = key
     await memory.replace_profile(session_id, profile)
     return profile

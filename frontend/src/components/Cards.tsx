@@ -18,7 +18,6 @@ import {
   ClockIcon,
   SruHostelIcon,
 } from "./Icons";
-import RecoveryCard from "./RecoveryCard";
 import "./Cards.css";
 
 interface CardProps {
@@ -2262,14 +2261,9 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
 
   switch (card.type) {
     case "session_recovery":
-      return (
-        <RecoveryCard
-          context={card.context || card}
-          onContinue={() => onSelect?.("▶ Continue Previous Chat")}
-          onStartFresh={() => onSelect?.("↺ Start Fresh")}
-          isContinuing={card.isContinuing}
-        />
-      );
+      // Replaced by the welcome-back panel (components/WelcomeBackPanel.tsx); this card was only ever
+      // created in the browser, so nothing saved needs it.
+      return null;
     case "welcome_actions":
       return <WelcomeActionsCard card={card} onSelect={onSelect} />;
     case "academic_details_form":

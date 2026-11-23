@@ -255,9 +255,11 @@ async def test_reset_session_conversation_preserves_lead_identity():
     assert "raw_marks" not in profile
     assert "scholarship_percent" not in profile
 
-    # Verify conversation state was cleared
+    # The old conversation is NOT wiped (v4.8.0): it keeps its state, and the academic details are filed with
+    # it, so continuing it later still knows what was discussed. The new conversation starts clean (above).
     state = await agent_memory.get_conversation_state(session_id, conv_id)
-    assert state == {}
+    assert state["waiting_for"] == "done" and state["counsellor_mode"] is True
+    assert state["academic"]["raw_marks"] == 950
 
 
 @pytest.mark.asyncio

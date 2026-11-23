@@ -5,14 +5,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import async_session_factory
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.schemas.chat import ConversationRecoveryContext, ResetSessionResponse
-from app.sru_agent import memory as agent_memory
+from app.sru_agent import config as agent_config, journey, memory as agent_memory
 
 logger = logging.getLogger(__name__)
 
@@ -83,45 +83,39 @@ async def get_recovery_context(
     profile = await agent_memory.get_profile(session_id)
     student_name = profile.get('name') or None
 
-    conv_row = None
     conv_id_str: Optional[str] = None
     messages_count = 0
     last_active_at: Optional[datetime] = None
     title: Optional[str] = None
     last_assistant_meta: dict = {}
+    last_user_message: Optional[str] = None
 
-    # 1. Try to fetch most recent conversation from PostgreSQL
+    # 1. The conversation this student was most recently ACTIVE in: the one with the latest message.
+    #    (conversations.updated_at is not touched when messages are added, so it cannot be used.)
     async def _inspect_db(session: AsyncSession):
-        nonlocal conv_row, conv_id_str, messages_count, last_active_at, title, last_assistant_meta
+        nonlocal conv_id_str, messages_count, last_active_at, title, last_assistant_meta, last_user_message
+        latest = func.max(Message.created_at).label("latest")
         stmt = (
-            select(Conversation)
+            select(Conversation.id, Conversation.title, latest, func.count(Message.id))
+            .join(Message, Message.conversation_id == Conversation.id)
             .where(Conversation.session_id == session_id)
-            .order_by(desc(Conversation.updated_at))
+            .group_by(Conversation.id, Conversation.title)
+            .order_by(desc(latest))
             .limit(1)
         )
-        res = await session.execute(stmt)
-        conv = res.scalar_one_or_none()
-        if conv:
-            conv_row = conv
-            conv_id_str = str(conv.id)
-            title = conv.title
-            last_active_at = conv.updated_at or conv.created_at
-
-            # Count messages
-            msg_stmt = (
-                select(Message)
-                .where(Message.conversation_id == conv.id)
-                .order_by(desc(Message.created_at))
-            )
-            msg_res = await session.execute(msg_stmt)
-            all_msgs = msg_res.scalars().all()
-            messages_count = len(all_msgs)
-
-            # Find last assistant message metadata for calculation cards
-            for m in all_msgs:
-                if m.role == 'assistant' and m.metadata_:
-                    last_assistant_meta = m.metadata_
-                    break
+        row = (await session.execute(stmt)).first()
+        if not row:
+            return
+        conv_uuid, title, last_active_at, messages_count = row[0], row[1], row[2], int(row[3] or 0)
+        conv_id_str = str(conv_uuid)
+        recent = (await session.execute(
+            select(Message).where(Message.conversation_id == conv_uuid)
+            .order_by(desc(Message.created_at)).limit(12))).scalars().all()
+        for m in recent:
+            if m.role == 'assistant' and m.metadata_ and not last_assistant_meta:
+                last_assistant_meta = m.metadata_
+            if m.role == 'user' and last_user_message is None and (m.content or '').strip():
+                last_user_message = m.content.strip()[:120]
 
     if db is not None:
         try:
@@ -135,39 +129,27 @@ async def get_recovery_context(
         except Exception as e:
             logger.warning('DB session factory unavailable for recovery context: %s', e)
 
-    # 2. Fallback to in-memory / redis history if DB returned nothing or failed
+    # 2. Database unavailable: a conversation still held in the agent's memory can be offered, but only with
+    #    its REAL id (from the memory key). An id is never invented: continuing must reach the same chat.
     if not conv_id_str or messages_count == 0:
-        history = await agent_memory.get_history(session_id)
-        if history:
-            messages_count = len(history)
-            conv_id_str = conv_id_str or str(uuid.uuid4())
-            title = title or (history[0].get('text', '')[:45] if history else 'Chat')
-            last_active_at = datetime.now(timezone.utc)
-        else:
-            # Check in-memory stores for scoped conversations: sru:history:{session_id}:{conv_id}
-            prefix = f"sru:history:{session_id}"
-            found_key = None
-            found_hist = None
-            for store in (getattr(agent_memory, "_hot", {}), getattr(agent_memory, "_local", {})):
-                for k in list(store.keys()):
-                    if k.startswith(prefix) and store.get(k):
-                        raw_val = store[k]
-                        val = raw_val[1] if isinstance(raw_val, tuple) and len(raw_val) > 1 else raw_val
-                        if isinstance(val, list) and len(val) > 0:
-                            found_key = k
-                            found_hist = val
-                            break
-                if found_key:
+        prefix = f"sru:history:{session_id}:"
+        for store in (getattr(agent_memory, "_hot", {}), getattr(agent_memory, "_local", {})):
+            for k in list(store.keys()):
+                if not k.startswith(prefix):
+                    continue
+                raw_val = store.get(k)
+                val = raw_val[1] if isinstance(raw_val, tuple) and len(raw_val) > 1 else raw_val
+                if isinstance(val, list) and val:
+                    conv_id_str = k[len(prefix):]
+                    messages_count = len(val)
+                    first_user = next((h.get('text', '') for h in val if h.get('role') == 'user'), '')
+                    title = title or (first_user[:45] or 'Chat')
+                    last_user_message = next((h.get('text', '')[:120] for h in reversed(val)
+                                              if h.get('role') == 'user'), None)
+                    last_active_at = None  # unknown: the student is asked rather than guessed for
                     break
-            if found_key and found_hist:
-                parts = found_key.split(":")
-                if len(parts) >= 4:
-                    conv_id_str = parts[3]
-                else:
-                    conv_id_str = str(uuid.uuid4())
-                messages_count = len(found_hist)
-                title = title or (found_hist[0].get('text', '')[:45] if found_hist else 'Chat')
-                last_active_at = datetime.now(timezone.utc)
+            if conv_id_str:
+                break
 
     # If still no conversation or zero messages, check if there is an active profile/state
     if not conv_id_str or messages_count == 0:
@@ -314,11 +296,23 @@ async def get_recovery_context(
         topic=topic,
     )
 
+    threshold = max(1, int(agent_config.RECOVERY_RESUME_AFTER_MINUTES))
+    inactive_minutes: Optional[float] = None
+    if last_active_at is not None:
+        stamp = last_active_at if last_active_at.tzinfo else last_active_at.replace(tzinfo=timezone.utc)
+        inactive_minutes = max(0.0, (datetime.now(timezone.utc) - stamp).total_seconds() / 60.0)
+    # Ask only after a real break; when the time is unknown, ask rather than assume.
+    offer_choice = inactive_minutes is None or inactive_minutes >= threshold
+
     return ConversationRecoveryContext(
         has_resumable_conversation=True,
         conversation_id=conv_id_str,
         title=title or topic,
-        last_active_at=last_active_at or datetime.now(timezone.utc),
+        last_active_at=last_active_at,
+        inactive_minutes=round(inactive_minutes, 1) if inactive_minutes is not None else None,
+        resume_after_minutes=threshold,
+        offer_choice=offer_choice,
+        last_user_message=last_user_message,
         student_name=student_name,
         topic=topic,
         program_name=program_name,
@@ -339,39 +333,39 @@ async def reset_session_conversation(
     session_id: str,
     conversation_id: Optional[str] = None,
 ) -> ResetSessionResponse:
-    """Reset active conversation state for a fresh start while preserving verified identity & database records."""
+    """The student chose "Start a new conversation".
+
+    The new conversation starts clean, and nothing of the old one is destroyed:
+      * the old conversation, its messages and its own state stay as they are, so it can be reopened later and
+        still knows what was discussed;
+      * the academic details (board, marks, group, entrance score...) are filed with the old conversation
+        (journey.scope_profile) and kept as a one-tap "Use my saved details" offer, never applied by themselves;
+      * the programme the old conversation was about is not carried into the new one;
+      * the student's own identity (name, mobile number, saved callback requests) is kept: it is not
+        conversation context, and "Forget my details" removes it when the student wants that.
+    """
     if not session_id or not session_id.strip():
         return ResetSessionResponse(session_id='', active_conversation_id=None, new_conversation_id=None)
 
     session_id = session_id.strip()
-
-    # Clear active conversation state in memory & cache
-    await agent_memory.clear_conversation_state(session_id, conversation_id)
-    if conversation_id:
-        await agent_memory.clear_conversation_state(session_id, None)
-
-    # Remove temporary counselling progress keys while retaining verified lead identity (name, phone, email, city)
-    await agent_memory.remove_profile_keys(
-        session_id,
-        'board',
-        'board_label',
-        'board_key',
-        'academic_stage',
-        'stage_label',
-        'raw_marks',
-        'max_marks',
-        'is_projected',
-        'admission_route',
-        'route_label',
-        'scholarship_percent',
-    )
-
     new_conv_id = str(uuid.uuid4())
+
+    profile = await agent_memory.get_profile(session_id)
+    if conversation_id and not profile.get('academic_conv') and journey.snapshot(profile):
+        # Details collected before conversation scoping belong to the conversation being left.
+        profile['academic_conv'] = str(conversation_id)
+    if profile.get('program_interest'):
+        owner = profile.get('academic_conv') or conversation_id
+        if owner:
+            await agent_memory.update_conversation_state(session_id, owner,
+                                                         program_interest=profile.get('program_interest'))
+        profile.pop('program_interest', None)
+    await journey.scope_profile(session_id, new_conv_id, profile, {})
     agent_memory.seed_new_conversation(session_id, new_conv_id)
 
     return ResetSessionResponse(
         status='ok',
         session_id=session_id,
-        active_conversation_id=None,
+        active_conversation_id=conversation_id,
         new_conversation_id=new_conv_id,
     )
