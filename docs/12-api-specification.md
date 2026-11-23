@@ -225,3 +225,16 @@ corrects it on a callback / visit request already saved from that browser. The `
 `POST /api/v1/agent/stream` now carries `profile` (the same object) and the saved message carries
 `cards` and `suggestions`, so a reopened chat looks the same. `POST /api/v1/chat/stream` returns
 429 above 20 messages a minute per session. See `docs/25-audit-round-2-nov-2026.md`.
+
+## Security hardening (v4.7.0, `security/API_SECURITY.md`)
+
+| Change | Contract |
+|---|---|
+| Session IDs | Every endpoint that takes `session_id` (query or body) requires 16-64 characters from `A-Z a-z 0-9 _ -` (the app sends a UUID). Anything else: HTTP 422 |
+| AI-backed turns (`/agent/stream`, `/chat`, `/chat/stream`) | Limits: 20 per minute per session, `AI_IP_RATE_LIMIT_PER_MIN` (40) per minute and `AI_IP_DAILY_LIMIT` (600) per day per network, `AI_DAILY_TURN_BUDGET` (20,000) per day for the server. Over a limit: `/agent/stream` sends an SSE `error` event, `/chat*` return HTTP 429 |
+| Request size | Bodies over `MAX_REQUEST_BYTES` (256 KB; admin document upload: `MAX_UPLOAD_BYTES`, 50 MB) get HTTP 413 before they are read |
+| `GET /api/v1/conversations/{id}` | The `admin_key` query parameter is removed. Staff send `X-Admin-Key`; a wrong key gets 403 / 429 like the admin routes |
+| `POST /api/v1/feedback` | HTTP 404 unless the message belongs to a conversation of the same `session_id` |
+| Admin routes | HTTP 503 while `ADMIN_API_KEY` is the placeholder on a production server (`APP_ENV=production`, on Render, or `APP_DEBUG=false`) |
+| `/docs`, `/openapi.json` | Only on a development machine (`APP_DEBUG=true`, not production) |
+| Errors | Production error messages never name internal services, hosts or ports |

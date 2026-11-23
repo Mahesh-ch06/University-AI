@@ -127,7 +127,7 @@ async def lifespan(fastapi_app: FastAPI):
 app = FastAPI(
     title="University AI Companion",
     description="Conversational AI with RAG and Function-Calling Agent for university knowledge",
-    version="4.6.0",
+    version="4.7.0",
     lifespan=lifespan,
     docs_url="/docs" if security.docs_enabled() else None,
     redoc_url="/redoc" if security.docs_enabled() else None,
