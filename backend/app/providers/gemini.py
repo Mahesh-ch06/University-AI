@@ -147,8 +147,8 @@ class GeminiProvider(LLMProvider):
                         return "".join(p.get("text", "") for p in parts)
                     elif response.status_code in (401, 403, 429, 500, 502):
                         logger.warning(
-                            "Gemini key '%s...' hit HTTP %d on model '%s'. Rotating key.",
-                            active_key[:8],
+                            "Gemini key %s hit HTTP %d on model '%s'. Rotating key.",
+                            self.key_pool.label(active_key),
                             response.status_code,
                             model_name,
                         )
@@ -168,9 +168,9 @@ class GeminiProvider(LLMProvider):
                         response.raise_for_status()
                 except httpx.TimeoutException:
                     logger.warning(
-                        "Gemini model '%s' with key '%s...' timed out. Trying next candidate...",
+                        "Gemini model '%s' with key %s timed out. Trying next candidate...",
                         model_name,
-                        active_key[:8],
+                        self.key_pool.label(active_key),
                     )
                     continue
 
@@ -213,8 +213,8 @@ class GeminiProvider(LLMProvider):
                     ) as response:
                         if response.status_code in (401, 403, 429, 500, 502):
                             logger.warning(
-                                "Gemini stream key '%s...' hit status %d on model '%s'. Rotating key.",
-                                active_key[:8],
+                                "Gemini stream key %s hit status %d on model '%s'. Rotating key.",
+                                self.key_pool.label(active_key),
                                 response.status_code,
                                 model_name,
                             )

@@ -54,3 +54,20 @@ This document defines the production security standards, defense-in-depth archit
 2. **Historical Commits Advisory**: Any secrets that were historically present in git commit `51f8a99` must be rotated immediately in hosting provider configuration dashboards (Render, Neon, Vercel).
 3. **Environment Isolation**: Production environments must provide independent, high-entropy secrets for `ADMIN_API_KEY`, `DATABASE_URL`, and `GEMINI_API_KEYS`.
 
+
+---
+
+## Security audit and hardening, November 2026 (v4.7.0)
+
+The full assessment, threat model, implemented controls, test evidence and remaining risks are in `security/`:
+`SECURITY_AUDIT.md` (findings as found), `THREAT_MODEL.md`, `SECURITY_IMPLEMENTATION.md`, `API_SECURITY.md`,
+`AI_SECURITY.md`, `DATA_PRIVACY.md`, `INCIDENT_RESPONSE.md`, `DEPLOYMENT_SECURITY.md`, `SECURITY_TEST_RESULTS.md`,
+`SECURITY_REMAINING_RISKS.md`.
+
+Corrections to statements above, as verified in that audit:
+- Brute-force limiting previously used the first `X-Forwarded-For` entry (forgeable). It now uses the trusted
+  proxy's view of the client IP (`app/security.py: client_ip`).
+- The chat app previously posted its close message to `"*"` and accepted the registration message from any
+  window; it now posts only when embedded and accepts messages only from the embedding parent.
+- Admin access to a student conversation through the public endpoint was possible with a query parameter (broken,
+  HTTP 500); it is now header-only and checked like the admin routes.

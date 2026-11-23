@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from app.security import SESSION_ID_PATTERN
 
 
 class ChatRequest(BaseModel):
@@ -13,7 +14,7 @@ class ChatRequest(BaseModel):
         None, description="Existing conversation ID, or null to start a new one"
     )
     session_id: str = Field(
-        ..., min_length=1, max_length=64, description="Browser-generated session UUID"
+        ..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN, description="Browser-generated session UUID"
     )
     message: str = Field(
         ..., min_length=1, max_length=4000, description="User message text"
@@ -82,7 +83,7 @@ class ConversationDetail(BaseModel):
 class FeedbackRequest(BaseModel):
     """Feedback on an assistant response."""
 
-    session_id: str = Field(..., min_length=1, max_length=64)
+    session_id: str = Field(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)
     conversation_id: UUID
     message_id: UUID
     rating: int = Field(..., ge=-1, le=1, description="1 for thumbs up, -1 for thumbs down")
@@ -121,7 +122,7 @@ class ConversationRecoveryContext(BaseModel):
 class ResetSessionRequest(BaseModel):
     """Request to reset active conversation state while preserving identity and history."""
 
-    session_id: str = Field(..., min_length=1, max_length=64)
+    session_id: str = Field(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)
     conversation_id: str | None = None
 
 

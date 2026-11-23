@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from app.security import SESSION_ID_PATTERN
 
 
 ALLOWED_MEMORY_KEYS = frozenset(
@@ -12,7 +13,7 @@ ALLOWED_MEMORY_KEYS = frozenset(
 
 
 class MemoryWriteRequest(BaseModel):
-    session_id: str = Field(..., min_length=1, max_length=64)
+    session_id: str = Field(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)
     key: str = Field(..., min_length=1, max_length=64)
     value: str = Field(..., min_length=1, max_length=255)
     consent: bool = Field(
@@ -29,7 +30,7 @@ class MemoryItem(BaseModel):
 
 
 class MemoryDeleteRequest(BaseModel):
-    session_id: str = Field(..., min_length=1, max_length=64)
+    session_id: str = Field(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)
 
 
 class ConversationSummaryResponse(BaseModel):

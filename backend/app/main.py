@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
+from app import security
 from app.config import settings
 from app.schemas.common import ErrorResponse, HealthResponse
 
@@ -35,8 +36,10 @@ async def lifespan(fastapi_app: FastAPI):
         logger.error(
             "ADMIN_API_KEY is still the built-in default. The admin panel (leads, phone numbers, "
             "documents) is %s. Set ADMIN_API_KEY to a long random value in the server environment.",
-            "open to anyone who reads the source code" if settings.APP_DEBUG else "locked until you do",
+            "locked until you do" if security.is_production() else "usable on this development machine only",
         )
+    for warning in security.startup_warnings():
+        logger.warning("SECURITY CONFIGURATION: %s", warning)
 
     # Ensure upload directory exists
     settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -124,11 +127,19 @@ async def lifespan(fastapi_app: FastAPI):
 app = FastAPI(
     title="University AI Companion",
     description="Conversational AI with RAG and Function-Calling Agent for university knowledge",
-    version="4.6.0",
+    version="4.7.0",
     lifespan=lifespan,
-    docs_url="/docs" if settings.APP_DEBUG else None,
-    redoc_url="/redoc" if settings.APP_DEBUG else None,
-    openapi_url="/openapi.json" if settings.APP_DEBUG else None,
+    docs_url="/docs" if security.docs_enabled() else None,
+    redoc_url="/redoc" if security.docs_enabled() else None,
+    openapi_url="/openapi.json" if security.docs_enabled() else None,
+)
+
+# Request size limit (HTTP 413). Added before CORS so the 413 still carries CORS headers.
+app.add_middleware(
+    security.BodySizeLimitMiddleware,
+    default_limit=settings.MAX_REQUEST_BYTES,
+    upload_limit=settings.MAX_UPLOAD_BYTES,
+    upload_paths=("/api/v1/admin/documents",),
 )
 
 # CORS
@@ -168,7 +179,7 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")  # the API is never shown in a frame
-    if not settings.APP_DEBUG:
+    if security.is_production():
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return response
 
@@ -351,7 +362,10 @@ async def agent_knowledge_search(query: str):
 
         docs = results.get("documents", [[]])[0] if results.get("documents") else []
         metas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
-        return [{"title": (m or {}).get("title", ""), "text": d} for d, m in zip(docs, metas)]
+        # Keep the source of every passage (title, type, page, dates, document id) for citation and audit.
+        keep = ("document_type", "page", "effective_date", "publication_date", "document_id")
+        return [{"title": (m or {}).get("title", ""), "text": d, **{k: (m or {}).get(k) for k in keep}}
+                for d, m in zip(docs, metas)]
     except Exception as err:
         logger.warning("agent_knowledge_search fallback on error: %s", err)
         return []

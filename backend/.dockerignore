@@ -5,3 +5,8 @@ __pycache__/
 .env
 .git
 .gitignore
+
+# Never bake local secrets into the image (only *.example files are safe)
+.env.*
+!.env.example
+!.env.production.example

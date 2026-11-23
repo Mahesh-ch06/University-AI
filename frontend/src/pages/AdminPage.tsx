@@ -438,7 +438,8 @@ export default function AdminPage({ onBackToChat }: Props) {
   };
 
   const handleOpenLiveStudentChat = (convId: string) => {
-    const targetUrl = `/?chat=${encodeURIComponent(convId)}&admin_key=${encodeURIComponent(adminKey)}`;
+    // No key in the URL: the new tab (same site) gets this tab's admin sign-in from sessionStorage.
+    const targetUrl = `/?chat=${encodeURIComponent(convId)}`;
     window.open(targetUrl, "_blank");
   };
 
@@ -449,9 +450,10 @@ export default function AdminPage({ onBackToChat }: Props) {
   };
 
   const handleCopyShareableChatLink = (convId: string) => {
-    const link = `${window.location.origin}/?chat=${encodeURIComponent(convId)}&admin_key=${encodeURIComponent(adminKey)}`;
+    // The link never carries the admin key: whoever opens it must be signed in to the admin panel.
+    const link = `${window.location.origin}/?chat=${encodeURIComponent(convId)}`;
     navigator.clipboard.writeText(link);
-    setActionNotice({ text: "🔗 Direct student chat link copied to clipboard!", type: "success" });
+    setActionNotice({ text: "🔗 Chat link copied (opens for signed-in staff only).", type: "success" });
     setTimeout(() => setActionNotice(null), 3000);
   };
 

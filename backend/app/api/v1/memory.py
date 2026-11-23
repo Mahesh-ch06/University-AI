@@ -20,13 +20,14 @@ from app.services.calculation_service import (
     list_session_calculations,
 )
 from app.services.agent_task_service import cancel_pending_task, list_pending_tasks
+from app.security import SESSION_ID_PATTERN
 
 router = APIRouter(prefix="/api/v1/memory", tags=["memory"])
 
 
 @router.get("/pending-tasks", response_model=list[PendingAgentTaskResponse])
 async def get_pending_agent_tasks(
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     db: AsyncSession = Depends(get_db),
 ) -> list[PendingAgentTaskResponse]:
     """Return unfinished clarification tasks owned by this browser session."""
@@ -46,7 +47,7 @@ async def get_pending_agent_tasks(
 @router.delete("/pending-tasks/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_pending_agent_task(
     conversation_id: UUID,
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Cancel a clarification task owned by this browser session."""
@@ -59,7 +60,7 @@ async def cancel_pending_agent_task(
 
 @router.get("/calculations", response_model=list[FinanceCalculationHistoryItem])
 async def get_calculation_history(
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -69,7 +70,7 @@ async def get_calculation_history(
 
 @router.delete("/calculations", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_calculation_history(
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Delete all finance calculation history owned by this browser session."""
@@ -78,7 +79,7 @@ async def delete_calculation_history(
 
 @router.get("", response_model=list[MemoryItem])
 async def get_memory(
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     db: AsyncSession = Depends(get_db),
 ) -> list[MemoryItem]:
     return await memory_service.list_memory(db, session_id)
@@ -107,7 +108,7 @@ async def forget_memory(
 @router.get("/conversations/{conversation_id}/summary", response_model=ConversationSummaryResponse)
 async def get_conversation_summary(
     conversation_id: UUID,
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationSummaryResponse:
     summary = await memory_service.get_summary(db, UUID(conversation_id), session_id)

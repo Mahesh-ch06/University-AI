@@ -310,12 +310,35 @@ def _parse_sources(sources_data: dict | list | None) -> list[SourceReference] | 
     return [SourceReference(**s) for s in sources_data]
 
 
+async def _owns_message(
+    db: AsyncSession, session_id: str, conversation_id: uuid.UUID, message_id: uuid.UUID
+) -> bool:
+    """True only when the message is in that conversation AND the conversation belongs to this session."""
+    stmt = (
+        select(Message.id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+            Conversation.session_id == session_id,
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none() is not None
+
+
 async def create_feedback(
     db: AsyncSession,
     request: FeedbackRequest,
     embeddings: object | None = None,
-) -> FeedbackResponse:
-    """Store user feedback for a message and update self-improvement exemplar store."""
+) -> FeedbackResponse | None:
+    """Store user feedback for a message and update self-improvement exemplar store.
+
+    Returns None (the route answers 404) when the message is not in one of the caller's own
+    conversations: nobody can rate, or remove the verified exemplar of, another student's answer.
+    """
+    if not await _owns_message(db, request.session_id, request.conversation_id, request.message_id):
+        return None
     feedback = Feedback(
         session_id=request.session_id,
         conversation_id=request.conversation_id,

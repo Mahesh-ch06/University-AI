@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import security
 from app.db.session import get_db
 from app.schemas.lead import LeadCreate, LeadResponse
 from app.services import lead_service
@@ -19,10 +20,8 @@ LEADS_PER_MINUTE = 30
 
 
 def _client_address(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()[:64]
-    return (request.client.host if request.client else "unknown")[:64]
+    """The caller's network, as seen by the trusted proxy (a forged X-Forwarded-For does not change it)."""
+    return security.ip_bucket(request)
 
 
 @router.post(

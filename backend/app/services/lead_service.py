@@ -164,7 +164,9 @@ async def create_lead(db: AsyncSession, data: LeadCreate) -> ProspectiveLead:
     db.add(lead)
     await db.commit()
     await db.refresh(lead)
-    logger.info("Captured prospective lead: %s (%s) for %s from %s", lead.name, lead.phone, lead.program_interest, lead.source)
+    # No name or full mobile number in application logs (personal data); the lead id is enough to find it.
+    logger.info("Captured prospective lead %s (mobile ending %s) for %s from %s", lead.id,
+                (lead.phone or "")[-4:], lead.program_interest, lead.source)
     return lead
 
 

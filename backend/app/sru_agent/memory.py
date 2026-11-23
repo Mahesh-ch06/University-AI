@@ -355,6 +355,28 @@ async def allow_request(session_id: str, limit: int | None = None) -> bool:
     return count <= limit
 
 
+async def allow_in_window(name: str, limit: int, window_seconds: int) -> bool:
+    """Fixed-window counter: at most `limit` events per `window_seconds` for `name`.
+    Used for the per-IP and whole-server AI limits (see app/security.py). Shared through Redis when
+    available, otherwise counted in this process."""
+    window = int(time.time() // window_seconds)
+    key = f"sru:win:{window_seconds}:{name}:{window}"
+    r = None if config.AGENT_LOCAL_CACHE else _client()
+    if r:
+        try:
+            count = await r.incr(key)
+            if count == 1:
+                await r.expire(key, window_seconds + 60)
+            return count <= limit
+        except Exception:
+            pass
+    item = _local.get(key)
+    count = (item[1] if item else 0) + 1
+    _local[key] = (time.time() + window_seconds + 60, count)
+    _sweep()
+    return count <= limit
+
+
 async def remove_profile_keys(session_id: str, *keys) -> dict:
     """Forget specific facts about a student (update_profile only ever adds)."""
     profile = await get_profile(session_id)

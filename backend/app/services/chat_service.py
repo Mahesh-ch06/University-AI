@@ -583,6 +583,9 @@ async def handle_chat(
 
     # Sanitize any personal staff mobile numbers from output
     answer = sanitize_staff_contact_numbers(answer)
+    # Never return leaked instructions or secret-shaped strings (same guard as the agent)
+    from app.sru_agent import ai_guard
+    answer = ai_guard.guard_reply(answer)
 
     # 7. Save assistant message with metadata
     assistant_msg = await conversation_service.add_message(
@@ -1113,6 +1116,8 @@ async def handle_chat_stream(
 
         # Sanitize any personal staff mobile numbers from output
         answer = sanitize_staff_contact_numbers(answer)
+        from app.sru_agent import ai_guard
+        answer = ai_guard.guard_reply(answer)
 
         # Save to database
         assistant_msg = await conversation_service.add_message(

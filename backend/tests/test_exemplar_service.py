@@ -75,14 +75,16 @@ async def test_create_feedback_does_not_auto_promote_exemplar(mock_embedding_pro
     mock_db.flush = AsyncMock(side_effect=mock_flush)
 
     request = FeedbackRequest(
-        session_id="test-session",
+        session_id="test-session-0001",
         conversation_id=uuid.uuid4(),
         message_id=uuid.uuid4(),
         rating=1,
         comment="Great answer!",
     )
 
-    with patch("app.services.exemplar_service.ExemplarService.register_exemplar") as mock_register:
+    # The message belongs to the caller (ownership is tested in test_security_api.py).
+    with patch("app.services.conversation_service._owns_message", AsyncMock(return_value=True)), \
+         patch("app.services.exemplar_service.ExemplarService.register_exemplar") as mock_register:
         response = await create_feedback(mock_db, request, embeddings=mock_embedding_provider)
         assert response.status == "received"
         # register_exemplar should NOT have been called

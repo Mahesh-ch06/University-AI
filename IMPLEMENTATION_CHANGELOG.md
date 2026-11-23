@@ -176,3 +176,19 @@ Full details: `docs/27-admissions-brief-nov-2026.md`. Gemini API unchanged; fee 
   to start a new chat, chat saved after the answer, Gemini streaming, MINIMAL thinking, shorter
   retries. Measured: first word for "hi" 2.9 s -> 0.9 s; 1-second AI answer complete 3.3 s -> 1.0 s.
 - Tests: 511 passed with PostgreSQL; 3,477 fee calculator checks.
+
+## v4.7.0 (23 Nov 2026): security audit and hardening
+
+Full details: `security/` (assessment, threat model, implementation, test results, remaining risks).
+No schema change; no new dependency; SRU-only scope, fee / eligibility engines and the accuracy disclaimer unchanged.
+
+- **Admin:** placeholder key refused on any production server (APP_ENV / Render / debug off); `/docs` hidden there;
+  admin key only in the `X-Admin-Key` header (never in URLs); brute-force limit on the trusted client IP; audit log.
+- **Abuse limits:** per-network minute / day limits and a server daily budget for AI turns; 16-64 character session
+  IDs; 413 for oversized bodies; feedback only on your own messages; CORS no longer open to every `*.vercel.app`.
+- **AI:** knowledge passages with embedded instructions dropped; passages carry their source; prompt rule that
+  documents are data (prompt `2026-11-23.1`); the model sees only the last 4 digits of the mobile; answers leaking
+  prompt lines or secret-shaped strings replaced.
+- **Frontend:** export-to-PDF XSS fixed; widget messages checked; stricter CSP.
+- **Supply chain / infra:** npm audit clean, Dependabot, CI token scope, development services on localhost.
+- Tests: 73 new backend security tests + 7 browser checks; full suite 896 passed (9 known environment failures).

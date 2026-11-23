@@ -33,6 +33,13 @@ class APIKeyPool:
     def __len__(self) -> int:
         return len(self.keys)
 
+    def label(self, key: str) -> str:
+        """A log-safe name for a key ("#2"): no part of the secret ever goes into logs."""
+        try:
+            return f"#{self.keys.index(key) + 1}"
+        except ValueError:
+            return "#?"
+
     def get_current_key(self) -> str:
         """Return the current active key without advancing the round-robin counter."""
         return self.get_next_key(advance=False)
@@ -60,9 +67,9 @@ class APIKeyPool:
         earliest_key = min(self.keys, key=lambda k: self._cooldowns.get(k, 0.0))
         remaining = max(0.0, self._cooldowns.get(earliest_key, 0.0) - now)
         logger.warning(
-            "All %d API keys in pool are in cooldown. Using key with earliest recovery (%s..., ~%.1fs left).",
+            "All %d API keys in pool are in cooldown. Using key with earliest recovery (%s, ~%.1fs left).",
             n,
-            earliest_key[:8],
+            self.label(earliest_key),
             remaining,
         )
         if advance:
@@ -78,8 +85,8 @@ class APIKeyPool:
         expiry = time.time() + duration
         self._cooldowns[key] = expiry
         logger.warning(
-            "API key '%s...' hit rate limit / quota (429/403). Cooldown set for %.1fs. Rotating to next key.",
-            key[:8],
+            "API key %s hit rate limit / quota (429/403). Cooldown set for %.1fs. Rotating to next key.",
+            self.label(key),
             duration,
         )
         return self.get_next_key(advance=True)
