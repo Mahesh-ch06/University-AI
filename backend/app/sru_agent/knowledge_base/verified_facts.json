@@ -205,13 +205,13 @@
       "fact_id": "fact.admissions.eligibility_and_guarantee_policy",
       "category": "admissions",
       "academic_year": "2027-28",
-      "statement": "Minimum eligibility for B.Tech programs is 50% aggregate marks in 10+2 / Intermediate PCM/B. Admission is strictly merit-based, subject to seat availability and certificate verification. SR University never guarantees or reserves seats unconditionally for any score.",
-      "source": "Admissions Regulations Handbook 2027-28",
+      "statement": "B.Tech minimum marks differ between official sources: the 2027-28 fee card lists standard fees from 50% in 10+2 / Intermediate with MPC (CSE and ECE fees from 55%), while the 2026-27 B.Tech programme pages list 60% in 10+2 PCM. Until the Admissions Office confirms the 2027-28 minimum, scores in between are reported as needing confirmation; below 50% does not meet any listed minimum. Admission is merit-based, subject to seat availability and certificate verification. SR University never guarantees or reserves seats unconditionally for any score.",
+      "source": "2027-28 fee card and sru.edu.in B.Tech programme pages (2026-27); conflict recorded in fees_2027_28.json",
       "verification_status": "verified",
       "valid_from": "2026-10-01",
       "valid_until": "2027-10-31",
       "last_audited": "2026-11-22",
-      "metadata": { "btech_min_percent": 50.0, "seat_guarantee": false }
+      "metadata": { "btech_min_percent_fee_card": 50.0, "btech_fee_band_cse_ece": 55.0, "btech_min_percent_programme_page": 60.0, "conflict": true, "seat_guarantee": false }
     },
     {
       "fact_id": "fact.leadership.placement_officers",

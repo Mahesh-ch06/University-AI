@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { WELCOME_QUICK_ACTIONS } from "../data/welcomeQuickActions";
 import {
   ScaleIcon,
   TargetIcon,
@@ -107,7 +108,8 @@ export function FeeBreakdownCard({ card }: CardProps) {
             <AwardIcon size={15} />
           </span>
           <div>
-            <strong>Merit Scholarship Alert:</strong> {card.scholarship_note}
+            <strong>{card.note_label || (/scholarship|waiver/i.test(String(card.scholarship_note)) ? "Merit Scholarship Alert" : "Note")}:</strong>{" "}
+            {card.scholarship_note}
           </div>
         </div>
       )}
@@ -1731,7 +1733,7 @@ export function CounsellorMarksCard({ card, onSelect }: { card: any; onSelect?: 
     <div className="rich-card counsellor-card counsellor-marks-card">
       <div className="counsellor-card-header">
         <span className="card-badge counsellor-step-badge">
-          <AwardIcon size={13} /> Step 3: Academic Marks
+          <AwardIcon size={13} /> {card.step_label || "Step 3: Academic Marks"}
         </span>
         <h4 className="card-title counsellor-title">{card.title}</h4>
         {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
@@ -1809,7 +1811,7 @@ export function CounsellorRouteCard({ card, onSelect }: { card: any; onSelect?: 
     <div className="rich-card counsellor-card counsellor-route-card">
       <div className="counsellor-card-header">
         <span className="card-badge counsellor-step-badge">
-          <SparklesIcon size={13} /> Step 4: Admission Route
+          <SparklesIcon size={13} /> {card.step_label || "Step 5: Admission Route"}
         </span>
         <h4 className="card-title counsellor-title">{card.title}</h4>
         {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
@@ -1877,40 +1879,7 @@ export function CounsellorProgramCard({ card, onSelect }: { card: any; onSelect?
 export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
 
-  const items = card.items || [
-    {
-      id: "explore_programs",
-      icon: "graduation-cap",
-      color: "blue",
-      title: "Explore Programs",
-      subtitle: "Find your preferred course",
-      prompt: "Explore programs offered at SR University",
-    },
-    {
-      id: "calculate_scholarship",
-      icon: "calculator",
-      color: "green",
-      title: "Calculate Scholarship",
-      subtitle: "Check your scholarship eligibility",
-      prompt: "Calculate my scholarship",
-    },
-    {
-      id: "fee_structure",
-      icon: "wallet",
-      color: "purple",
-      title: "Fee Structure",
-      subtitle: "Understand course fees",
-      prompt: "What is the fee structure for 2027-28?",
-    },
-    {
-      id: "campus_admissions",
-      icon: "building",
-      color: "amber",
-      title: "Campus & Admissions",
-      subtitle: "Explore campus and admission process",
-      prompt: "Tell me about campus facilities and admission process",
-    },
-  ];
+  const items = card.items || WELCOME_QUICK_ACTIONS;
 
   const handleClick = (prompt: string) => {
     setSelectedPrompt(prompt);
@@ -1942,6 +1911,21 @@ export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (
             <line x1="2" y1="10" x2="22" y2="10" />
           </svg>
         );
+      case "briefcase":
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="7" width="20" height="14" rx="2" />
+            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+            <line x1="2" y1="13" x2="22" y2="13" />
+          </svg>
+        );
+      case "send":
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+        );
       case "building":
       default:
         return (
@@ -1959,6 +1943,7 @@ export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (
 
   return (
     <div className="welcome-actions-card-wrapper">
+      {card.heading && <div className="welcome-actions-heading">{card.heading}</div>}
       <div className="welcome-actions-grid">
         {items.map((item: any) => {
           const isSelected = selectedPrompt === item.prompt;
@@ -1970,8 +1955,11 @@ export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (
               className={`welcome-action-tile tile-${item.color || "blue"} ${isSelected ? "selected" : ""} ${isDimmed ? "dimmed" : ""}`}
               onClick={() => handleClick(item.prompt)}
             >
-              <div className={`welcome-action-icon-box icon-box-${item.color || "blue"}`}>
-                {renderIcon(item.icon)}
+              <div className="welcome-action-top">
+                <div className={`welcome-action-icon-box icon-box-${item.color || "blue"}`}>
+                  {renderIcon(item.icon)}
+                </div>
+                {item.badge && <span className={`welcome-action-badge badge-${item.color || "blue"}`}>{item.badge}</span>}
               </div>
               <div className="welcome-action-info">
                 <span className="welcome-action-title">{item.title}</span>

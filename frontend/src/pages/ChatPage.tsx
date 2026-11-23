@@ -5,6 +5,7 @@ import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
 import { applyServerProfile, cleanPhone, forgetStudentDetails, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import { deduplicateCards } from "../components/Cards";
+import { WELCOME_QUICK_ACTIONS } from "../data/welcomeQuickActions";
 import RecoveryCard from "../components/RecoveryCard";
 import {
   sendMessageStream,
@@ -15,7 +16,7 @@ import {
   type MessageData,
   type ChatResponse,
 } from "../services/api";
-import { playChime, triggerConfetti, isEligibleResponse } from "../utils/effects";
+import { playChime, triggerConfetti, isEligibleResponse, claimEligibilityCelebration } from "../utils/effects";
 import { APP_VERSION } from "../version";
 import "./ChatPage.css";
 
@@ -44,28 +45,20 @@ const LOCKED_WELCOME_CONTENT =
   "Which program are you interested in? I’ll guide you on eligibility, fees, scholarships and campus life.\n\n" +
   "🌐 Ask in English, हिंदी, తెలుగు or any language.";
 
-const LOCKED_WELCOME_SUGGESTIONS = [
-  "B.Tech programmes offered",
-  "Calculate my scholarship",
-  "Hostel fees & facilities",
-  "How to apply for 2027-28",
-];
-
-const WELCOME_VARIANTS: Array<{ content: string; suggestions: string[] }> = [
-  {
-    content: LOCKED_WELCOME_CONTENT,
-    suggestions: LOCKED_WELCOME_SUGGESTIONS,
-  },
-];
+// Quick-action tiles (with an incentive badge each) shown under the welcome text instead of plain chips.
+const WELCOME_QUICK_ACTIONS_CARD = {
+  type: "welcome_actions",
+  heading: "⚡ Quick start",
+  items: WELCOME_QUICK_ACTIONS,
+};
 
 export function getInitialWelcomeMessage(_seed: string = ""): MessageData {
-  const v = WELCOME_VARIANTS[0];
   return {
     id: "welcome-sru-buddy",
     role: "assistant",
-    content: v.content,
+    content: LOCKED_WELCOME_CONTENT,
     created_at: new Date().toISOString(),
-    suggestions: v.suggestions,
+    cards: [WELCOME_QUICK_ACTIONS_CARD],
   };
 }
 
@@ -661,7 +654,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         applyServerProfile(data.profile);
         playChime();
 
-        if (isEligibleResponse(data)) {
+        if (isEligibleResponse(data) && claimEligibilityCelebration(sessionId)) {
           triggerConfetti();
         }
 
@@ -1035,6 +1028,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </button>
             </form>
 
+            <div className="sru-response-disclaimer" role="note">
+              May contain inaccuracies. Verify with official university sources.
+            </div>
             <div className="sru-widget-watermark">
               <span className="sru-watermark-version">v{APP_VERSION}</span>
               <span className="sru-watermark-dot">•</span>
@@ -1574,7 +1570,10 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   </button>
                 </form>
 
-                <div className="sru-widget-watermark">
+                <div className="sru-response-disclaimer" role="note">
+              May contain inaccuracies. Verify with official university sources.
+            </div>
+            <div className="sru-widget-watermark">
                   <span className="sru-watermark-version">v{APP_VERSION}</span>
                   <span className="sru-watermark-dot">•</span>
                   <span className="sru-watermark-text">powered by</span>

@@ -59,12 +59,11 @@
 ## 2. Undergraduate (B.Tech) Admissions & Eligibility Criteria
 
 - **[FACT-ID: ADM-001] [STATUS: VERIFIED] [SOURCE: 08_admissions_fees_scholarships_and_eligibility.md]**
-  - **Minimum Eligibility Threshold**: Minimum **50% aggregate marks** in 10+2 / Intermediate PCM (Physics, Chemistry, Mathematics).
-  - **State Board Marks Equivalent**: In 1000-mark systems (TS BIE / AP BIE), minimum **500 marks out of 1000** is required.
-  - **Strict Cutoff Rule**:
-    - 50% (500 marks), 52%, 58%, 60%, 61%: **Fully Eligible** (the cutoff is 50%, NOT 60%; never state that 58% or 61% is "shy of" or "short of" the cutoff).
-    - Under 50% (e.g. under 500 marks): Falls below the published cutoff; applicants are encouraged to contact the admissions desk for alternative academic options.
-  - **Branch Uniformity**: Applies uniformly to B.Tech CSE, AI&ML, Data Science, Cyber Security, ECE, EEE, and Mechanical Engineering.
+  - **Minimum marks (sources differ, pending confirmation)**: The 2027-28 fee card lists standard fees from **50%** in 10+2 / Intermediate with MPC (fees for **CSE and ECE from 55%**). The university's 2026-27 B.Tech programme pages list **60%** in 10+2 PCM plus JEE Main / a state entrance (or sports / cultural merit). Until the Admissions Office confirms the 2027-28 minimum, a score between these values must be reported as **needing confirmation**, never as eligible or not eligible.
+  - **Below 50%** (for example under 500 out of 1000): below the lowest minimum in any official source, so the student does not meet the general eligibility on those marks. No alternative pathway is documented; refer the student to the Admissions Office.
+  - **How the percentage is worked out**: marks obtained / total marks x 100 (230 out of 1000 = 23%). Never assume the total; ask for it.
+  - **Admission eligibility is separate from scholarship eligibility** (merit slabs start at 60%).
+  - **Branch differences**: the fee card's 55% fee band applies to CSE (incl. AI&ML, Data Science, Cyber Security) and ECE only.
   - **Direct / Management Quota**: Admission is based on 10+2 marks and seat availability. Entrance ranks determine merit scholarship slabs.
   - **Official Admissions Contacts**: Admissions: **833 100 3030**, Campus Visit: **833 100 4040**, Email: `admissions@sru.edu.in` / `info@sru.edu.in`, Portal: `https://apply.sru.edu.in`.
 

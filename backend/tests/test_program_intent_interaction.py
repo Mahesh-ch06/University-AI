@@ -133,13 +133,13 @@ async def test_eligibility_criteria_response():
     done = [e for e in events if e["type"] == "done"][0]
     answer = done["answer"]
 
-    assert "Admission Eligibility Criteria at SR University" in answer
-    assert "60% aggregate marks" in answer
+    # Built from the data file: both sources shown where they differ, never one picked as confirmed
+    assert "Admission eligibility at SR University" in answer
+    assert "50% (2027-28 fee card)" in answer and "60% (university's programme page (2026-27))" in answer
     assert "MPC" in answer
-    # Binary question at end of eligibility response yields Yes/No + fixed chips
-    assert "Yes" in done["suggestions"]
-    assert "No" in done["suggestions"]
-    assert len(done["suggestions"]) == 4
+    # Then one question: which programme
+    assert "Which programme are you interested in?" in answer
+    assert 1 <= len(done["suggestions"]) <= 4
 
 
 @pytest.mark.asyncio
@@ -163,8 +163,12 @@ async def test_placements_for_this_branch_response():
     intent = classify_agent_intent(prompt)
     assert intent == "PLACEMENT_GUARANTEE_QUERY"
 
+    # No branch discussed yet: "this branch" is unknown, so ask which programme instead of guessing
     events = [e async for e in run_agent(prompt, "test-placements-branch-session", client=DummyClient())]
     done = [e for e in events if e["type"] == "done"][0]
-    cards = done.get("cards", [])
+    assert "Which programme" in done["answer"]
 
-    assert any(c.get("type") == "placement_highlights" for c in cards)
+    # With a branch in the conversation, the placements question is about that branch
+    from app.sru_agent import dialogue
+    r = dialogue.decide(prompt, {"dialogue": {"program": "btech_cse"}}, {})
+    assert r["kind"] == "rewrite" and "B.Tech Computer Science & Engineering (CSE)" in r["message"]

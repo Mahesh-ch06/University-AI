@@ -154,15 +154,24 @@ async def ensure_exemplars_seeded():
         if not collection:
             return
 
-        # Foundational B.Tech eligibility exemplar (50% cutoff)
+        # Foundational B.Tech eligibility exemplar (minimums as listed by each official source)
         q1 = "What is the eligibility criteria and admission process for B.Tech?"
         match1 = await svc.find_matching_exemplar(q1, distance_threshold=0.20)
+        if match1 and "minimum of 50% aggregate marks in Mathematics" in (match1.get("answer") or ""):
+            # Retire the old exemplar that stated a single 50% cutoff as fact (the sources disagree).
+            try:
+                collection.delete(where={"answer": match1["answer"]})
+                match1 = None
+            except Exception as exc:  # never block start-up on this
+                logger.warning("Could not retire the outdated eligibility exemplar: %s", exc)
         if not match1:
             ans1 = (
-                "To join our B.Tech program, you need to have passed your 10+2 or equivalent examination with "
-                "a minimum of 50% aggregate marks in Mathematics, Physics, and Chemistry (MPC). We offer admissions based "
-                "on board marks as well as JEE Main and TG EAPCET ranks.\n\n"
-                "To help confirm your eligibility and merit scholarship slab, could you please share your 10+2 MPC percentage?"
+                "B.Tech needs 10+2 / Intermediate with Mathematics, Physics and Chemistry (MPC). The minimum marks "
+                "differ between official sources: the 2027-28 fee card lists fees from 50% (CSE / ECE from 55%), while "
+                "the 2026-27 programme pages list 60% in PCM, so the Admissions Office confirms scores in between.\n\n"
+                "To apply: register at https://apply.sru.edu.in, complete the application and upload documents, submit "
+                "your JEE Main / EAPCET result where available, then accept the offer and pay the fee.\n\n"
+                "Which branch are you interested in, and what are your 10+2 marks? I'll check your eligibility."
             )
             await svc.register_exemplar(uuid.uuid4(), q1, ans1)
 

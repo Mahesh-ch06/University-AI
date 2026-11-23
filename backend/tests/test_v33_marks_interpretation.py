@@ -17,8 +17,8 @@ def test_bare_890_prompts_for_confirmation_of_max_marks():
     intake = {"program": "btech_cse", "board": "state_board", "waiting_for": "percent", "turns": 1}
     res = fee_intake.decide("890", {}, intake)
     assert res["action"] == "ask"
-    assert "890 marks" in res["text"]
-    assert "confirm your maximum/total marks" in res["text"].lower() or "confirm your maximum" in res["text"].lower()
+    assert "out of how many total marks is **890**" in res["text"].lower()
+    assert "%" not in res["text"].split("?")[0]  # no percentage worked out from an assumed total
     assert res["state"]["waiting_for"] == "marks_max"
     assert res["state"]["pending_raw_marks"] == 890
 

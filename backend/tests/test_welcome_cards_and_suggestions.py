@@ -67,45 +67,51 @@ def test_welcome_actions_card_structure():
     assert card["type"] == "welcome_actions"
     assert len(card["items"]) == 4
     titles = [item["title"] for item in card["items"]]
-    assert "Explore Programs" in titles
-    assert "Calculate Scholarship" in titles
-    assert "Fee Structure" in titles
-    assert "Campus & Admissions" in titles
-
+    assert titles == ["Calculate My Scholarship", "Explore Programmes", "Placements & Careers", "How to Apply"]
+    # Every tile carries a short incentive badge and a prompt the chat understands.
+    assert all(item.get("badge") and item.get("prompt") for item in card["items"])
     colors = [item["color"] for item in card["items"]]
-    assert colors == ["blue", "green", "purple", "amber"]
+    assert colors == ["green", "blue", "purple", "amber"]
+
+
+def test_post_welcome_chips_do_not_repeat_the_tiles():
+    tile_prompts = {item["prompt"].lower() for item in card_service.WELCOME_ACTIONS_CARD["items"]}
+    assert len(card_service.POST_WELCOME_CHIPS) == 4
+    assert not tile_prompts & {c.lower() for c in card_service.POST_WELCOME_CHIPS}
 
 
 @pytest.mark.asyncio
-async def test_welcome_actions_shown_once_in_agent_workflow():
+async def test_personal_welcome_shown_once_without_repeating_the_tiles():
+    """After the contact form, "Hi" gets a personal greeting once. The quick-action tiles are already on
+    the opening message, so the greeting does not repeat them; its chips are other topics."""
     from app.sru_agent.agent import run_agent
     from app.sru_agent import memory
 
     session_id = "test-welcome-card-session-001"
     conv_id = "conv-welcome-001"
 
-    # Seed profile with valid contact details (as if lead form just completed)
-    await memory.update_profile(session_id, name="Rahul Sharma", phone="9876543210")
+    # Seed profile with valid contact details (as if lead form just completed); lower-case as students type it
+    await memory.update_profile(session_id, name="rahul sharma", phone="9876543210")
 
-    # Turn 1: Post-lead collection message ("Hi")
     events_t1 = []
     async for ev in run_agent("Hi", session_id, conv_id, require_contact_details=True):
         events_t1.append(ev)
 
     done_t1 = next(e for e in events_t1 if e["type"] == "done")
-    # Verify welcome actions card was emitted
-    cards_t1 = done_t1.get("cards", [])
-    assert any(c.get("type") == "welcome_actions" for c in cards_t1), "Welcome actions card must be emitted on turn 1"
-    assert "Rahul" in done_t1.get("answer", "")
-    assert len(done_t1.get("suggestions", [])) == 4
+    assert not any(c.get("type") == "welcome_actions" for c in done_t1.get("cards", []))
+    assert "**Rahul**" in done_t1.get("answer", "")
+    assert done_t1.get("suggestions") == list(card_service.POST_WELCOME_CHIPS)
 
-    # Turn 2: User clicks "Explore Programs" or asks a question
     events_t2 = []
-    async for ev in run_agent("Explore programs offered at SR University", session_id, conv_id, require_contact_details=True):
+    # A tile prompt the code answers by itself (no AI call), so the test needs no API key.
+    async for ev in run_agent("Calculate my scholarship", session_id, conv_id, require_contact_details=True):
         events_t2.append(ev)
 
     done_t2 = next(e for e in events_t2 if e["type"] == "done")
-    # Verify welcome actions card is NOT repeated!
-    cards_t2 = done_t2.get("cards", [])
-    assert not any(c.get("type") == "welcome_actions" for c in cards_t2), "Welcome actions card must NOT be shown again (only once)"
+    assert "Welcome to SR University, **Rahul**" not in done_t2.get("answer", "")
+    assert not any(c.get("type") == "welcome_actions" for c in done_t2.get("cards", []))
     assert len(done_t2.get("suggestions", [])) == 4
+    # Mid-question (board step): chips are answers to that question only, no general chips
+    assert followups.FIXED_ADMISSION_CHIP not in done_t2["suggestions"]
+    assert followups.FIXED_UNIVERSITY_CHIP not in done_t2["suggestions"]
+    assert any(c.get("type") == "counsellor_board_selection" for c in done_t2.get("cards", []))

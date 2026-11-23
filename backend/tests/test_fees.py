@@ -50,9 +50,17 @@ def test_score_without_table_is_not_guessed():
     assert any("eapcet_rank" in n for n in r["notes"])
 
 
-def test_eligibility_58_percent_is_eligible():
-    assert fees.check_eligibility("cse", 58)["eligible"] is True
+def test_eligibility_uses_every_documented_minimum():
+    # B.Tech CSE: fee card 50% (fee band 55%), programme page 60% -> 58% is disputed, not "eligible"
+    r58 = fees.check_eligibility("cse", 58)
+    assert r58["eligibility_status"] == "needs_confirmation" and r58["eligible"] is None
+    assert r58["sources_disagree"] is True
     assert fees.check_eligibility("cse", 45)["eligible"] is False
+    assert fees.check_eligibility("cse", 60, stream="MPC")["eligible"] is True
+    # BBA: fee card and programme page both say 50%
+    assert fees.check_eligibility("bba", 58)["eligible"] is True
+    # No marks given: ask, never assume 0%
+    assert fees.check_eligibility("cse")["status"] == "need_marks"
 
 
 def test_program_matching_and_unknown():

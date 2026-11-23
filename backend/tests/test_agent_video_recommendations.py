@@ -44,7 +44,7 @@ async def test_agent_video_recommendations_contextual_card(monkeypatch):
     monkeypatch.setattr("app.services.video_service._get_video_collection", lambda: MockCollection())
 
     client = FakeClient([_text("Here is information about our lush green 150-acre campus.")])
-    events = [e async for e in agent.run_agent("Tell me about the campus and facilities", "s-vid-test", client=client)]
+    events = [e async for e in agent.run_agent("How big is the campus and what infrastructure does it have?", "s-vid-test", client=client)]
     
     done = [e for e in events if e["type"] == "done"][0]
     cards = done.get("cards", [])

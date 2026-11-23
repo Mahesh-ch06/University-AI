@@ -30,7 +30,7 @@ def test_inter_58_percent_is_eligible():
 
 
 def test_btech_cutoff_rejects_60_percent_myth():
-    """Verify evaluation rejects claiming the cutoff is 60% or higher."""
+    """Verify evaluation rejects presenting the disputed 60% (programme page) as THE confirmed cutoff."""
     wrong_answer = "You are not eligible because our minimum cutoff is strictly 60%."
     res = evaluate_answer_factuality("btech_eligibility_cutoff", wrong_answer)
     assert res.is_faithful is False

@@ -3,85 +3,40 @@
 Verifies that for 985, 800, 700, 600 marks:
 - No 'Wow! Congratulations! 🎉' or cheesy fluff.
 - No 'Which group did you study in Intermediate? MPC/BiPC/Commerce'.
-- Accurate scholarship calculation (40%, 25%, 20%, 10%).
-- Concrete fee quotes and interactive card.
+- The total marks are asked, never assumed to be 1000.
+- Accurate scholarship slab (40%, 25%, 20%, 10%) once the total is known, then the programme is asked.
 """
 from app.sru_agent import fee_intake, prompt
 
 
-def test_no_fluff_on_985_marks():
-    dec = fee_intake.decide("985 marks", {}, {})
-    assert dec is not None
-    assert dec["action"] == "ask"
-    text = dec["text"]
-    text_lower = text.lower()
-
-    # Must NOT contain canned celebratory hype
-    assert "wow!" not in text_lower
-    assert "congratulations" not in text_lower
-    assert "🎉" not in text
-
-    # Must NOT interrogate with academic groups
-    assert "which group did you study" not in text_lower
-    assert "mpc" not in text_lower
-    assert "bipc" not in text_lower
-    assert "arts / humanities" not in text_lower
-
-    # Must state 40% Merit Scholarship and net tuition
-    assert "40% merit scholarship" in text_lower or "40%" in text
-    assert "₹2,04,000" in text
-    assert "₹1,36,000" in text
-
-    # Must include fee scholarship card
-    assert any(c.get("type") == "fee_scholarship_form" for c in dec.get("cards", []))
+_CASES = [("985", "40%"), ("800", "25%"), ("700", "20%"), ("600", "10%")]
 
 
-def test_no_fluff_on_800_marks():
-    dec = fee_intake.decide("800 marks", {}, {})
-    assert dec is not None
-    assert dec["action"] == "ask"
-    text = dec["text"]
-    text_lower = text.lower()
-
-    assert "wow!" not in text_lower
-    assert "congratulations" not in text_lower
-    assert "which group did you study" not in text_lower
-
-    assert "25% merit scholarship" in text_lower or "25%" in text
-    assert "₹2,55,000" in text
-    assert "₹85,000" in text
+def _two_step(raw: str):
+    """Bare marks: the total is asked first (never assumed), then the slab is given."""
+    first = fee_intake.decide(f"{raw} marks", {}, {})
+    assert first is not None and first["action"] == "ask"
+    assert first["state"]["waiting_for"] == "marks_max"
+    assert f"out of how many total marks is **{raw}**" in first["text"].lower()
+    second = fee_intake.decide(f"{raw} out of 1000", {}, first["state"])
+    assert second is not None and second["action"] == "ask"
+    return first, second
 
 
-def test_no_fluff_on_700_marks():
-    dec = fee_intake.decide("700 marks", {}, {})
-    assert dec is not None
-    assert dec["action"] == "ask"
-    text = dec["text"]
-    text_lower = text.lower()
-
-    assert "wow!" not in text_lower
-    assert "congratulations" not in text_lower
-    assert "which group did you study" not in text_lower
-
-    assert "20% merit scholarship" in text_lower or "20%" in text
-    assert "₹2,72,000" in text
-    assert "₹68,000" in text
-
-
-def test_no_fluff_on_600_marks():
-    dec = fee_intake.decide("600 marks", {}, {})
-    assert dec is not None
-    assert dec["action"] == "ask"
-    text = dec["text"]
-    text_lower = text.lower()
-
-    assert "wow!" not in text_lower
-    assert "congratulations" not in text_lower
-    assert "which group did you study" not in text_lower
-
-    assert "10% merit scholarship" in text_lower or "10%" in text
-    assert "₹3,06,000" in text
-    assert "₹34,000" in text
+def test_no_fluff_and_no_assumed_total_for_bare_marks():
+    for raw, slab in _CASES:
+        first, second = _two_step(raw)
+        for text in (first["text"], second["text"]):
+            low = text.lower()
+            # No canned hype, no group survey
+            assert "wow!" not in low and "congratulations" not in low and "🎉" not in text
+            assert "which group did you study" not in low
+            assert "mpc" not in low and "bipc" not in low
+        # Accurate slab once the total is known, and no other programme's fees dropped in
+        assert f"{slab} merit scholarship" in second["text"].lower()
+        assert "₹" not in second["text"]
+        assert "Which programme are you interested in?" in second["text"]
+        assert any(c.get("type") == "fee_scholarship_form" for c in second.get("cards", []))
 
 
 def test_bare_numbers_routed_to_intake():

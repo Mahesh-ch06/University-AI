@@ -41,9 +41,9 @@ def test_scholarship_below_50_percent_rejected():
     assert res is not None
     assert res["action"] == "ineligible"
     assert res["cards"] == []
-    assert "not eligible for admission at SR University" in res["text"]
-    assert "50% aggregate marks" in res["text"]
-    assert "fee and scholarship calculations cannot be provided" in res["text"]
+    assert "do not currently meet the general eligibility criteria" in res["text"]
+    assert "below **50%**" in res["text"]
+    assert "₹" not in res["text"]  # no fee or scholarship details
     assert res["state"]["waiting_for"] is None
 
 
@@ -63,9 +63,9 @@ def test_scholarship_below_50_raw_marks_out_of_1000_rejected():
     assert res is not None
     assert res["action"] == "ineligible"
     assert res["cards"] == []
-    assert "not eligible for admission at SR University" in res["text"]
-    assert "450/1000 (45.0%)" in res["text"]
-    assert "fee and scholarship calculations cannot be provided" in res["text"]
+    assert "do not currently meet the general eligibility criteria" in res["text"]
+    assert "450 marks out of 1000" in res["text"] and "**45%**" in res["text"]
+    assert "₹" not in res["text"]
     assert res["state"]["waiting_for"] is None
 
 
@@ -85,7 +85,7 @@ def test_scholarship_below_50_first_year_marks_rejected():
     assert res is not None
     assert res["action"] == "ineligible"
     assert res["cards"] == []
-    assert "not eligible for admission at SR University" in res["text"]
+    assert "do not currently meet the general eligibility criteria" in res["text"]
     assert res["state"]["waiting_for"] is None
 
 
@@ -96,30 +96,32 @@ def test_outstanding_marks_acknowledgment_variants():
     v2 = fee_intake.get_marks_acknowledgment("**94.5%**", 94.5, variant_idx=2)
 
     assert "Outstanding" in v0 or "Sensational" in v0 or "Brilliant" in v0 or "Exceptional" in v0
-    assert "eligible for admission" in v0
+    # The compliment is about the marks; admission eligibility is stated separately per programme
+    assert "eligible" not in v0.lower()
     assert "merit scholarship" in v0.lower() or "fee waiver" in v0.lower()
     assert v0 != v1 or v1 != v2
 
 
 def test_excellent_marks_acknowledgment_variants():
     """Scores 80-89% receive great/excellent acknowledgment variants."""
-    v = fee_intake.get_marks_acknowledgment("**85%**", 85.0, variant_idx=0)
-    assert "eligible for admission" in v
+    v = fee_intake.get_marks_acknowledgment("85%", 85.0, variant_idx=0)
+    assert "eligible" not in v.lower()
     assert "merit scholarship" in v.lower() or "scholarship reduction" in v.lower()
 
 
 def test_good_marks_acknowledgment_variants():
     """Scores 70-79% receive good marks acknowledgment variants."""
-    v = fee_intake.get_marks_acknowledgment("**74%**", 74.0, variant_idx=0)
-    assert "eligible for admission" in v
+    v = fee_intake.get_marks_acknowledgment("74%", 74.0, variant_idx=0)
+    assert "eligible" not in v.lower()
     assert "scholarship" in v.lower()
 
 
 def test_qualifying_marks_acknowledgment_variants():
-    """Scores 50-69% receive eligibility confirmation (50% criteria)."""
-    v = fee_intake.get_marks_acknowledgment("**58%**", 58.0, variant_idx=0)
-    assert "eligible for admission" in v
-    assert "50%" in v
+    """Scores below 60% (no merit slab) are only acknowledged: the compliment never claims admission
+    eligibility, which depends on the programme (58% is disputed for B.Tech, fine for BBA)."""
+    v = fee_intake.get_marks_acknowledgment("58%", 58.0, variant_idx=0)
+    assert "**58%**" in v
+    assert "eligible" not in v.lower() and "scholarship" not in v.lower()
 
 
 def test_format_counsellor_assessment_rejects_under_50():
@@ -137,8 +139,8 @@ def test_format_counsellor_assessment_rejects_under_50():
         "program": "btech_cse",
     }
     text = agent.format_counsellor_assessment(fee_res, details)
-    assert "not eligible for admission at SR University" in text
-    assert "50% aggregate marks" in text
+    assert "do not currently meet the general eligibility criteria" in text
+    assert "below the official **50% minimum**" in text and "450 marks out of 1000" in text
     assert "Your Fee Details" not in text
     assert "Original Tuition Fee" not in text
 
@@ -181,9 +183,19 @@ def test_done_helper_eligible_flag_handling():
     ev_true = agent._done("conv-2", "Eligible for scholarship", eligible=True)
     assert ev_true.get("eligible") is True
 
-    # Inferred True from calculate_fee card
-    ev_inferred = agent._done("conv-3", "Fee calculated", cards=[{"type": "calculate_fee", "data": {"status": "ok"}}])
+    # Inferred True only from a personal assessment (a fee card that used the student's own score)
+    personal = {"status": "ok", "scores_considered": [{"score": "Intermediate 85%", "scholarship_percent": 25}],
+                "admission_eligibility": {"status": "meets_minimum", "eligible": True}}
+    ev_inferred = agent._done("conv-3", "Fee calculated", cards=[{"type": "calculate_fee", "data": personal}])
     assert ev_inferred.get("eligible") is True
+
+    # Marks that are disputed between sources: no confetti
+    disputed = {**personal, "admission_eligibility": {"status": "needs_confirmation", "eligible": None}}
+    assert "eligible" not in agent._done("conv-3c", "x", cards=[{"type": "calculate_fee", "data": disputed}])
+
+    # A plain programme fee ("CSE fee", no marks) is not an eligibility result: no confetti
+    ev_plain = agent._done("conv-3b", "CSE fee", cards=[{"type": "calculate_fee", "data": {"status": "ok", "scores_considered": []}}])
+    assert "eligible" not in ev_plain
 
     # General chat without fee card does not set eligible: True
     ev_general = agent._done("conv-4", "Hello there")
