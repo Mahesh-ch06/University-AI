@@ -348,8 +348,8 @@ def _marks_question(key: str) -> str:
     if fees.load_data()["programs"][key].get("level") == "pg":
         return (f"Sure! To check your {short_name(key)} eligibility, what percentage did you score (or expect) in your "
                 f"bachelor's degree?")
-    return (f"Sure! To check your {short_name(key)} eligibility, please share your 10+2 / Intermediate marks: a "
-            f"percentage (for example 78%), or your marks with the total (for example 850 out of 1000).")
+    return (f"Sure! What were your Intermediate (10+2) marks? A percentage like 78%, or marks with the total like "
+            f"850 out of 1000.")
 
 
 def _read_marks(message: str, state: dict) -> dict:
@@ -417,21 +417,14 @@ def _eligibility_step(key: str, message: str, state: dict, profile: dict, first_
                     f"or 500 / 600 for some other boards.", [f"{raw} out of 1000", f"{raw} out of 600", f"{raw} out of 500"],
                     state)
     if marks.get("percent") is None:
-        req = eligibility.stream_requirement(key)
-        ug = fees.load_data()["programs"][key].get("level") != "pg"
-        if ug and req.get("any_of") and not profile.get("stream"):
-            # Marks AND the 10+2 group are needed: one form (board, status, marks, group) instead of a
-            # question per field. The board and status are kept for a later scholarship estimate.
-            from app.services.card_service import build_academic_details_form
+        # One question at a time (v4.9.0): marks now; the 10+2 group, when the programme needs one, is asked
+        # next with the verdict step. No large form.
+        if profile.get("saved_academic") and first_time:
             from . import journey
-            state.update(step="form", program=key, goal="eligibility")
-            saved = journey.saved_summary(profile) if profile.get("saved_academic") else None
-            card = build_academic_details_form("eligibility", key, short_name(key), profile, show_stream=True,
-                                               saved_summary=saved)
-            text = (f"Sure! To check your {short_name(key)} eligibility, please fill in your academic details below "
-                    f"and tap **Check my eligibility**. You can also just type your marks (for example 850 out of 1000).")
-            return {"kind": "reply", "text": text, "chips": [f"Use my saved details ({saved})"] if saved else [],
-                    "cards": [card], "state": state}
+            saved = journey.saved_summary(profile)
+            if saved:
+                state.update(step="marks", program=key, goal="eligibility")
+                return _ask(_marks_question(key), [f"Use my saved details ({saved})"], state)
         state.update(step="marks", program=key, goal="eligibility")
         return _ask(_marks_question(key), [], state)
     stream = eligibility.parse_stream(message) if re.search(r"\b(?:mpc|pcm|bipc|pcb)\b", message.lower()) else None
@@ -479,6 +472,15 @@ def _resolve_special(target: str, state: dict, profile: dict, message: str) -> d
 
 def _ask_topic(topic: str, state: dict, program: str | None = None) -> dict:
     t = TOPICS[topic]
+    asked = list(state.get("asked_topics") or [])
+    if topic in asked:
+        # Asked once already in this conversation: do not ask the same question again; answer with the
+        # topic's main aspect instead (the student can still pick another from the chips under it).
+        target = t["aspects"][0][2]
+        if not target.startswith("__"):
+            state.update(step=None, topic=topic)
+            return _rewrite(target, state)
+    state["asked_topics"] = (asked + [topic])[-8:]
     state.update(step="topic_aspect", topic=topic, intent="explore")
     chips = [a[0] for a in t["aspects"]]
     labels = [a[0].lower() for a in t["aspects"]]
@@ -591,6 +593,17 @@ _RESULTS = re.compile(
 
 # ------------------------------------------------------------------------------------------- decide()
 def decide(message: str, conv_state: dict, profile: dict, name: str | None = None) -> dict | None:
+    """See _decide. Topics already asked about in this conversation are remembered across every step (several
+    steps return a fresh state), so a topic question is never asked twice."""
+    result = _decide(message, conv_state, profile, name)
+    asked = (conv_state.get("dialogue") or {}).get("asked_topics")
+    if result and asked and result.get("state") is not None:
+        merged = list(dict.fromkeys(list(asked) + list(result["state"].get("asked_topics") or [])))[-8:]
+        result["state"] = {**result["state"], "asked_topics": merged}
+    return result
+
+
+def _decide(message: str, conv_state: dict, profile: dict, name: str | None = None) -> dict | None:
     """What to do with this message before any other route. None = not handled (state unchanged).
     Otherwise a dict with kind 'reply' (send text + chips), 'rewrite' (continue with a more specific
     message) or 'pass' (continue as is), plus the new dialogue state."""

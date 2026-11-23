@@ -22,8 +22,8 @@ def test_scholarship_query_starts_with_programme():
     assert res["state"]["counsellor_mode"] is True
     assert res["cards"][0]["type"] == "counsellor_program_selection"
     nxt = fee_intake.decide("B.Tech CSE", profile={}, intake=res["state"])
-    assert nxt["state"]["waiting_for"] == "form"
-    assert nxt["cards"][0]["type"] == "academic_details_form"
+    assert nxt["state"]["waiting_for"] == "board"                    # then one small step at a time
+    assert nxt["cards"][0]["type"] == "counsellor_board_selection"
 
 
 def test_scholarship_below_50_percent_rejected():
@@ -161,9 +161,9 @@ def test_format_counsellor_assessment_includes_positive_variant_for_good_marks()
         "program": "btech_cse",
     }
     text = agent.format_counsellor_assessment(fee_res, details)
-    assert "### Your Scholarship Assessment" in text
-    assert "### Your Fee Details" in text
-    assert "Outstanding" in text or "Sensational" in text or "Brilliant" in text or "Exceptional" in text
+    # v4.9.0: neutral and short (no praise banners, no section headings)
+    assert "**95%** (950/1000)" in text and "**30% scholarship**" in text
+    assert "###" not in text and len(text.split()) <= 60
 
 
 def test_done_helper_includes_profile():

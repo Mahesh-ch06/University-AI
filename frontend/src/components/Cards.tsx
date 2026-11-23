@@ -1930,7 +1930,7 @@ export function CounsellorBoardCard({ card, onSelect }: { card: any; onSelect?: 
     <div className="rich-card counsellor-card counsellor-board-card">
       <div className="counsellor-card-header">
         <span className="card-badge counsellor-step-badge">
-          <BookOpenIcon size={13} /> Step 1: Schooling / Board
+          <BookOpenIcon size={13} /> {card.step_label || "Step 1: Schooling / Board"}
         </span>
         <h4 className="card-title counsellor-title">{card.title}</h4>
         {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
@@ -1970,7 +1970,7 @@ export function CounsellorStageCard({ card, onSelect }: { card: any; onSelect?: 
     <div className="rich-card counsellor-card counsellor-stage-card">
       <div className="counsellor-card-header">
         <span className="card-badge counsellor-step-badge">
-          <TargetIcon size={13} /> Step 2: Academic Stage
+          <TargetIcon size={13} /> {card.step_label || "Step 2: Academic Stage"}
         </span>
         <h4 className="card-title counsellor-title">{card.title}</h4>
         {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
@@ -2287,6 +2287,8 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
       return <AcademicDetailsFormCard card={card} onSelect={onSelect} />;
     case "counsellor_board_selection":
       return <CounsellorBoardCard card={card} onSelect={onSelect} />;
+    case "counsellor_choice": // one small question with options (e.g. the 10+2 group step)
+      return <CounsellorStageCard card={card} onSelect={onSelect} />;
     case "counsellor_stage_selection":
       return <CounsellorStageCard card={card} onSelect={onSelect} />;
     case "counsellor_marks_input":

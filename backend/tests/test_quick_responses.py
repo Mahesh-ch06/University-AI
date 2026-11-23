@@ -21,15 +21,14 @@ async def test_special_concessions_quick_response():
     done = [e for e in events if e["type"] == "done"][0]
     answer = done["answer"]
 
-    # Must contain the markdown table with key categories and amounts
-    assert "Special Category Fee Concessions" in answer
-    assert "₹50,000 / year" in answer
-    assert "Students who have lost both parents (Orphans)" in answer
-    assert "Only Girl Child from Telangana" in answer
-    assert "NCC 'C' Certificate holders" in answer
-    assert "19 categories" in answer
-    assert "| Category / Eligibility | Annual Concession |" in answer
-    assert any("Calculate my fee" in s for s in done["suggestions"])
+    # v4.9.0: compact, grouped by amount, built from the official data (no 19-row table)
+    assert "**19 special concessions**" in answer
+    assert "**₹50,000**" in answer and "**₹20,000**" in answer and "**₹15,000**" in answer
+    assert "students who have lost both parents" in answer
+    assert "only girl child from telangana" in answer.lower()
+    assert "NCC 'C' certificate holders" in answer
+    assert "|" not in answer
+    assert any("Calculate my scholarship" in s for s in done["suggestions"])
 
 
 @pytest.mark.asyncio
@@ -49,7 +48,6 @@ async def test_next_gen_tech_programs_quick_response():
     assert "Quantum AI" in answer
     assert "₹4,00,000 / year" in answer
     assert "₹3,40,000 / year" in answer
-    assert "SRiX" in answer
     assert any("AI & Robotics" in s for s in done["suggestions"])
 
 

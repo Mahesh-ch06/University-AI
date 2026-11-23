@@ -24,32 +24,26 @@ def test_counsellor_entry_asks_programme_first():
     assert "Which B.Tech branch" in generic["text"]
 
 
-def test_counsellor_nothing_known_shows_one_prefillable_form():
+def test_counsellor_nothing_known_asks_one_step_at_a_time():
+    """v4.9.0: no large form. One small card per step, with "Step n of N"."""
     res = fee_intake.decide("Calculate my scholarship for B.Tech CSE", profile={}, intake={}, first_name="Mahesh")
-    assert res["action"] == "ask" and res["state"]["waiting_for"] == "form"
-    assert "Absolutely, Mahesh! I can help you understand the scholarship details for **B.Tech CSE**" in res["text"]
-    assert [c["type"] for c in res["cards"]] == ["academic_details_form"]
-    card = res["cards"][0]
-    assert card["mode"] == "scholarship" and card["program"] == "btech_cse"
-    assert card["show_entrance"] is True                 # B.Tech: optional EAPCET / JEE score
-    assert card["show_stream"] is True                   # MPC not known yet
-    assert card["max_marks_table"]["ts_state_board"] == {"1st_year": 470, "2nd_year": 470, "completed": 1000}
+    assert res["action"] == "ask" and res["state"]["waiting_for"] == "board"
+    assert "Let's work out your scholarship for **B.Tech CSE**" in res["text"]
+    assert "Step 1 of 4" in res["text"]                  # board, status, marks, group (B.Tech needs MPC)
+    assert [c["type"] for c in res["cards"]] == ["counsellor_board_selection"]
+    assert res["cards"][0]["step_label"] == "Step 1 of 4" and res["cards"][0]["program"] == "btech_cse"
 
 
 def test_counsellor_reuses_marks_and_group_asks_only_the_missing_fields():
-    """After an eligibility check (marks + MPC known), board and status are missing: one form, marks kept."""
+    """After an eligibility check (marks + MPC known), only board and status are asked, one at a time."""
     profile = {"raw_marks": 670.0, "max_marks": 1000.0, "percent": 67.0, "stream": "MPC", "program_interest": "btech_cse"}
     res = fee_intake.decide("I want to know about the scholarship for B.Tech CSE", profile=profile, intake={})
-    assert res["state"]["waiting_for"] == "form"
-    assert "I'll use the details you've already shared (670/1000 (67%), MPC)" in res["text"]
-    values = res["cards"][0]["values"]
-    assert values["raw_marks"] == 670.0 and values["max_marks"] == 1000.0 and values["stream"] == "MPC"
-    assert res["cards"][0]["show_stream"] is False
-    # Board typed instead of using the form: only the status is asked next (no second form)
+    assert res["state"]["waiting_for"] == "board"
+    assert "I have 670/1000 (67%), MPC" in res["text"]
     nxt = fee_intake.decide("Telangana Intermediate (TSBIE)", profile=profile, intake=res["state"])
     assert nxt["state"]["waiting_for"] == "stage"
     assert [c["type"] for c in nxt["cards"]] == ["counsellor_stage_selection"]
-    assert "marks" not in nxt["text"].lower().split("status")[0]  # marks are not asked again
+    assert "marks" not in nxt["text"].lower()          # marks are not asked again
     done = fee_intake.decide("Completed Intermediate (Passed out)", profile=profile, intake=nxt["state"])
     assert done["action"] == "calculate" and done["args"]["percent"] == 67.0
 
@@ -60,7 +54,7 @@ def test_counsellor_only_board_missing_asks_board_alone():
     res = fee_intake.decide("Calculate my scholarship for B.Tech CSE", profile=profile, intake={})
     assert res["state"]["waiting_for"] == "board"
     assert [c["type"] for c in res["cards"]] == ["counsellor_board_selection"]
-    assert "slabs differ between State Board and CBSE / ICSE" in res["text"]
+    assert "which board did you study under?" in res["text"]
 
 
 def _marks_step(stage_text):
@@ -73,7 +67,7 @@ def test_counsellor_stage_branching_1st_year():
     res = _marks_step("Intermediate 1st Year (11th)")
     assert res["state"]["waiting_for"] == "marks" and res["state"]["academic_stage"] == "1st_year"
     assert res["state"]["is_projected"] is True
-    assert "1st-year marks (used for a preliminary estimate)" in res["text"]
+    assert "1st-year marks (out of 470)" in res["text"]
     assert res["cards"][0]["type"] == "counsellor_marks_input" and res["cards"][0]["max_marks"] == 470
 
 
@@ -86,7 +80,7 @@ def test_counsellor_stage_branching_2nd_year():
 def test_counsellor_stage_branching_completed():
     res = _marks_step("Completed Intermediate (Passed out)")
     assert res["state"]["academic_stage"] == "completed" and res["state"]["is_projected"] is False
-    assert "final Intermediate / 12th marks" in res["text"]
+    assert "final marks (out of 1000)" in res["text"]
     assert res["cards"][0]["max_marks"] == 1000
 
 
@@ -147,7 +141,7 @@ def test_counsellor_pg_programme_asks_degree_percent_not_intermediate():
 
     fee_res = fees.calculate_fee("mba", percent=75.0)
     text = agent.format_counsellor_assessment(fee_res, r2["counsellor_details"])
-    assert "Qualifying degree (PG admission)" in text
+    assert "MBA" in text and "20% scholarship" in text
     assert "Admission Route" not in text
     assert "Intermediate" not in text
 
@@ -195,10 +189,11 @@ def test_counsellor_assessment_formatting_matches_conversation_fixes():
         "ack_shown": True,
     }
     text = agent.format_counsellor_assessment(fee_res, details)
-    assert "850/1000 (85%)" in text and "1000.0" not in text
-    assert "(₹1,70,000 per semester)" in text
-    assert "Great performance" not in text and "Thanks! I already have" not in text
-    assert "Intermediate 85% → 25% merit slab" in text
+    # v4.9.0: short. Headline (score -> slab), one tuition line, one eligibility line; figures in the fee card.
+    assert "**85%** (850/1000)" in text and "1000.0" not in text
+    assert "**25% scholarship**" in text and "₹2,55,000/year" in text and "₹3,40,000" in text
+    assert "Great performance" not in text and "###" not in text and "Note" not in text
+    assert len(text.split()) <= 60
 
 
 def test_counsellor_result_formatting_projected_vs_completed():
@@ -219,16 +214,9 @@ def test_counsellor_result_formatting_projected_vs_completed():
         "program": "btech_cse",
     }
     proj_text = agent.format_counsellor_assessment(fee_res, proj_details)
-    assert "### Your Scholarship Assessment" in proj_text
-    assert "• **Academic Qualification**: Telangana Intermediate (TSBIE) (Intermediate 1st Year (11th))" in proj_text
-    assert "• **Academic Score**: 430/470 (91.49%)" in proj_text
-    assert "• **Entrance Score**: TG EAPCET (Rank: 15,000)" in proj_text
-    assert "### Your Fee Details" in proj_text
-    assert "• **Original Tuition Fee**: ₹3,40,000 per year" in proj_text
-    assert "Tuition Waiver" in proj_text
-    assert "• **Remaining Annual Tuition**: " in proj_text
-    assert "• **First Semester Payable**: " in proj_text
-    assert "Preliminary Projection" in proj_text
+    assert "**91.49%** (430/470)" in proj_text and "scholarship" in proj_text
+    assert "estimate from your Intermediate 1st Year (11th) marks" in proj_text
+    assert "###" not in proj_text and len(proj_text.split()) <= 70
 
     compl_details = {
         "board_label": "Telangana Intermediate (TSBIE)",
@@ -243,8 +231,8 @@ def test_counsellor_result_formatting_projected_vs_completed():
         "program": "btech_cse",
     }
     compl_text = agent.format_counsellor_assessment(fee_res, compl_details)
-    assert "### Your Scholarship Assessment" in compl_text
-    assert "Preliminary Projection" not in compl_text
+    assert "**92%** (920/1000)" in compl_text
+    assert "estimate from" not in compl_text
 
 
 def test_counsellor_anti_repetition_rule():
@@ -292,31 +280,34 @@ def test_counsellor_re_query_handling():
         "program": "btech_cse",
         "stream": "MPC",
     }
+    # v4.9.0: asked again after an estimate -> confirm the saved details first (use them, or change them)
     res = fee_intake.decide("Calculate my scholarship again", profile={}, intake=intake)
-    assert res is not None
-    assert res["action"] == "calculate"
-    assert res["counsellor"] is True
-    assert res["counsellor_details"]["re_query"] is True
-
-    fee_res = fees.calculate_fee("btech_cse", percent=93.62, board="state_board")
-    output_text = agent.format_counsellor_assessment(fee_res, res["counsellor_details"])
-    assert "Thanks! I already have your academic details. Let's continue with your scholarship assessment." in output_text
+    assert res["action"] == "ask" and res["state"]["waiting_for"] == "confirm_details"
+    assert "I already have your details" in res["text"] and "440/470" in res["text"]
+    assert res["chips"] == ["Use these details", "Change my details"]
+    use = fee_intake.decide("Use these details", profile={}, intake=res["state"])
+    assert use["action"] == "calculate" and use["counsellor"] is True and use["args"]["program"] == "btech_cse"
+    change = fee_intake.decide("Change my details", profile={}, intake=res["state"])
+    assert change["action"] == "ask" and change["state"]["waiting_for"] == "board"
+    assert "percent" not in change["state"] and "raw_marks" in change["profile_clear"]
 
 
 def test_counsellor_program_already_known_skips_program_step():
     """'What is the scholarship for B.Tech CSE?': the programme is remembered and never asked again."""
     r1 = fee_intake.decide("What is the scholarship for B.Tech CSE?", profile={}, intake={})
     assert r1["state"]["program"] == "btech_cse"
-    assert r1["state"]["waiting_for"] == "form"          # board, status and marks all missing: one form
+    assert r1["state"]["waiting_for"] == "board"         # one step at a time
     assert "Which programme" not in r1["text"]
 
     r2 = fee_intake.decide("CBSE", profile={}, intake=r1["state"])
-    assert r2["state"]["waiting_for"] == "stage"         # typed instead of the form: next field only
+    assert r2["state"]["waiting_for"] == "stage"
 
     r3 = fee_intake.decide("Completed Intermediate (Passed out)", profile={}, intake=r2["state"])
     assert r3["state"]["waiting_for"] == "marks"
 
     r4 = fee_intake.decide("92%", profile={}, intake=r3["state"])
+    assert r4["state"]["waiting_for"] == "stream"        # B.Tech lists MPC: the group is the last step
+    r4 = fee_intake.decide("MPC (Maths, Physics, Chemistry)", profile={}, intake=r4["state"])
     assert r4["action"] == "calculate"
     assert r4["args"]["program"] == "btech_cse"
     assert r4["args"]["percent"] == 92.0
@@ -331,7 +322,7 @@ def test_counsellor_bipc_student_for_btech_is_told_clearly():
               "program": "btech_cse", "ack_shown": True}
     res = fee_intake.decide("BiPC (Biology, Physics, Chemistry)", profile={}, intake=intake)
     assert res["action"] == "ineligible"
-    assert "do not meet the listed subject requirement" in res["text"]
+    assert "don't meet its subject requirement" in res["text"]
     assert "₹" not in res["text"]
 
 

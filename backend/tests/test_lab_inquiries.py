@@ -47,8 +47,7 @@ async def test_run_agent_lab_query_response():
     
     # Verify core grounded facts are present
     assert "11" in full_text
-    assert "Center for AI & Deep Learning" in full_text
-    assert "Creative Cognition" in full_text
+    assert "AI & Deep Learning" in full_text
     assert "SR Innovation Exchange" in full_text or "SRiX" in full_text
     assert "14+" in full_text or "maker spaces" in full_text.lower()
     

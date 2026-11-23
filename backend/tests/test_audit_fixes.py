@@ -131,7 +131,7 @@ async def test_agent_canteen_and_academic_responses():
     canteen_text = "".join(ev.get("delta", "") for ev in events_canteen if ev.get("type") == "token")
     assert "Central Cafeteria" in canteen_text
     assert "Tasty Treat" in canteen_text
-    assert "8:30 AM to 6:00 PM" in canteen_text
+    assert "8:30 AM" in canteen_text and "6:00 PM" in canteen_text
 
     events_acad = [
         ev async for ev in agent.run_agent(

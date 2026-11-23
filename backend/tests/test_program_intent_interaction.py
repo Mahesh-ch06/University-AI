@@ -161,7 +161,7 @@ async def test_placements_for_this_branch_response():
     """Sending 'Placements for this branch' returns placement details and placement card."""
     prompt = "Placements for this branch"
     intent = classify_agent_intent(prompt)
-    assert intent == "PLACEMENT_GUARANTEE_QUERY"
+    assert intent == "PLACEMENT_INFO_QUERY"   # a placement question, not a guarantee question (v4.9.0)
 
     # No branch discussed yet: "this branch" is unknown, so ask which programme instead of guessing
     events = [e async for e in run_agent(prompt, "test-placements-branch-session", client=DummyClient())]

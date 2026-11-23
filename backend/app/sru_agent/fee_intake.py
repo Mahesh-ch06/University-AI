@@ -252,12 +252,14 @@ def format_ineligible_response(known: dict, state: dict, prog_key: str | None = 
             f"If you think these marks are not right, or you would like to discuss your options, please contact "
             f"{eligibility.ADMISSIONS_CONTACT}."
         )
-    chips = [
-        "📞 Admissions Office",
-        "📋 Eligibility Criteria",
-        "🏫 Why Choose SRU?",
-        "💰 Fee & Scholarship Info",
-    ]
+    chips = ["Change my academic details", "Explore other programmes", "📞 Admissions Office"]
+    if state.get("ineligible") and prog_key:
+        # Asked again with the same marks: a short reply, not the same paragraph again.
+        name = fees.short_name(prog_key)
+        floor = eligibility.show_percent(eligibility.thresholds(prog_key)["floor"])
+        rejection_text = (f"Your {eligibility.show_percent(pct)} is still below the {floor} minimum for {name}, so a "
+                          f"fee or scholarship estimate isn't possible yet. If your marks have changed, tap "
+                          f"**Change my academic details**; or I can suggest programmes that fit your marks.")
     state_out = dict(state)
     state_out["waiting_for"] = None
     state_out["ineligible"] = True
@@ -591,6 +593,11 @@ def _counsellor_pg(prog_key: str, known: dict, said: dict, state: dict, intake: 
     }
 
 
+_ACADEMIC_FIELDS = ("board", "board_label", "board_key", "academic_stage", "stage_label", "raw_marks", "max_marks",
+                    "percent", "is_projected", "admission_route", "route_label", "eapcet_rank", "jee_percentile",
+                    "ib_score", "stream", "no_entrance", "marks_confirmed")
+
+
 def decide(message: str, profile: dict, intake: dict | None, first_name: str | None = None) -> dict | None:
     """What to do with a fee enquiry. Multi-step intake with counsellor workflow and anti-repetition.
     first_name: given only when using it now would read naturally (the agent leaves it out when the
@@ -624,7 +631,8 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
 
     if not is_fee_enquiry(message):
         # Only a reply to our own question continues the intake (a number, a board, "no JEE"...).
-        reply_like = bool(said.keys() - {"generic_btech"}) or number is not None
+        reply_like = (bool(said.keys() - {"generic_btech"}) or number is not None
+                      or intake.get("waiting_for") == "confirm_details")
         if intake.get("waiting_for") == "marks_max" and re.search(
             r"\b(?:1000|thousand|yes|correct|right|inter|intermediate|600|out\s+of)\b", (message or "").lower()
         ):
@@ -786,6 +794,17 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
     if counsellor_mode:
         state["counsellor_mode"] = True
 
+    # A percentage above 100 ("656% marks") is a typo, usually marks out of 1000: ask, never calculate with it.
+    bad_pct = re.search(r"(?<![\d.])(\d{3,4}(?:\.\d+)?)\s*(?:%|percent)", message or "")
+    if bad_pct and float(bad_pct.group(1)) > 100:
+        n = _num(float(bad_pct.group(1)))
+        for k_bad in ("percent", "raw_marks", "max_marks"):
+            state.pop(k_bad, None)
+        state["waiting_for"] = "marks"
+        return {"action": "ask", "profile_clear": ["percent", "raw_marks", "max_marks"],
+                "text": f"{n}% isn't possible (percentages go up to 100). Did you mean **{n} out of 1000**?",
+                "chips": [f"{n} out of 1000", f"{n} out of 600"], "cards": [], "state": state}
+
     # PG scholarships use the qualifying-degree percentage, never the 12th marks.
     pg_counsellor = counsellor_mode and _program_level(prog_key) == "pg"
     if pg_counsellor:
@@ -916,54 +935,60 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
             have.append(known["stage_label"])
         reuse = f"I'll use the details you've already shared ({', '.join(have)}). " if have and first_turn else ""
 
-        if len(missing) >= 2 and intake.get("waiting_for") != "form":
-            state["waiting_for"] = "form"
+        # One small question at a time (v4.9.0): board -> current status -> marks -> 10+2 group (when the
+        # programme names one). Each step shows "Step n of N" and only the field still missing.
+        sequence = ["board", "stage", "marks"] + (["stream"] if req.get("any_of") else [])
+        todo = missing + (["stream"] if needs_stream else [])
+        if todo:
+            step = todo[0]
+            n_total, n_now = len(sequence), sequence.index(step) + 1
+            step_label = f"Step {n_now} of {n_total}"
+            opener = (f"Sure{name_bit}! Let's work out your scholarship for **{short}**. " if first_turn else "")
+            if first_turn and have:
+                opener += f"I have {', '.join(have)}. "
             saved = None
-            if not have and profile.get("saved_academic"):
+            if first_turn and not have and profile.get("saved_academic"):
                 from . import journey
                 saved = journey.saved_summary(profile)
-            card = build_academic_details_form(
-                "scholarship", prog_key, short, known, show_stream=needs_stream,
-                show_entrance=needs_route and not has_entrance, saved_summary=saved)
-            text = (f"{lead}{reuse}Please fill in your academic details below and tap **Calculate my scholarship**. "
-                    f"I'll work it out from the {config.ADMISSION_YEAR} fee card.")
-            chips = [f"Use my saved details ({saved})"] if saved else []
-            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
-
-        if len(missing) >= 2:
-            # The form was already shown and the student typed one answer instead: ask the next field on its
-            # own rather than showing the whole form again.
-            missing = missing[:1]
-        if missing == ["board"]:
-            state["waiting_for"] = "board"
-            text = (f"{lead}{reuse}I just need your board: scholarship slabs differ between State Board and "
-                    f"CBSE / ICSE. Which board did you study under?")
-            chips = ["Telangana Intermediate (TSBIE)", "AP Intermediate (BIEAP)", "CBSE", "ISC"]
-            card = build_counsellor_board_card(selected_board=known.get("board_key"))
-            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
-
-        if missing == ["stage"]:
-            state["waiting_for"] = "stage"
-            text = (f"{lead}{reuse}I just need your current academic status: are you still studying, or have you "
-                    f"completed Intermediate?")
-            chips = ["Intermediate 1st Year (11th)", "Intermediate 2nd Year (12th)", "Completed Intermediate (Passed out)"]
-            card = build_counsellor_stage_card(board_label=known.get("board_label"), selected_stage=known.get("academic_stage"))
-            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
-
-        if missing == ["marks"]:
-            state["waiting_for"] = "marks"
-            b_key = known.get("board_key") or "ts_state_board"
-            s_key = known.get("academic_stage") or "completed"
-            board_lbl = known.get("board_label") or "your board"
-            max_m = get_max_marks(b_key, s_key)
-            which = ("your Intermediate 1st-year marks (used for a preliminary estimate)"
-                     if s_key in ("1st_year", "2nd_year") else "your final Intermediate / 12th marks")
-            text = f"{lead}{reuse}I just need {which}."
-            chips = ([f"{int(max_m * 0.85)} out of {max_m}", f"{int(max_m * 0.92)} out of {max_m}"]
-                     if max_m > 100 else ["85%", "92%"])
-            card = build_counsellor_marks_card(
-                board_key=b_key, stage_key=s_key, max_marks=max_m, board_label=board_lbl, default_val=known.get("raw_marks"))
-            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+            chips_saved = [f"Use my saved details ({saved})"] if saved else []
+            if step == "board":
+                state["waiting_for"] = "board"
+                card = build_counsellor_board_card(selected_board=known.get("board_key"))
+                card.update(title="Which board did you study under?", subtitle=None, step_label=step_label,
+                            program=prog_key)
+                return {"action": "ask", "text": f"{opener}{step_label}: which board did you study under?",
+                        "chips": chips_saved, "cards": [card], "state": state}
+            if step == "stage":
+                state["waiting_for"] = "stage"
+                card = build_counsellor_stage_card(board_label=known.get("board_label"),
+                                                   selected_stage=known.get("academic_stage"))
+                card.update(title="Are you still studying, or have you finished Intermediate?", subtitle=None,
+                            step_label=step_label, program=prog_key)
+                return {"action": "ask", "text": f"{opener}{step_label}: where are you in Intermediate right now?",
+                        "chips": [], "cards": [card], "state": state}
+            if step == "marks":
+                state["waiting_for"] = "marks"
+                b_key = known.get("board_key") or "ts_state_board"
+                s_key = known.get("academic_stage") or "completed"
+                board_lbl = known.get("board_label") or "your board"
+                max_m = get_max_marks(b_key, s_key)
+                which = ("your 1st-year marks" if s_key == "1st_year" else
+                         "your marks so far" if s_key == "2nd_year" else "your final marks")
+                card = build_counsellor_marks_card(board_key=b_key, stage_key=s_key, max_marks=max_m,
+                                                   board_label=board_lbl, default_val=known.get("raw_marks"))
+                card.update(step_label=step_label, program=prog_key)
+                hint = f" (out of {max_m})" if max_m > 100 else ""
+                return {"action": "ask", "text": f"{opener}{step_label}: what are {which}{hint}?",
+                        "chips": [], "cards": [card], "state": state}
+            if step == "stream":
+                state["waiting_for"] = "stream"
+                from app.services.card_service import _FORM_STREAM_OPTIONS
+                card = {"type": "counsellor_choice", "step_label": step_label, "program": prog_key,
+                        "title": "Which group did you take in Intermediate?", "subtitle": None,
+                        "options": [{"key": o["key"], "label": o["label"], "desc": ""} for o in _FORM_STREAM_OPTIONS],
+                        "selected_stage": known.get("stream")}
+                return {"action": "ask", "text": f"{opener}{step_label}: which group did you take?",
+                        "chips": [], "cards": [card], "state": state}
 
         # 10+2 subjects: a known mismatch is stated plainly; an unknown group does not block the scholarship
         # estimate (the assessment notes the requirement).
@@ -1000,6 +1025,27 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
                 )
                 chips = ["Rank 5000", "Rank 15000", "Skip this step", "Not appeared yet"]
             return {"action": "ask", "text": text, "chips": chips, "cards": [], "state": state}
+
+        # Asked again after an estimate: confirm the saved details first (use them, or change them).
+        low_msg = (message or "").lower()
+        if intake.get("waiting_for") == "confirm_details":
+            if re.search(r"\b(?:change|edit|update|different|new|wrong)\b", low_msg):
+                for k_clr in _ACADEMIC_FIELDS:
+                    state.pop(k_clr, None)
+                state.update(waiting_for="board", ack_shown=False)
+                card = build_counsellor_board_card()
+                card.update(title="Which board did you study under?", subtitle=None,
+                            step_label=f"Step 1 of {3 + (1 if req.get('any_of') else 0)}")
+                return {"action": "ask", "profile_clear": list(_ACADEMIC_FIELDS),
+                        "text": "No problem, let's update them. Which board did you study under?",
+                        "chips": [], "cards": [card], "state": state}
+        elif intake.get("waiting_for") == "done" and not (set(said) & set(_ACADEMIC_FIELDS)):
+            summary = ", ".join(have) if have else "your earlier details"
+            state["waiting_for"] = "confirm_details"
+            return {"action": "ask",
+                    "text": f"I already have your details: **{summary}**. Use them for {short}, or change them?",
+                    "chips": ["Use these details", "Change my details"], "cards": [], "state": state,
+                    "exact_chips": True}
 
         # Step 6: All details known -> Calculate!
         state["waiting_for"] = "done"

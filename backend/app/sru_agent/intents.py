@@ -14,6 +14,7 @@ AgentIntent = Literal[
     "CAMPUS_VISIT_BOOKING",
     "CAMPUS_VISIT_INFO",
     "PLACEMENT_GUARANTEE_QUERY",
+    "PLACEMENT_INFO_QUERY",
     "ADMISSION_GUARANTEE_QUERY",
     "FUTURE_YEAR_FEE_QUERY",
     "SPECIAL_CONCESSIONS_QUERY",
@@ -321,8 +322,10 @@ _ELIGIBILITY_PATTERN = re.compile(
 
 _PLACEMENT_QUERY_PATTERN = re.compile(
     r"\b(?:placements?\s+for\s+this\s+branch|campus\s+placements?|"
-    r"placement\s+records?|highest\s+package|average\s+package|"
-    r"top\s+recruiters|placement\s+statistics|placement\s+details?)\b",
+    r"placement\s+records?|highest\s+packages?|average\s+packages?|"
+    r"top\s+recruiters|placement\s+statistics|placement\s+details?|placement\s+training|"
+    r"which\s+companies\s+(?:recruit|visit|hire|come)|companies\s+(?:that\s+)?(?:recruit|visit|hire)|"
+    r"internships?\s+(?:at|in)\s+(?:sr|sru)|prepare\s+and\s+support\s+students\s+for\s+placements)\b",
     re.IGNORECASE,
 )
 
@@ -536,8 +539,10 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
         return "CAMPUS_VISIT_INFO"
 
     # 6b. Placement guarantee / 100% placement assistance inquiry
-    if _PLACEMENT_GUARANTEE_PATTERN.search(msg) or _PLACEMENT_QUERY_PATTERN.search(msg):
+    if _PLACEMENT_GUARANTEE_PATTERN.search(msg):
         return "PLACEMENT_GUARANTEE_QUERY"
+    if _PLACEMENT_QUERY_PATTERN.search(msg):
+        return "PLACEMENT_INFO_QUERY"   # packages, recruiters, training, internships: a short factual answer
 
     # 6bb. Admission / Seat guarantee inquiry (evaluated before fee / score checks)
     if _ADMISSION_GUARANTEE_PATTERN.search(msg):
@@ -731,6 +736,9 @@ _NUMBER_STATEMENT_PATTERN = re.compile(
 
 def is_number_update(message: str) -> bool:
     """'change my number', 'my new number is ...', 'update it in the settings'."""
+    if re.search(r"\b(?:marks?|board|academic|percentage|group|stream|scores?)\b", message or "", re.I) \
+            and not re.search(r"\b(?:number|mobile|phone|contact)\b", message or "", re.I):
+        return False  # "change my academic details / marks": the admission details, not the phone number
     return bool(_NUMBER_UPDATE_PATTERN.search(message or ""))
 
 

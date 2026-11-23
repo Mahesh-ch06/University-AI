@@ -4,6 +4,7 @@ Decouples agent.py from large multi-line markdown texts.
 """
 from __future__ import annotations
 import hashlib
+import re
 
 _SMALL_TALK_CHIPS = ["B.Tech CSE fees", "Scholarship for my marks", "Placements at SRU", "Plan a campus visit"]
 
@@ -77,9 +78,7 @@ At SR University, special category tuition fee concessions are offered annually 
 | **Lateral Entry students** | **₹15,000 / year** |
 | **International students** | **₹15,000 / year** |
 
-> [!NOTE]
-> - Concessions are applicable per academic year on tuition fees.
-> - Required certificates and documentation must be submitted directly to the Admissions Office (833 100 3030 / info@sru.edu.in) during admission counselling."""
+Concessions are applicable per academic year on tuition fees. Required certificates and documentation must be submitted directly to the Admissions Office (833 100 3030 / info@sru.edu.in) during admission counselling."""
 
 _NEXT_GEN_TECH_TEXT = """### 🚀 Next-Gen Technology Programs at SR University
 
@@ -114,9 +113,6 @@ SR University has pioneered futuristic, multidisciplinary undergraduate engineer
 - **Tuition**: ₹3,40,000 / year (₹1,70,000 / semester) | Merit scholarships up to 40% available.
 
 ---
-
-> [!TIP]
-> All programs feature practical prototyping at **SRiX (DST-supported Technology Business Incubator)** with ₹76+ Cr in funding and 171+ startups.
 
 *Would you like to see the fee breakdown, eligibility cutoffs, or calculate your scholarship for any of these programs?*"""
 
@@ -175,10 +171,7 @@ def get_btech_cse_fee_text(specialization: str | None = None, user_msg: str | No
 - **20% Waiver**: Inter 70–79.9% → **₹2,72,000 / yr** (Save ₹68,000)
 - **10%–15% Waiver**: Inter 60–69.9% → **₹2,89,000 – ₹3,06,000 / yr**
 
-> [!NOTE]
-> - Annual tuition escalation: ₹9,000/year for subsequent academic years.
-> - Hostel is optional: ₹1,15,000 to ₹1,35,000/year (includes 4 meals daily, AC/Non-AC options, Wi-Fi & laundry)."""
-
+Annual tuition escalation: ₹9,000/year for subsequent academic years. Hostel is optional: ₹1,15,000 to ₹1,35,000/year (includes 4 meals daily, AC/Non-AC options, Wi-Fi & laundry)."""
 
 _BTECH_CSE_FEE_TEXT = get_btech_cse_fee_text()
 
@@ -200,9 +193,7 @@ Official fee schedule for the specialized **B.Tech in Artificial Intelligence & 
 - **25% Waiver**: Net Tuition **₹3,00,000 / yr** (Save ₹1,00,000/yr)
 - **20% Waiver**: Net Tuition **₹3,20,000 / yr** (Save ₹80,000/yr)
 
-> [!NOTE]
-> - Annual tuition escalation: ₹12,000/year for subsequent academic years.
-> - Hostel is optional: ₹1,15,000 to ₹1,35,000/year."""
+Annual tuition escalation: ₹12,000/year for subsequent academic years. Hostel is optional: ₹1,15,000 to ₹1,35,000/year."""
 
 _BTECH_ECE_FEE_TEXT = """### ⚡ B.Tech Electronics & Communication (ECE) — Fee Structure (2027–28)
 
@@ -222,9 +213,7 @@ Official fee schedule for **B.Tech ECE** (Specializations in VLSI, Embedded Syst
 - **25% Waiver**: Net Tuition **₹2,02,500 / yr** (Save ₹67,500/yr)
 - **20% Waiver**: Net Tuition **₹2,16,000 / yr** (Save ₹54,000/yr)
 
-> [!NOTE]
-> - Annual tuition escalation: ₹8,000/year for subsequent academic years.
-> - Hostel is optional: ₹1,15,000 to ₹1,35,000/year."""
+Annual tuition escalation: ₹8,000/year for subsequent academic years. Hostel is optional: ₹1,15,000 to ₹1,35,000/year."""
 
 _BTECH_CORE_FEE_TEXT = """### ⚙️ B.Tech Core Engineering — Fee Structure (2027–28)
 
@@ -244,9 +233,7 @@ Official fee schedule for **B.Tech Core Programs** (Mechanical, Civil, Electrica
 - **25% Waiver**: Net Tuition **₹1,50,000 / yr** (Save ₹50,000/yr)
 - **20% Waiver**: Net Tuition **₹1,60,000 / yr** (Save ₹40,000/yr)
 
-> [!NOTE]
-> - Annual tuition escalation: ₹6,000/year for subsequent academic years.
-> - Hostel is optional: ₹1,15,000 to ₹1,35,000/year."""
+Annual tuition escalation: ₹6,000/year for subsequent academic years. Hostel is optional: ₹1,15,000 to ₹1,35,000/year."""
 
 _MANAGEMENT_FEE_TEXT = """### 🏢 Astra School of Business — Fee Structure (2027–28)
 
@@ -351,7 +338,6 @@ Can I help you with hostel fees, curfew guidelines, or mess schedules?""",
 
 _HOSTEL_INFO_TEXT = _HOSTEL_INFO_VARIANTS[0]
 
-
 def get_hostel_info_text(session_id: str | None = None, query: str = "") -> str:
     """Return a contextual or session-stable hostel information variant."""
     q = (query or "").lower()
@@ -417,9 +403,7 @@ Hostel accommodation is optional. Annual fees cover both **room accommodation an
 • **Laundry Services**: **₹5,000 / year** (in-house mechanized laundry)
 • **Electricity Deposit (AC Rooms)**: **₹10,000 / year** (Non-AC: **₹5,000 / year**)
 
-> [!NOTE]
-> - Hostel fees are billed annually at the beginning of each academic year.
-> - Separate hostel blocks are provided for Boys and Girls on campus."""
+Hostel fees are billed annually at the beginning of each academic year. Separate hostel blocks are provided for Boys and Girls on campus."""
 
 _HOSTEL_INFO_CHIPS = ["Mess Food & Timings", "Hostel Rules & Curfew", "Safety & Wardens", "Hostel Fee Breakdown"]
 _HOSTEL_MESS_CHIPS = ["Hostel Facilities & Rooms", "Curfew & In-Time Rules", "Hostel Room Fees", "Safety & Security"]
@@ -441,8 +425,7 @@ Here is the complete combined fee breakdown for **B.Tech Computer Science & Engi
 • **Year 1 Combined Total**: **₹4,91,100** (Tuition ₹3.40L + Hostel ₹1.25L + Academic ₹20k + One-time admission/enrolment ₹6,100)
 *(With Non-AC 4-Sharing, the combined total is **₹4,81,100 / year** or **₹2,37,500 / semester**).*
 
-> [!NOTE]
-> Merit scholarships (up to 40% waiver based on 10+2 marks or entrance ranks) directly reduce the tuition portion!"""
+Merit scholarships (up to 40% waiver based on 10+2 marks or entrance ranks) directly reduce the tuition portion."""
 
 _COMBINED_HOSTEL_FEE_CHIPS = ["Calculate scholarship for my marks", "Hostel room options", "Placement records for this course", "Hostel Rules & Curfew"]
 
@@ -566,7 +549,6 @@ Would you like to explore our admissions process or plan a campus visit?""",
 
 _WHY_CHOOSE_SRU_CHIPS = ["B.Tech CSE Fee Structure", "Merit Scholarships & Slabs", "Top Placements & Recruiters", "Hostel Living & Facilities"]
 
-
 def get_why_choose_sru_text(variant_id: int | None = None, session_id: str | None = None) -> str:
     """Return one of the 6 Why Choose SRU drafts dynamically based on variant_id or session."""
     if variant_id is not None and 1 <= variant_id <= len(_WHY_CHOOSE_SRU_VARIANTS):
@@ -574,7 +556,6 @@ def get_why_choose_sru_text(variant_id: int | None = None, session_id: str | Non
     seed = (session_id or "default_why_sru").encode("utf-8")
     idx = int(hashlib.md5(seed).hexdigest(), 16) % len(_WHY_CHOOSE_SRU_VARIANTS)
     return _WHY_CHOOSE_SRU_VARIANTS[idx]
-
 
 _OTHER_FEES_TEXT = """As per the official 2027-28 Fee Structure, the fee components and charges other than semester tuition are:
 
@@ -603,7 +584,6 @@ _BRANCH_GUIDANCE_CHIPS = [
     "Talk to an admission counsellor",
 ]
 
-
 def get_branch_guidance_text(marks: int | float | None = None, session_id: str | None = None) -> str:
     """Natural branch guidance response explaining SRU engineering tracks and asking one follow-up question."""
     # The marks are acknowledged, not judged: eligibility depends on the branch and is checked separately.
@@ -622,7 +602,6 @@ Here is a quick overview of the key B.Tech engineering pathways available at SR 
 
 Which area interests you more — building software and apps, working with hardware and robotics, or core physical engineering?"""
 
-
 _ADMISSION_GUARANTEE_TEXT = """### 📋 SR University Admission & Seat Allocation Policy
 
 Admissions at SR University are **merit-based and subject to seat availability** during the active admission and counselling cycle. Seats are **never unconditionally guaranteed** or confirmed solely on a score, percentage, or rank.
@@ -636,7 +615,6 @@ Would you like to calculate your merit scholarship slab, or review the step-by-s
 
 _ADMISSION_GUARANTEE_CHIPS = ["Calculate scholarship", "How to apply", "Fee structure", "Contact Admissions"]
 
-
 _FUTURE_YEAR_FEE_TEXT = """### 📅 Fees for later academic years
 
 The official fee card covers the **2027-28** admission year only. Fees for admissions in later years are **not published yet**, so I can't give a verified figure for them.
@@ -648,7 +626,6 @@ The official fee card covers the **2027-28** admission year only. Fees for admis
 Would you like the 2027-28 fees for a particular programme?"""
 
 _FUTURE_YEAR_FEE_CHIPS = ["B.Tech CSE fees", "BBA fees", "MBA fees", "Contact Admissions"]
-
 
 # ----------------------------------------------------------------------------
 # Program Explorations & Branch Overviews
@@ -827,3 +804,103 @@ _ELIGIBILITY_CHIPS = [
 
 
 
+# ---------------------------------------------------------------- placements (v4.9.0)
+# Short, student-style answers, one per aspect, each with a few wordings so a repeated question does not get a
+# word-for-word repeat. Figures come from the placement card (card_service.PLACEMENT_EXCELLENCE_CARD).
+
+def _pick(options: list[str], seed: str) -> str:
+    return options[int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(options)]
+
+
+def placement_aspect(message: str) -> str:
+    low = (message or "").lower()
+    if re.search(r"guarantee|assur|promise|100\s*%|100\s*percent|definitely\s+get|surely\s+get", low):
+        return "guarantee"
+    if re.search(r"intern", low):
+        return "internships"
+    if re.search(r"train|prepar|support\s+students|coaching|mock", low):
+        return "training"
+    if re.search(r"recruit|compan|employer|hiring|who\s+hires", low):
+        return "recruiters"
+    return "record"
+
+
+_PLACEMENT_CHIPS = {
+    "record": ["Top recruiters", "Internships", "Placement training"],
+    "recruiters": ["Packages & record", "Internships", "Placement training"],
+    "training": ["Packages & record", "Top recruiters", "Internships"],
+    "internships": ["Packages & record", "Top recruiters", "Placement training"],
+    "guarantee": ["Startup Incubator (SRiX)", "Top recruiters", "Packages & record"],
+}
+
+
+def placement_reply(message: str, seed: str) -> tuple[str, list[str], str]:
+    """(answer, follow-up chips, aspect) for a placement question."""
+    from app.services.card_service import PLACEMENT_EXCELLENCE_CARD as card
+
+    stats = {s["label"]: s["value"] for s in card.get("stats", [])}
+    offers = stats.get("Total Job Offers", "1,300+")
+    interns = stats.get("Paid Internships", "3,500+")
+    top = sorted(card.get("top_mnc_offers", []), key=lambda m: -int(m["offers"]))[:5]
+    top_txt = ", ".join(f"{m['company']} ({m['offers']})" for m in top)
+    aspect = placement_aspect(message)
+    if aspect == "guarantee":
+        text = _pick([
+            f"SRU gives **100% placement assistance**: training by CSSP and the Career Guidance Cell, and campus drives "
+            f"with 150+ recruiters ({offers} offers so far). The offer itself depends on your interviews and coding "
+            f"skills, so no college can promise one. Average is **6 to 6.5 LPA**; top offers ₹51 LPA (Microsoft), "
+            f"₹49.30 LPA (ServiceNow) and ₹46.38 LPA (Amazon). If you'd rather build a startup, SRiX (DST-backed) "
+            f"incubates student ventures.",
+            f"You get **100% placement assistance** at SRU (CSSP and Career Guidance Cell training, 150+ recruiters, "
+            f"{offers} offers). Whether you get an offer depends on your own interviews and skills. Packages average "
+            f"**6 to 6.5 LPA**, with ₹51 LPA (Microsoft), ₹49.30 LPA (ServiceNow) and ₹46.38 LPA (Amazon) at the top. "
+            f"Students who want to start up get incubation at SRiX (DST-backed).",
+        ], seed)
+    elif aspect == "recruiters":
+        text = _pick([
+            f"Most offers came from **{top_txt}**. The highest packages were from Microsoft, ServiceNow, Amazon, "
+            f"Salesforce and PayPal. 150+ companies recruit on campus.",
+            f"150+ companies recruit at SRU. By number of offers the top ones are **{top_txt}**; for the biggest "
+            f"packages, Microsoft, ServiceNow, Amazon, Salesforce and PayPal.",
+        ], seed)
+    elif aspect == "training":
+        text = _pick([
+            "Placement prep is run by **CSSP** and the Career Guidance Cell from 2nd year: coding practice, aptitude, "
+            "mock interviews and soft skills, plus internships with industry mentors.",
+            "From 2nd year you get structured prep through **CSSP**: coding and aptitude training, mock interviews "
+            "and communication sessions, then internships and campus drives.",
+        ], seed)
+    elif aspect == "internships":
+        text = _pick([
+            f"Students have done **{interns} paid internships**, with stipends up to **₹1.25 lakh/month** "
+            f"(Microsoft, Batch 2025).",
+            f"Internships are big here: **{interns} paid internships** so far, the highest stipend being "
+            f"**₹1.25 lakh/month** at Microsoft.",
+        ], seed)
+    else:
+        text = _pick([
+            f"**{offers} job offers**, average **6 to 6.5 LPA**. Highest: **₹51 LPA** (Microsoft), then ₹49.30 LPA "
+            f"(ServiceNow) and ₹46.38 LPA (Amazon). Details are in the card below.",
+            f"The average package is **6 to 6.5 LPA** across {offers} offers. Top offers: **₹51 LPA** at Microsoft, "
+            f"₹49.30 LPA at ServiceNow, ₹46.38 LPA at Amazon.",
+            f"Quick numbers: {offers} offers, **6 to 6.5 LPA** average, and a highest of **₹51 LPA** (Microsoft). "
+            f"ServiceNow (₹49.30 LPA) and Amazon (₹46.38 LPA) follow.",
+        ], seed)
+    return text, list(_PLACEMENT_CHIPS[aspect]), aspect
+
+
+def special_concessions_text(data: dict) -> str:
+    """The special-category concessions, grouped by amount (from fees.special_concessions())."""
+    groups: dict[str, list[str]] = {}
+    for c in data.get("all_categories", []):
+        label = c["category"]
+        if len(label) > 1 and label[1].islower():
+            label = label[0].lower() + label[1:]          # "Students who..." -> "students who...", "NCC" stays
+        groups.setdefault(c["per_year"], []).append(label)
+    order = sorted(groups, key=lambda a: -int(re.sub(r"[^0-9]", "", a) or 0))
+    lines = [f"SRU has **{len(data.get('all_categories', []))} special concessions** on tuition, per year, "
+             f"with valid certificates:", ""]
+    for amount in order:
+        lines.append(f"• **{amount}**: " + "; ".join(groups[amount]))
+    lines += ["", "Tell me which one applies to you and I'll add it to your fee."]
+    return "\n".join(lines)

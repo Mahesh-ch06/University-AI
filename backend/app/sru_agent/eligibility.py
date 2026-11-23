@@ -155,16 +155,15 @@ def explain(result: dict, score_text: str | None = None) -> str:
         f"Your percentage is **{pct}**."
     floor = show_percent(result["floor"])
     if status == BELOW:
-        return (f"{given} This is below the official **{floor} minimum** eligibility requirement for **{name}** "
-                f"(the lowest minimum in any official SR University source), so you do not currently meet the "
-                f"general eligibility criteria based on these marks.\n\n"
-                f"If you think these marks are not right, or you would like to discuss your options, please "
-                f"contact {ADMISSIONS_CONTACT}.")
+        return (f"{given} That's below the official **{floor} minimum** for **{name}**, so you do not currently "
+                f"meet the general eligibility criteria with these marks. If the marks aren't right, or to talk "
+                f"about options, contact {ADMISSIONS_CONTACT}.")
     if result.get("stream_ok") is False:
         req = result["stream_requirement"]["label"]
         studied = _STREAM_LABEL.get(result.get("stream"), result.get("stream"))
-        return (f"{given} However, **{name}** requires {req}, and you mentioned {studied}. So you do not meet the "
-                f"listed subject requirement for this programme. Please check with {ADMISSIONS_CONTACT}.")
+        return (f"{given} But **{name}** needs {req}, and you took {studied}, so you don't meet its subject "
+                f"requirement. The Admissions Office ({ADMISSIONS_CONTACT.split('(')[1].rstrip(')')}) can suggest "
+                f"programmes that fit.")
     lines = []
     req = result.get("stream_requirement") or {}
     if status == CONFIRM:
