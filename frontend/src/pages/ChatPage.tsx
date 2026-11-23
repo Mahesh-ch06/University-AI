@@ -6,7 +6,6 @@ import { getSessionId } from "../hooks/useSession";
 import { applyServerProfile, cleanPhone, forgetStudentDetails, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import { deduplicateCards } from "../components/Cards";
 import { WELCOME_QUICK_ACTIONS } from "../data/welcomeQuickActions";
-import RecoveryCard from "../components/RecoveryCard";
 import {
   sendMessageStream,
   fetchRecoveryContext,
@@ -138,7 +137,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               setActiveConvId(urlConvId);
               activeConvIdRef.current = urlConvId;
               setIsWidgetOpen(true);
-              setShowRecoveryCard(false);
             }
           })
           .catch((err) => {
@@ -194,7 +192,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
   // Smart Conversation Recovery state
   const [recoveryContext, setRecoveryContext] = useState<ConversationRecoveryContext | null>(null);
-  const [showRecoveryCard, setShowRecoveryCard] = useState<boolean>(false);
   const [isRestoringConv, setIsRestoringConv] = useState<boolean>(false);
   const [pendingRecoveryQuery, setPendingRecoveryQuery] = useState<string | null>(null);
   const pendingRecoveryQueryRef = useRef<string | null>(null);
@@ -221,8 +218,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       .then((ctx) => {
         if (isMounted && ctx && ctx.has_resumable_conversation) {
           setRecoveryContext(ctx);
-          setShowRecoveryCard(true);
-          setIsWidgetOpen(true);
         }
       })
       .catch(() => {});
@@ -243,8 +238,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           .then((ctx) => {
             if (ctx && ctx.has_resumable_conversation) {
               setRecoveryContext(ctx);
-              setShowRecoveryCard(true);
-              setIsWidgetOpen(true);
             }
           })
           .catch(() => {});
@@ -261,7 +254,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
   const handleContinueConversation = async () => {
     if (!recoveryContext?.conversation_id) {
-      setShowRecoveryCard(false);
       setRecoveryContext(null);
       return;
     }
@@ -272,7 +264,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         setMessages(conv.messages);
         setActiveConvId(recoveryContext.conversation_id);
         activeConvIdRef.current = recoveryContext.conversation_id;
-        setShowRecoveryCard(false);
         setRecoveryContext(null);
         recordUserActivity();
 
@@ -280,11 +271,20 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         pendingRecoveryQueryRef.current = null;
         setPendingRecoveryQuery(null);
 
-        if (pending) {
+        if (pending && !/^\s*(?:hi|hello|hey|start|menu|hola)\s*$/i.test(pending)) {
           setTimeout(() => {
             executeSendMessage(pending, false);
           }, 150);
         } else {
+          const rawName = recoveryContext.student_name || readStudentDetails()?.name || "";
+          const namePart = rawName ? `, ${rawName.trim().charAt(0).toUpperCase() + rawName.trim().slice(1)}` : "";
+          const welcomeBackMsg: MessageData = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: `Welcome back${namePart}! Your previous conversation has been restored. How can I help you today?`,
+            created_at: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, welcomeBackMsg]);
           requestAnimationFrame(() => {
             if (messagesAreaRef.current) {
               messagesAreaRef.current.scrollTo({
@@ -295,11 +295,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           });
         }
       } else {
-        setShowRecoveryCard(false);
         setRecoveryContext(null);
       }
     } catch {
-      setShowRecoveryCard(false);
       setRecoveryContext(null);
     } finally {
       setIsRestoringConv(false);
@@ -307,7 +305,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   };
 
   const handleStartNewConversation = async () => {
-    setShowRecoveryCard(false);
     const prevContext = recoveryContext;
     const prevConvId = activeConvId || prevContext?.conversation_id;
     setRecoveryContext(null);
@@ -395,7 +392,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     };
   }, []);
 
-  const currentStatus = isLoading
+  const currentStatus = isRestoringConv
+    ? { text: "Restoring conversation...", type: "setting_up" }
+    : isLoading
     ? { text: activeToolStatus || "Thinking...", type: "thinking" }
     : connStatus === "setting_up"
       ? { text: "Setting up...", type: "setting_up" }
@@ -473,22 +472,22 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
     // 1. Direct triggers for recovery choices (from chips, buttons, or typed commands)
     if (/^\s*(?:[▶\s]*(?:continue|resume|pick\s*up)(?:\s+(?:previous|prior|my))?\s*(?:conversation|chat)?)\s*$/i.test(trimmed)) {
-      if (showRecoveryCard || recoveryContext) {
+      if (recoveryContext?.has_resumable_conversation) {
         handleContinueConversation();
         return;
       }
     }
     if (/^\s*(?:[↺\s]*(?:start\s*fresh|new\s*(?:chat|conversation)|restart(?:\s*fresh)?|refresh(?:\s*chat)?))\s*$/i.test(trimmed)) {
-      if (showRecoveryCard || recoveryContext) {
+      if (recoveryContext?.has_resumable_conversation) {
         handleStartNewConversation();
         return;
       }
     }
 
-    // 2. Strict Recovery Guard:
-    // If recovery card is active, do NOT dismiss it!
-    // Intercept the query, keep the card visible, and prompt the student to choose.
-    if (showRecoveryCard && recoveryContext) {
+    // 2. Natural Session Recovery:
+    // When a returning student sends their first message in an unresumed session,
+    // display their message and respond with personalized greeting, saved academic details card, and action choices.
+    if (!activeConvId && recoveryContext?.has_resumable_conversation) {
       setPendingRecoveryQuery(trimmed);
       pendingRecoveryQueryRef.current = trimmed;
 
@@ -501,11 +500,22 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         content: trimmed,
         created_at: new Date().toISOString(),
       };
+      lastSentUserMsgIdRef.current = userMsgId;
+
+      const rawName = recoveryContext.student_name || readStudentDetails()?.name || "";
+      const formattedName = rawName ? rawName.trim().charAt(0).toUpperCase() + rawName.trim().slice(1) : "";
+      const greetingHeader = formattedName ? `Hey **${formattedName}**! 👋` : `Hey there! 👋`;
 
       const promptMsg: MessageData = {
         id: promptMsgId,
         role: "assistant",
-        content: `Welcome back! To best assist you with **"${trimmed}"**, please let me know:\n\nWould you like to **continue your previous conversation** or **start a fresh session**?`,
+        content: `${greetingHeader} Welcome back to SR University!\n\nDo you want to **continue your previous chat** or **start fresh / refresh**?`,
+        cards: [
+          {
+            type: "session_recovery",
+            context: recoveryContext,
+          },
+        ],
         suggestions: ["▶ Continue Previous Chat", "↺ Start Fresh"],
         created_at: new Date().toISOString(),
       };
@@ -848,14 +858,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
           {/* Body */}
           <div className="sru-widget-body" ref={messagesAreaRef}>
-            {showRecoveryCard && recoveryContext && (
-              <RecoveryCard
-                context={recoveryContext}
-                onContinue={handleContinueConversation}
-                onStartFresh={handleStartNewConversation}
-                isContinuing={isRestoringConv}
-              />
-            )}
             {messages.length > visibleMessages.length && (
               <button
                 type="button"
@@ -865,9 +867,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 Load older messages
               </button>
             )}
-            {visibleMessages
-              .filter((msg) => !(showRecoveryCard && msg.id.startsWith("welcome-sru-buddy")))
-              .map((msg, index) => (
+            {visibleMessages.map((msg, index) => (
               <div
                 key={msg.id || index}
                 id={msg.id ? `sru-msg-${msg.id}` : undefined}
@@ -922,54 +922,12 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
           {/* Footer / Input Bar */}
           <div className="sru-widget-footer">
-            {showRecoveryCard && recoveryContext && (
-              <div className="sru-recovery-dock" role="region" aria-label="Conversation recovery choices">
-                <div className="sru-recovery-dock-header">
-                  <span className="sru-recovery-dock-badge">✨ Session Saved</span>
-                  <span className="sru-recovery-dock-text">Please choose to proceed:</span>
-                </div>
-                <div className="sru-recovery-dock-actions">
-                  <button
-                    type="button"
-                    className="sru-recovery-dock-btn sru-recovery-dock-btn--continue"
-                    onClick={handleContinueConversation}
-                    disabled={isRestoringConv}
-                    aria-label="Continue previous conversation"
-                  >
-                    {isRestoringConv ? (
-                      <span>Restoring...</span>
-                    ) : (
-                      <>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                          <polygon points="6 4 20 12 6 20 6 4" />
-                        </svg>
-                        <span>Continue Chat</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="sru-recovery-dock-btn sru-recovery-dock-btn--fresh"
-                    onClick={handleStartNewConversation}
-                    disabled={isRestoringConv}
-                    aria-label="Start fresh conversation"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
-                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                    </svg>
-                    <span>Start Fresh</span>
-                  </button>
-                </div>
-              </div>
-            )}
             <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
               <textarea
                 ref={widgetTextareaRef}
                 className="sru-widget-textarea"
                 placeholder={
-                  showRecoveryCard
-                    ? "Choose Continue or Start Fresh above..."
-                    : showInlineLeadForm
+                  showInlineLeadForm
                     ? "Please share your name & mobile number above to chat"
                     : "Ask SRU Buddy..."
                 }
@@ -980,14 +938,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                 onChange={(e) => {
                   setWidgetInput(e.target.value);
                   adjustTextareaHeight(e.target);
-                }}
-                onFocus={() => {
-                  if (showRecoveryCard && messagesAreaRef.current) {
-                    messagesAreaRef.current.scrollTo({
-                      top: messagesAreaRef.current.scrollHeight,
-                      behavior: "smooth",
-                    });
-                  }
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -1390,14 +1340,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           {!isMinimized && (
             <>
               <div className="sru-widget-body" ref={messagesAreaRef}>
-                {showRecoveryCard && recoveryContext && (
-                  <RecoveryCard
-                    context={recoveryContext}
-                    onContinue={handleContinueConversation}
-                    onStartFresh={handleStartNewConversation}
-                    isContinuing={isRestoringConv}
-                  />
-                )}
                 {messages.length > visibleMessages.length && (
                   <button
                     type="button"
@@ -1407,9 +1349,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     Load older messages
                   </button>
                 )}
-                {visibleMessages
-                  .filter((msg) => !(showRecoveryCard && msg.id.startsWith("welcome-sru-buddy")))
-                  .map((msg, index) => (
+                {visibleMessages.map((msg, index) => (
                   <div
                     key={msg.id || index}
                     id={msg.id ? `sru-msg-${msg.id}` : undefined}
@@ -1464,54 +1404,12 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
               {/* Footer / Input Bar */}
               <div className="sru-widget-footer">
-                {showRecoveryCard && recoveryContext && (
-                  <div className="sru-recovery-dock" role="region" aria-label="Conversation recovery choices">
-                    <div className="sru-recovery-dock-header">
-                      <span className="sru-recovery-dock-badge">✨ Session Saved</span>
-                      <span className="sru-recovery-dock-text">Please choose to proceed:</span>
-                    </div>
-                    <div className="sru-recovery-dock-actions">
-                      <button
-                        type="button"
-                        className="sru-recovery-dock-btn sru-recovery-dock-btn--continue"
-                        onClick={handleContinueConversation}
-                        disabled={isRestoringConv}
-                        aria-label="Continue previous conversation"
-                      >
-                        {isRestoringConv ? (
-                          <span>Restoring...</span>
-                        ) : (
-                          <>
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                              <polygon points="6 4 20 12 6 20 6 4" />
-                            </svg>
-                            <span>Continue Chat</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        className="sru-recovery-dock-btn sru-recovery-dock-btn--fresh"
-                        onClick={handleStartNewConversation}
-                        disabled={isRestoringConv}
-                        aria-label="Start fresh conversation"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
-                          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                        </svg>
-                        <span>Start Fresh</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
                 <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
                   <textarea
                     ref={portalTextareaRef}
                     className="sru-widget-textarea"
                     placeholder={
-                      showRecoveryCard
-                        ? "Choose Continue or Start Fresh above..."
-                        : showInlineLeadForm
+                      showInlineLeadForm
                         ? "Please share your name & mobile number above to chat"
                         : "Ask SRU Buddy..."
                     }
@@ -1522,14 +1420,6 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                     onChange={(e) => {
                       setWidgetInput(e.target.value);
                       adjustTextareaHeight(e.target);
-                    }}
-                    onFocus={() => {
-                      if (showRecoveryCard && messagesAreaRef.current) {
-                        messagesAreaRef.current.scrollTo({
-                          top: messagesAreaRef.current.scrollHeight,
-                          behavior: "smooth",
-                        });
-                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

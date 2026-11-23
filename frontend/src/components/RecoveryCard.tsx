@@ -100,36 +100,40 @@ export default function RecoveryCard({
         <span className="sru-rec-time-chip">{relativeTime}</span>
       </div>
 
-      {/* Badges / Credential Chips */}
-      <div className="sru-rec-chips">
+      {/* Structured Academic Details Grid */}
+      <div className="sru-rec-details-grid">
         {progLabel && (
-          <span className="sru-rec-chip sru-chip-prog" title={progLabel}>
-            🎓 {progLabel}
-          </span>
+          <div className="sru-rec-detail-item">
+            <span className="sru-rec-detail-label">🎓 Programme</span>
+            <span className="sru-rec-detail-val" title={progLabel}>{progLabel}</span>
+          </div>
         )}
         {(boardLabel || stageLabel) && (
-          <span className="sru-rec-chip sru-chip-board">
-            {[boardLabel, stageLabel].filter(Boolean).join(' • ')}
-          </span>
+          <div className="sru-rec-detail-item">
+            <span className="sru-rec-detail-label">📚 Board / Stage</span>
+            <span className="sru-rec-detail-val">
+              {[boardLabel, stageLabel].filter(Boolean).join(' • ')}
+            </span>
+          </div>
         )}
         {context.score_text && (
-          <span className="sru-rec-chip sru-chip-score">
-            📊 {context.score_text}
-          </span>
+          <div className="sru-rec-detail-item">
+            <span className="sru-rec-detail-label">📊 Academic Marks</span>
+            <span className="sru-rec-detail-val">{context.score_text}</span>
+          </div>
         )}
-        {hasScholarship ? (
-          <span className="sru-rec-chip sru-chip-success">
-            🏆 {context.scholarship_percent}% Waiver
+        <div className="sru-rec-detail-item">
+          <span className="sru-rec-detail-label">🏆 Admission Status</span>
+          <span className="sru-rec-detail-val sru-rec-highlight">
+            {hasScholarship
+              ? `${context.scholarship_percent}% Fee Waiver`
+              : isCompleted
+              ? 'Admissions Open'
+              : isInProgress
+              ? 'In Progress'
+              : 'Saved Profile'}
           </span>
-        ) : isCompleted ? (
-          <span className="sru-rec-chip sru-chip-neutral">
-            Admissions Open
-          </span>
-        ) : isInProgress ? (
-          <span className="sru-rec-chip sru-chip-progress">
-            In Progress
-          </span>
-        ) : null}
+        </div>
       </div>
 
       {/* Short Note */}
@@ -154,7 +158,7 @@ export default function RecoveryCard({
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                 <polygon points="6 4 20 12 6 20 6 4" />
               </svg>
-              <span>Continue Chat</span>
+              <span>Continue Previous Chat</span>
             </>
           )}
         </button>

@@ -17,6 +17,7 @@ import {
   ClockIcon,
   SruHostelIcon,
 } from "./Icons";
+import RecoveryCard from "./RecoveryCard";
 import "./Cards.css";
 
 interface CardProps {
@@ -1977,6 +1978,15 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
   if (!card || !card.type) return null;
 
   switch (card.type) {
+    case "session_recovery":
+      return (
+        <RecoveryCard
+          context={card.context || card}
+          onContinue={() => onSelect?.("▶ Continue Previous Chat")}
+          onStartFresh={() => onSelect?.("↺ Start Fresh")}
+          isContinuing={card.isContinuing}
+        />
+      );
     case "welcome_actions":
       return <WelcomeActionsCard card={card} onSelect={onSelect} />;
     case "counsellor_board_selection":
