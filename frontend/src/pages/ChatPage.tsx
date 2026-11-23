@@ -5,6 +5,7 @@ import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
 import { applyServerProfile, cleanPhone, forgetStudentDetails, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import { deduplicateCards } from "../components/Cards";
+import type { AcademicFormPayload } from "../components/Cards";
 import { WELCOME_QUICK_ACTIONS } from "../data/welcomeQuickActions";
 import {
   sendMessageStream,
@@ -464,7 +465,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     }
   };
 
-  async function handleSendMessage(text: string) {
+  async function handleSendMessage(text: string, form?: AcademicFormPayload) {
     const trimmed = text.trim();
     if (!trimmed) return;
 
@@ -547,10 +548,10 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       return;
     }
 
-    await executeSendMessage(trimmed, false);
+    await executeSendMessage(trimmed, false, form);
   }
 
-  async function executeSendMessage(text: string, skipAppendUserMsg = false) {
+  async function executeSendMessage(text: string, skipAppendUserMsg = false, form?: AcademicFormPayload) {
     if (isLoading && cancelStreamRef.current) {
       cancelStreamRef.current();
       cancelStreamRef.current = null;
@@ -622,7 +623,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     };
 
     const convIdToSend = activeConvIdRef.current || activeConvId;
-    const cancelFn = sendMessageStream(sessionId, text, convIdToSend, {
+    const cancelFn = sendMessageStream(sessionId, text, convIdToSend, form, {
       onStart: (convId) => {
         if (convId) {
           setActiveConvId(convId);
@@ -883,7 +884,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   conversationId={activeConvId}
                   sessionId={sessionId}
                   isStreaming={msg.id === streamingMsgId}
-                  onSuggestionClick={(prompt) => handleSendMessage(prompt)}
+                  onSuggestionClick={(prompt, form) => handleSendMessage(prompt, form)}
                 />
               </div>
             ))}
@@ -1365,7 +1366,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                       conversationId={activeConvId}
                       sessionId={sessionId}
                       isStreaming={msg.id === streamingMsgId}
-                      onSuggestionClick={(prompt) => handleSendMessage(prompt)}
+                      onSuggestionClick={(prompt, form) => handleSendMessage(prompt, form)}
                     />
                   </div>
                 ))}

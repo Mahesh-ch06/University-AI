@@ -44,3 +44,21 @@ Every message passes through the conversation manager before any other route (no
 - A message that does not answer the pending question drops it and is treated as a new question. "skip" ends it.
 - The programme being discussed is stored as `active_program` and given to the AI as a CURRENT FOCUS line, so
   AI-written answers stay on that programme.
+
+## One admission journey (v4.6.0)
+- **Fees**: a fee question with no programme asks which programme (and branch for B.Tech) before any figure; only
+  that programme's fees are shown, for the year on the fee card. Inside a hostel / transport conversation, "what is
+  the fee?" means that fee. Later years: "not published yet", plus the named programme's 2027-28 figure.
+- **Unfinished messages** ("I want to...", "Can you explain", "What about the"): ask what the student means, using
+  the topic being discussed; the pending question is kept. Short complete questions ("Hostel fees?") are answered.
+- **Academic details** (board, status, marks, 10+2 group, optional entrance score) belong to the conversation
+  (`sru_agent/journey.py`). Eligibility, scholarship and fee answers all reuse them; only missing fields are asked:
+  two or more missing -> one `academic_details_form` card (pre-filled); one missing -> only that field; typed
+  answers after the form continue field by field.
+- A **new conversation** starts with a clean form; details from the previous chat are offered as
+  "Use my saved details (...)" and used only if the student taps it.
+- A **programme change** midway keeps the marks and redoes the check for the new programme.
+- **Name**: used where it reads naturally (journey start, results received, scholarship start), never in two
+  consecutive replies, never invented.
+- **Neutral guidance**: the agent describes options and asks about interests; it never calls a course "the best for
+  you". Admission eligibility and scholarships are evaluated and shown separately.

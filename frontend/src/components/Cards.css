@@ -4640,3 +4640,235 @@
   .welcome-action-top { margin-bottom: 6px; }
   .welcome-action-badge { font-size: 0.6rem; padding: 4px 6px; }
 }
+
+/* ---------------------------------------------------------------------------
+   Academic details form: one connected workflow (board -> status -> marks
+   [-> group] [-> entrance]), built on the counsellor card styles.
+   --------------------------------------------------------------------------- */
+.acad-form-card {
+  max-width: 560px;
+}
+.acad-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.acad-field {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.acad-field:disabled {
+  opacity: 0.7;
+}
+.acad-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-1, #0f172a);
+  margin-bottom: 8px;
+  padding: 0;
+}
+.acad-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #6366f1;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.acad-optional {
+  font-weight: 500;
+  color: var(--text-3, #64748b);
+}
+.acad-stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.acad-stage-btn {
+  width: 100%;
+}
+.acad-help {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--text-2, #64748b);
+  margin-bottom: 6px;
+}
+.acad-marks-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.acad-input {
+  padding-right: 12px;
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.acad-input-max {
+  flex: 0 1 110px;
+}
+.acad-select {
+  flex: 1 1 200px;
+  appearance: auto;
+}
+.acad-outof {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-2, #64748b);
+  white-space: nowrap;
+}
+.acad-review {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.06);
+  color: var(--text-1, #0f172a);
+}
+.acad-todo {
+  color: var(--text-2, #64748b);
+}
+.acad-submit {
+  width: 100%;
+  padding: 11px 16px;
+  font-size: 0.9rem;
+}
+.acad-saved-btn,
+.acad-edit-btn {
+  align-self: flex-start;
+  background: none;
+  border: 1px dashed #6366f1;
+  color: #4f46e5;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+.acad-edit-btn {
+  margin: -4px 0 0;
+  border-style: solid;
+  border-color: transparent;
+  text-decoration: underline;
+  padding: 2px 0;
+}
+.acad-saved-btn:focus-visible,
+.acad-edit-btn:focus-visible,
+.acad-form .counsellor-opt-btn:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+[data-theme="dark"] .acad-legend,
+[data-theme="dark"] .acad-review {
+  color: #e2e8f0;
+}
+[data-theme="dark"] .acad-review {
+  background: rgba(99, 102, 241, 0.14);
+}
+[data-theme="dark"] .acad-help,
+[data-theme="dark"] .acad-outof,
+[data-theme="dark"] .acad-todo,
+[data-theme="dark"] .acad-optional {
+  color: #94a3b8;
+}
+[data-theme="dark"] .acad-saved-btn,
+[data-theme="dark"] .acad-edit-btn {
+  color: #a5b4fc;
+  border-color: #818cf8;
+}
+[data-theme="dark"] .acad-edit-btn {
+  border-color: transparent;
+}
+@media (max-width: 440px) {
+  .acad-form-card {
+    padding: 14px 12px;
+  }
+  .acad-form .counsellor-options-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .acad-input-max {
+    flex: 1 1 90px;
+  }
+}
+.acad-submitted {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--text-1, #0f172a);
+}
+.acad-submitted-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.acad-submitted-text {
+  flex: 1 1 200px;
+}
+.acad-submitted .acad-edit-btn {
+  margin: 0;
+}
+[data-theme="dark"] .acad-submitted {
+  color: #e2e8f0;
+}
+
+/* Fee tables in a narrow chat (phone, or the 400px chat panel on desktop): one block per row (category on
+   top, amount + frequency on one line, details below) instead of four squeezed columns. Sized by the card's
+   own width, so it works wherever the chat is shown. */
+.fee-card {
+  container-type: inline-size;
+}
+@container (max-width: 480px) {
+  .fee-table thead {
+    display: none;
+  }
+  .fee-table,
+  .fee-table tbody,
+  .fee-table tr,
+  .fee-table td {
+    display: block;
+    width: 100%;
+  }
+  .fee-table tr {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+  }
+  .fee-table td {
+    padding: 2px 0;
+    border: 0;
+  }
+  .fee-table .fee-category-cell {
+    font-weight: 700;
+  }
+  .fee-table .fee-amount-cell,
+  .fee-table .fee-frequency-cell {
+    display: inline-block;
+    width: auto;
+    margin-right: 8px;
+  }
+  .fee-table .fee-note-cell {
+    font-size: 0.78rem;
+    color: var(--text-2, #64748b);
+  }
+}

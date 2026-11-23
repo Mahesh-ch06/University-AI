@@ -1,6 +1,7 @@
 import { memo, useState, useMemo } from "react";
 import { submitFeedback } from "../services/api";
 import { RenderCard, deduplicateCards } from "./Cards";
+import type { AcademicFormPayload } from "./Cards";
 import MarkdownContent from "./MarkdownContent";
 import { copyCleanText } from "../utils/cleanCopy";
 import { renderUniIcon } from "./Icons";
@@ -34,7 +35,7 @@ interface Props {
   sessionId?: string;
   createdAt?: string;
   isStreaming?: boolean;
-  onSuggestionClick?: (text: string) => void;
+  onSuggestionClick?: (text: string, form?: AcademicFormPayload) => void;
 }
 
 function MessageBubble({

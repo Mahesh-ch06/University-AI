@@ -259,6 +259,12 @@ async def update_profile(session_id: str, **fields) -> dict:
     return profile
 
 
+async def replace_profile(session_id: str, profile: dict) -> dict:
+    """Save the whole profile as given (unlike update_profile, keys removed from it stay removed)."""
+    await _save_profile(session_id, profile)
+    return profile
+
+
 async def clear_profile(session_id: str) -> dict:
     """Forget everything about this student (Settings > Forget my details)."""
     await _save_profile(session_id, {})

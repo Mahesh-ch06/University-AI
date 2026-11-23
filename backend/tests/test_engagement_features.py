@@ -54,13 +54,15 @@ def test_cards_comparison():
 
 
 def test_cards_fee_breakdown():
-    """Verify that fee breakdown cards are attached for general fee queries."""
+    """The all-branch fee table is attached only when the student asks to see / compare every branch."""
     cards = generate_cards(
-        user_message="What is the complete fee structure and merit scholarship details for B.Tech?",
+        user_message="Compare the fee structure of all B.Tech branches",
         answer="The tuition fee is ₹1,47,500 per semester.",
     )
-    assert len(cards) >= 1
     assert any(c.get("type") == "fee_breakdown" for c in cards)
+    # "fee details" with no programme (or one programme) never gets the all-branch table
+    for msg in ("What are the fee details?", "What is the complete fee structure and merit scholarship details for B.Tech?"):
+        assert not any(c.get("type") == "fee_breakdown" for c in generate_cards(user_message=msg, answer=""))
 
 
 def test_cards_curriculum():

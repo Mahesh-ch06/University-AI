@@ -166,26 +166,27 @@ def explain(result: dict, score_text: str | None = None) -> str:
         return (f"{given} However, **{name}** requires {req}, and you mentioned {studied}. So you do not meet the "
                 f"listed subject requirement for this programme. Please check with {ADMISSIONS_CONTACT}.")
     lines = []
+    req = result.get("stream_requirement") or {}
     if status == CONFIRM:
         listed = "; ".join(f"{s['source']}: {show_percent(s['percent'])}" for s in result["sources"])
         lines.append(f"{given} The official sources list different minimum marks for **{name}** ({listed}). "
                      f"Your score meets the lowest of these but not the highest, so I can't confirm your "
                      f"eligibility. Please confirm it with {ADMISSIONS_CONTACT}.")
     else:
+        subjects = (f", and you studied the required subjects ({', '.join(req['any_of'])})"
+                    if req.get("any_of") and result.get("stream_ok") else "")
         lines.append(f"{given} This meets the minimum marks in {qualifying} listed for **{name}** in every "
-                     f"official source (highest listed: {show_percent(result['ceiling'])}).")
-    req = result.get("stream_requirement") or {}
-    if req.get("any_of"):
-        if result.get("stream_ok"):
-            lines.append(f"You also studied the required subjects ({req['label']}).")
-        else:
-            lines.append(f"{name} also requires {req['label']}.")
+                     f"official source (highest listed: {show_percent(result['ceiling'])}){subjects}.")
+    if req.get("any_of") and not result.get("stream_ok"):
+        lines.append(f"{name} also requires {req['label']}.")
     elif req.get("unstated"):
         lines.append("The required 10+2 subjects for this programme are confirmed by the Admissions Office.")
+    closing = "Final admission depends on document verification and seat availability."
     if result.get("entrance_note") and status != BELOW:
-        lines.append(f"The university's programme page also mentions: {result['entrance_note']}. The Admissions "
-                     f"Office confirms whether an entrance score is needed for {config.ADMISSION_YEAR}.")
-    lines.append("Final admission depends on document verification and seat availability.")
+        closing = (f"Note: the university's programme page also mentions: {result['entrance_note']}. The "
+                   f"Admissions Office confirms whether this is needed for "
+                   f"{config.ADMISSION_YEAR}. {closing}")
+    lines.append(closing)
     return "\n\n".join(lines)
 
 

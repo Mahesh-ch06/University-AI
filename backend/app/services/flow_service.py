@@ -200,7 +200,7 @@ def execute_wizard_step(step_info: dict) -> tuple[str, dict]:
         degree = step_info.get("degree", "B.Tech")
         text = (
             f"🧭 **Step 2 of 4: Select Your Branch** ({degree})\n\n"
-            f"Great choice aiming for {degree}! Which engineering or specialization track interests you the most?"
+            f"Got it: {degree}. Which engineering or specialization track interests you the most?"
         )
     elif step == 3:
         branch = step_info.get("branch", "CSE")

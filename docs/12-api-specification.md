@@ -186,6 +186,24 @@ GET  /api/v1/agent/programs      # programs with tuition and minimum marks
 GET  /api/v1/agent/fee-config    # everything the Fee & Scholarship Calculator draws from
 ```
 
+`POST /api/v1/agent/stream` body: `session_id`, `message`, `conversation_id?`, `channel?`
+(`web` | `widget`), and, only when the student submits the academic details form (card type
+`academic_details_form`, v4.6.0), `form`:
+
+| Field | Values |
+|---|---|
+| `mode` | `eligibility` \| `scholarship` |
+| `program` | programme key from `fees_2027_28.json` (e.g. `btech_cse`) |
+| `board_key` | `ts_state_board` \| `ap_state_board` \| `cbse` \| `icse` \| `other_state_board` \| `ib` |
+| `academic_stage` | `1st_year` \| `2nd_year` \| `completed` |
+| `raw_marks`, `max_marks` | numbers (IB: points out of 45) |
+| `stream` | `MPC` \| `BiPC` \| `MEC` (when the form asked for it: `show_stream`) |
+| `entrance_type`, `entrance_value` | `none` \| `tg_eapcet` \| `ap_eapcet` \| `jee_main`, with the rank / percentile (optional; `show_entrance`) |
+
+The agent validates the values again. A form with problems is returned with what was entered and nothing is
+saved; a valid form is stored as this conversation's academic details and evaluated (eligibility or scholarship).
+`message` is the readable summary shown in the chat.
+
 `POST /api/v1/agent/calculate` body: `program` (required), `percent`, `board`
 (`state_board` | `cbse`), `eapcet_rank`, `jee_percentile`, `ib_score`, `hostel`
 (`none` | `non_ac_4` | `non_ac_3` | `ac_4` | `ac_3`), `specialization`, `transport`.

@@ -110,13 +110,14 @@ async def test_context_preservation_followup_scholarship():
     ans2 = done2["answer"]
     cards2 = done2.get("cards", [])
 
-    # Must activate scholarship intake for board
-    assert any(c.get("type") in ("counsellor_board", "fee_scholarship_form") for c in cards2) or "board" in ans2.lower()
+    # Scholarship rules differ by branch: the branch is asked first (the 850 marks are kept)
+    assert "Which B.Tech branch" in ans2 or "board" in ans2.lower()
     # Must NOT re-ask what marks they scored because 850 marks is already remembered
     assert "how many marks" not in ans2.lower()
     assert "what marks did you score" not in ans2.lower()
 
-    # Turn 3: User provides board
+    # Turn 3: User picks the branch, then the board
+    await _run("B.Tech CSE", session_id, conv_id)
     t3_query = "Telangana Intermediate (TSBIE)"
     events3 = await _run(t3_query, session_id, conv_id)
     done3 = events3[-1]
@@ -124,7 +125,7 @@ async def test_context_preservation_followup_scholarship():
     cards3 = done3.get("cards", [])
 
     # Next step asks for academic stage, not marks
-    assert any(c.get("type") == "counsellor_stage" for c in cards3) or "year" in ans3.lower() or "stage" in ans3.lower()
+    assert any(c.get("type") == "counsellor_stage_selection" for c in cards3) or "academic status" in ans3.lower()
     assert "how many marks" not in ans3.lower()
 
 

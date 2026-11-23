@@ -111,7 +111,8 @@ async def test_personal_welcome_shown_once_without_repeating_the_tiles():
     assert "Welcome to SR University, **Rahul**" not in done_t2.get("answer", "")
     assert not any(c.get("type") == "welcome_actions" for c in done_t2.get("cards", []))
     assert len(done_t2.get("suggestions", [])) == 4
-    # Mid-question (board step): chips are answers to that question only, no general chips
+    # Mid-question (programme step): chips are answers to that question only, no general chips
     assert followups.FIXED_ADMISSION_CHIP not in done_t2["suggestions"]
     assert followups.FIXED_UNIVERSITY_CHIP not in done_t2["suggestions"]
-    assert any(c.get("type") == "counsellor_board_selection" for c in done_t2.get("cards", []))
+    assert "B.Tech" in done_t2["suggestions"]
+    assert any(c.get("type") == "counsellor_program_selection" for c in done_t2.get("cards", []))

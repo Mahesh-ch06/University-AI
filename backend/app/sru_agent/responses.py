@@ -606,14 +606,18 @@ _BRANCH_GUIDANCE_CHIPS = [
 
 def get_branch_guidance_text(marks: int | float | None = None, session_id: str | None = None) -> str:
     """Natural branch guidance response explaining SRU engineering tracks and asking one follow-up question."""
-    ack = f"With **{marks} marks in Intermediate**, you have a strong academic foundation for engineering at SR University." if marks else "Choosing the right engineering branch is an important decision, and we can help you find the best fit."
+    # The marks are acknowledged, not judged: eligibility depends on the branch and is checked separately.
+    ack = (f"Thanks for sharing your marks (**{marks}**). Here is an overview so you can compare the branches by "
+           f"what interests you." if marks else
+           "Choosing an engineering branch is an important decision. Here is an overview so you can compare them "
+           "by what interests you.")
     return f"""{ack}
 
 Here is a quick overview of the key B.Tech engineering pathways available at SR University:
 
-• 💻 **Computer Science & Engineering (CSE)**: Ideal if you enjoy software programming, algorithms, AI & Machine Learning, Data Science, and cybersecurity. High campus recruitment and coding focus.
-• 🤖 **AI & Robotics**: Best if you want to work at the intersection of intelligent software, automated mechanical systems, autonomous robots, and drone engineering.
-• ⚡ **Electronics & Communication (ECE)**: Excellent if you are interested in VLSI chip design, embedded systems, IoT devices, wireless communications, and hardware-software integration.
+• 💻 **Computer Science & Engineering (CSE)**: For students who enjoy software programming, algorithms, AI & Machine Learning, Data Science and cybersecurity, with a strong coding focus.
+• 🤖 **AI & Robotics**: For students who want to work at the intersection of intelligent software, automated mechanical systems, autonomous robots, and drone engineering.
+• ⚡ **Electronics & Communication (ECE)**: For students interested in VLSI chip design, embedded systems, IoT devices, wireless communications, and hardware-software integration.
 • ⚙️ **Core Engineering (Mechanical, EEE, Civil)**: Strong hands-on focus in smart manufacturing, electric vehicle (EV) powertrains, sustainable infrastructure, and renewable energy.
 
 Which area interests you more — building software and apps, working with hardware and robotics, or core physical engineering?"""
@@ -633,18 +637,17 @@ Would you like to calculate your merit scholarship slab, or review the step-by-s
 _ADMISSION_GUARANTEE_CHIPS = ["Calculate scholarship", "How to apply", "Fee structure", "Contact Admissions"]
 
 
-_FUTURE_YEAR_FEE_TEXT = """### 📅 SR University Academic Fee Schedule
+_FUTURE_YEAR_FEE_TEXT = """### 📅 Fees for later academic years
 
-Official fee schedules and merit scholarship waivers have **not yet been finalized** for future years and are currently notified for the **2027-28** academic year (e.g. B.Tech CSE annual tuition is **₹3,40,000** per year or ₹1,70,000 per semester). Fees for 2028-29, 2029, and subsequent academic years are approved by the university governing body prior to each respective admission cycle.
+The official fee card covers the **2027-28** admission year only. Fees for admissions in later years are **not published yet**, so I can't give a verified figure for them.
 
-Key policy rules regarding future academic fees:
-• **Annual Tuition Revision**: In accordance with official university regulations, there is an annual revision of **₹9,000 per year** for subsequent academic years.
-• **Merit Scholarships**: Scholarship percentages awarded at the time of admission are maintained across subsequent academic years provided the student maintains the required academic standing (minimum 7.5 CGPA and no active backlogs).
-• **Official Inquiries**: For forward projections or multi-year fee planning, please contact the Admissions Office at **833 100 3030** or email **info@sru.edu.in**.
+• **What the 2027-28 fee card does list**: each programme's tuition for 2027-28 and a fixed **yearly tuition increase** for that programme, which applies to students admitted in 2027-28 as they move into later years of study. It is not a forecast of fees for later admission years.
+• **Keeping a scholarship in later years**: the conditions are not stated on the 2027-28 fee card; the Admissions Office confirms them.
+• **Questions about later years**: Admissions Office, **833 100 3030** or **info@sru.edu.in**.
 
-Would you like to review the official 2027-28 fee schedule or calculate your scholarship waiver?"""
+Would you like the 2027-28 fees for a particular programme?"""
 
-_FUTURE_YEAR_FEE_CHIPS = ["2027-28 Fee Structure", "Merit Scholarships", "Hostel Fees", "Contact Admissions"]
+_FUTURE_YEAR_FEE_CHIPS = ["B.Tech CSE fees", "BBA fees", "MBA fees", "Contact Admissions"]
 
 
 # ----------------------------------------------------------------------------

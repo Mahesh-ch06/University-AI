@@ -80,7 +80,7 @@ async def test_fee_structure_tree_btech_selection():
     assert intent == "BTECH_TREE_QUERY"
 
     # Tapped from the fee tree (the tree is open), not typed cold: the tree continues
-    [e async for e in run_agent("Show me the fee structure", "test-btech-tree-session")]
+    [e async for e in run_agent("What is the fee structure for 2027-28 across different programs?", "test-btech-tree-session")]
     events = [e async for e in run_agent(prompt, "test-btech-tree-session")]
     done = [e for e in events if e["type"] == "done"][0]
     answer = done["answer"]

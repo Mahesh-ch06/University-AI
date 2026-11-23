@@ -1105,9 +1105,12 @@ def generate_cards(
         any(k in msg_lower for k in ("tuition", "cse fee", "btech fee", "b.tech fee", "total fee", "per sem"))
     )
 
-    is_btech_fee_query = any(k in msg_lower for k in ("btech", "b.tech", "engineering fee", "btech fee", "b.tech fee")) or (
-        any(k in msg_lower for k in ("btech", "b.tech")) and any(k in msg_lower for k in ("fee", "fees", "tuition", "cost", "scholarship"))
-    )
+    # The all-branch B.Tech table only when the student asks to see or compare every branch; a question
+    # about one programme (or "fee details" with no programme) never gets another programme's figures.
+    is_btech_fee_query = any(k in msg_lower for k in ("btech", "b.tech", "b tech", "engineering")) and any(
+        k in msg_lower for k in ("fee", "fees", "tuition", "cost")) and any(
+        k in msg_lower for k in ("all branches", "all b.tech", "all btech", "every branch", "branch wise",
+                                 "branch-wise", "compare", "comparison", "each branch", "all the branches"))
 
     if is_other_fee_query:
         if _can_show("fee_breakdown"):
@@ -1153,13 +1156,7 @@ def generate_cards(
         if _can_show("fee_breakdown"):
             cards.append(BTECH_ACADEMIC_FEE_CARD)
             _mark_shown("fee_breakdown")
-    elif any(k in msg_lower for k in ("fee", "fees", "tuition", "cost of study", "how much is the fee")):
-        # Only attach general breakdown if user explicitly asked for program fee structure / breakdown
-        if any(k in msg_lower for k in ("structure", "complete fee", "breakdown", "all fees", "details", "academic", "tuition")):
-            if not any(k in msg_lower for k in ("transport", "bus", "hostel", "mess", "exam")):
-                if _can_show("fee_breakdown"):
-                    cards.append(BTECH_ACADEMIC_FEE_CARD)
-                    _mark_shown("fee_breakdown")
+    # (No fallback card for other fee wording: "fee details" alone is answered by asking which programme.)
 
 
     # 2. Sponsored Early Bird Application Ad Card (media_1794676975023.png reference)
@@ -1348,6 +1345,73 @@ def build_counsellor_board_card(selected_board: str | None = None) -> dict:
             {"key": "other_state_board", "label": "Other State Board", "short": "Other State Board", "code": "Other"},
             {"key": "ib", "label": "International Baccalaureate (IB)", "short": "IB", "code": "IB"},
         ],
+    }
+
+
+_FORM_STAGE_OPTIONS = [
+    {"key": "1st_year", "label": "Studying Intermediate 1st Year (Class 11)"},
+    {"key": "2nd_year", "label": "Studying Intermediate 2nd Year (Class 12)"},
+    {"key": "completed", "label": "Completed Intermediate / Class 12 (passed out)"},
+]
+_FORM_STREAM_OPTIONS = [
+    {"key": "MPC", "label": "MPC (Maths, Physics, Chemistry)"},
+    {"key": "BiPC", "label": "BiPC (Biology, Physics, Chemistry)"},
+    {"key": "MEC", "label": "MEC / CEC / Other"},
+]
+_FORM_ENTRANCE_OPTIONS = [
+    {"key": "none", "label": "No entrance score / not yet"},
+    {"key": "tg_eapcet", "label": "TG EAPCET rank"},
+    {"key": "ap_eapcet", "label": "AP EAPCET rank"},
+    {"key": "jee_main", "label": "JEE Main percentile"},
+]
+
+
+def build_academic_details_form(
+    mode: str,
+    program_key: str | None,
+    program_name: str | None,
+    values: dict | None = None,
+    show_stream: bool = False,
+    show_entrance: bool = False,
+    saved_summary: str | None = None,
+) -> dict:
+    """ONE form for the academic details an admission journey needs: board -> current status -> marks
+    (+ 10+2 group when the programme names one, + an optional entrance score for B.Tech / B.Sc Agriculture).
+    Values already known in this conversation are pre-filled. Submitting sends the details as structured data
+    (``form`` on /api/v1/agent/stream), which the agent validates and evaluates (eligibility or scholarship)."""
+    from app.sru_agent.fee_intake import get_max_marks
+
+    values = dict(values or {})
+    boards = build_counsellor_board_card()["options"]
+    max_table = {b["key"]: {s["key"]: get_max_marks(b["key"], s["key"]) for s in _FORM_STAGE_OPTIONS} for b in boards}
+    return {
+        "type": "academic_details_form",
+        "mode": "scholarship" if mode == "scholarship" else "eligibility",
+        "program": program_key,
+        "program_name": program_name,
+        "title": "Your academic details",
+        "subtitle": (f"For {program_name}. " if program_name else "") + "Already shared details are filled in; complete the rest and submit.",
+        "boards": [{"key": b["key"], "label": b["label"]} for b in boards],
+        "stages": _FORM_STAGE_OPTIONS,
+        "max_marks_table": max_table,
+        "show_stream": bool(show_stream),
+        "streams": _FORM_STREAM_OPTIONS,
+        "show_entrance": bool(show_entrance),
+        "entrances": _FORM_ENTRANCE_OPTIONS,
+        "values": {
+            "board_key": values.get("board_key"),
+            "academic_stage": values.get("academic_stage"),
+            "raw_marks": values.get("raw_marks"),
+            "max_marks": values.get("max_marks"),
+            "percent": values.get("percent"),
+            "stream": values.get("stream"),
+            "entrance_type": ("tg_eapcet" if values.get("eapcet_rank") and values.get("admission_route") != "ap_eapcet"
+                              else "ap_eapcet" if values.get("eapcet_rank") else
+                              "jee_main" if values.get("jee_percentile") else None),
+            "entrance_value": values.get("eapcet_rank") or values.get("jee_percentile"),
+        },
+        "saved_summary": saved_summary,
+        "submit_label": "Calculate my scholarship" if mode == "scholarship" else "Check my eligibility",
     }
 
 

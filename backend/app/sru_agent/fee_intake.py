@@ -13,6 +13,7 @@ import re
 from typing import Any
 
 from app.services.card_service import (
+    build_academic_details_form,
     build_fee_scholarship_form_card,
     build_counsellor_board_card,
     build_counsellor_stage_card,
@@ -107,6 +108,8 @@ _BOARD_LABEL = {
     "ib": "International Baccalaureate (IB)",
 }
 _ENTRANCE_PROGRAMS = ("btech_", "bsc_agri")
+_ADD_ENTRANCE = re.compile(r"\badd\s+(?:my\s+)?(?:(?:tg|ap|ts)\s+)?(?:eapcet|eamcet|jee(?:\s+main)?)(?:\s+(?:rank|percentile|score))?\b",
+                           re.IGNORECASE)
 
 
 def _num(value):
@@ -551,7 +554,7 @@ def _counsellor_pg(prog_key: str, known: dict, said: dict, state: dict, intake: 
     if degree_pct is None and not wants_standard:
         state["waiting_for"] = "degree_percent"
         text = (
-            f"Great choice! For **{prog_name}**, the merit scholarship is based on your percentage in the "
+            f"Got it. For **{prog_name}**, the merit scholarship is based on your percentage in the "
             "qualifying degree (for example B.Tech, B.Sc, B.Com or BBA), not your 12th marks.\n\n"
             "What percentage did you score (or expect to score) in your degree?"
         )
@@ -588,12 +591,26 @@ def _counsellor_pg(prog_key: str, known: dict, said: dict, state: dict, intake: 
     }
 
 
-def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
-    """What to do with a fee enquiry. Multi-step intake with counsellor workflow and anti-repetition."""
+def decide(message: str, profile: dict, intake: dict | None, first_name: str | None = None) -> dict | None:
+    """What to do with a fee enquiry. Multi-step intake with counsellor workflow and anti-repetition.
+    first_name: given only when using it now would read naturally (the agent leaves it out when the
+    previous reply already used the name)."""
     from . import intents
     if intents._ADMISSION_GUARANTEE_PATTERN.search(message or "") or intents._FUTURE_YEAR_FEE_PATTERN.search(message or ""):
         return None
     intake = dict(intake or {})
+    # "Add my EAPCET rank" / "Add my JEE Main percentile" after an estimate: ask just that score; the rest
+    # of the details are reused for the new calculation.
+    add = _ADD_ENTRANCE.search(message or "")
+    if add and intake.get("counsellor_mode") and intake.get("program"):
+        low_add = add.group(0).lower()
+        route = "jee_main" if "jee" in low_add else ("ap_eapcet" if re.search(r"\bap\b", low_add) else "tg_eapcet")
+        label = {"jee_main": "JEE Main", "ap_eapcet": "AP EAPCET", "tg_eapcet": "TG EAPCET"}[route]
+        state = {**intake, "waiting_for": "rank", "admission_route": route, "route_label": label,
+                 "no_entrance": None, "asked": sorted(set(intake.get("asked", [])) | {"rank"})}
+        question = ("What is your JEE Main percentile?" if route == "jee_main" else f"What is your {label} rank?")
+        chips = ["92 percentile", "85 percentile"] if route == "jee_main" else ["Rank 5000", "Rank 15000"]
+        return {"action": "ask", "text": f"Sure! {question}", "chips": chips, "cards": [], "state": state}
     said = parse_details(message)
     from . import eligibility
     # The 10+2 subject group (MPC / BiPC / other). Acronyms are read anywhere; words like "commerce" or
@@ -860,116 +877,103 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 stage_label=known.get("stage_label", ""), variant_idx=int(state.get("turns", 0)),
             ) + "\n\n"
 
-        # Step 1: Board selection (if not already known)
-        if not has_board:
+        # The scholarship journey reuses everything already known in this conversation (from the eligibility
+        # check, the form or the chat) and asks only for what is missing:
+        #   programme first (scholarship rules and entrance options differ by programme), then
+        #   2+ of board / status / marks missing -> ONE consolidated form, pre-filled with what is known;
+        #   exactly 1 missing                    -> only that field;
+        #   nothing missing                      -> calculate. An entrance score is optional (form field, or
+        #   "Add my EAPCET rank" afterwards); it is never a mandatory step.
+        name_bit = f", {first_name}" if first_name else ""
+        if not has_prog:
+            state["waiting_for"] = "program"
+            if said.get("generic_btech") or known.get("generic_btech"):
+                text = (f"Sure{name_bit}! Which B.Tech branch would you like the scholarship details for? For example, "
+                        f"Computer Science, AI & Robotics, Electronics or Mechanical Engineering.")
+                chips = ["B.Tech CSE", "B.Tech AI & Robotics", "B.Tech ECE", "B.Tech Mechanical"]
+            else:
+                text = f"Sure{name_bit}! Which programme would you like the scholarship details for?"
+                chips = ["B.Tech", "BBA", "MBA", "B.Sc Agriculture"]
+            card = build_counsellor_program_card(selected_program=known.get("program"), step_label="Preferred Programme")
+            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+
+        short = fees.short_name(prog_key)
+        req = eligibility.stream_requirement(prog_key)
+        needs_stream = bool(req.get("any_of")) and not known.get("stream")
+        has_entrance = bool(known.get("eapcet_rank") or known.get("jee_percentile") or known.get("no_entrance"))
+        missing = [f for f, ok in (("board", has_board), ("stage", has_stage), ("marks", has_marks)) if not ok]
+        first_turn = not intake.get("waiting_for")
+        lead = (f"Absolutely{name_bit}! I can help you understand the scholarship details for **{short}**. "
+                if first_turn else "Thanks! ")
+        have = []
+        if has_marks:
+            have.append(_score_plain())
+        if known.get("stream"):
+            have.append(known["stream"])
+        if has_board and known.get("board_label"):
+            have.append(known["board_label"])
+        if has_stage and known.get("stage_label"):
+            have.append(known["stage_label"])
+        reuse = f"I'll use the details you've already shared ({', '.join(have)}). " if have and first_turn else ""
+
+        if len(missing) >= 2 and intake.get("waiting_for") != "form":
+            state["waiting_for"] = "form"
+            saved = None
+            if not have and profile.get("saved_academic"):
+                from . import journey
+                saved = journey.saved_summary(profile)
+            card = build_academic_details_form(
+                "scholarship", prog_key, short, known, show_stream=needs_stream,
+                show_entrance=needs_route and not has_entrance, saved_summary=saved)
+            text = (f"{lead}{reuse}Please fill in your academic details below and tap **Calculate my scholarship**. "
+                    f"I'll work it out from the {config.ADMISSION_YEAR} fee card.")
+            chips = [f"Use my saved details ({saved})"] if saved else []
+            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
+
+        if len(missing) >= 2:
+            # The form was already shown and the student typed one answer instead: ask the next field on its
+            # own rather than showing the whole form again.
+            missing = missing[:1]
+        if missing == ["board"]:
             state["waiting_for"] = "board"
-            text = (
-                "Absolutely! I can help you understand your potential scholarship and the fee you may need to pay at SR University.\n\n"
-                "To give you a relevant estimate, let me first understand your academic background. I'll guide you through a few quick questions.\n\n"
-                "Where did you complete your schooling / Intermediate education?\n"
-                "Select the board under which you studied so I can use the appropriate academic assessment criteria."
-            )
-            chips = [
-                "Telangana Intermediate (TSBIE)",
-                "AP Intermediate (BIEAP)",
-                "CBSE",
-                "ISC",
-                "Other State Board",
-                "IB",
-            ]
+            text = (f"{lead}{reuse}I just need your board: scholarship slabs differ between State Board and "
+                    f"CBSE / ICSE. Which board did you study under?")
+            chips = ["Telangana Intermediate (TSBIE)", "AP Intermediate (BIEAP)", "CBSE", "ISC"]
             card = build_counsellor_board_card(selected_board=known.get("board_key"))
             return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
 
-        # Step 2: Academic stage selection (if not already known)
-        if not has_stage:
+        if missing == ["stage"]:
             state["waiting_for"] = "stage"
-            board_lbl = known.get("board_label") or _BOARD_LABEL.get(known.get("board") or "", "your board")
-            text = (
-                f"Great! You've selected {board_lbl}.\n\n"
-                f"Next, let's understand your current academic stage so I can ask for the correct marks.\n\n"
-                f"Which year are you currently studying in?"
-            )
-            chips = [
-                "Intermediate 1st Year (11th)",
-                "Intermediate 2nd Year (12th)",
-                "Completed Intermediate (Passed out)",
-            ]
-            card = build_counsellor_stage_card(board_label=board_lbl, selected_stage=known.get("academic_stage"))
+            text = (f"{lead}{reuse}I just need your current academic status: are you still studying, or have you "
+                    f"completed Intermediate?")
+            chips = ["Intermediate 1st Year (11th)", "Intermediate 2nd Year (12th)", "Completed Intermediate (Passed out)"]
+            card = build_counsellor_stage_card(board_label=known.get("board_label"), selected_stage=known.get("academic_stage"))
             return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
 
-        # Step 3: Marks input (if not already known)
-        if not has_marks:
+        if missing == ["marks"]:
             state["waiting_for"] = "marks"
             b_key = known.get("board_key") or "ts_state_board"
             s_key = known.get("academic_stage") or "completed"
             board_lbl = known.get("board_label") or "your board"
             max_m = get_max_marks(b_key, s_key)
-
-            if s_key == "1st_year":
-                text = (
-                    f"Got it! You're currently studying Intermediate 1st Year under {board_lbl}. "
-                    f"Let's start with your academic performance. What marks have you scored in your Intermediate 1st Year examinations?"
-                )
-                chips = [f"{int(max_m * 0.9)} out of {max_m}", f"{int(max_m * 0.94)} out of {max_m}", f"{int(max_m * 0.98)} out of {max_m}"] if max_m > 100 else ["85%", "92%", "96%"]
-            elif s_key == "2nd_year":
-                text = (
-                    f"Perfect! Since you're currently studying Intermediate 2nd Year, let's use your completed "
-                    f"first-year academic performance for a preliminary assessment. What marks did you score in Intermediate 1st Year?"
-                )
-                chips = [f"{int(max_m * 0.9)} out of {max_m}", f"{int(max_m * 0.94)} out of {max_m}", f"{int(max_m * 0.98)} out of {max_m}"] if max_m > 100 else ["85%", "92%", "96%"]
-            else:
-                text = (
-                    f"Great! Since you've already completed Intermediate, we'll use your actual final examination "
-                    f"marks for the assessment. Let's get your final Intermediate score."
-                )
-                chips = [f"{int(max_m * 0.85)} out of {max_m}", f"{int(max_m * 0.92)} out of {max_m}", f"{int(max_m * 0.96)} out of {max_m}"] if max_m > 100 else ["85%", "92%", "96%"]
-
+            which = ("your Intermediate 1st-year marks (used for a preliminary estimate)"
+                     if s_key in ("1st_year", "2nd_year") else "your final Intermediate / 12th marks")
+            text = f"{lead}{reuse}I just need {which}."
+            chips = ([f"{int(max_m * 0.85)} out of {max_m}", f"{int(max_m * 0.92)} out of {max_m}"]
+                     if max_m > 100 else ["85%", "92%"])
             card = build_counsellor_marks_card(
-                board_key=b_key, stage_key=s_key, max_marks=max_m, board_label=board_lbl, default_val=known.get("raw_marks")
-            )
+                board_key=b_key, stage_key=s_key, max_marks=max_m, board_label=board_lbl, default_val=known.get("raw_marks"))
             return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
 
-        # Step 4: Programme (if not already known). Asked before the entrance route, because only
-        # B.Tech and B.Sc Agriculture use EAPCET / JEE Main, and PG programmes use the degree %.
-        if not has_prog:
-            state["waiting_for"] = "program"
-            ack = _ack()
-            if said.get("generic_btech") or known.get("generic_btech"):
-                text = f"{ack}Which B.Tech branch are you interested in?\nChoose a branch to see your exact fee and scholarship."
-                chips = ["B.Tech CSE", "B.Tech AI & Robotics", "B.Tech ECE", "B.Tech Mechanical"]
-            else:
-                text = f"{ack}Which programme are you interested in?\nChoose a programme to see your exact fee and scholarship."
-                chips = ["B.Tech CSE", "B.Tech ECE", "BBA", "B.Sc Agriculture"]
-            card = build_counsellor_program_card(selected_program=known.get("program"), step_label="Step 4: Preferred Programme")
-            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
-
-        # Step 4b: 10+2 subjects, only for programmes whose fee card names them (B.Tech: MPC; B.Sc Agri:
-        # BiPC) and only when the marks do not already rule the student out. Needed to confirm eligibility.
-        req = eligibility.stream_requirement(prog_key)
-        if req.get("any_of") and not known.get("stream"):
-            state["waiting_for"] = "stream"
-            verdict = eligibility.assess(prog_key, _known_percent(known))
-            text = f"{_ack()}{eligibility.stream_question(verdict)}"
-            return {"action": "ask", "text": text, "chips": eligibility.stream_chips(verdict), "cards": [], "state": state}
-        if req.get("any_of"):
+        # 10+2 subjects: a known mismatch is stated plainly; an unknown group does not block the scholarship
+        # estimate (the assessment notes the requirement).
+        if req.get("any_of") and known.get("stream"):
             verdict = eligibility.assess(prog_key, _known_percent(known), known.get("stream"))
             if verdict.get("stream_ok") is False:
                 state["waiting_for"] = None
                 return {"action": "ineligible", "text": eligibility.explain(verdict, _score_text(known)),
                         "chips": ["📞 Admissions Office", "Explore other programmes", "📋 Eligibility Criteria"],
                         "cards": [], "state": state}
-
-        # Step 5: Admission route (B.Tech / B.Sc Agriculture only)
-        if needs_route and not has_route:
-            state["waiting_for"] = "route"
-            prog_title = fees.clean_program_name(prog_key, specialization=known.get("specialization"), user_text=known.get("program_raw"))
-            text = (
-                f"{_ack()}Which admission route are you planning to use for {prog_title}?\n"
-                f"Select your admission pathway so we can factor in any entrance rank scholarships."
-            )
-            card = build_counsellor_route_card(selected_route=known.get("admission_route"), program_title=prog_title)
-            chips = ["TG EAPCET", "AP EAPCET", "JEE Main", "Not decided yet"]
-            return {"action": "ask", "text": text, "chips": chips, "cards": [card], "state": state}
 
         # Step 5b: Entrance rank (skippable) if entrance route selected but score missing
         if (
@@ -999,6 +1003,7 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
 
         # Step 6: All details known -> Calculate!
         state["waiting_for"] = "done"
+        state["ack_shown"] = True  # the assessment shows the marks compliment once; a recalculation does not
         state["program"] = prog_key
         args = {"program": prog_key}
         if known.get("percent") is None and known.get("raw_marks") is not None:
@@ -1038,7 +1043,9 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
                 "percent": known.get("percent"),
                 "is_projected": bool(known.get("is_projected")),
                 "admission_route": known.get("admission_route"),
-                "route_label": known.get("route_label") or "Direct Merit / 10+2 Marks",
+                "route_label": known.get("route_label") or ("Not provided (marks-based estimate)" if needs_route
+                                                             else "Direct Merit / 10+2 Marks"),
+                "has_entrance_score": bool(known.get("eapcet_rank") or known.get("jee_percentile")),
                 "eapcet_rank": known.get("eapcet_rank"),
                 "jee_percentile": known.get("jee_percentile"),
                 "ib_score": known.get("ib_score"),

@@ -70,14 +70,12 @@ async def test_scenario_2_complete_fee_structure_asks_school():
     answer = events[-1]["answer"]
     cards = events[-1]["cards"]
 
-    # Must prompt for academic area / school
-    assert "school" in answer.lower() or "academic area" in answer.lower()
-    assert any(c.get("type") == "school_selection" for c in cards)
-    school_card = next(c for c in cards if c.get("type") == "school_selection")
-    assert len(school_card["schools"]) == 6
-
+    # No programme named: ask which one before giving any fee (no all-programme fee dump)
+    assert "Which programme are you interested in?" in answer
+    assert "₹" not in answer and not cards
+    assert "B.Tech" in events[-1]["suggestions"]
     state = await memory.get_conversation_state(session_id, conv_id)
-    assert state.get("fee_flow_state") == "awaiting_school_selection"
+    assert state["dialogue"]["step"] == "program" and state["dialogue"]["goal"] == "fees"
 
 
 # ---- Scenario 3: "What is the tuition fee?" ----
@@ -93,11 +91,10 @@ async def test_scenario_3_hostel_fee_query_initiates_flow():
     answer = events[-1]["answer"]
     cards = events[-1]["cards"]
 
-    # Before generic numbers, initiates academic flow
-    assert any(c.get("type") == "school_selection" for c in cards)
+    # Before any number, the programme is asked (the current year 2027-28 needs no other question)
+    assert "Which programme are you interested in?" in answer and "₹" not in answer
     state = await memory.get_conversation_state(session_id, conv_id)
-    assert state.get("fee_flow_state") == "awaiting_school_selection"
-    assert state.get("fee_flow_year") == "2027-28"
+    assert state["dialogue"]["goal"] == "fees"
 
 
 # ---- Scenario 4: "How much will B.Tech CSE cost including hostel?" ----
@@ -171,10 +168,10 @@ async def test_scenario_7_selects_school_then_types_course_manually():
     await memory.clear_profile(session_id)
     await memory.clear_conversation_state(session_id, conv_id)
 
-    # Turn 1: Broad fee query
+    # Turn 1: Broad fee query -> which programme?
     await _run("Tell me about the course fees", session_id, conv_id)
     state1 = await memory.get_conversation_state(session_id, conv_id)
-    assert state1.get("fee_flow_state") == "awaiting_school_selection"
+    assert state1["dialogue"]["step"] == "program" and state1["dialogue"]["goal"] == "fees"
 
     # Turn 2: User types manual course directly: "B.Tech Mechanical"
     events2 = await _run("B.Tech Mechanical", session_id, conv_id)

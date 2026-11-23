@@ -95,9 +95,9 @@ async def test_scenario_b_maintain_course_context():
     answer2 = done_ev2["answer"]
     cards2 = done_ev2.get("cards", [])
 
-    # Must NOT ask which course again; proceeds straight to academic background / board
-    assert "Which course" not in answer2
-    assert any(c.get("type") == "counsellor_board_selection" for c in cards2)
+    # Must NOT ask which course again; proceeds straight to the academic details (one form, nothing known yet)
+    assert "Which course" not in answer2 and "Which programme" not in answer2
+    assert any(c.get("type") == "academic_details_form" and c.get("program") == "btech_cse" for c in cards2)
 
     # State must reflect btech_cse
     state = await memory.get_conversation_state(session_id, conv_id)
@@ -122,8 +122,8 @@ async def test_scenario_c_select_course_after_general_enquiry():
     assert done_ev2["type"] == "done"
     cards2 = done_ev2.get("cards", [])
 
-    # Proceeds to board selection with CSE context
-    assert any(c.get("type") == "counsellor_board_selection" for c in cards2)
+    # Proceeds to the academic details with CSE context (one form)
+    assert any(c.get("type") == "academic_details_form" and c.get("program") == "btech_cse" for c in cards2)
     state = await memory.get_conversation_state(session_id, conv_id)
     assert state.get("active_program") == "btech_cse"
 
@@ -190,7 +190,7 @@ async def test_scenario_e_course_change():
     done_ev3 = events3[-1]
     assert done_ev3["type"] == "done"
     cards3 = done_ev3.get("cards", [])
-    assert any(c.get("type") == "counsellor_board_selection" for c in cards3)
+    assert any(c.get("type") == "academic_details_form" and c.get("program") == "btech_ece" for c in cards3)
     state3 = await memory.get_conversation_state(session_id, conv_id)
     assert state3.get("active_program") == "btech_ece"
 
@@ -216,4 +216,4 @@ async def test_scenario_topic_transition_preserves_course():
     state3 = await memory.get_conversation_state(session_id, conv_id)
     assert state3.get("active_program") == "btech_cse"
     cards3 = events3[-1].get("cards", [])
-    assert any(c.get("type") == "counsellor_board_selection" for c in cards3)
+    assert any(c.get("type") == "academic_details_form" and c.get("program") == "btech_cse" for c in cards3)

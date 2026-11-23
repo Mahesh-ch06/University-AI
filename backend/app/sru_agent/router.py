@@ -7,7 +7,7 @@ import json
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -75,12 +75,30 @@ def set_conversation_resolver(fn):
     _conversation_resolver = fn
 
 
+class AcademicForm(BaseModel):
+    """The academic details form (card type 'academic_details_form'), submitted as structured data.
+    Values are validated again by the agent against the options the form offers."""
+    mode: Literal["eligibility", "scholarship"] = "eligibility"
+    program: Optional[str] = Field(default=None, max_length=40)
+    board_key: Optional[Literal["ts_state_board", "ap_state_board", "cbse", "icse", "other_state_board", "ib"]] = None
+    academic_stage: Optional[Literal["1st_year", "2nd_year", "completed"]] = None
+    raw_marks: Optional[float] = Field(default=None, ge=0, le=2000)
+    max_marks: Optional[float] = Field(default=None, gt=0, le=2000)
+    stream: Optional[Literal["MPC", "BiPC", "MEC"]] = None
+    show_stream: bool = False
+    show_entrance: bool = False
+    entrance_type: Optional[Literal["none", "tg_eapcet", "ap_eapcet", "jee_main"]] = None
+    entrance_value: Optional[float] = Field(default=None, ge=0, le=1000000)
+
+
 class AgentRequest(BaseModel):
     session_id: str = Field(min_length=1, max_length=64)
     message: str = Field(min_length=1, max_length=config.AGENT_MAX_MESSAGE_CHARS)
     conversation_id: Optional[str] = None
     # "web" (the website) or "widget" (the embeddable chat bubble); stored with the chat for staff.
     channel: Optional[str] = Field(default=None, max_length=12, pattern=r"^[a-z]+$")
+    # Present only when the student submits the academic details form.
+    form: Optional[AcademicForm] = None
 
 
 class FeeRequest(BaseModel):
@@ -123,6 +141,7 @@ async def agent_stream(req: AgentRequest):
             req.session_id,
             conv_id,
             require_contact_details=True,
+            form=req.form.model_dump() if req.form else None,
         ):
             if event["type"] == "token" and first_token_perf is None:
                 first_token_perf = time.perf_counter()
