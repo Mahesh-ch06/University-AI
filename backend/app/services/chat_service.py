@@ -47,6 +47,7 @@ from app.services.rag_service import (
     is_about_sru_query,
 )
 from app.services.reformulation_service import canonicalize_query, needs_reformulation, reformulate_query
+from app.services.decomposition_service import decompose_query, merge_sub_answers, MAX_SUB_QUERIES
 from app.services.cache_service import get_cached_answer, set_cached_answer
 from app.services.suggestion_service import generate_suggestions
 from app.services.video_service import (
@@ -448,21 +449,19 @@ async def handle_chat(
             logger.info("Handled via fast conversational response (%s)", intent)
 
         elif intent == "UNIVERSITY" and rag_service:
-            search_query = canonicalize_query(request.message)
-            requires_reformulation = needs_reformulation(request.message, conversation_context)
-            if requires_reformulation:
-                search_query = await reformulate_query(
-                    request.message,
-                    conversation_context=conversation_context,
-                    llm_provider=llm_provider,
-                )
+            # ── Query decomposition: split compound/multi-question inputs ────────
+            sub_queries_raw = await decompose_query(
+                request.message,
+                conversation_context=conversation_context,
+                llm_provider=llm_provider,
+            )
 
             guidance = build_counsellor_guidance(profile, current_query=request.message)
             rag_context = conversation_context
             if guidance:
                 rag_context = f"{rag_context}\n\n{guidance}".strip() if rag_context else guidance
 
-            # Calculate assistant openings and variant rotation
+            # Calculate assistant openings and variant rotation (once, shared)
             assistant_openings = []
             for msg in recent:
                 if msg.get("role") in ("assistant", "model"):
@@ -473,40 +472,96 @@ async def handle_chat(
                             assistant_openings.append(line)
                             break
             calculated_variant = (len(assistant_openings) % 6) + 1
-            about_sru_angle = (
-                determine_about_sru_angle(rag_context, request.message)
-                if is_about_sru_query(request.message)
-                else None
-            )
 
-            cacheable = (
-                redis_client is not None
-                and not requires_reformulation
-                and not conversation_context.strip()
-                and not profile
-                and pending_task is None
-            )
-            cached = await get_cached_answer(redis_client, search_query) if cacheable else None
-            if cached:
-                answer, sources = cached
-                logger.info("Handled via cached RAG answer (search query: '%s')", search_query[:50])
-            else:
-                answer, sources = await rag_service.query(
-                    question=request.message,
-                    search_query=search_query,
-                    conversation_context=rag_context,
-                    variant_id=calculated_variant,
-                    used_openings=assistant_openings,
-                    about_sru_angle=about_sru_angle,
+            is_multi = len(sub_queries_raw) > 1
+            if is_multi:
+                # ── Multi-question path: retrieve + answer each sub-query ─────────
+                logger.info(
+                    "Multi-question decomposition: %d sub-queries for message '%s'",
+                    len(sub_queries_raw), request.message[:60],
                 )
-                if cacheable:
-                    await set_cached_answer(redis_client, search_query, answer, sources)
-            logger.info(
-                "Handled via RAG pipeline (search query: '%s', variant: %d, about_sru_angle: %s)",
-                search_query[:50],
-                calculated_variant,
-                about_sru_angle,
-            )
+                sub_answers: list[str] = []
+                sub_sources: list[list[dict]] = []
+                for idx, sub_q in enumerate(sub_queries_raw):
+                    # Independently reformulate / canonicalize each sub-query
+                    sq_canonical = canonicalize_query(sub_q)
+                    if needs_reformulation(sub_q, conversation_context):
+                        sq_search = await reformulate_query(
+                            sub_q,
+                            conversation_context=conversation_context,
+                            llm_provider=llm_provider,
+                        )
+                    else:
+                        sq_search = sq_canonical
+
+                    sq_about_sru_angle = (
+                        determine_about_sru_angle(rag_context, sub_q)
+                        if is_about_sru_query(sub_q)
+                        else None
+                    )
+                    sq_ans, sq_srcs = await rag_service.query(
+                        question=sub_q,
+                        search_query=sq_search,
+                        conversation_context=rag_context,
+                        variant_id=(calculated_variant + idx) % 6 + 1,
+                        used_openings=assistant_openings,
+                        about_sru_angle=sq_about_sru_angle,
+                    )
+                    sub_answers.append(sq_ans)
+                    sub_sources.append(sq_srcs)
+                    logger.info(
+                        "Sub-query [%d/%d] '%s' → search='%s'",
+                        idx + 1, len(sub_queries_raw), sub_q[:50], sq_search[:50],
+                    )
+
+                answer, sources = merge_sub_answers(sub_queries_raw, sub_answers, sub_sources)
+                logger.info("Merged %d sub-answers into unified response.", len(sub_queries_raw))
+
+            else:
+                # ── Single-question path (original logic preserved) ────────────
+                search_query = canonicalize_query(request.message)
+                requires_reformulation = needs_reformulation(request.message, conversation_context)
+                if requires_reformulation:
+                    search_query = await reformulate_query(
+                        request.message,
+                        conversation_context=conversation_context,
+                        llm_provider=llm_provider,
+                    )
+
+                about_sru_angle = (
+                    determine_about_sru_angle(rag_context, request.message)
+                    if is_about_sru_query(request.message)
+                    else None
+                )
+
+                cacheable = (
+                    redis_client is not None
+                    and not requires_reformulation
+                    and not conversation_context.strip()
+                    and not profile
+                    and pending_task is None
+                )
+                cached = await get_cached_answer(redis_client, search_query) if cacheable else None
+                if cached:
+                    answer, sources = cached
+                    logger.info("Handled via cached RAG answer (search query: '%s')", search_query[:50])
+                else:
+                    answer, sources = await rag_service.query(
+                        question=request.message,
+                        search_query=search_query,
+                        conversation_context=rag_context,
+                        variant_id=calculated_variant,
+                        used_openings=assistant_openings,
+                        about_sru_angle=about_sru_angle,
+                    )
+                    if cacheable:
+                        await set_cached_answer(redis_client, search_query, answer, sources)
+                logger.info(
+                    "Handled via RAG pipeline (search query: '%s', variant: %d, about_sru_angle: %s)",
+                    search_query[:50],
+                    calculated_variant,
+                    about_sru_angle,
+                )
 
         else:
             system_prompt = prompt_service.load_prompt("system")
@@ -913,114 +968,234 @@ async def handle_chat_stream(
                     await asyncio.sleep(0.012)
 
             elif intent == "UNIVERSITY" and rag_service:
-                async def _resolve_search_query() -> str:
-                    if needs_reformulation(request.message, conversation_context):
-                        return await reformulate_query(
-                            request.message,
-                            conversation_context=conversation_context,
-                            llm_provider=llm_provider,
-                        )
-                    return canonicalize_query(request.message)
-
-                # Parallel execution: run query reformulation and DB user-messages fetch concurrently
-                search_query, all_user_messages = await asyncio.gather(
-                    _resolve_search_query(),
+                # Parallel execution: decompose query + fetch user messages concurrently
+                sub_queries_raw, all_user_messages = await asyncio.gather(
+                    decompose_query(
+                        request.message,
+                        conversation_context=conversation_context,
+                        llm_provider=llm_provider,
+                    ),
                     conversation_service.get_all_user_messages(db, conversation.id),
                 )
                 profile = extract_student_profile(all_user_messages)
-
-                # Run retrieval with the resolved search query
-                chunks, query_embedding = await rag_service.retrieve_with_embedding(search_query)
-
-                clean_q = request.message.lower().strip(" .!?,")
-                effective_q = request.message
-                if search_query and (
-                    clean_q in ("yes", "yeah", "yep", "sure", "ok", "tell me more", "more details", "go ahead", "definitely", "yes please", "why not")
-                    or len(clean_q.split()) <= 2
-                ):
-                    effective_q = f"{request.message} ({search_query})"
 
                 guidance = build_counsellor_guidance(profile, current_query=request.message)
                 rag_context = conversation_context
                 if guidance:
                     rag_context = f"{rag_context}\n\n{guidance}".strip() if rag_context else guidance
 
-                if not chunks:
-                    answer = (
-                        "I couldn't find relevant information in the university documents "
-                        "to answer that question. You may want to check with the university "
-                        "office directly."
+                # Calculate assistant openings and variant rotation (once, shared)
+                assistant_openings = []
+                for msg in recent:
+                    if msg.get("role") in ("assistant", "model"):
+                        content = msg.get("content", "")
+                        for line in content.split("\n"):
+                            line = line.strip()
+                            if line and not line.startswith(("#", ">", "|", "```", "•", "-", "*")):
+                                assistant_openings.append(line)
+                                break
+                calculated_variant = (len(assistant_openings) % 6) + 1
+
+                is_multi = len(sub_queries_raw) > 1
+
+                if is_multi:
+                    # ── Multi-question streaming path ────────────────────────────
+                    logger.info(
+                        "Multi-question decomposition (stream): %d sub-queries for '%s'",
+                        len(sub_queries_raw), request.message[:60],
                     )
-                    for chunk in chunk_text_stream(answer):
-                        yield f"data: {json.dumps({'type': 'token', 'delta': chunk})}\n\n"
-                        await asyncio.sleep(0.012)
+                    sub_answers: list[str] = []
+                    sub_sources: list[list[dict]] = []
+
+                    for idx, sub_q in enumerate(sub_queries_raw):
+                        # Emit a section separator so the client sees structured output
+                        heading = sub_q.strip().rstrip("?").strip()
+                        heading = heading[0].upper() + heading[1:] if heading else f"Part {idx + 1}"
+                        section_header = f"\n\n### {heading}\n\n"
+                        for chunk in chunk_text_stream(section_header):
+                            yield f"data: {json.dumps({'type': 'token', 'delta': chunk})}\n\n"
+                            await asyncio.sleep(0.008)
+
+                        # Reformulate / canonicalize each sub-query independently
+                        sq_canonical = canonicalize_query(sub_q)
+                        if needs_reformulation(sub_q, conversation_context):
+                            sq_search = await reformulate_query(
+                                sub_q,
+                                conversation_context=conversation_context,
+                                llm_provider=llm_provider,
+                            )
+                        else:
+                            sq_search = sq_canonical
+
+                        sq_about_sru_angle = (
+                            determine_about_sru_angle(rag_context, sub_q)
+                            if is_about_sru_query(sub_q)
+                            else None
+                        )
+
+                        sq_chunks, sq_embedding = await rag_service.retrieve_with_embedding(sq_search)
+
+                        # Build effective question (handle affirmative follow-ups)
+                        clean_sq = sub_q.lower().strip(" .!?,")
+                        effective_sq = sub_q
+                        if sq_search and len(clean_sq.split()) <= 2:
+                            effective_sq = f"{sub_q} ({sq_search})"
+
+                        if not sq_chunks:
+                            fallback = (
+                                "I couldn't find specific information in the university documents "
+                                "to answer this part. You may want to check with the university office directly."
+                            )
+                            for chunk in chunk_text_stream(fallback):
+                                yield f"data: {json.dumps({'type': 'token', 'delta': chunk})}\n\n"
+                                await asyncio.sleep(0.012)
+                            sub_answers.append(fallback)
+                            sub_sources.append([])
+                        else:
+                            sq_messages, sq_srcs, sq_evidence = await rag_service.prepare_rag_request(
+                                effective_sq,
+                                rag_context,
+                                sq_chunks,
+                                precomputed_embedding=sq_embedding,
+                                variant_id=(calculated_variant + idx) % 6 + 1,
+                                used_openings=assistant_openings,
+                                about_sru_angle=sq_about_sru_angle,
+                            )
+                            sq_tokens: list[str] = []
+                            async for token in llm_provider.stream(sq_messages, temperature=0.3):
+                                sq_tokens.append(token)
+                                yield f"data: {json.dumps({'type': 'token', 'delta': token})}\n\n"
+                            sq_answer = "".join(sq_tokens)
+
+                            # Hallucination guard per sub-answer
+                            sq_faithful, sq_unsupported = verify_numeric_faithfulness(
+                                answer=sq_answer,
+                                evidence_text=sq_evidence,
+                                conversation_context=rag_context,
+                                question=effective_sq,
+                            )
+                            if not sq_faithful and len(sq_unsupported) >= 2:
+                                sq_correction = (
+                                    f"CORRECTION: The numbers {', '.join(sq_unsupported)} are NOT in the evidence. "
+                                    "Rewrite using only verified numbers."
+                                )
+                                sq_corr_msgs = sq_messages + [
+                                    {"role": "assistant", "content": sq_answer},
+                                    {"role": "user", "content": sq_correction},
+                                ]
+                                sq_corrected = await llm_provider.generate(sq_corr_msgs, temperature=0.1)
+                                sq_check2, sq_still = verify_numeric_faithfulness(sq_corrected, sq_evidence, rag_context, effective_sq)
+                                if sq_check2 or len(sq_still) < len(sq_unsupported):
+                                    sq_answer = sq_corrected
+
+                            sq_url_ok, sq_bad_urls = verify_url_faithfulness(sq_answer, sq_evidence)
+                            if not sq_url_ok:
+                                sq_answer = sanitize_hallucinated_urls(sq_answer, sq_bad_urls)
+
+                            if sq_embedding is not None:
+                                query_embedding = sq_embedding  # use last sub-query embedding for video lookup
+
+                            sub_answers.append(sq_answer)
+                            sub_sources.append(sq_srcs)
+
+                        logger.info(
+                            "Stream sub-query [%d/%d] '%s' → search='%s'",
+                            idx + 1, len(sub_queries_raw), sub_q[:50], sq_search[:50],
+                        )
+
+                    # Merge for DB storage (tokens already streamed)
+                    answer, sources = merge_sub_answers(sub_queries_raw, sub_answers, sub_sources)
+                    logger.info("Multi-answer merge complete: %d sub-answers.", len(sub_answers))
+
                 else:
-                    # Calculate assistant openings, variant rotation, and about_sru_angle
-                    assistant_openings = []
-                    for msg in recent:
-                        if msg.get("role") in ("assistant", "model"):
-                            content = msg.get("content", "")
-                            for line in content.split("\n"):
-                                line = line.strip()
-                                if line and not line.startswith(("#", ">", "|", "```", "•", "-", "*")):
-                                    assistant_openings.append(line)
-                                    break
-                    calculated_variant = (len(assistant_openings) % 6) + 1
-                    about_sru_angle = (
-                        determine_about_sru_angle(rag_context, request.message)
-                        if is_about_sru_query(request.message)
-                        else None
-                    )
+                    # ── Single-question streaming path (original logic preserved) ─
+                    async def _resolve_search_query() -> str:
+                        if needs_reformulation(request.message, conversation_context):
+                            return await reformulate_query(
+                                request.message,
+                                conversation_context=conversation_context,
+                                llm_provider=llm_provider,
+                            )
+                        return canonicalize_query(request.message)
 
-                    messages, sources, evidence_text = await rag_service.prepare_rag_request(
-                        effective_q,
-                        rag_context,
-                        chunks,
-                        precomputed_embedding=query_embedding,
-                        variant_id=calculated_variant,
-                        used_openings=assistant_openings,
-                        about_sru_angle=about_sru_angle,
-                    )
-                    streamed_tokens = []
-                    async for token in llm_provider.stream(messages, temperature=0.3):
-                        streamed_tokens.append(token)
-                        yield f"data: {json.dumps({'type': 'token', 'delta': token})}\n\n"
+                    search_query = await _resolve_search_query()
 
-                    answer = "".join(streamed_tokens)
+                    # Run retrieval with the resolved search query
+                    chunks, query_embedding = await rag_service.retrieve_with_embedding(search_query)
 
-                    # Check runtime hallucination guardrails
-                    is_faithful, unsupported = verify_numeric_faithfulness(
-                        answer=answer,
-                        evidence_text=evidence_text,
-                        conversation_context=rag_context,
-                        question=effective_q,
-                    )
-                    if not is_faithful and len(unsupported) >= 2:
-                        logger.warning("Stream correction triggered for unsupported numbers %s", unsupported)
-                        correction_instruction = (
-                            f"CORRECTION: Your previous draft stated number(s) or percentage(s) that are NOT present "
-                            f"in the evidence or conversation: {', '.join(unsupported)}. "
-                            f"Rewrite your response using strictly verified numbers from the evidence."
+                    clean_q = request.message.lower().strip(" .!?,")
+                    effective_q = request.message
+                    if search_query and (
+                        clean_q in ("yes", "yeah", "yep", "sure", "ok", "tell me more", "more details", "go ahead", "definitely", "yes please", "why not")
+                        or len(clean_q.split()) <= 2
+                    ):
+                        effective_q = f"{request.message} ({search_query})"
+
+                    if not chunks:
+                        answer = (
+                            "I couldn't find relevant information in the university documents "
+                            "to answer that question. You may want to check with the university "
+                            "office directly."
                         )
-                        correction_messages = messages + [
-                            {"role": "assistant", "content": answer},
-                            {"role": "user", "content": correction_instruction},
-                        ]
-                        corrected = await llm_provider.generate(correction_messages, temperature=0.1)
-                        second_check, still_unsupported = verify_numeric_faithfulness(
-                            corrected, evidence_text, rag_context, effective_q
-                        )
-                        if second_check or len(still_unsupported) < len(unsupported):
-                            answer = corrected
-                    elif not is_faithful and len(unsupported) < 2:
-                        logger.warning(
-                            "Single unsupported numeric claim '%s' in streamed answer — skipping correction LLM call",
-                            unsupported,
+                        for chunk in chunk_text_stream(answer):
+                            yield f"data: {json.dumps({'type': 'token', 'delta': chunk})}\n\n"
+                            await asyncio.sleep(0.012)
+                    else:
+                        about_sru_angle = (
+                            determine_about_sru_angle(rag_context, request.message)
+                            if is_about_sru_query(request.message)
+                            else None
                         )
 
-                    is_url_faithful, unverified_urls = verify_url_faithfulness(answer, evidence_text)
-                    if not is_url_faithful:
-                        answer = sanitize_hallucinated_urls(answer, unverified_urls)
+                        messages, sources, evidence_text = await rag_service.prepare_rag_request(
+                            effective_q,
+                            rag_context,
+                            chunks,
+                            precomputed_embedding=query_embedding,
+                            variant_id=calculated_variant,
+                            used_openings=assistant_openings,
+                            about_sru_angle=about_sru_angle,
+                        )
+                        streamed_tokens = []
+                        async for token in llm_provider.stream(messages, temperature=0.3):
+                            streamed_tokens.append(token)
+                            yield f"data: {json.dumps({'type': 'token', 'delta': token})}\n\n"
+
+                        answer = "".join(streamed_tokens)
+
+                        # Check runtime hallucination guardrails
+                        is_faithful, unsupported = verify_numeric_faithfulness(
+                            answer=answer,
+                            evidence_text=evidence_text,
+                            conversation_context=rag_context,
+                            question=effective_q,
+                        )
+                        if not is_faithful and len(unsupported) >= 2:
+                            logger.warning("Stream correction triggered for unsupported numbers %s", unsupported)
+                            correction_instruction = (
+                                f"CORRECTION: Your previous draft stated number(s) or percentage(s) that are NOT present "
+                                f"in the evidence or conversation: {', '.join(unsupported)}. "
+                                f"Rewrite your response using strictly verified numbers from the evidence."
+                            )
+                            correction_messages = messages + [
+                                {"role": "assistant", "content": answer},
+                                {"role": "user", "content": correction_instruction},
+                            ]
+                            corrected = await llm_provider.generate(correction_messages, temperature=0.1)
+                            second_check, still_unsupported = verify_numeric_faithfulness(
+                                corrected, evidence_text, rag_context, effective_q
+                            )
+                            if second_check or len(still_unsupported) < len(unsupported):
+                                answer = corrected
+                        elif not is_faithful and len(unsupported) < 2:
+                            logger.warning(
+                                "Single unsupported numeric claim '%s' in streamed answer — skipping correction LLM call",
+                                unsupported,
+                            )
+
+                        is_url_faithful, unverified_urls = verify_url_faithfulness(answer, evidence_text)
+                        if not is_url_faithful:
+                            answer = sanitize_hallucinated_urls(answer, unverified_urls)
 
             else:
                 system_prompt = prompt_service.load_prompt("system")
