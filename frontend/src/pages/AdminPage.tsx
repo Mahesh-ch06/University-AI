@@ -25,6 +25,7 @@ import {
 } from "../services/api";
 import MarkdownContent from "../components/MarkdownContent";
 import { RenderCard } from "../components/Cards";
+import AgentControlTab, { LiveRequestBanner } from "../components/admin/AgentControlTab";
 import "./AdminPage.css";
 
 interface Props {
@@ -118,7 +119,7 @@ export default function AdminPage({ onBackToChat }: Props) {
     () => sessionStorage.getItem("university_ai_admin_key") || ""
   );
   const [keyInput, setKeyInput] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"leads" | "chats" | "overview" | "documents" | "feedback">("leads");
+  const [activeTab, setActiveTab] = useState<"leads" | "chats" | "overview" | "documents" | "feedback" | "agent">("leads");
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -273,7 +274,7 @@ export default function AdminPage({ onBackToChat }: Props) {
       try {
         const params = new URLSearchParams(window.location.search);
         const tabParam = params.get("tab") as any;
-        if (tabParam && ["leads", "chats", "overview", "documents", "feedback"].includes(tabParam)) {
+        if (tabParam && ["leads", "chats", "overview", "documents", "feedback", "agent"].includes(tabParam)) {
           setActiveTab(tabParam);
         }
         const cidParam = params.get("cid") || params.get("chat_id") || params.get("conv_id");
@@ -728,8 +729,19 @@ export default function AdminPage({ onBackToChat }: Props) {
             ⭐ Feedback
             <span className="tab-counter">{feedback.length}</span>
           </button>
+          <button
+            className={`admin-tab-btn ${activeTab === "agent" ? "active" : ""}`}
+            onClick={() => setActiveTab("agent")}
+          >
+            🤖 Agent
+          </button>
         </div>
       </nav>
+
+      {/* Students waiting to talk to a counsellor (v4.12.0): rings on every tab */}
+      {adminKey && activeTab !== "agent" && (
+        <LiveRequestBanner adminKey={adminKey} onOpen={() => setActiveTab("agent")} />
+      )}
 
       {/* Action Notification Toast */}
       {actionNotice && (
@@ -1738,6 +1750,8 @@ export default function AdminPage({ onBackToChat }: Props) {
             {/* =========================================================================
                 TAB 5: STUDENT FEEDBACK
                 ========================================================================= */}
+            {activeTab === "agent" && adminKey && <AgentControlTab adminKey={adminKey} />}
+
             {activeTab === "feedback" && (
               <div className="tab-pane-container">
                 <div className="admin-table-card">

@@ -946,3 +946,106 @@ export async function exportAdminLeads(adminKey: string): Promise<void> {
 
 
 
+
+
+// ---- v4.12.0: agent features ---------------------------------------------------------------------------
+
+export interface CounsellorConnectStatus {
+  request_id: string;
+  status: "waiting" | "accepted" | "busy";
+  seconds_left: number;
+  wait_seconds: number;
+  phone_last4: string;
+  counsellor?: string | null;
+}
+
+/** "Talk to a counsellor": the student's card polls its request. */
+export async function fetchConnectStatus(requestId: string, sessionId: string): Promise<CounsellorConnectStatus> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/agent/connect/${encodeURIComponent(requestId)}?session_id=${encodeURIComponent(sessionId)}`
+  );
+  if (!res.ok) throw new Error(res.status === 404 ? "not_found" : "failed");
+  return res.json();
+}
+
+export interface ChatSettings {
+  concession_picker: "grouped" | "table";
+  connect_enabled: boolean;
+  connect_wait_seconds: number;
+  office_hours_start: string;
+  office_hours_end: string;
+  office_days: number[];
+}
+
+export interface ChatSettingsResponse {
+  settings: ChatSettings;
+  descriptions: Record<string, string>;
+  updated_at?: string | null;
+}
+
+async function adminJson<T>(adminKey: string, path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_BASE}/api/v1/admin${path}`, {
+    ...init,
+    headers: { "X-Admin-Key": adminKey, ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers || {}) },
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail : "";
+    } catch {}
+    throw new Error(detail || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export function fetchChatSettings(adminKey: string) {
+  return adminJson<ChatSettingsResponse>(adminKey, "/settings");
+}
+
+export function saveChatSettings(adminKey: string, changes: Partial<ChatSettings>) {
+  return adminJson<ChatSettingsResponse>(adminKey, "/settings", { method: "PUT", body: JSON.stringify(changes) });
+}
+
+export interface LiveRequest {
+  request_id: string;
+  first_name: string;
+  phone: string;
+  seconds_left: number;
+  case: Record<string, any>;
+  lead_id?: string | null;
+}
+
+export function fetchLiveRequests(adminKey: string) {
+  return adminJson<{ requests: LiveRequest[]; in_office_hours: boolean }>(adminKey, "/live-requests");
+}
+
+export function acceptLiveRequest(adminKey: string, requestId: string, counsellor?: string) {
+  const q = counsellor ? `?counsellor=${encodeURIComponent(counsellor)}` : "";
+  return adminJson<{ status: string; phone: string; first_name: string; case: Record<string, any> }>(
+    adminKey, `/live-requests/${encodeURIComponent(requestId)}/accept${q}`, { method: "POST" }
+  );
+}
+
+export interface CopilotLead {
+  lead_id: string;
+  name: string;
+  phone: string;
+  program?: string | null;
+  status: string;
+  created_at?: string | null;
+  score: number;
+  tier: "hot" | "warm" | "later";
+  reasons: string[];
+  case: Record<string, any>;
+}
+
+export function fetchCopilotPriorities(adminKey: string, limit = 20) {
+  return adminJson<{ leads: CopilotLead[] }>(adminKey, `/copilot/priorities?limit=${limit}`);
+}
+
+export function fetchCopilotDraft(adminKey: string, leadId: string) {
+  return adminJson<{ lead_id: string; text: string; whatsapp_url?: string | null }>(
+    adminKey, `/copilot/draft/${encodeURIComponent(leadId)}`
+  );
+}

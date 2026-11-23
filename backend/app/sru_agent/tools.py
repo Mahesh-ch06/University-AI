@@ -141,6 +141,12 @@ async def _save_lead(args: dict, ctx: dict, request_type: str, extra: dict) -> d
         "metadata": {"request_type": request_type, "consent": True,
                      "is_parent": profile.get("is_parent"), **extra},
     }
+    # The counsellor's case summary (v4.12.0): what the student did in this chat, for the admin panel.
+    try:
+        from . import case_summary
+        lead["metadata"]["case"] = case_summary.build(profile, ctx.get("conv_state"), ctx.get("history"))
+    except Exception:
+        pass
     try:
         saved = await (_lead_saver or _default_lead_saver)(lead)
     except Exception as exc:  # never show a raw error to the student

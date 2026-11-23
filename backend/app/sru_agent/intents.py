@@ -758,6 +758,24 @@ def is_cancel_contact(message: str, has_open_request: bool = False) -> bool:
     return bool(has_open_request and _CANCEL_IT_PATTERN.match(msg))
 
 
+# "Talk to a counsellor / a person" (v4.12.0): the student wants a human now. Handled by the counsellor connect
+# flow (services/live_connect.py): a short real attempt, then a callback. "Call me" stays a callback request.
+_CONNECT_PATTERN = re.compile(
+    r"\b(?:talk|speak|chat|connect)\s+(?:me\s+)?(?:to|with)\s+(?:(?:a|an|the|your|some|real|live)\s+)*"
+    r"(?:counsell?or|admissions?(?:\s+(?:team|officer|counsell?or|office))?|someone|somebody|human|person|"
+    r"representative|agent|staff|executive)\b"
+    r"|\breal\s+(?:person|human)\b|\blive\s+(?:agent|counsell?or|person)\b|\bconnect\s+me\b",
+    re.IGNORECASE)
+
+
+def is_connect_request(message: str) -> bool:
+    """True when the student asks to talk to a person now ("talk to a counsellor", "connect me")."""
+    msg = message or ""
+    if _CANCEL_CONTACT_PATTERN.search(msg) or re.search(r"\b(?:don'?t|do\s+not|no\s+need)\b", msg, re.IGNORECASE):
+        return False
+    return bool(_CONNECT_PATTERN.search(msg))
+
+
 def is_callback_request(message: str) -> bool:
     """True when the student asks to be phoned by the admissions team."""
     msg = message or ""

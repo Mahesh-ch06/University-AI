@@ -63,7 +63,9 @@ async def test_eligibility_confirms_and_offers_concessions_before_any_fee_card()
     assert "Before we finalise your fee" in done["answer"]
     assert _card(done, "get_special_concessions") and not _card(done, "calculate_fee") \
         and not _card(done, "fee_summary")                         # no premature fee card
-    assert done["suggestions"] == [fee_journey.NONE_APPLY, fee_journey.SHOW_FEE]
+    # v4.12.0: in the default grouped picker "None of these apply" is a button inside the card
+    assert done["suggestions"] == [fee_journey.SHOW_FEE]
+    assert _card(done, "get_special_concessions")["allow_none"] is True
     assert done.get("eligible") is True
 
 

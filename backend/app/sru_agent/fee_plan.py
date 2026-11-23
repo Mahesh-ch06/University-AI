@@ -140,3 +140,60 @@ def chart_share_text(chart: dict) -> str:
     lines.append("Source: official SR University fee card. Confirm with the Admissions Office: "
                  f"{config.ADMISSIONS_PHONE}.")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- the concessions picker (v4.12.0)
+# The fee card's 19 categories in five groups, so a student opens only the group that may apply. The
+# sensitive ones (lost parents, single parent, disability) sit in "Other circumstances": never asked about,
+# chosen privately. Every key must exist in the fee data (test_v412 checks that all 19 are placed once).
+CONCESSION_GROUPS = [
+    {"key": "state", "title": "Your state", "hint": "Andhra Pradesh, other states, outside India",
+     "items": ["andhra_pradesh", "non_local", "girl_child_outside_telangana", "only_girl_child_telangana",
+               "international"]},
+    {"key": "family", "title": "Family link to SRU", "hint": "Sibling here, alumni family, SR staff, SR Junior College",
+     "items": ["sibling", "alumni", "staff_child", "sr_junior_college"]},
+    {"key": "service", "title": "Parent in service or honoured", "hint": "Defence / CRPF, State Police, Padma, Gallantry",
+     "items": ["defence", "state_police", "padma_gallantry"]},
+    {"key": "sports", "title": "Sports or NCC", "hint": "International, national, NCC 'C'",
+     "items": ["sports_international", "sports_national", "ncc_c"]},
+    {"key": "other", "title": "Other circumstances", "hint": "Lateral entry and personal circumstances",
+     "private": True, "items": ["lateral_entry", "single_parent", "orphan", "disability"]},
+]
+
+
+def concession_groups() -> list[dict]:
+    """The groups with each category's label and yearly amount from the fee data."""
+    by_key = {c["key"]: c for c in fees.load_data().get("special_concessions", [])}
+    out = []
+    for g in CONCESSION_GROUPS:
+        items = [{"category": by_key[k]["label"], "per_year": fees.inr(by_key[k]["amount"])}
+                 for k in g["items"] if k in by_key]
+        if items:
+            out.append({"key": g["key"], "title": g["title"], "hint": g["hint"],
+                        "private": bool(g.get("private")), "items": items})
+    return out
+
+
+def concession_card(program: str | None = None, in_evaluation: bool = False) -> dict:
+    """The special concessions card, in the form the admin panel has chosen (grouped or the full table)."""
+    from app.services import app_settings
+
+    mode = app_settings.get("concession_picker")
+    data = {**fees.special_concessions(), "program": program, "mode": mode, "allow_none": in_evaluation}
+    if mode == "grouped":
+        data["groups"] = concession_groups()
+    return {"type": "get_special_concessions", "data": data}
+
+
+def apply_card_settings(cards) -> None:
+    """Cards made elsewhere (for example by a model tool call) follow the admin panel's choice too."""
+    from app.services import app_settings
+
+    for c in cards or ():
+        if isinstance(c, dict) and c.get("type") == "get_special_concessions" and isinstance(c.get("data"), dict):
+            d = c["data"]
+            if "mode" not in d:
+                d["mode"] = app_settings.get("concession_picker")
+                d.setdefault("allow_none", False)
+            if d["mode"] == "grouped" and not d.get("groups"):
+                d["groups"] = concession_groups()

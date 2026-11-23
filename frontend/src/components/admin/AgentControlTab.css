@@ -1,0 +1,374 @@
+/* Admin "Agent" tab (v4.12.0). Uses the admin page tokens (AdminPage.css). */
+.agc {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.agc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agc-panel .panel-headline {
+  margin: 0;
+}
+
+.agc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.agc-muted {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748b);
+}
+
+.agc-ok {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #15803d;
+}
+
+.agc-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #b91c1c;
+}
+
+.agc-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--primary, #0055a4);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---- settings ---- */
+.agc-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border, #e2e8f0);
+  flex-wrap: wrap;
+}
+
+.agc-setting > div:first-child {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.agc-setting-title {
+  font-weight: 650;
+  font-size: 0.92rem;
+  color: var(--text-1, #0a1b3a);
+}
+
+.agc-segment {
+  display: inline-flex;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.agc-segment button {
+  padding: 8px 12px;
+  border: 0;
+  background: var(--surface-1, #fff);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-2, #334155);
+  cursor: pointer;
+}
+
+.agc-segment button + button {
+  border-left: 1px solid var(--border, #cbd5e1);
+}
+
+.agc-segment button.is-on {
+  background: var(--primary, #0055a4);
+  color: #fff;
+}
+
+.agc-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 999px;
+  background: var(--surface-1, #fff);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.agc-switch span {
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+
+.agc-switch span::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.agc-switch.is-on span {
+  background: #16a34a;
+}
+
+.agc-switch.is-on span::after {
+  transform: translateX(14px);
+}
+
+.agc-setting--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  align-items: end;
+}
+
+.agc-setting--grid label,
+.agc-name {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-2, #334155);
+}
+
+.agc-setting--grid input,
+.agc-name input {
+  padding: 7px 9px;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.agc-name {
+  max-width: 320px;
+}
+
+.agc-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  grid-column: 1 / -1;
+}
+
+.agc-days legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-2, #334155);
+  margin-bottom: 4px;
+}
+
+.agc-days label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+/* ---- live requests ---- */
+.agc-hours {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.agc-hours.is-open {
+  color: #15803d;
+}
+
+.agc-live {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 2px solid #f59e0b;
+  border-radius: 12px;
+  background: #fffbeb;
+}
+
+.agc-live.is-accepted {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.agc-live-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+}
+
+.agc-live-timer {
+  margin-left: auto;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #b45309;
+}
+
+.agc-live-call {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.agc-live-call a {
+  font-size: 1.05rem;
+}
+
+.agc-case {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.82rem;
+  color: var(--text-2, #334155);
+}
+
+.agc-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 16px 0;
+  padding: 10px 14px;
+  border: 2px solid #f59e0b;
+  border-radius: 12px;
+  background: #fffbeb;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #78350f;
+  animation: agcRing 1.4s ease-in-out infinite;
+}
+
+.agc-banner span:nth-child(2) {
+  flex: 1 1 auto;
+}
+
+@keyframes agcRing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agc-banner { animation: none; }
+}
+
+/* ---- copilot ---- */
+.agc-leads {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agc-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+}
+
+.agc-lead--hot {
+  border-left: 4px solid #dc2626;
+}
+
+.agc-lead--warm {
+  border-left: 4px solid #f59e0b;
+}
+
+.agc-lead-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.agc-phone {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.agc-tier {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.agc-tier--hot {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.agc-tier--warm {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.agc-reasons {
+  font-size: 0.84rem;
+  color: var(--text-2, #334155);
+}
+
+.agc-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agc-draft textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.agc-wa {
+  font-weight: 600;
+  color: #166534;
+}

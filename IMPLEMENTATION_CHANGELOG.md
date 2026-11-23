@@ -282,3 +282,43 @@ See `docs/34-fee-evaluation-agent-nov-2026.md`.
 - **Concessions:** a picked concession is never applied straight away. "Prepare my fee chart" gives the final fee
   card.
 
+## v4.12.0 (23 Nov 2026): agentic features, admin switches, awake schedule
+
+See `docs/35-agentic-features-and-admin-switches-nov-2026.md`.
+
+- **Admin → 🤖 Agent:**
+  - chat settings: a concessions picker switch (Grouped / Full table), counsellor connect on/off, wait, office
+    hours and days. Stored in the database and applied from the next message; no redeploy, no migration;
+  - students waiting now: a ringing banner on every tab, and "I'll call now";
+  - counsellor copilot: ranked leads with reasons, and draft messages.
+- **Grouped concessions card:** 5 groups, "None of these apply", private "Other circumstances". Both modes work
+  in every entry point.
+- **"Lowest fee" agent:** a visible plan; compares board, EAPCET and JEE routes, concessions and the cheapest room;
+  explains the result. First-year only; the 4-year fee is never suggested.
+- **Self-check:** checks the numbers in AI-written answers before sending.
+- **Case summary:** saved with every callback / visit lead.
+- **"Talk to a counsellor":** callback saved first; rings the admin panel for 30 s in office hours; then "will call
+  you now" or "all counsellors are busy… we'll call you back on ******3210".
+- **Awake schedule:** `/ping`; awake 06:00–01:00 India time (GitHub backup on that schedule, cron-job.org guide);
+  switch off with `KEEP_AWAKE=off`.
+- **Fix:** a callback asked for in the first message of a new chat no longer fails (the lead waits for the
+  conversation row).
+
+## v4.12.1 (23 Nov 2026): understand what the student asks (fee agent)
+
+See `docs/36-understanding-the-student-backlog.md` (standing priority).
+
+- **Fee summary:** shows the programme as the student chose it ("B.Tech CSE", or "B.Tech CSE (Artificial
+  Intelligence & Machine Learning)"), not the fee card's whole group of specialisations. "CSE with robotics" is
+  read as the Robotics & Automation specialisation.
+- **Questions about the student's own evaluation** are answered from their selections, then the open step
+  continues:
+  - "Documents needed for the concession": the selected category, what to submit, and the effect on their fee
+    (₹2,80,000 → ₹2,65,000);
+  - "is my concession approved?";
+  - "how much is my scholarship?".
+  They are no longer sent to the scholarship steps.
+- **"Yes, I have the proof"** records the proof and updates the summary.
+- **"Add hostel to my fee"** goes to the hostel question even when other steps are open.
+- **Button-contract test:** every button the fee agent offers must get a relevant answer.
+

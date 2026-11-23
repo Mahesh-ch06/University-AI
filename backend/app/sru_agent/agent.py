@@ -376,6 +376,7 @@ def _is_personal_eligibility(fee: dict | None) -> bool:
 def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None):
     # Every answer passes here: one that leaks internal instructions or a secret-shaped string is replaced.
     answer = ai_guard.guard_reply(answer) if isinstance(answer, str) else answer
+    fee_plan.apply_card_settings(cards)   # the admin panel's concessions picker choice, for every card
     d = {"type": "done", "conversation_id": conversation_id, "answer": answer,
          "tools_used": list(used), "model": config.AGENT_MODEL,
          # kept so the existing frontend 'done' handler does not break
@@ -392,6 +393,59 @@ def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=
                for c in cards_list):
             d["eligible"] = True
     return d
+
+
+async def _counsellor_connect(message, session_id, conversation_id, profile, ctx):
+    """'Talk to a counsellor': save the callback first, then ring the admin panel for a short wait (office hours)."""
+    from app.services import app_settings, live_connect
+
+    phone = tools.clean_phone(profile.get("phone") or "")
+    name = str(profile.get("name") or "").strip()
+    if not phone or len(name) < 2:
+        await memory.update_conversation_state(session_id, conversation_id, pending_action="callback", pending_turns=0)
+        async for ev in _say("Sure! To connect you with a counsellor, please send your full name and 10-digit mobile "
+                             "number.", message, session_id, conversation_id, resume=False):
+            yield ev
+        return
+    masked = "******" + phone[-4:]
+    existing = await live_connect.current_for(session_id, conversation_id)
+    if existing and existing["status"] in ("waiting", "accepted"):
+        text = ("You're already in the queue; a counsellor is being reached." if existing["status"] == "waiting"
+                else f"A counsellor is already calling you on {masked}.")
+        async for ev in _say(text, message, session_id, conversation_id,
+                             cards=[{"type": "counsellor_connect", "data": existing}], resume=False):
+            yield ev
+        return
+    result = await tools.run_tool("request_counsellor_callback", {
+        "name": name, "phone": phone, "consent": True,
+        "preferred_time": "as soon as possible (asked to talk to a counsellor)"}, ctx)
+    result.pop("_error", None)
+    if result.get("status") != "saved":
+        async for ev in _say(f"I couldn't reach the admissions team right now. Please call them on "
+                             f"{config.ADMISSIONS_PHONE}.", message, session_id, conversation_id, resume=False):
+            yield ev
+        return
+    used = [{"name": "request_counsellor_callback", "status": "saved", "is_action": True}]
+    if existing and existing["status"] == "busy" and result.get("already_saved"):
+        async for ev in _say(f"Our admissions team already has your request and will call you back on {masked}.",
+                             message, session_id, conversation_id, used=used, resume=False):
+            yield ev
+        return
+    if not app_settings.get("connect_enabled") or not live_connect.in_office_hours():
+        when = (f"{live_connect.next_opening()} or soon after" if not live_connect.in_office_hours()
+                else "as soon as possible")
+        text = (f"Our counsellors are available {live_connect.hours_text()} (India time). I've passed your request "
+                f"to the admissions team: they'll call you back on {masked} {when}.")
+        async for ev in _say(text, message, session_id, conversation_id, used=used, resume=False):
+            yield ev
+        return
+    from . import case_summary
+    req = await live_connect.create(session_id, conversation_id, name, phone,
+                                    (ctx.get("profile") or {}).get("last_lead_id"),
+                                    case_summary.build(profile, ctx.get("conv_state"), ctx.get("history")))
+    async for ev in _say("Connecting you to a counsellor…", message, session_id, conversation_id, used=used,
+                         cards=[{"type": "counsellor_connect", "data": req}], resume=False):
+        yield ev
 
 
 async def _with_resume_chip(session_id, conversation_id, chips) -> list:
@@ -427,7 +481,8 @@ async def _counsellor_result(fee_result, details, c_text, chips, message, sessio
         return
     profile_now = ctx.get("profile") or {}
     fj = fee_journey.after_scholarship(conv_state.get(fee_journey.KEY), profile_now, c_text,
-                                       verdict.get("eligible"), seed=f"{session_id}{message}")
+                                       verdict.get("eligible"), seed=f"{session_id}{message}",
+                                       specialization=details.get("specialization"))
     fields = {fee_journey.KEY: fj["state"], "offer": None}
     if fj["state"].get("program"):
         fields["active_program"] = fj["state"]["program"]
@@ -440,10 +495,17 @@ async def _counsellor_result(fee_result, details, c_text, chips, message, sessio
 
 async def _run_fee_journey(fj: dict, message, session_id, conversation_id, profile, set_state):
     """Carry out what the fee evaluation agent decided (fee_journey.decide / after_scholarship)."""
+    if fj["kind"] == "info":   # an answer that does not change any evaluation (e.g. concession documents)
+        async for ev in _say(fj["text"], message, session_id, conversation_id, cards=fj.get("cards") or [],
+                             suggestions=fj.get("chips") or [], exact_chips=True, resume=False):
+            yield ev
+        return
     state = fj["state"]
     fields = {fee_journey.KEY: state, "offer": None}
     if state.get("program"):
         fields["active_program"] = state["program"]
+    if fj.get("profile_updates"):   # e.g. an EAPCET rank given to the lowest-fee agent
+        profile = await memory.update_profile(session_id, **fj["profile_updates"])
     if fj["kind"] == "scholarship_steps":
         # Hand over to the existing step-by-step scholarship flow for the marks that are missing; its result
         # comes back through fee_journey.after_scholarship.
@@ -454,7 +516,8 @@ async def _run_fee_journey(fj: dict, message, session_id, conversation_id, profi
             await set_state(**fields)
             lead = (fj.get("lead") or "").strip()
             text = (lead + "\n\n" if lead else "") + step["text"].replace("Sure! ", "").replace("Sure, ", "")
-            async for ev in _say(text, message, session_id, conversation_id, cards=step.get("cards") or [],
+            plan = [c for c in fj.get("cards") or [] if c.get("type") == "agent_plan"]
+            async for ev in _say(text, message, session_id, conversation_id, cards=plan + (step.get("cards") or []),
                                  suggestions=step.get("chips") or [], exact_chips=True, resume=False):
                 yield ev
             return
@@ -1471,13 +1534,16 @@ async def run_agent(
             yield ev
         return
 
-    # Three independent reads, done together (each one may need a trip to Redis or the database).
-    profile, history, conv_state = await asyncio.gather(
+    # Three independent reads, done together (each one may need a trip to Redis or the database), plus the
+    # admin panel's chat settings (cached; reloaded at most every 20 seconds).
+    from app.services import app_settings
+    profile, history, conv_state, _settings = await asyncio.gather(
         memory.get_profile(session_id), memory.get_history(session_id, conversation_id),
-        memory.get_conversation_state(session_id, conversation_id))
+        memory.get_conversation_state(session_id, conversation_id), app_settings.refresh())
     # Academic details belong to one conversation: a new chat starts clean (journey.py).
     profile = await journey.scope_profile(session_id, conversation_id, profile, conv_state)
-    ctx = {"session_id": session_id, "conversation_id": conversation_id, "profile": profile}
+    ctx = {"session_id": session_id, "conversation_id": conversation_id, "profile": profile,
+           "conv_state": conv_state, "history": history}   # conv_state / history: for the counsellor's case summary
     natural_name = _natural_first_name(profile, history)
 
     if require_contact_details:
@@ -1577,6 +1643,13 @@ async def run_agent(
             dlg_busy = fee_intake.decide(message, profile, dict(intake_now)) is not None
         except Exception:
             dlg_busy = False
+    # ---- "Talk to a counsellor / a person" (v4.12.0): a short real attempt to reach a counsellor (it rings in the
+    # admin panel), then a callback on the number on file. "Call me" stays the callback flow below.
+    if not form and intents.is_connect_request(message) and not tools.find_phone(message):
+        async for ev in _counsellor_connect(message, session_id, conversation_id, profile, ctx):
+            yield ev
+        return
+
     # ---- The fee evaluation agent (fee_journey): special consideration, concession picked, "final fee",
     # and the answers to its own questions (programme, proof, scholarship, hostel, bus). It works from the
     # conversation's saved selections, so a side question in between does not lose the progress.
@@ -2137,7 +2210,7 @@ async def run_agent(
         async for ev in _say(responses.special_concessions_lead(data, active_program), message,
                              session_id, conversation_id,
                              used=[{"name": "get_special_concessions", "status": "ok", "is_action": False}],
-                             cards=[{"type": "get_special_concessions", "data": {**data, "program": active_program}}],
+                             cards=[fee_plan.concession_card(active_program, in_evaluation=False)],
                              suggestions=["Calculate my scholarship", "Documents needed for the concession"],
                              exact_chips=True):
             yield ev
@@ -2994,6 +3067,7 @@ async def run_agent(
             models.append(m)
     tool_decl = _tool_declarations()
     final = ""
+    model_text = None   # the model's own words (the self-check runs only on these)
     link = {"fixed": client, "key": None, "models": models, "model_idx": 0, "error_kind": None,
             "thinking": True, "deadline": time.monotonic() + max(1.0, config.AGENT_TOTAL_TIMEOUT)}
     # Words are shown while Gemini writes them, except when the reply is about a callback / visit
@@ -3051,6 +3125,7 @@ async def run_agent(
             calls = resp.function_calls or []
             if not calls:
                 final = (resp.text or "").strip()
+                model_text = final
                 if not final and not last_round and round_no == 0:
                     # An empty reply (the model sometimes returns nothing): ask once more, plainly.
                     contents.append(types.Content(role="user", parts=[types.Part.from_text(
@@ -3274,6 +3349,16 @@ async def run_agent(
         await clear_pending()
 
     final = final or canned_action_text or get_fallback_text(session_id)
+    if model_text and final == model_text:
+        # Self-check (v4.12.0): the model's numbers against this turn's verified data before sending.
+        from . import answer_check
+        fee_card = next((c["data"] for c in cards if isinstance(c, dict) and c.get("type") == "calculate_fee"
+                         and isinstance(c.get("data"), dict)), None)
+        final, problems = answer_check.check(
+            final, fee_result=fee_card or prefetched_fee,
+            sources=[passages, fee_note or "", faculty_note or "", facts_note or "", cards])
+        if problems:
+            log.warning("self-check corrected the model's answer: %s", "; ".join(problems)[:300])
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     final = normalize_positive_brand_advocacy(final)
     # A fee with hostel or transport added: offer the complete fee chart once per conversation.

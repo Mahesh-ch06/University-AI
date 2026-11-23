@@ -3,7 +3,7 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +33,7 @@ from app.schemas.admin import (
     PromoteExemplarRequest,
     PromoteExemplarResponse,
 )
+from app.schemas.chat_settings import ChatSettingsResponse, ChatSettingsUpdate
 from app.schemas.common import ErrorResponse
 from app.schemas.document import DocumentListResponse, DocumentResponse
 from app.schemas.finance import FinanceCatalog
@@ -49,6 +50,113 @@ from app.services.ingestion_service import IngestionService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+
+
+def _settings_response() -> ChatSettingsResponse:
+    from app.services import app_settings
+
+    return ChatSettingsResponse(
+        settings=app_settings.current(),
+        descriptions={k: f.description for k, f in app_settings.ChatSettings.model_fields.items()},
+        updated_at=app_settings.meta().get("updated_at"))
+
+
+@router.get("/settings", response_model=ChatSettingsResponse)
+async def get_chat_settings(_admin: str = Depends(verify_admin_key)) -> ChatSettingsResponse:
+    """The chat behaviour switches (concessions picker, counsellor connect, office hours)."""
+    from app.services import app_settings
+
+    await app_settings.refresh(force=True)
+    return _settings_response()
+
+
+@router.put("/settings", response_model=ChatSettingsResponse)
+async def update_chat_settings(
+    body: ChatSettingsUpdate,
+    request: Request,
+    _admin: str = Depends(verify_admin_key),
+) -> ChatSettingsResponse:
+    """Change chat behaviour switches. Takes effect for the next message; no redeploy needed."""
+    from app import security
+    from app.services import app_settings
+
+    changes = body.model_dump(exclude_none=True)
+    if not changes:
+        raise HTTPException(status_code=400, detail="Nothing to change.")
+    try:
+        await app_settings.update(changes)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid setting: {exc}")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    security.audit(request, "chat_settings_update", "ok", changed=",".join(sorted(changes)))
+    return _settings_response()
+
+
+# ---- Talk to a counsellor (v4.12.0): requests ringing now, and "I'll call now" ----------------------------
+@router.get("/live-requests")
+async def get_live_requests(_admin: str = Depends(verify_admin_key)) -> dict:
+    """Students waiting for a counsellor right now (each for up to the connect wait time)."""
+    from app.services import live_connect
+
+    return {"requests": await live_connect.waiting(), "in_office_hours": live_connect.in_office_hours()}
+
+
+@router.post("/live-requests/{request_id}/accept")
+async def accept_live_request(
+    request_id: str,
+    request: Request,
+    counsellor: str | None = Query(None, max_length=40),
+    db: AsyncSession = Depends(get_db),
+    _admin: str = Depends(verify_admin_key),
+) -> dict:
+    """A counsellor will call the student now. The first to accept wins."""
+    from app import security
+    from app.services import live_connect
+
+    if not request_id.isalnum() or len(request_id) > 64:
+        raise HTTPException(status_code=404, detail="Request not found.")
+    outcome, req = await live_connect.accept(request_id, counsellor)
+    security.audit(request, "live_request_accept", outcome)
+    if outcome == "gone":
+        raise HTTPException(status_code=404, detail="Request not found.")
+    if outcome == "too_late":
+        raise HTTPException(status_code=409, detail="This request has already been answered or timed out.")
+    if req.get("lead_id"):
+        try:
+            await lead_service.update_lead_status(db, UUID(str(req["lead_id"])), "contacted")
+        except Exception:
+            logger.warning("Could not mark lead contacted after a live request was accepted")
+    return {"status": "accepted", "phone": req["phone"], "first_name": req["first_name"], "case": req.get("case")}
+
+
+# ---- Counsellor copilot (v4.12.0) ----------------------------------------------------------------------------
+@router.get("/copilot/priorities")
+async def copilot_priorities(
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    _admin: str = Depends(verify_admin_key),
+) -> dict:
+    """Who to call first: open leads of the last 14 days, ranked, with the reasons."""
+    from app.services import copilot_service
+
+    return {"leads": await copilot_service.priorities(db, limit=limit)}
+
+
+@router.get("/copilot/draft/{lead_id}")
+async def copilot_draft(
+    lead_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _admin: str = Depends(verify_admin_key),
+) -> dict:
+    """A draft follow-up message for one lead, written from its case summary. Nothing is sent."""
+    from app.models.lead import ProspectiveLead
+    from app.services import copilot_service
+
+    lead = await db.get(ProspectiveLead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found.")
+    return copilot_service.draft(lead)
 
 
 @router.get("/agent-runs", response_model=AgentRunListResponse)

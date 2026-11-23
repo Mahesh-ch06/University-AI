@@ -140,8 +140,16 @@ async function main() {
   await browser.close();
 }
 
+const setPicker = (mode) => fetch(`${API}/admin/settings`, { method: 'PUT',
+  headers: { 'content-type': 'application/json', 'X-Admin-Key': process.env.ADMIN_KEY || 'change-me-in-production' },
+  body: JSON.stringify({ concession_picker: mode }) });
+
 (async () => {
+  // These journeys click rows of the 19-row table: run them in "Full table" mode (v4.12.0 admin switch),
+  // then put back the default (grouped). v412_agent.cjs covers the grouped picker.
+  await setPicker('table').catch(() => {});
   try { await main(); } catch (e) { check('journey ran to the end', false, e.message.split('\n')[0]); }
+  await setPicker('grouped').catch(() => {});
   const failed = results.filter((r) => !r.pass);
   for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name}${r.pass ? '' : '  -> ' + r.detail}`);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);

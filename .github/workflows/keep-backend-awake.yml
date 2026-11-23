@@ -1,17 +1,21 @@
-# Keeps the SRU Buddy backend on Render awake during the day, so the first student of the
-# morning does not wait up to a minute for the server to start.
+# Keeps the SRU Buddy backend on Render awake from 06:00 to about 01:00 India time (students chat late), and
+# lets it sleep about 01:00-06:00. Render's free plan stops a service after 15 minutes without requests; the
+# main pinger is cron-job.org every 5 minutes (docs/uptime-monitoring-setup.md); this job is the backup.
 #
-# To switch it on: GitHub repository > Settings > Secrets and variables > Actions >
-# Variables > New repository variable:  BACKEND_URL = https://university-ai-luwe.onrender.com
-# (no secret needed; the /health endpoint is public). Without the variable it does nothing.
+# Switch:  GitHub repository > Settings > Secrets and variables > Actions > Variables
+#   KEEP_AWAKE  = off   -> this job does nothing (e.g. after moving to a paid Render plan, which never sleeps)
+#   BACKEND_URL = https://university-ai-luwe.onrender.com   (optional; this is the default)
 #
-# Free GitHub Actions minutes are more than enough (one 5-second run every 10 minutes).
+# GitHub runs schedules in UTC. India time is UTC + 5:30, so:
+#   06:00-06:20 IST = 00:30-00:50 UTC,  06:30-00:20 IST = 01:00-18:50 UTC,  00:30-00:50 IST = 19:00-19:20 UTC.
+# Scheduled runs can start a few minutes late on GitHub's side, which is why cron-job.org is the main pinger.
 name: Keep backend awake
 
 on:
   schedule:
-    # every 10 minutes from about 06:30 to 23:30 India time (01:00-17:59 UTC)
-    - cron: "*/10 1-17 * * *"
+    - cron: "30,40,50 0 * * *"
+    - cron: "*/10 1-18 * * *"
+    - cron: "0,10,20 19 * * *"
   workflow_dispatch:
 
 # The job only runs curl: it needs no repository token permissions.
@@ -19,10 +23,11 @@ permissions: {}
 
 jobs:
   ping:
+    if: ${{ vars.KEEP_AWAKE != 'off' }}
     runs-on: ubuntu-latest
     env:
       TARGET_URL: ${{ vars.BACKEND_URL || 'https://university-ai-luwe.onrender.com' }}
     steps:
-      - name: Ping /health
+      - name: Ping /ping
         run: |
-          curl --silent --show-error --max-time 90 --retry 2 --retry-delay 5 "${TARGET_URL}/health" -o /dev/null -w "HTTP %{http_code} in %{time_total}s\n"
+          curl --silent --show-error --max-time 90 --retry 2 --retry-delay 5 "${TARGET_URL}/ping" -o /dev/null -w "HTTP %{http_code} in %{time_total}s\n"

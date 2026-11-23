@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -243,6 +243,21 @@ async def fee_config():
     one accepts, scholarship slabs, hostel and one-time fees. Read from the same fee file the
     agent uses, so the calculator never carries its own copy of the numbers."""
     return fees.fee_config()
+
+
+@router.get("/connect/{request_id}")
+async def counsellor_connect_status(
+    request_id: str = Path(..., min_length=16, max_length=64, pattern=r"^[a-f0-9]+$"),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
+):
+    """'Talk to a counsellor': the student's card polls this while it waits (v4.12.0). Only the student's own
+    request; no full number."""
+    from app.services import live_connect
+
+    found = await live_connect.status(request_id, session_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Request not found.")
+    return found
 
 
 @router.get("/recovery-context", response_model=ConversationRecoveryContext)
