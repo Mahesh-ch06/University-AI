@@ -474,8 +474,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       return;
     }
 
-    // Check for calculator trigger
-    if (/^\s*(🧮\s*)?(scholarship\s*calculator|calculate\s*(?:my\s*)?scholarship|fee\s*calculator|open\s*calculator|calculator)\s*$/i.test(trimmed)) {
+    // Check for explicit modal calculator trigger
+    if (/^\s*(?:🧮\s*calculator|open\s+(?:the\s+)?(?:fee\s+|scholarship\s+)?calculator)\s*$/i.test(trimmed)) {
       setIsCalculatorOpen(true);
       return;
     }

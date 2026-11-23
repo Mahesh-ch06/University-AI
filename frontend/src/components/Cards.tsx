@@ -1618,7 +1618,6 @@ export function CounsellorBoardCard({ card, onSelect }: { card: any; onSelect?: 
   const options = card.options || [];
 
   const handleSelect = (opt: any) => {
-    if (selected) return;
     setSelected(opt.key);
     if (onSelect) {
       onSelect(opt.label);
@@ -1641,7 +1640,6 @@ export function CounsellorBoardCard({ card, onSelect }: { card: any; onSelect?: 
             type="button"
             className={`counsellor-opt-btn ${selected === opt.key ? "selected" : ""} ${selected && selected !== opt.key ? "dimmed" : ""}`}
             onClick={() => handleSelect(opt)}
-            disabled={Boolean(selected)}
           >
             <div className="counsellor-opt-content">
               <span className="counsellor-opt-code">{opt.code || opt.short}</span>
@@ -1660,7 +1658,6 @@ export function CounsellorStageCard({ card, onSelect }: { card: any; onSelect?: 
   const options = card.options || [];
 
   const handleSelect = (opt: any) => {
-    if (selected) return;
     setSelected(opt.key);
     if (onSelect) {
       onSelect(opt.label);
@@ -1683,7 +1680,6 @@ export function CounsellorStageCard({ card, onSelect }: { card: any; onSelect?: 
             type="button"
             className={`counsellor-stage-btn ${selected === opt.key ? "selected" : ""} ${selected && selected !== opt.key ? "dimmed" : ""}`}
             onClick={() => handleSelect(opt)}
-            disabled={Boolean(selected)}
           >
             <div className="counsellor-stage-info">
               <span className="counsellor-stage-label">{opt.label}</span>
@@ -1803,7 +1799,6 @@ export function CounsellorRouteCard({ card, onSelect }: { card: any; onSelect?: 
   const options = card.options || [];
 
   const handleSelect = (opt: any) => {
-    if (selected) return;
     setSelected(opt.key);
     if (onSelect) {
       onSelect(opt.label);
@@ -1826,7 +1821,6 @@ export function CounsellorRouteCard({ card, onSelect }: { card: any; onSelect?: 
             type="button"
             className={`counsellor-route-btn ${selected === opt.key ? "selected" : ""} ${selected && selected !== opt.key ? "dimmed" : ""}`}
             onClick={() => handleSelect(opt)}
-            disabled={Boolean(selected)}
           >
             <div className="counsellor-route-info">
               <span className="counsellor-route-label">{opt.label}</span>
@@ -1845,7 +1839,6 @@ export function CounsellorProgramCard({ card, onSelect }: { card: any; onSelect?
   const programs = card.programs || [];
 
   const handleSelect = (prog: any) => {
-    if (selected) return;
     setSelected(prog.key);
     if (onSelect) {
       onSelect(prog.name);
@@ -1868,7 +1861,6 @@ export function CounsellorProgramCard({ card, onSelect }: { card: any; onSelect?
             type="button"
             className={`counsellor-prog-btn ${selected === prog.key ? "selected" : ""} ${selected && selected !== prog.key ? "dimmed" : ""}`}
             onClick={() => handleSelect(prog)}
-            disabled={Boolean(selected)}
           >
             <div className="counsellor-prog-main">
               <span className="counsellor-prog-name">{prog.name}</span>
@@ -1921,7 +1913,6 @@ export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (
   ];
 
   const handleClick = (prompt: string) => {
-    if (selectedPrompt) return;
     setSelectedPrompt(prompt);
     onSelect?.(prompt);
   };
@@ -1978,7 +1969,6 @@ export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (
               type="button"
               className={`welcome-action-tile tile-${item.color || "blue"} ${isSelected ? "selected" : ""} ${isDimmed ? "dimmed" : ""}`}
               onClick={() => handleClick(item.prompt)}
-              disabled={Boolean(selectedPrompt)}
             >
               <div className={`welcome-action-icon-box icon-box-${item.color || "blue"}`}>
                 {renderIcon(item.icon)}

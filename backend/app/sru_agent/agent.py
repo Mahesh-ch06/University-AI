@@ -363,17 +363,19 @@ def _chunks(text: str, words_per_chunk: int = 6):
 
 
 # ------------------------------------------------------- small reply helpers ----
-def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None):
+def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None):
     d = {"type": "done", "conversation_id": conversation_id, "answer": answer,
          "tools_used": list(used), "model": config.AGENT_MODEL,
          # kept so the existing frontend 'done' handler does not break
          "sources": [], "suggestions": list(suggestions), "cards": list(cards), "flow": None}
+    if profile is not None:
+        d["profile"] = profile
     if telemetry is not None:
         d["telemetry"] = telemetry
     return d
 
 
-async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None):
+async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None, profile=None):
     """Stream a reply the code wrote itself (no model call), remember it, and finish the turn."""
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     text = normalize_positive_brand_advocacy(text)
@@ -386,7 +388,12 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
         final_suggestions = followups.ensure_fixed_chips(list(suggestions), answer=text, message=message)
     else:
         final_suggestions = ()
-    yield _done(conversation_id, text, used, cards, final_suggestions, telemetry=telemetry)
+    if profile is None:
+        try:
+            profile = await memory.get_profile(session_id)
+        except Exception:
+            profile = None
+    yield _done(conversation_id, text, used, cards, final_suggestions, telemetry=telemetry, profile=profile)
 
 
 async def _run_action(name: str, args: dict, ctx: dict, used: list, cards: list):
@@ -587,8 +594,22 @@ def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
     sem1_payable = fee_res.get("sem1_total_payable", per_sem_net)
 
     lines = []
+    if pct is not None and float(pct) < 50.0:
+        return (
+            f"I am sorry, but with an academic score of {score_str}, you are not eligible for admission at SR University.\n\n"
+            "The minimum academic eligibility requirement for admission is **50% aggregate marks** in 10+2 / Intermediate. "
+            "Because your score does not meet this 50% threshold, fee and scholarship calculations cannot be provided.\n\n"
+            "If you believe there is an error in the recorded score or would like to discuss alternative diploma/lateral entry opportunities, "
+            "please feel free to contact our Admissions Office at **0870-2818333** or email **admissions@sru.edu.in**."
+        )
+
     if details.get("re_query"):
         lines.append("Thanks! I already have your academic details. Let's continue with your scholarship assessment.\n")
+    if pct is not None and float(pct) >= 50.0:
+        ack_banner = fee_intake.get_marks_acknowledgment(
+            score_str, float(pct), is_projected=bool(details.get("is_projected")), stage_label=stage_lbl
+        )
+        lines.append(f"{ack_banner}\n")
 
     lines.append("### Your Scholarship Assessment")
     lines.append(f"• **Academic Qualification**: {qual_str}")
@@ -2571,7 +2592,14 @@ async def run_agent(
         intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for")) and not is_multi_q
         if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (intake_in_progress or is_scholarship_calc_q or (is_bare_score_msg and client is None)):
             intake_decision = fee_intake.decide(message, profile, intake_state)
-            if intake_decision and intake_decision["action"] == "ask":
+            if intake_decision and intake_decision["action"] == "ineligible":
+                await set_state(fee_intake=None)
+                async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                     cards=[],
+                                     suggestions=intake_decision.get("chips", [])):
+                    yield ev
+                return
+            elif intake_decision and intake_decision["action"] == "ask":
                 await _apply_intake_updates(intake_decision["state"])
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=intake_decision.get("cards", []),
@@ -2611,7 +2639,14 @@ async def run_agent(
         if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (is_scholarship_calc_q or intake_in_progress):
             if not intake_decision:
                 intake_decision = fee_intake.decide(message, profile, intake_state)
-            if intake_decision and intake_decision["action"] == "ask":
+            if intake_decision and intake_decision["action"] == "ineligible":
+                await set_state(fee_intake=None)
+                async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                     cards=[],
+                                     suggestions=intake_decision.get("chips", [])):
+                    yield ev
+                return
+            elif intake_decision and intake_decision["action"] == "ask":
                 await _apply_intake_updates(intake_decision["state"])
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=intake_decision.get("cards", []),
@@ -3064,4 +3099,4 @@ async def run_agent(
             "answer": final, "used": used, "cards": cards, "suggestions": suggestions})
     turn_telemetry.total_latency_ms = round((time.perf_counter() - started) * 1000, 2)
     observability.record_policy_telemetry(turn_telemetry)
-    yield _done(conversation_id, final, used, cards, suggestions, telemetry=turn_telemetry.to_dict())
+    yield _done(conversation_id, final, used, cards, suggestions, telemetry=turn_telemetry.to_dict(), profile=profile)

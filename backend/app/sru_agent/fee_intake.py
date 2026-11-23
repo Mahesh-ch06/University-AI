@@ -126,6 +126,109 @@ def get_max_marks(board_key: str | None, stage_key: str | None) -> int:
     return 100
 
 
+def get_marks_acknowledgment(
+    score_str: str,
+    percent: float,
+    is_projected: bool = False,
+    stage_label: str = "",
+    variant_idx: int = 0,
+) -> str:
+    """Dynamic, diverse positive acknowledgment messages for scores >= 50%."""
+    proj_note = f" (projected from your {stage_label or '1st year'} performance)" if is_projected else ""
+
+    if percent >= 90.0:
+        variants = [
+            f"🌟 **Outstanding academic performance!** With **{score_str}**{proj_note}, you have a stellar academic profile and are eligible for admission with our **top-tier merit scholarship** at SR University!",
+            f"🏆 **Sensational achievement!** Scoring **{score_str}**{proj_note} places you among the top achievers. You are eligible for admission and qualify for **SR University's premier merit scholarship**!",
+            f"✨ **Brilliant academic record!** With an exceptional score of **{score_str}**{proj_note}, you comfortably secure admission eligibility and qualify for our **highest tuition fee waiver**!",
+            f"🥇 **Exceptional marks!** Scoring **{score_str}**{proj_note} reflects academic excellence. You are fully eligible for admission with **maximum merit scholarship benefits** at SR University!",
+        ]
+    elif percent >= 80.0:
+        variants = [
+            f"🎉 **Great performance!** With **{score_str}**{proj_note}, you have a strong academic foundation and are eligible for admission with a **prestigious merit scholarship** at SR University!",
+            f"🌟 **Impressive score!** Scoring **{score_str}**{proj_note} makes you eligible for admission and qualifies you for a **substantial scholarship reduction** on your tuition at SR University!",
+            f"👏 **Fantastic achievement!** With **{score_str}**{proj_note}, you comfortably meet admission criteria and qualify for an **attractive merit scholarship** at SR University!",
+            f"🚀 **Commendable marks!** Scoring **{score_str}**{proj_note} puts you in an excellent position to secure admission and a **valuable merit scholarship** at SR University!",
+        ]
+    elif percent >= 70.0:
+        variants = [
+            f"👍 **Good marks!** With **{score_str}**{proj_note}, you are eligible for admission at SR University and qualify for our **merit scholarship categories**!",
+            f"🎯 **Solid score!** Scoring **{score_str}**{proj_note} fulfills SR University's admission criteria and puts you in line for **valuable scholarship opportunities**!",
+            f"✨ **Well done!** With an academic score of **{score_str}**{proj_note}, you have a competitive profile for admission and merit scholarship consideration at SR University!",
+            f"👏 **Strong effort!** Scoring **{score_str}**{proj_note} ensures your eligibility for admission and qualifies you to explore **merit-based scholarship concessions** at SR University!",
+        ]
+    else:  # 50.0 <= percent < 70.0
+        variants = [
+            f"✅ **You are eligible for admission!** With **{score_str}**{proj_note}, you fulfill SR University's academic eligibility criterion (minimum 50% marks in 10+2 / Intermediate).",
+            f"🎓 **Congratulations on qualifying!** Scoring **{score_str}**{proj_note} successfully meets the eligibility threshold (minimum 50%) for undergraduate admission at SR University.",
+            f"👏 **Good news!** With **{score_str}**{proj_note}, you meet the eligibility requirement for admission to SR University. Let's explore your program and fee pathways!",
+        ]
+
+    return variants[abs(int(variant_idx)) % len(variants)]
+
+
+def is_below_minimum_eligibility(known: dict) -> bool:
+    """Checks if known academic marks are strictly below 50% aggregate minimum."""
+    pct = known.get("percent")
+    if pct is not None:
+        try:
+            return float(pct) < 50.0
+        except (ValueError, TypeError):
+            pass
+    raw_m = known.get("raw_marks")
+    max_m = known.get("max_marks")
+    if raw_m is not None and max_m is not None and max_m > 0:
+        try:
+            return (float(raw_m) / float(max_m)) * 100.0 < 50.0
+        except (ValueError, TypeError):
+            pass
+    return False
+
+
+def format_ineligible_response(known: dict, state: dict) -> dict:
+    """Formats explicit polite rejection message when marks are below 50% minimum criteria, withholding all fee details."""
+    raw_m = known.get("raw_marks")
+    max_m = known.get("max_marks")
+    pct = known.get("percent")
+    if pct is None and raw_m is not None and max_m is not None and max_m > 0:
+        pct = round((float(raw_m) / float(max_m)) * 100.0, 2)
+    elif pct is not None:
+        pct = float(pct)
+
+    if raw_m and max_m and max_m > 100:
+        clean_raw = int(raw_m) if raw_m == int(raw_m) else raw_m
+        clean_max = int(max_m) if max_m == int(max_m) else max_m
+        score_str = f"**{clean_raw}/{clean_max} ({pct:.1f}%)**"
+    elif pct is not None:
+        score_str = f"**{pct:.1f}%**"
+    else:
+        score_str = "your entered score"
+
+    rejection_text = (
+        f"I am sorry, but with an academic score of {score_str}, you are not eligible for admission at SR University.\n\n"
+        "The minimum academic eligibility requirement for admission is **50% aggregate marks** in 10+2 / Intermediate. "
+        "Because your score does not meet this 50% threshold, fee and scholarship calculations cannot be provided.\n\n"
+        "If you believe there is an error in the recorded score or would like to discuss alternative diploma/lateral entry opportunities, "
+        "please feel free to contact our Admissions Office at **0870-2818333** or email **admissions@sru.edu.in**."
+    )
+    chips = [
+        "📞 Admissions Office",
+        "📋 Eligibility Criteria",
+        "🏫 Why Choose SRU?",
+        "💰 Fee & Scholarship Info",
+    ]
+    state_out = dict(state)
+    state_out["waiting_for"] = None
+    state_out["ineligible"] = True
+    return {
+        "action": "ineligible",
+        "text": rejection_text,
+        "chips": chips,
+        "cards": [],
+        "state": state_out,
+    }
+
+
 def _btech_branches_text() -> str:
     data = fees.load_data()["programs"]
     seen, lines = set(), []
@@ -561,6 +664,10 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
     if counsellor_mode:
         state["counsellor_mode"] = True
 
+    # Strict eligibility check: if marks are below 50%, immediately reject and withhold fee details
+    if is_below_minimum_eligibility(known):
+        return format_ineligible_response(known, state)
+
     # =========================================================================
     # GUIDED ADMISSION COUNSELLOR WORKFLOW
     # =========================================================================
@@ -612,9 +719,9 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
         is_re_query = is_all_known and (intake.get("waiting_for") == "done" or int(intake.get("turns", 0)) > 0)
 
         # Step 0: If course/degree is completely unknown (neither specific programme nor generic B.Tech)
-        # Prompt user to choose or state their course first before board/marks questions.
+        # Prompt user to choose or state their course first before board/marks questions (only for general fee inquiries, not guided scholarship counselling)
         has_any_course = bool(has_prog or said.get("generic_btech") or known.get("generic_btech") or intake.get("generic_btech"))
-        if not has_any_course and not intake.get("waiting_for"):
+        if not counsellor_mode and not has_any_course and not intake.get("waiting_for"):
             state["waiting_for"] = "program"
             text = (
                 "Sure! I can help you with fee and scholarship details at SR University.\n\n"
@@ -709,8 +816,12 @@ def decide(message: str, profile: dict, intake: dict | None) -> dict | None:
             proj_str = " (projected based on 1st-year performance)" if known.get("is_projected") else ""
             prog_title = "B.Tech" if (said.get("generic_btech") or known.get("generic_btech") or not prog_key) else fees.clean_program_name(prog_key, specialization=known.get("specialization"), user_text=known.get("program_raw"))
 
+            ack_msg = get_marks_acknowledgment(
+                score_str, float(pct or 0), is_projected=bool(known.get("is_projected")), stage_label=known.get("stage_label", ""), variant_idx=int(state.get("turns", 0))
+            )
+
             text = (
-                f"Thank you! Based on your academic score of {score_str}{proj_str}, you have a strong academic profile for SR University.\n\n"
+                f"{ack_msg}\n\n"
                 f"Which admission route are you planning to use for {prog_title}?\n"
                 f"Select your admission pathway so we can factor in any entrance rank scholarships."
             )
