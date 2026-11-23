@@ -418,7 +418,8 @@ export async function getConversation(
       headers["X-Admin-Key"] = adminKey;
     }
     const res = await fetch(
-      `${API_BASE}/api/v1/conversations/${conversationId}?session_id=${encodeURIComponent(sessionId)}${adminKey ? `&admin_key=${encodeURIComponent(adminKey)}` : ""}`,
+      // The admin key travels only in the X-Admin-Key header, never in the URL (history, logs, shared links).
+      `${API_BASE}/api/v1/conversations/${conversationId}?session_id=${encodeURIComponent(sessionId)}`,
       { headers }
     );
     return await handleResponse<ConversationDetail>(res, "Failed to load conversation");

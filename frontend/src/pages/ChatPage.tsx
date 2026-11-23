@@ -32,7 +32,10 @@ interface Props {
 /** Tell the page that embeds the widget to close it (public/widget.js listens for this). */
 function closeWidget() {
   try {
-    window.parent?.postMessage({ type: "sru-buddy:close" }, "*");
+    // Only when embedded. The message carries no data, so the parent's origin need not be known.
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "sru-buddy:close" }, "*");
+    }
   } catch {
     /* not embedded */
   }
@@ -128,7 +131,19 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     try {
       const params = new URLSearchParams(window.location.search);
       const urlConvId = params.get("chat") || params.get("cid") || params.get("chat_id");
-      const adminKeyParam = params.get("admin_key") || sessionStorage.getItem("university_ai_admin_key") || "";
+      // Staff view: the admin key comes only from this tab's admin sign-in (sessionStorage), never from
+      // the URL. A key left in an old link is removed from the address bar and not used.
+      if (params.has("admin_key")) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("admin_key");
+          window.history.replaceState(null, "", url.toString());
+        } catch {}
+      }
+      let adminKeyParam = "";
+      try {
+        adminKeyParam = sessionStorage.getItem("university_ai_admin_key") || "";
+      } catch {}
       if (urlConvId && urlConvId !== activeConvIdRef.current) {
         setIsRestoringConv(true);
         getConversation(urlConvId, sessionId, adminKeyParam || undefined)
@@ -362,6 +377,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   // Listen for messages from parent window (e.g. public/widget.js register button)
   useEffect(() => {
     const handleWidgetMessage = (e: MessageEvent) => {
+      // Only the page that embeds this chat (public/widget.js) may ask for the registration form;
+      // a message from any other window (a pop-up, another frame) is ignored.
+      if (window.parent === window || e.source !== window.parent) return;
       if (e.data?.type === "sru-buddy:register") {
         setShowLeadAuthModal(true);
       }
