@@ -117,6 +117,12 @@ class ConversationRecoveryContext(BaseModel):
     welcome_message: str | None = None
     total_messages: int = 0
     workflow_step: str | None = None
+    # Memory choice (v4.8.0): minutes since the last message of that conversation, the threshold, and whether
+    # the student should be asked "continue or start new" (True) or the conversation simply continues (False).
+    inactive_minutes: float | None = None
+    resume_after_minutes: int = 30
+    offer_choice: bool = False
+    last_user_message: str | None = None
 
 
 class ResetSessionRequest(BaseModel):

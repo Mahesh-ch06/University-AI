@@ -14,7 +14,7 @@ PROMPT_VERSION = "2026-11-23.1"
 
 _HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee",
                        # details from an EARLIER conversation: never used unless the student asks to reuse them
-                       "saved_academic", "academic_conv", "welcome_actions_shown")
+                       "saved_academic", "saved_academic_conv", "academic_conv", "welcome_actions_shown")
 
 # Tone only: the SHAPE of an answer follows its content (see FORMAT), never a fixed template.
 _STYLES = """  * 1 = DIRECT: straight to the point.

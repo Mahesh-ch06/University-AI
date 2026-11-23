@@ -48,6 +48,10 @@ AGENT_MODEL = MODEL_ALIASES.get(_raw_model, _raw_model) or "gemini-3.5-flash-lit
 AGENT_MAX_TOOL_ROUNDS = int(os.getenv("AGENT_MAX_TOOL_ROUNDS", "4"))
 AGENT_MAX_MESSAGE_CHARS = int(os.getenv("AGENT_MAX_MESSAGE_CHARS", "1000"))
 AGENT_RATE_LIMIT_PER_MIN = int(os.getenv("AGENT_RATE_LIMIT_PER_MIN", "20"))
+# Conversation memory: a student who comes back after this many minutes without a message is asked whether
+# to continue the previous conversation or start a new one. Sooner than that (a refresh, a short break) the
+# conversation simply continues. The browser reads this value from /recovery-context (one source of truth).
+RECOVERY_RESUME_AFTER_MINUTES = int(os.getenv("RECOVERY_RESUME_AFTER_MINUTES", "30"))
 # Load handling: how many model calls may run at the same moment (the rest wait their turn),
 # how long to wait before retrying a busy / rate-limited call, and how long one call may take.
 AGENT_MAX_CONCURRENCY = int(os.getenv("AGENT_MAX_CONCURRENCY", "6"))

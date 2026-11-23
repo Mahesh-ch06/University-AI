@@ -485,6 +485,10 @@ export interface ConversationRecoveryContext {
   welcome_message?: string | null;
   total_messages?: number;
   workflow_step?: string | null;
+  inactive_minutes?: number | null;
+  resume_after_minutes?: number;
+  offer_choice?: boolean;
+  last_user_message?: string | null;
 }
 
 /**
@@ -502,9 +506,11 @@ export async function fetchRecoveryContext(sessionId: string): Promise<Conversat
 /**
  * Reset active conversation state for a fresh start while preserving verified identity & database records.
  */
-export async function resetSessionConversation(sessionId: string, conversationId?: string | null): Promise<void> {
+export async function resetSessionConversation(sessionId: string, conversationId?: string | null): Promise<boolean> {
+  // Starts a new conversation on the server: the previous one is kept (and its details filed with it).
+  // Returns false when the server could not be reached, so the caller can say so instead of pretending.
   try {
-    await fetch(`${API_BASE}/api/v1/agent/reset-session`, {
+    const res = await fetch(`${API_BASE}/api/v1/agent/reset-session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -513,8 +519,9 @@ export async function resetSessionConversation(sessionId: string, conversationId
       }),
     });
     invalidateConversationCache(sessionId);
+    return res.ok;
   } catch {
-    // Graceful fallback
+    return false;
   }
 }
 

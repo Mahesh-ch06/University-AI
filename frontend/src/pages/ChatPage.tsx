@@ -1,6 +1,8 @@
 import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
 import MessageBubble from "../components/MessageBubble";
 import ChatLeadForm from "../components/ChatLeadForm";
+import WelcomeBackPanel, { type WelcomeBackStatus } from "../components/WelcomeBackPanel";
+import { describeGap } from "../utils/timeAgo";
 import { CalculatorIcon } from "../components/Icons";
 import { getSessionId } from "../hooks/useSession";
 import { applyServerProfile, cleanPhone, forgetStudentDetails, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
@@ -68,7 +70,39 @@ export function getInitialWelcomeMessage(_seed: string = ""): MessageData {
 export const DEFAULT_WELCOME_MESSAGE: MessageData = getInitialWelcomeMessage();
 
 const MESSAGE_RENDER_WINDOW = 60;
-const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000; // 30-minute inactivity threshold for conversation recovery
+// Minutes without a message after which a returning student is asked "continue or start new". The server
+// sends the value with /recovery-context (RECOVERY_RESUME_AFTER_MINUTES); this is only the fallback.
+const DEFAULT_RESUME_AFTER_MINUTES = 30;
+// Conversations the student chose NOT to continue ("Start a new chat"): never offered or restored again.
+const DISMISSED_KEY = "sru_recovery_dismissed";
+
+function readDismissed(): string[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]");
+    return Array.isArray(list) ? list.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function markDismissed(conversationId?: string | null) {
+  if (!conversationId) return;
+  try {
+    const list = readDismissed().filter((id) => id !== conversationId);
+    list.push(conversationId);
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify(list.slice(-20)));
+  } catch {
+    /* private mode: the choice still applies to this page */
+  }
+}
+
+type RecoveryOffer = {
+  ctx: ConversationRecoveryContext;
+  mode: "returning" | "idle";
+  status: WelcomeBackStatus;
+  error?: string | null;
+  canContinue?: boolean;
+};
 
 export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const isWidget = variant === "widget";
@@ -206,11 +240,18 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const messagesAreaRef = useRef<HTMLDivElement>(null);
   const cancelStreamRef = useRef<(() => void) | null>(null);
 
-  // Smart Conversation Recovery state
-  const [recoveryContext, setRecoveryContext] = useState<ConversationRecoveryContext | null>(null);
+  // Conversation memory: the "continue or start new" offer for a returning student (see docs/32)
+  const [recovery, setRecovery] = useState<RecoveryOffer | null>(null);
+  const recoveryRef = useRef<RecoveryOffer | null>(null);
   const [isRestoringConv, setIsRestoringConv] = useState<boolean>(false);
   const [pendingRecoveryQuery, setPendingRecoveryQuery] = useState<string | null>(null);
   const pendingRecoveryQueryRef = useRef<string | null>(null);
+  const resumeAfterMinutesRef = useRef<number>(DEFAULT_RESUME_AFTER_MINUTES);
+  const restoringRef = useRef(false);
+  // Where a restored conversation continues: a quiet divider after its last saved message.
+  const [resumeDivider, setResumeDivider] = useState<{ afterId: string; text: string } | null>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  useEffect(() => { recoveryRef.current = recovery; }, [recovery]);
 
   const isLoadingRef = useRef(isLoading);
   const dockQueryRef = useRef(dockQuery);
@@ -226,37 +267,124 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     } catch {}
   };
 
-  // Condition A: Immediate check on page reload / fresh session mount
+  // "Latest" appears only when the student scrolls UP, away from the newest messages (not while they read a
+  // new answer from its top, which is where a new answer is shown), and goes away near the bottom.
+  const lastScrollTopRef = useRef(0);
+  const handleBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const scrolledUp = el.scrollTop < lastScrollTopRef.current - 4;
+    lastScrollTopRef.current = el.scrollTop;
+    setShowJumpToLatest((prev) => {
+      if (fromBottom < 120) return false;
+      if (scrolledUp && fromBottom > 360) return true;
+      return prev;
+    });
+  };
+
+  const scrollToLatest = (behavior: ScrollBehavior = "auto") => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = messagesAreaRef.current;
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior });
+      });
+    });
+  };
+
+  /**
+   * Load a saved conversation into the chat. Used for "Continue conversation" and for the quiet restore
+   * after a refresh or a short break. Returns false when it could not be loaded (the caller decides what
+   * to show). Only one restore runs at a time.
+   */
+  const restoreConversation = async (
+    conversationId: string,
+    opts: { silent?: boolean; lastActiveText?: string } = {}
+  ): Promise<"ok" | "missing" | "failed"> => {
+    if (restoringRef.current) return "failed";
+    restoringRef.current = true;
+    setIsRestoringConv(true);
+    try {
+      const conv = await getConversation(conversationId, sessionId);
+      if (!conv || !conv.messages || conv.messages.length === 0) return "missing";
+      setMessages(conv.messages);
+      setVisibleMessageCount(MESSAGE_RENDER_WINDOW);
+      setActiveConvId(conversationId);
+      activeConvIdRef.current = conversationId;
+      const lastId = conv.messages[conv.messages.length - 1]?.id;
+      setResumeDivider(
+        !opts.silent && lastId && opts.lastActiveText
+          ? { afterId: lastId, text: `Continued · last message ${opts.lastActiveText}` }
+          : null
+      );
+      if (!isWidget) setIsWidgetOpen(true);
+      scrollToLatest();
+      return "ok";
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      return /not found/i.test(msg) ? "missing" : "failed";
+    } finally {
+      restoringRef.current = false;
+      setIsRestoringConv(false);
+    }
+  };
+
+  // Returning student: on opening SRU Buddy, find their latest conversation.
+  //  * opened from a chat link / after a refresh (?chat=<id>): that conversation is loaded (deep-link effect);
+  //  * last message less than RECOVERY_RESUME_AFTER_MINUTES ago: it simply continues (no question);
+  //  * longer ago: the welcome-back choice is shown; nothing starts or restores until the student chooses;
+  //  * a conversation the student chose not to continue is never offered again.
   useEffect(() => {
+    let cancelled = false;
+    let deepLinked = false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      deepLinked = Boolean(params.get("chat") || params.get("cid") || params.get("chat_id"));
+    } catch {}
     recordUserActivity();
-    let isMounted = true;
+    if (deepLinked) return;
     fetchRecoveryContext(sessionId)
-      .then((ctx) => {
-        if (isMounted && ctx && ctx.has_resumable_conversation) {
-          setRecoveryContext(ctx);
+      .then(async (ctx) => {
+        if (cancelled || !ctx?.has_resumable_conversation || !ctx.conversation_id) return;
+        resumeAfterMinutesRef.current = ctx.resume_after_minutes || DEFAULT_RESUME_AFTER_MINUTES;
+        if (readDismissed().includes(ctx.conversation_id)) return;
+        if (activeConvIdRef.current || isLoadingRef.current) return; // a conversation already started here
+        if (ctx.offer_choice) {
+          setRecovery({ ctx, mode: "returning", status: "idle" });
+        } else {
+          await restoreConversation(ctx.conversation_id, { silent: true });
         }
       })
       .catch(() => {});
     return () => {
-      isMounted = false;
+      cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // Condition B: 30-minute inactivity threshold check
+  // A tab left open: when the student comes back after the same break, offer the same choice at the end of
+  // the conversation (never while they are typing, waiting for an answer, or already choosing).
   useEffect(() => {
     const checkInactivity = () => {
       if (document.visibilityState !== "visible") return;
       if (isLoadingRef.current || widgetInputRef.current || dockQueryRef.current) return;
+      if (recoveryRef.current || !activeConvIdRef.current) return;
       const lastActiveStr = localStorage.getItem("sru_last_active_time");
       const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : 0;
-      if (lastActive > 0 && Date.now() - lastActive >= INACTIVITY_THRESHOLD_MS) {
-        fetchRecoveryContext(sessionId)
-          .then((ctx) => {
-            if (ctx && ctx.has_resumable_conversation) {
-              setRecoveryContext(ctx);
-            }
-          })
-          .catch(() => {});
+      const thresholdMs = resumeAfterMinutesRef.current * 60 * 1000;
+      if (lastActive > 0 && Date.now() - lastActive >= thresholdMs) {
+        recordUserActivity(); // offered once per return
+        setRecovery({
+          ctx: {
+            has_resumable_conversation: true,
+            conversation_id: activeConvIdRef.current,
+            student_name: readStudentDetails()?.name || null,
+            last_active_at: new Date(lastActive).toISOString(),
+            assessment_status: "none",
+          },
+          mode: "idle",
+          status: "idle",
+        });
+        scrollToLatest("smooth");
       }
     };
 
@@ -266,94 +394,108 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       document.removeEventListener("visibilitychange", checkInactivity);
       window.removeEventListener("focus", checkInactivity);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  const handleContinueConversation = async () => {
-    if (!recoveryContext?.conversation_id) {
-      setRecoveryContext(null);
-      return;
-    }
-    setIsRestoringConv(true);
-    try {
-      const conv = await getConversation(recoveryContext.conversation_id, sessionId);
-      if (conv && conv.messages && conv.messages.length > 0) {
-        setMessages(conv.messages);
-        setActiveConvId(recoveryContext.conversation_id);
-        activeConvIdRef.current = recoveryContext.conversation_id;
-        setRecoveryContext(null);
-        recordUserActivity();
-
-        const pending = pendingRecoveryQueryRef.current || pendingRecoveryQuery;
-        pendingRecoveryQueryRef.current = null;
-        setPendingRecoveryQuery(null);
-
-        if (pending && !/^\s*(?:hi|hello|hey|start|menu|hola)\s*$/i.test(pending)) {
-          setTimeout(() => {
-            executeSendMessage(pending, false);
-          }, 150);
-        } else {
-          const rawName = recoveryContext.student_name || readStudentDetails()?.name || "";
-          const namePart = rawName ? `, ${rawName.trim().charAt(0).toUpperCase() + rawName.trim().slice(1)}` : "";
-          const welcomeBackMsg: MessageData = {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: `Welcome back${namePart}! Your previous conversation has been restored. How can I help you today?`,
-            created_at: new Date().toISOString(),
-          };
-          setMessages((prev) => [...prev, welcomeBackMsg]);
-          requestAnimationFrame(() => {
-            if (messagesAreaRef.current) {
-              messagesAreaRef.current.scrollTo({
-                top: messagesAreaRef.current.scrollHeight,
-                behavior: "smooth",
-              });
-            }
-          });
-        }
-      } else {
-        setRecoveryContext(null);
-      }
-    } catch {
-      setRecoveryContext(null);
-    } finally {
-      setIsRestoringConv(false);
-    }
-  };
-
-  const handleStartNewConversation = async () => {
-    const prevContext = recoveryContext;
-    const prevConvId = activeConvId || prevContext?.conversation_id;
-    setRecoveryContext(null);
-
-    // Forget verified student identity so fresh start requires name & phone intake
-    try {
-      await forgetStudentDetails(sessionId);
-    } catch {}
-    try {
-      localStorage.removeItem("sru_student_lead");
-    } catch {}
-
-    handleResetChat();
-    recordUserActivity();
-    await resetSessionConversation(sessionId, prevConvId);
-
+  const takePendingRecoveryQuery = (): string | null => {
     const pending = pendingRecoveryQueryRef.current || pendingRecoveryQuery;
     pendingRecoveryQueryRef.current = null;
     setPendingRecoveryQuery(null);
+    return pending;
+  };
 
-    if (pending) {
-      const userMsgId = crypto.randomUUID();
-      const userMsg: MessageData = {
-        id: userMsgId,
-        role: "user",
-        content: pending,
-        created_at: new Date().toISOString(),
-      };
-      setMessages([getInitialWelcomeMessage(`${sessionId}-fresh`), userMsg]);
-      setPendingQuestion(pending);
-      pendingQuestionRef.current = pending;
-      setShowInlineLeadForm(true);
+  const handleContinueConversation = async () => {
+    const offer = recoveryRef.current;
+    if (!offer) return;
+    recordUserActivity();
+    if (offer.mode === "idle") {
+      // The conversation is already on screen: just carry on.
+      setRecovery(null);
+      return;
     }
+    const conversationId = offer.ctx.conversation_id;
+    if (!conversationId) {
+      setRecovery(null);
+      return;
+    }
+    setRecovery({ ...offer, status: "restoring", error: null });
+    const result = await restoreConversation(conversationId, {
+      lastActiveText: describeGap(offer.ctx.inactive_minutes, offer.ctx.last_active_at),
+    });
+    if (result !== "ok") {
+      setRecovery({
+        ...offer,
+        status: "error",
+        canContinue: result !== "missing",
+        error:
+          result === "missing"
+            ? "That conversation is no longer available. Start a new chat and I'll help you from here."
+            : "I couldn't reach SRU Buddy to restore your conversation. Check your connection and try again.",
+      });
+      return;
+    }
+    setRecovery(null);
+    const pending = takePendingRecoveryQuery();
+    if (pending) {
+      setTimeout(() => {
+        executeSendMessage(pending, false);
+      }, 60);
+    }
+  };
+
+  /**
+   * Start a genuinely new conversation. The previous one stays saved (and can still be opened from its
+   * link); the server files its details with it and does not carry them into the new chat.
+   * Used by the welcome-back choice and by the "New chat" button in the header.
+   */
+  const startNewConversation = async (opts: { forgetIdentity?: boolean } = {}): Promise<boolean> => {
+    const offer = recoveryRef.current;
+    const previousId = activeConvIdRef.current || offer?.ctx.conversation_id || null;
+    if (offer) setRecovery({ ...offer, status: "starting", error: null });
+    if (opts.forgetIdentity) {
+      try {
+        await forgetStudentDetails(sessionId);
+      } catch {}
+    }
+    const ok = await resetSessionConversation(sessionId, previousId);
+    if (!ok) {
+      if (offer) {
+        setRecovery({
+          ...offer,
+          status: "error",
+          error: "I couldn't start a new chat because the connection dropped. Please try again.",
+        });
+      } else {
+        setError("Couldn't start a new chat. Check your connection and try again.");
+      }
+      return false;
+    }
+    markDismissed(previousId);
+    if (offer?.ctx.conversation_id) markDismissed(offer.ctx.conversation_id);
+    handleResetChat();
+    setRecovery(null);
+    setResumeDivider(null);
+    recordUserActivity();
+    return true;
+  };
+
+  const handleStartNewConversation = async (opts: { forgetIdentity?: boolean } = {}) => {
+    const started = await startNewConversation(opts);
+    if (!started) return;
+    const pending = takePendingRecoveryQuery();
+    if (pending) {
+      setTimeout(() => {
+        handleSendMessage(pending);
+      }, 60);
+    }
+  };
+
+  const handleNewChatClick = () => {
+    if (isLoading && cancelStreamRef.current) {
+      cancelStreamRef.current();
+      cancelStreamRef.current = null;
+    }
+    void startNewConversation();
   };
 
   // Real-time connection status: setting_up -> connected -> thinking
@@ -420,9 +562,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       : error
         ? { text: "Setting up...", type: "setting_up" }
         : { text: "Connected", type: "connected" };
-  const visibleMessages = messages.length > visibleMessageCount
-    ? messages.slice(-visibleMessageCount)
+  // While a returning student chooses, the welcome-back panel is the greeting (no second, generic welcome
+  // above it pushing the choice below the fold).
+  const shownMessages = recovery?.mode === "returning"
+    ? messages.filter((m) => m.id !== "welcome-sru-buddy")
     : messages;
+  const visibleMessages = shownMessages.length > visibleMessageCount
+    ? shownMessages.slice(-visibleMessageCount)
+    : shownMessages;
 
   const lastSentUserMsgIdRef = useRef<string | null>(null);
 
@@ -489,58 +636,32 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
     recordUserActivity();
 
-    // 1. Direct triggers for recovery choices (from chips, buttons, or typed commands)
-    if (/^\s*(?:[▶\s]*(?:continue|resume|pick\s*up)(?:\s+(?:previous|prior|my))?\s*(?:conversation|chat)?)\s*$/i.test(trimmed)) {
-      if (recoveryContext?.has_resumable_conversation) {
-        handleContinueConversation();
+    // While the welcome-back choice is open, typed answers to it choose too ("continue", "start fresh").
+    const offer = recoveryRef.current;
+    if (offer && offer.status !== "restoring" && offer.status !== "starting") {
+      if (/^\s*(?:[▶\s]*(?:continue|resume|pick\s*up)(?:\s+(?:previous|prior|my|the|this))?\s*(?:conversation|chat)?)\s*$/i.test(trimmed)) {
+        void handleContinueConversation();
         return;
       }
-    }
-    if (/^\s*(?:[↺\s]*(?:start\s*fresh|new\s*(?:chat|conversation)|restart(?:\s*fresh)?|refresh(?:\s*chat)?))\s*$/i.test(trimmed)) {
-      if (recoveryContext?.has_resumable_conversation) {
-        handleStartNewConversation();
+      if (/^\s*(?:[↺\s]*(?:start\s*(?:fresh|new|a\s+new\s+chat)|new\s*(?:chat|conversation)|restart(?:\s*fresh)?|refresh(?:\s*chat)?))\s*$/i.test(trimmed)) {
+        void handleStartNewConversation();
         return;
       }
-    }
-
-    // 2. Natural Session Recovery:
-    // When a returning student sends their first message in an unresumed session,
-    // display their message and respond with personalized greeting, saved academic details card, and action choices.
-    if (!activeConvId && recoveryContext?.has_resumable_conversation) {
-      setPendingRecoveryQuery(trimmed);
-      pendingRecoveryQueryRef.current = trimmed;
-
-      const userMsgId = crypto.randomUUID();
-      const promptMsgId = crypto.randomUUID();
-
-      const userMsg: MessageData = {
-        id: userMsgId,
-        role: "user",
-        content: trimmed,
-        created_at: new Date().toISOString(),
-      };
-      lastSentUserMsgIdRef.current = userMsgId;
-
-      const rawName = recoveryContext.student_name || readStudentDetails()?.name || "";
-      const formattedName = rawName ? rawName.trim().charAt(0).toUpperCase() + rawName.trim().slice(1) : "";
-      const greetingHeader = formattedName ? `Hey **${formattedName}**! 👋` : `Hey there! 👋`;
-
-      const promptMsg: MessageData = {
-        id: promptMsgId,
-        role: "assistant",
-        content: `${greetingHeader} Welcome back to SR University!\n\nDo you want to **continue your previous chat** or **start fresh / refresh**?`,
-        cards: [
-          {
-            type: "session_recovery",
-            context: recoveryContext,
-          },
-        ],
-        suggestions: ["▶ Continue Previous Chat", "↺ Start Fresh"],
-        created_at: new Date().toISOString(),
-      };
-
-      setMessages((prev) => [...prev, userMsg, promptMsg]);
-      return;
+      if (offer.mode === "returning") {
+        // A question typed before choosing: shown now, answered once the student chooses, in the
+        // conversation they choose. Nothing is sent or started on their behalf.
+        setPendingRecoveryQuery(trimmed);
+        pendingRecoveryQueryRef.current = trimmed;
+        const userMsgId = crypto.randomUUID();
+        setMessages((prev) => [
+          ...prev.filter((m) => !m.id.startsWith("pending-recovery-")),
+          { id: `pending-recovery-${userMsgId}`, role: "user", content: trimmed, created_at: new Date().toISOString() },
+        ]);
+        scrollToLatest("smooth");
+        return;
+      }
+      // Idle tab: typing simply continues the conversation on screen.
+      setRecovery(null);
     }
 
     // Check for explicit modal calculator trigger
@@ -763,6 +884,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     setError(null);
     setShowInlineLeadForm(false);
     setPendingQuestion(null);
+    setResumeDivider(null);
   }
 
   // Handle bottom floating dock input submit
@@ -835,7 +957,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </button>
               <button
                 className="sru-widget-hdr-btn"
-                onClick={handleResetChat}
+                onClick={handleNewChatClick}
                 title="Reset / New Chat"
                 aria-label="Reset Chat"
               >
@@ -876,8 +998,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           </div>
 
           {/* Body */}
-          <div className="sru-widget-body" ref={messagesAreaRef}>
-            {messages.length > visibleMessages.length && (
+          <div className="sru-widget-body" ref={messagesAreaRef} onScroll={handleBodyScroll}>
+            {shownMessages.length > visibleMessages.length && (
               <button
                 type="button"
                 onClick={() => setVisibleMessageCount((count) => Math.min(messages.length, count + MESSAGE_RENDER_WINDOW))}
@@ -904,8 +1026,25 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   isStreaming={msg.id === streamingMsgId}
                   onSuggestionClick={(prompt, form) => handleSendMessage(prompt, form)}
                 />
+                {resumeDivider && msg.id === resumeDivider.afterId && (
+                  <div className="wb-resume-divider" role="note">{resumeDivider.text}</div>
+                )}
               </div>
             ))}
+
+            {recovery && (
+              <WelcomeBackPanel
+                context={recovery.ctx}
+                mode={recovery.mode}
+                status={recovery.status}
+                errorText={recovery.error}
+                canContinue={recovery.canContinue !== false}
+                pendingMessage={pendingRecoveryQuery}
+                onContinue={() => void handleContinueConversation()}
+                onStartNew={() => void handleStartNewConversation()}
+                onNotMe={() => void handleStartNewConversation({ forgetIdentity: true })}
+              />
+            )}
 
             {showInlineLeadForm && (
               <ChatLeadForm onComplete={handleLeadFormComplete} pendingQuestion={pendingQuestion} />
@@ -935,6 +1074,13 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               <div style={{ color: "#b91c1c", fontSize: "0.82rem", padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px" }}>
                 {error}
               </div>
+            )}
+
+            {showJumpToLatest && (
+              <button type="button" className="sru-jump-latest" onClick={() => scrollToLatest("smooth")} aria-label="Scroll to the latest message">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
+                Latest
+              </button>
             )}
 
           </div>
@@ -1298,7 +1444,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               </button>
               <button
                 className="sru-widget-hdr-btn"
-                onClick={handleResetChat}
+                onClick={handleNewChatClick}
                 title="Reset / New Chat"
                 aria-label="Reset Chat"
               >
@@ -1358,8 +1504,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           {/* Body */}
           {!isMinimized && (
             <>
-              <div className="sru-widget-body" ref={messagesAreaRef}>
-                {messages.length > visibleMessages.length && (
+              <div className="sru-widget-body" ref={messagesAreaRef} onScroll={handleBodyScroll}>
+                {shownMessages.length > visibleMessages.length && (
                   <button
                     type="button"
                     onClick={() => setVisibleMessageCount((count) => Math.min(messages.length, count + MESSAGE_RENDER_WINDOW))}
@@ -1386,8 +1532,25 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                       isStreaming={msg.id === streamingMsgId}
                       onSuggestionClick={(prompt, form) => handleSendMessage(prompt, form)}
                     />
+                    {resumeDivider && msg.id === resumeDivider.afterId && (
+                      <div className="wb-resume-divider" role="note">{resumeDivider.text}</div>
+                    )}
                   </div>
                 ))}
+
+                {recovery && (
+                  <WelcomeBackPanel
+                    context={recovery.ctx}
+                    mode={recovery.mode}
+                    status={recovery.status}
+                    errorText={recovery.error}
+                    canContinue={recovery.canContinue !== false}
+                    pendingMessage={pendingRecoveryQuery}
+                    onContinue={() => void handleContinueConversation()}
+                    onStartNew={() => void handleStartNewConversation()}
+                    onNotMe={() => void handleStartNewConversation({ forgetIdentity: true })}
+                  />
+                )}
 
                 {showInlineLeadForm && (
                   <ChatLeadForm onComplete={handleLeadFormComplete} pendingQuestion={pendingQuestion} />
@@ -1417,6 +1580,13 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   <div style={{ color: "#b91c1c", fontSize: "0.82rem", padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px" }}>
                     {error}
                   </div>
+                )}
+
+                {showJumpToLatest && (
+                  <button type="button" className="sru-jump-latest" onClick={() => scrollToLatest("smooth")} aria-label="Scroll to the latest message">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
+                    Latest
+                  </button>
                 )}
 
               </div>
