@@ -894,7 +894,8 @@ def special_concessions_lead(data: dict, program: str | None = None) -> str:
     n = len(data.get("all_categories", []))
     target = f"your **{_program_short(program)}** fee" if program else "your fee"
     return (f"SRU offers **{n} special concessions** on tuition every year, with valid proof. "
-            f"Pick the one that applies to you and I'll apply it to {target}.")
+            f"Pick the one that applies to you and I'll show what it could mean for {target} "
+            f"(each is approved only after the proof is verified).")
 
 
 def _program_short(program: str | None) -> str:

@@ -65,7 +65,7 @@ def test_welcome_actions_card_structure():
     assert card["type"] == "welcome_actions"
     assert len(card["items"]) == 4
     titles = [item["title"] for item in card["items"]]
-    assert titles == ["Calculate My Scholarship", "Explore Programmes", "Placements & Careers", "How to Apply"]
+    assert titles == ["Calculate My Scholarship", "Explore Programmes", "Placements & Careers", "Special Consideration"]
     # Every tile carries a short incentive badge and a prompt the chat understands.
     assert all(item.get("badge") and item.get("prompt") for item in card["items"])
     colors = [item["color"] for item in card["items"]]

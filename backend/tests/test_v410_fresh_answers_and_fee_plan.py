@@ -161,18 +161,15 @@ def test_exact_category_wins_over_a_similar_one():
         "Students from states other than Telangana and Andhra Pradesh"
 
 
-async def test_picked_concession_asks_programme_then_shows_one_fee_card(model):
+async def test_picked_concession_asks_programme_and_is_evaluated_not_applied(model):
+    # v4.11.0: a picked concession goes into the fee evaluation (fee_journey) as PENDING; no instant discount card.
     _, ask, done = await _chat([
         "what special concessions are there?",
         'Apply the "SRU alumni, their children and siblings" concession to my fee',
         "B.Tech CSE"])
-    assert "Which programme" in ask["answer"]
-    (card,) = _cards(done, "concession_fee")
-    assert len(done["cards"]) == 1                          # one card, no second table
-    d = card["data"]
-    tuition = fees.load_data()["programs"]["btech_cse"]["tuition_per_year"]
-    assert d["tuition_after_concession"] == fees.inr(tuition - 15000)
-    assert "proof" in d["proof_note"]
+    assert "Which programme" in ask["answer"] and "isn't applied yet" in ask["answer"]
+    assert not _cards(done, "concession_fee") and not _cards(done, "fee_summary")
+    assert "supporting document" in done["answer"]
 
 
 async def test_a_pending_concession_does_not_capture_a_later_question(model):
@@ -184,9 +181,12 @@ async def test_a_pending_concession_does_not_capture_a_later_question(model):
 async def test_concession_with_merit_scholarship_notes_the_admissions_office(model):
     sid = f"v410-{uuid.uuid4().hex[:10]}"
     await memory.update_profile(sid, percent=85, board="state_board")
-    (done,) = await _chat(['Apply the "Lateral entry students" concession to my B.Tech CSE fee'], sid)
-    d = _cards(done, "concession_fee")[0]["data"]
-    assert d["merit_percent"] == 25 and "Admissions Office" in d["combine_note"]
+    out = await _chat(['Apply the "Lateral entry students" concession to my B.Tech CSE fee', "Yes, I have it",
+                       "No hostel, I'm a day scholar", "No, I'll manage"], sid)
+    d = _cards(out[-1], "fee_summary")[0]["data"]
+    assert d["scholarship"]["status"] == "applied" and "25%" in d["scholarship"]["label"]
+    assert d["special_consideration"]["status"] == "pending"
+    assert "Admissions Office" in d["combine_note"]
 
 
 # ------------------------------------------------------------------ fee chart
@@ -194,25 +194,26 @@ async def test_fee_with_hostel_offers_the_chart_and_yes_prepares_it(model):
     calc, chart = await _chat(["my inter percentage is 85, state board. cse fee with ac hostel 4 sharing", "yes"])
     assert "complete fee chart" in calc["answer"] and calc["suggestions"] == ["Yes, prepare my fee chart", "No, thanks"]
     assert len([c for c in calc["cards"] if c["type"] in ("calculate_fee", "fee_breakdown")]) == 1   # no double card
-    (card,) = _cards(chart, "fee_plan")
+    (card,) = _cards(chart, "fee_summary")          # v4.11.0: the chart is the personalised fee summary
     d = card["data"]
-    total = sum((-1 if r["kind"] == "discount" else 1) * fee_plan._num(r["amount"]) for r in d["rows"])
-    assert fee_plan._num(d["first_year_total"]) == total
+    total = sum((-1 if r["kind"] == "discount" else 0 if r["kind"] == "pending" else 1) * fee_plan._num(r["amount"])
+                for r in d["rows"])
+    assert fee_plan._num(d["payable_confirmed"]) == total
     assert any("Hostel" in r["item"] for r in d["rows"])
-    assert d["share_text"].startswith("SR University 2027-28 fee chart")
+    assert d["share_text"].startswith("SR University 2027-28 fee summary")
 
 
 async def test_declining_the_chart_offer_is_respected(model):
     _, no = await _chat(["my inter percentage is 85, state board. cse fee with ac hostel 4 sharing", "no thanks"])
-    assert not _cards(no, "fee_plan") and no["suggestions"] == []
+    assert not _cards(no, "fee_plan") and not _cards(no, "fee_summary") and no["suggestions"] == []
 
 
 async def test_chart_includes_a_selected_concession_as_if_approved(model):
     out = await _chat(['Apply the "SRU alumni, their children and siblings" concession to my B.Tech ECE fee',
                        "📋 Prepare my full fee chart"])
-    d = _cards(out[1], "fee_plan")[0]["data"]
+    d = _cards(out[1], "fee_summary")[0]["data"]
     assert d["program"] == fees.short_name("btech_ece")
-    assert fee_plan._num(d["concession"]["total_if_approved"]) == fee_plan._num(d["first_year_total"]) - 15000
+    assert fee_plan._num(d["payable_after_approval"]) == fee_plan._num(d["payable_confirmed"]) - 15000
 
 
 # ------------------------------------------------------------------ a new session starts empty

@@ -18,7 +18,7 @@ import {
   ClockIcon,
   SruHostelIcon,
 } from "./Icons";
-import { ConcessionFeeCard, ConcessionsTableCard, FeePlanCard } from "./FeePlanCards";
+import { ConcessionFeeCard, ConcessionsTableCard, FeePlanCard, FeeSummaryCard } from "./FeePlanCards";
 import "./Cards.css";
 import "./ChatCards.css";
 
@@ -2220,6 +2220,12 @@ export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (
             <line x1="2" y1="13" x2="22" y2="13" />
           </svg>
         );
+      case "heart":
+        return (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" />
+          </svg>
+        );
       case "send":
         return (
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2318,8 +2324,10 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
       return <ConcessionsTableCard card={card} onSelect={onSelect} />;
     case "concession_fee":
       return <ConcessionFeeCard card={card} />;
-    case "fee_plan":
+    case "fee_plan": // older chats (v4.10.0)
       return <FeePlanCard card={card} />;
+    case "fee_summary": // the fee evaluation agent's final card (v4.11.0)
+      return <FeeSummaryCard card={card} />;
     case "request_counsellor_callback":
       return <AgentCallbackCard card={card} />;
     case "book_campus_visit": // older chats only
