@@ -107,8 +107,8 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
                     return embeddings
                 elif response.status_code in (401, 403, 429, 500, 502, 503):
                     logger.warning(
-                        "Gemini embedding key '%s...' hit HTTP %d. Rotating key (attempt %d/%d).",
-                        active_key[:8],
+                        "Gemini embedding key %s hit HTTP %d. Rotating key (attempt %d/%d).",
+                        self.key_pool.label(active_key),
                         response.status_code,
                         attempt + 1,
                         max_attempts,
@@ -120,7 +120,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
                 else:
                     response.raise_for_status()
             except httpx.TimeoutException:
-                logger.warning("Gemini embedding request with key '%s...' timed out. Retrying...", active_key[:8])
+                logger.warning("Gemini embedding request with key %s timed out. Retrying...", self.key_pool.label(active_key))
                 await asyncio.sleep(2.0)
                 continue
 
@@ -163,8 +163,8 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
                     return embedding
                 elif response.status_code in (401, 403, 429, 500, 502, 503):
                     logger.warning(
-                        "Gemini query embedding key '%s...' hit HTTP %d. Rotating key.",
-                        active_key[:8],
+                        "Gemini query embedding key %s hit HTTP %d. Rotating key.",
+                        self.key_pool.label(active_key),
                         response.status_code,
                     )
                     self.key_pool.mark_rate_limited(active_key)
@@ -173,7 +173,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
                 else:
                     response.raise_for_status()
             except httpx.TimeoutException:
-                logger.warning("Gemini query embedding with key '%s...' timed out. Retrying...", active_key[:8])
+                logger.warning("Gemini query embedding with key %s timed out. Retrying...", self.key_pool.label(active_key))
                 await asyncio.sleep(1.0)
                 continue
 

@@ -277,7 +277,9 @@ async def test_stated_number_is_remembered(lead_store):
     client = Recorder([_text("Thanks! May I know your name and the course you are interested in?")])
     await _run("my mobile number is 7075545685", "r2-stated", client)
     assert (await memory.get_profile("r2-stated"))["phone"] == "7075545685"
-    assert "phone=7075545685" in client.prompts[0]              # so "what is my number?" can be answered
+    # The model sees only the last four digits (DPDP minimisation); "what is my number?" is answered
+    # from the profile without the model (tests/test_security_ai.py).
+    assert "7075545685" not in client.prompts[0] and "ending 5685" in client.prompts[0]
 
 
 def test_profile_api_for_the_settings_panel(lead_store):

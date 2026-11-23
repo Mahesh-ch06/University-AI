@@ -362,7 +362,10 @@ async def agent_knowledge_search(query: str):
 
         docs = results.get("documents", [[]])[0] if results.get("documents") else []
         metas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
-        return [{"title": (m or {}).get("title", ""), "text": d} for d, m in zip(docs, metas)]
+        # Keep the source of every passage (title, type, page, dates, document id) for citation and audit.
+        keep = ("document_type", "page", "effective_date", "publication_date", "document_id")
+        return [{"title": (m or {}).get("title", ""), "text": d, **{k: (m or {}).get(k) for k in keep}}
+                for d, m in zip(docs, metas)]
     except Exception as err:
         logger.warning("agent_knowledge_search fallback on error: %s", err)
         return []

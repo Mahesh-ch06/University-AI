@@ -30,7 +30,7 @@ except ImportError:
     genai = None
     types = None
 
-from . import affordability, config, dialogue, eligibility, journey, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
+from . import affordability, ai_guard, config, dialogue, eligibility, journey, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
 from app.services import card_service
 from . import fact_service, policy_engine, policy_models, policy_service, semantic_router, observability
 from .prompt import build_system_prompt
@@ -374,6 +374,8 @@ def _is_personal_eligibility(fee: dict | None) -> bool:
 
 
 def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None):
+    # Every answer passes here: one that leaks internal instructions or a secret-shaped string is replaced.
+    answer = ai_guard.guard_reply(answer) if isinstance(answer, str) else answer
     d = {"type": "done", "conversation_id": conversation_id, "answer": answer,
          "tools_used": list(used), "model": config.AGENT_MODEL,
          # kept so the existing frontend 'done' handler does not break
@@ -831,8 +833,13 @@ def _handbook_context(query: str) -> str:
         return ""
 
     sorted_found = sorted(found_by_id.values(), key=lambda x: x.get("score", 0), reverse=True)[:4]
+    # Passages are data: one that carries instructions for the model never reaches the prompt.
+    sorted_found = ai_guard.screen_passages(sorted_found, "handbook")
+    if not sorted_found:
+        return ""
     top = sorted_found[0]["score"]
-    parts = [f"[{f['title'].split(' > ')[-1]}]\n{f['text'][:750]}" for f in sorted_found if f["score"] >= 0.40 * top]
+    parts = [f"[{f['title'].split(' > ')[-1]} | source: {f.get('source') or 'SR University handbook'}]\n"
+             f"{f['text'][:750]}" for f in sorted_found if f["score"] >= 0.40 * top]
     return "\n\n".join(parts)
 
 
@@ -1602,6 +1609,13 @@ def _cache_key(message: str) -> str:
     import hashlib
     norm = re.sub(r"[^a-z0-9 ]+", " ", message.lower())
     return "sru:answer:" + hashlib.sha1(" ".join(norm.split()).encode()).hexdigest()
+
+
+# "What is my number?", "which number did you save?", "do you have my mobile number?"
+_ASKS_OWN_NUMBER = re.compile(
+    r"\b(?:what(?:'s|\s+is)|which(?:\s+is)?|tell\s+me|show(?:\s+me)?|do\s+you\s+have|did\s+you\s+save|"
+    r"is)\b[^?.!]{0,25}?\bmy\s+(?:mobile\s+|phone\s+|contact\s+|registered\s+)?(?:number|no\.?)(?=\W|$)",
+    re.IGNORECASE)
 
 
 def _natural_first_name(profile: dict, history: list) -> str | None:
@@ -2615,6 +2629,16 @@ async def run_agent(
                              ["B.Tech CSE fees", "Scholarship slabs", "Hostel details"]):
             yield ev
         return
+    if not phone and not asked_for_call and profile.get("phone") and _ASKS_OWN_NUMBER.search(message):
+        # "What is my number?": answered here from the student's own profile, so the full number never
+        # has to be in the model's prompt (it sees only the last four digits).
+        saved = str(profile["phone"])
+        text = (f"The mobile number saved for you is **{saved[:5]} {saved[5:]}**. To change it, say "
+                f"\"change my number\" or open My details from the menu.")
+        async for ev in _say(text, message, session_id, conversation_id, used, cards,
+                             ["B.Tech CSE fees", "Scholarship slabs", "Hostel details"]):
+            yield ev
+        return
     if phone and intents.is_number_statement(message) and not asked_for_call:
         # "my mobile number is ...": remember it (and fix a saved request) before answering
         await _run_action("update_contact_details", {"phone": phone}, ctx, used, cards)
@@ -3065,7 +3089,9 @@ async def run_agent(
                     if kind == "text":
                         round_text += value
                         streamed += value
-                        yield {"type": "token", "delta": value}
+                        # Stop showing live text once it looks like a leak; the final answer is replaced in _done.
+                        if not ai_guard.leak_reason(streamed):
+                            yield {"type": "token", "delta": value}
                     else:
                         resp = value
             else:
@@ -3092,7 +3118,7 @@ async def run_agent(
                 error = result.pop("_error", None)
                 if error:
                     log.error("tool %s failed: %s", call.name, error)
-                log.info("tool=%s status=%s session=%s", call.name, result.get("status"), session_id)
+                log.info("tool=%s status=%s session=%s", call.name, result.get("status"), (session_id or "")[:8])
                 used.append({"name": call.name, "status": result.get("status"),
                              "is_action": call.name in tools.ACTION_TOOLS})
                 is_card_ready = call.name in CARD_TOOLS and result.get("status") in ("calculated", "saved", "ok")
