@@ -800,6 +800,53 @@ _ELIGIBILITY_CHIPS = [
     "How do I apply?",
 ]
 
+_CSE_VS_AIML_TEXT = """### 💻 B.Tech CSE vs. B.Tech CSE (AI & ML) Comparison
+
+• **B.Tech Computer Science & Engineering (Core)**:
+  - **Focus & Foundations**: Builds comprehensive mastery across core computing fundamentals — Data Structures & Algorithms, Operating Systems, Database Management Systems, Compilers, Computer Networks, and Software Engineering.
+  - **Career Scope**: Offers maximum versatility across Full-Stack Software Engineering, Cloud Architecture, Distributed Systems, and DevOps.
+
+• **B.Tech CSE (Artificial Intelligence & Machine Learning)**:
+  - **Specialized Deep-Dive**: Dedicated specialization immersing students in Neural Networks, Deep Learning, Natural Language Processing (NLP), Computer Vision, Robotics, and Predictive Analytics from foundational to elective semesters.
+  - **Target Careers**: Tailored for high-demand AI roles: AI/ML Engineer, Data Scientist, Machine Learning Researcher, and Computer Vision Specialist.
+
+• **At SR University**:
+  - Both programs are backed by **Tier-1 NBA accreditation**, state-of-the-art computing labs, AI MakerSpace, and the DST-funded **SRiX Technology Business Incubator** (171+ startups).
+  - Students in both streams enjoy **equal eligibility** for marquee campus placements with packages up to **₹51 LPA (Microsoft)**, **₹49.3 LPA (ServiceNow)**, and **₹46.38 LPA (Amazon)**."""
+
+_CSE_VS_AIML_CHIPS = [
+    "B.Tech CSE fees",
+    "Calculate my scholarship",
+    "Placement records",
+    "Plan a campus visit",
+]
+
+_SCHOLARSHIP_CRITERIA_TEXT = """### 🎓 SR University Merit Scholarships (2027–28)
+
+SR University offers generous **merit-based tuition fee waivers (10% to 40%)** to encourage academic excellence:
+
+• **10+2 / Intermediate PCM Slabs**:
+  - **≥ 95% / ≥ 950 marks**: **40% Tuition Fee Waiver**
+  - **90% – 94.9% / 900–949 marks**: **30% Tuition Fee Waiver**
+  - **80% – 89.9% / 800–899 marks**: **20% Tuition Fee Waiver**
+  - **70% – 79.9% / 700–799 marks**: **10% Tuition Fee Waiver**
+
+• **Entrance Exam Ranks (TG/AP EAPCET & JEE Main)**:
+  - High rankers in EAPCET and JEE Main receive top merit slabs; the best applicable scholarship is granted automatically.
+  - Only the highest eligible scholarship slab applies (no stacking).
+
+• **Special Category Concessions (19 categories)**:
+  - Additional concessions for siblings, defense personnel wards, single-parent/orphan students, NCC cadets, and sports achievers.
+
+*Share your 10+2 marks or entrance rank to calculate your exact scholarship savings!*"""
+
+_SCHOLARSHIP_CRITERIA_CHIPS = [
+    "Calculate my scholarship",
+    "B.Tech CSE fees",
+    "Hostel fee details",
+    "How do I apply?",
+]
+
 
 
 

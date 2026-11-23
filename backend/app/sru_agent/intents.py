@@ -664,11 +664,13 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
     if _BRANCH_GUIDANCE_PATTERN.search(msg):
         return "BRANCH_GUIDANCE_QUERY"
 
-    # 9. University overview & "Why choose SRU" queries
-    if _WHY_CHOOSE_SRU_PATTERN.search(msg):
-        return "WHY_CHOOSE_SRU_QUERY"
-    if _ABOUT_SRU_PATTERN.search(msg):
-        return "ABOUT_SRU_QUERY"
+    # 9. University overview & "Why choose SRU" queries (only if not a multi-topic comparison)
+    is_comparison_query = bool(re.search(r"\b(?:vs|versus|compare|comparison|better\s+than|difference\s+between)\b", msg, re.I))
+    if not is_comparison_query:
+        if _WHY_CHOOSE_SRU_PATTERN.search(msg):
+            return "WHY_CHOOSE_SRU_QUERY"
+        if _ABOUT_SRU_PATTERN.search(msg):
+            return "ABOUT_SRU_QUERY"
 
     return "GENERAL"
 

@@ -25,6 +25,21 @@ logger = logging.getLogger(__name__)
 # Fast heuristic patterns to detect compound / multi-question inputs
 # ---------------------------------------------------------------------------
 
+NON_SPLITTABLE_PHRASES: tuple[str, ...] = (
+    "computer science & engineering", "computer science and engineering",
+    "science & engineering", "science and engineering",
+    "ai & robotics", "ai and robotics",
+    "ai & ml", "ai and ml",
+    "arts & science", "arts and science",
+    "arts & sciences", "arts and sciences",
+    "research & development", "research and development",
+    "rules and regulations", "rules and timings", "terms and conditions",
+    "fee and scholarship", "fees and scholarship", "fees and scholarships",
+    "fee and scholarships", "living and learning", "boys and girls",
+    "men and women", "sports and games", "food and mess", "mess and food",
+    "ac and non-ac", "ac and non ac", "non-ac and ac",
+)
+
 # "also", "along with", "as well as", "besides", etc. are strong compound signals
 _STRONG_COMPOUND_SIGNALS = re.compile(
     r"\b(also|along\s+with|as\s+well\s+as|besides|moreover|furthermore|in\s+addition|on\s+top\s+of\s+that|not\s+only|and\s+also)\b",
@@ -34,117 +49,98 @@ _STRONG_COMPOUND_SIGNALS = re.compile(
 # Multiple question marks inside a single message
 _MULTI_QUESTION_MARK = re.compile(r"\?.*\?")
 
-# Explicit "and" or comma joining two distinct domain topics (not just adjectives)
-# Split and check that both sides have domain-relevant words
-_DOMAIN_TOPICS = re.compile(
-    r"\b(fee|fees|hostel|placement|scholarship|bus|transport|admission|eligibility|"
-    r"curfew|timings|mess|room|internship|cutoff|ranking|lab|course|semester|attendance|"
-    r"library|club|sports|canteen|faculty|registration|deadline)\b",
+_TOPIC_KEYWORD_PATTERN = re.compile(
+    r"\b(sru|sr\s+university|cse|aiml|ece|eee|btech|mtech|mba|bba|hostel|hostels|fee|fees|"
+    r"placement|placements|scholarship|scholarships|curfew|mess|food|admission|admissions|"
+    r"eligibility|ranking|rankings|faculty|lab|labs|sports|club|clubs|campus|vs|versus|"
+    r"compare|why\s+sru|why\s+choose|timings?|rules?|bus|transport)\b",
     re.IGNORECASE,
 )
-
-# Enumerated / bulleted queries joined inline (e.g. "1) fees 2) hostel 3) bus")
-# Match inline numbering patterns on the same line
-_NUMBERED_INLINE_GLOBAL = re.compile(
-    r"(?:(?:^|\s|\,)(?:\d+[.)]\s+))([^0-9?!]{3,}?)(?=\s*(?:\d+[.)]\s+)|$)",
-    re.MULTILINE,
-)
-_NUMBERED_INLINE_SIMPLE = re.compile(r"\b\d+[.)]\s+\S")
 
 # Minimum meaningful sub-query length (tokens)
-_MIN_SUB_QUERY_WORDS = 3
+_MIN_SUB_QUERY_WORDS = 2
 # Maximum sub-queries to process (avoid runaway fan-out)
 MAX_SUB_QUERIES = 4
-
-# Explicit conjunction split points (separating two clauses in list form)
-_COMMA_CONJUNCTION_SPLIT = re.compile(
-    r"\s*(?:"
-    r",\s*and\s+(?:also\s+)?"       # ", and", ", and also"
-    r"|;\s*"                          # semicolons
-    r"|,\s*(?=(?:\w+\s*){1,4}(?:,|$|\band\b))"  # list commas (e.g. "X, Y, Z")
-    r"|\band\s+also\b"
-    r"|\balong\s+with\b"
-    r"|\bas\s+well\s+as\b"
-    r"|\bbesides\b"
-    r"|\bmoreover\b"
-    r"|\bfurthermore\b"
-    r")\s*",
-    re.IGNORECASE,
-)
 
 
 def _is_compound_query(message: str) -> bool:
     """Return True if the message likely contains more than one distinct question."""
-    # Multiple question marks → almost certainly compound
-    if _MULTI_QUESTION_MARK.search(message):
+    if not message or len(message.strip().split()) < 3:
+        return False
+
+    msg_clean = message.strip().lower()
+    for phrase in NON_SPLITTABLE_PHRASES:
+        msg_clean = msg_clean.replace(phrase, "___PHRASE___")
+
+    # 1. Multiple question marks
+    if msg_clean.count("?") >= 2:
         return True
 
-    # Strong compound signal words ("also", "along with", etc.)
-    if _STRONG_COMPOUND_SIGNALS.search(message):
-        # Confirm both sides have domain topics
-        parts = _STRONG_COMPOUND_SIGNALS.split(message, maxsplit=1)
-        filtered = [p.strip() for p in parts if p and not _STRONG_COMPOUND_SIGNALS.match(p.strip())]
-        both_have_topics = all(_DOMAIN_TOPICS.search(p) for p in filtered if p)
-        if both_have_topics and len(filtered) >= 2:
-            return True
-        # Even if only one side has domain topics, still treat as compound
-        if any(_DOMAIN_TOPICS.search(p) for p in filtered if p):
-            return True
-
-    # Numbered inline queries ("1) fees 2) hostel")
-    if _NUMBERED_INLINE_SIMPLE.search(message):
-        # Count inline numbering occurrences
-        count = len(re.findall(r"\b\d+[.)]\s+\S", message))
-        if count >= 2:
-            return True
-
-    # Comma/semicolon-separated list with multiple domain topics
-    topic_hits = _DOMAIN_TOPICS.findall(message)
-    if len(topic_hits) >= 3:
-        # Multiple different domain topics mentioned → likely compound
-        unique_topics = {t.lower() for t in topic_hits}
-        if len(unique_topics) >= 2:
-            return True
-
-    # Explicit conjunction-separated clause check: split and ensure ≥2 meaningful fragments
-    parts = _COMMA_CONJUNCTION_SPLIT.split(message)
-    meaningful = [p.strip() for p in parts if len(p.split()) >= _MIN_SUB_QUERY_WORDS]
-    if len(meaningful) >= 2:
+    # 2. Numbered inline queries ("1) fees 2) hostel")
+    if len(re.findall(r"\b\d+[.)]\s+\S", message)) >= 2:
         return True
+
+    # 3. Strong compound signal words ("also", "along with", etc.)
+    if _STRONG_COMPOUND_SIGNALS.search(msg_clean):
+        return True
+
+    # 4. Check for "and" / "&" / ";" separating two substantive topic clauses
+    parts = re.split(r"\s*(?:;\s*|,\s*(?:and\s+)?|\s+(?:and|&)\s+)\s*", msg_clean)
+    parts = [p.strip() for p in parts if p.strip()]
+    if len(parts) >= 2:
+        substantive = 0
+        for p in parts:
+            if p == "___phrase___":
+                continue
+            p_words = p.split()
+            if (len(p_words) >= 2 and _TOPIC_KEYWORD_PATTERN.search(p)) or len(p_words) >= 3 or _TOPIC_KEYWORD_PATTERN.search(p):
+                substantive += 1
+        if substantive >= 2:
+            return True
 
     return False
 
 
 def _fast_split(message: str) -> list[str]:
     """Split a compound message heuristically into sub-queries without an LLM call."""
-    # Strategy 1: Split on numbered/bulleted inline patterns
-    # Find all occurrences of "N) text" or "N. text"
-    numbered_parts = re.split(r"\s*\b\d+[.)]\s+", message)
-    if len(numbered_parts) >= 3:  # First element is text before "1)", rest are numbered parts
-        # First element might be empty or preamble, skip it
-        candidates = [p.strip() for p in numbered_parts[1:] if len(p.split()) >= _MIN_SUB_QUERY_WORDS]
-        if len(candidates) >= 2:
-            return candidates[:MAX_SUB_QUERIES]
+    masked = message
+    placeholders = {}
+    for i, phrase in enumerate(NON_SPLITTABLE_PHRASES):
+        pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+        for match in pattern.finditer(masked):
+            token = f"___P{i}___"
+            placeholders[token] = match.group(0)
+            masked = masked[:match.start()] + token + masked[match.end():]
 
-    # Strategy 2: Split on explicit "?"-terminated sub-questions
-    q_parts = [p.strip() for p in message.split("?") if p.strip()]
-    if len(q_parts) >= 2:
-        candidates = [p + "?" for p in q_parts if len(p.split()) >= _MIN_SUB_QUERY_WORDS]
-        if len(candidates) >= 2:
-            return candidates[:MAX_SUB_QUERIES]
+    # Strategy 1: Multiple "?" marks
+    if masked.count("?") >= 2:
+        parts = [p.strip() + "?" for p in masked.split("?") if p.strip()]
+    # Strategy 2: Numbered inline queries
+    elif len(re.findall(r"\b\d+[.)]\s+\S", masked)) >= 2:
+        numbered = re.split(r"\s*\b\d+[.)]\s+", masked)
+        parts = [p.strip() for p in numbered if p.strip()]
+    # Strategy 3: Strong compound signals
+    elif _STRONG_COMPOUND_SIGNALS.search(masked):
+        parts = re.split(
+            r"\s*(?:,\s*(?:also|plus)|;\s*|\b(?:also|along\s+with|as\s+well\s+as|besides|moreover|furthermore|in\s+addition|plus|and\s+also)\b)\s*",
+            masked,
+            flags=re.IGNORECASE,
+        )
+    # Strategy 4: Conjunction split on "and", "&", ";"
+    else:
+        parts = re.split(r"\s*(?:;\s*|,\s*(?:and\s+)?|\s+(?:and|&)\s+)\s*", masked, flags=re.IGNORECASE)
 
-    # Strategy 3: Split on strong compound conjunctions
-    if _STRONG_COMPOUND_SIGNALS.search(message):
-        parts = _STRONG_COMPOUND_SIGNALS.split(message)
-        candidates = [p.strip() for p in parts if p and not _STRONG_COMPOUND_SIGNALS.match(p.strip()) and len(p.split()) >= _MIN_SUB_QUERY_WORDS]
-        if len(candidates) >= 2:
-            return candidates[:MAX_SUB_QUERIES]
+    # Restore placeholders and filter candidates
+    unmasked = []
+    for p in parts:
+        p_clean = p.strip()
+        for token, orig in placeholders.items():
+            p_clean = p_clean.replace(token, orig)
+        if p_clean and len(p_clean.split()) >= 1:
+            unmasked.append(p_clean)
 
-    # Strategy 4: Comma/conjunction-based split
-    parts = _COMMA_CONJUNCTION_SPLIT.split(message)
-    candidates = [p.strip() for p in parts if len(p.split()) >= _MIN_SUB_QUERY_WORDS]
-    if len(candidates) >= 2:
-        return candidates[:MAX_SUB_QUERIES]
+    if len(unmasked) >= 2:
+        return unmasked[:MAX_SUB_QUERIES]
 
     return [message]
 

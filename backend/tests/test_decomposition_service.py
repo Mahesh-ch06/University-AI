@@ -46,6 +46,25 @@ class TestIsCompoundQuery:
     def test_as_well_as(self):
         assert _is_compound_query("What is the fee structure as well as the hostel rules?")
 
+    def test_about_sru_and_about_hostels(self):
+        assert _is_compound_query("about sru and about hostels")
+        parts = _fast_split("about sru and about hostels")
+        assert len(parts) == 2
+        assert "about sru" in parts[0].lower()
+        assert "about hostel" in parts[1].lower()
+
+    def test_cse_vs_aiml_and_why_sru(self):
+        assert _is_compound_query("cse vs aiml and why sru")
+        parts = _fast_split("cse vs aiml and why sru")
+        assert len(parts) == 2
+        assert "cse vs aiml" in parts[0].lower()
+        assert "why sru" in parts[1].lower()
+
+    def test_non_splittable_phrases(self):
+        assert not _is_compound_query("B.Tech AI and Robotics")
+        assert not _is_compound_query("rules and regulations of hostel")
+        assert not _is_compound_query("food and mess facilities")
+
 
 # ---------------------------------------------------------------------------
 # _fast_split

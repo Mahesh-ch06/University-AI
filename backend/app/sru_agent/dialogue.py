@@ -245,6 +245,9 @@ def _generic_btech(message: str) -> bool:
 
 def _broad_topic(message: str) -> str | None:
     """Topic name when the whole message is just that topic ("tell me about the hostel", "placements?")."""
+    from app.services.decomposition_service import _is_compound_query
+    if _is_compound_query(message):
+        return None
     rest = _strip_filler(_norm(message))
     if not rest:
         return None
@@ -613,6 +616,9 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
     """What to do with this message before any other route. None = not handled (state unchanged).
     Otherwise a dict with kind 'reply' (send text + chips), 'rewrite' (continue with a more specific
     message) or 'pass' (continue as is), plus the new dialogue state."""
+    from app.services.decomposition_service import _is_compound_query
+    if _is_compound_query(message):
+        return None
     original = dict(conv_state.get("dialogue") or {})
     state = dict(original)
     step = state.get("step")
