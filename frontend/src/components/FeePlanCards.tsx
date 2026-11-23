@@ -7,7 +7,9 @@ import "./FeePlanCards.css";
  * (app/sru_agent/fee_plan.py and fees.special_concessions):
  *  * ConcessionsTableCard: the 19 special concessions as a table; pick one and apply it to your fee;
  *  * ConcessionFeeCard: one card with the tuition after the chosen concession and the proof note;
- *  * FeePlanCard: the complete first-year fee chart with a Share button.
+ *  * FeePlanCard: the complete first-year fee chart with a Share button (older chats);
+ *  * FeeSummaryCard (v4.11.0): the fee evaluation agent's final card. Confirmed amounts and pending
+ *    evaluations are kept apart: a special consideration is never shown as approved.
  */
 
 type Select = (text: string) => void;
@@ -44,7 +46,7 @@ export function ConcessionsTableCard({ card, onSelect }: { card: any; onSelect?:
           {rows.length} categories · per year · {data.academic_year || "2027-28"}
         </h4>
       </div>
-      <p className="fp-hint">Tap the one that applies to you, then apply it to your fee.</p>
+      <p className="fp-hint">Pick the one that applies to you. It is approved only after your proof is verified.</p>
       <div className="fp-table-wrap">
         <table className="fp-table fp-select-table">
           <thead>
@@ -96,10 +98,10 @@ export function ConcessionsTableCard({ card, onSelect }: { card: any; onSelect?:
         >
           {applied ? (
             <>
-              <CheckIcon size={14} /> Applied
+              <CheckIcon size={14} /> Selected
             </>
           ) : picked ? (
-            "Apply to my fee"
+            "Check my fee with this"
           ) : (
             "Select a category"
           )}
@@ -253,6 +255,163 @@ export function FeePlanCard({ card }: { card: any }) {
         {status === "failed" && (
           <span className="agent-card-source-tag" role="status">
             Couldn't share. Long-press the chart to copy it.
+          </span>
+        )}
+        <span className="agent-card-source-tag">Source: official SR University fee card, {d.academic_year}.</span>
+      </div>
+    </div>
+  );
+}
+
+const STATUS_TEXT: Record<string, string> = {
+  pending: "Pending verification",
+  estimated: "Estimate",
+};
+
+async function shareText(title: string, text: string): Promise<"" | "copied" | "failed"> {
+  try {
+    if (navigator.share) {
+      await navigator.share({ title, text });
+      return "";
+    }
+    await navigator.clipboard.writeText(text);
+    return "copied";
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError") return "";
+    try {
+      await navigator.clipboard.writeText(text);
+      return "copied";
+    } catch {
+      return "failed";
+    }
+  }
+}
+
+export function FeeSummaryCard({ card }: { card: any }) {
+  const d = card.data || {};
+  const rows: any[] = d.rows || [];
+  const sch = d.scholarship || {};
+  const cons = d.special_consideration || {};
+  const pending: string[] = d.pending || [];
+  const [status, setStatus] = useState<"" | "copied" | "failed">("");
+  const text: string = d.share_text || "";
+
+  const onShare = async () => {
+    const result = await shareText(`SR University fee summary: ${d.program}`, text);
+    setStatus(result);
+    if (result) window.setTimeout(() => setStatus(""), 2400);
+  };
+
+  return (
+    <div className="rich-card fp-card fp-summary">
+      <div className="card-header">
+        <span className="card-badge">
+          <RupeeIcon size={14} /> Your fee summary
+        </span>
+        <h4 className="card-title">{d.course || d.program}</h4>
+      </div>
+      <p className="fp-meta">
+        {d.academic_year} · first year · <strong>{d.category}</strong>
+      </p>
+
+      <div className="fp-totals">
+        <div className="fp-total-main">
+          <span className="fp-hero-label">Payable now (confirmed)</span>
+          <span className="fp-hero-amount">{d.payable_confirmed}</span>
+        </div>
+        {d.payable_after_approval && (
+          <div className="fp-total-after">
+            <span className="fp-hero-label">After pending approvals</span>
+            <span className="fp-after-amount">{d.payable_after_approval}</span>
+            <span className="fp-note">estimate, not yet approved</span>
+          </div>
+        )}
+      </div>
+
+      <div className="fp-table-wrap">
+        <table className="fp-table">
+          <thead>
+            <tr>
+              <th scope="col">Item</th>
+              <th scope="col" className="fp-num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr
+                key={r.item}
+                className={r.kind === "discount" ? "is-discount" : r.kind === "pending" ? "is-pending" : undefined}
+              >
+                <td>
+                  <span className="fp-cat">{r.item}</span>
+                  {r.kind === "pending" && (
+                    <span className="fp-pill fp-pill--pending">{STATUS_TEXT[r.status] || "Pending"}</span>
+                  )}
+                  {r.kind === "discount" && <span className="fp-pill fp-pill--ok">Applied</span>}
+                  {r.note && <span className="fp-note">{r.note}</span>}
+                </td>
+                <td className="fp-num">{r.amount}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row">Approved concessions</th>
+              <td className="fp-num">{d.total_approved_concessions}</td>
+            </tr>
+            <tr className="is-total">
+              <th scope="row">Payable now</th>
+              <td className="fp-num">{d.payable_confirmed}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <dl className="fp-status-list">
+        <div>
+          <dt>Academic scholarship</dt>
+          <dd>{sch.label}</dd>
+        </div>
+        <div>
+          <dt>Special consideration</dt>
+          <dd>{cons.category ? `${cons.category}: ${cons.label}` : cons.label}</dd>
+        </div>
+      </dl>
+
+      {pending.length > 0 && (
+        <div className="fp-proof" role="note">
+          <ShieldCheckIcon size={16} />
+          <div>
+            <strong>Still open</strong>
+            <ul className="fp-pending-list">
+              {pending.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+      {d.combine_note && <p className="fp-merit">{d.combine_note}</p>}
+      <ul className="fp-foot-notes">
+        {d.application_fee && <li>Application fee {d.application_fee}, paid when you apply.</li>}
+        <li>Books and personal expenses are not included.</li>
+      </ul>
+
+      <div className="agent-card-footer fp-footer">
+        <button type="button" className="agent-card-map-btn" onClick={onShare} disabled={!text}>
+          <ShareIcon size={14} /> {status === "copied" ? "Copied" : "Share"}
+        </button>
+        <a
+          className="agent-card-wa-btn"
+          href={`https://wa.me/?text=${encodeURIComponent(text)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          WhatsApp
+        </a>
+        {status === "failed" && (
+          <span className="agent-card-source-tag" role="status">
+            Couldn't share. Long-press the summary to copy it.
           </span>
         )}
         <span className="agent-card-source-tag">Source: official SR University fee card, {d.academic_year}.</span>

@@ -263,3 +263,22 @@ See `docs/33-fresh-answers-and-fee-plans-nov-2026.md`.
   - "my percentage is 85" and "98 percentile" are read correctly;
   - no generic fee table next to the student's own fee.
 
+## v4.11.0 (23 Nov 2026): the fee evaluation agent
+
+See `docs/34-fee-evaluation-agent-nov-2026.md`.
+
+- **The flow:** eligibility result → qualification confirmed → special concessions offered (before any fee card)
+  → special consideration evaluated as **pending** (proof ready / to be submitted) → academic scholarship from the
+  existing rules (reused, never re-asked) → hostel / bus → final fee card.
+- **Final fee card:** confirmed payable apart from the amount after pending approvals.
+- **Planner:** `sru_agent/fee_journey.py` stores selections only; amounts are computed from `fees.calculate_fee`
+  each time. It covers:
+  - side questions with a "Continue my fee estimate" chip;
+  - "how much will I pay…" from the current evaluation;
+  - "thanks" with an unfinished estimate offers to finish it;
+  - one concession at a time;
+  - changing marks or hostel recalculates and keeps the other choices.
+- **The 4th welcome tile:** "Special Consideration" (it was "How to Apply"; applying is still answered).
+- **Concessions:** a picked concession is never applied straight away. "Prepare my fee chart" gives the final fee
+  card.
+

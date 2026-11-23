@@ -32,7 +32,7 @@ except ImportError:
 
 from . import affordability, ai_guard, config, dialogue, eligibility, journey, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
 from app.services import card_service
-from . import fact_service, fee_plan, policy_engine, policy_models, policy_service, semantic_router, observability
+from . import fact_service, fee_journey, fee_plan, policy_engine, policy_models, policy_service, semantic_router, observability
 from .prompt import build_system_prompt
 
 log = logging.getLogger("sru_agent")
@@ -394,6 +394,80 @@ def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=
     return d
 
 
+async def _with_resume_chip(session_id, conversation_id, chips) -> list:
+    """A side question answered while a fee evaluation is unfinished: offer to continue it (one tap)."""
+    try:
+        state = (await memory.get_conversation_state(session_id, conversation_id)).get(fee_journey.KEY)
+    except Exception:
+        state = None
+    chip = fee_journey.resume_chip(state)
+    chips = list(chips or [])
+    if not chip or chip in chips or chips == ["Yes", "No"]:
+        return chips
+    return (chips[:3] + [chip]) if len(chips) >= 4 else chips + [chip]
+
+
+async def _counsellor_result(fee_result, details, c_text, chips, message, session_id, conversation_id,
+                             conv_state, ctx, set_state):
+    """The step-by-step scholarship flow has its result.
+
+    Eligible (or eligible pending confirmation): the fee evaluation agent takes over. It confirms the
+    qualification and introduces the special concessions BEFORE any fee card (fee_journey.after_scholarship);
+    inside a running evaluation it simply moves to the next open step. Below the minimum marks: the existing
+    explanation with the fee card, unchanged."""
+    from . import eligibility
+    verdict = counsellor_verdict(fee_result, details)
+    used = [{"name": "calculate_fee", "status": "ok", "is_action": False}]
+    blocked = verdict.get("status") == eligibility.BELOW or verdict.get("stream_ok") is False
+    if blocked:
+        async for ev in _say(c_text, message, session_id, conversation_id, used=used,
+                             cards=[{"type": "calculate_fee", "data": fee_result}],
+                             suggestions=chips, exact_chips=True, eligible=verdict.get("eligible")):
+            yield ev
+        return
+    profile_now = ctx.get("profile") or {}
+    fj = fee_journey.after_scholarship(conv_state.get(fee_journey.KEY), profile_now, c_text,
+                                       verdict.get("eligible"), seed=f"{session_id}{message}")
+    fields = {fee_journey.KEY: fj["state"], "offer": None}
+    if fj["state"].get("program"):
+        fields["active_program"] = fj["state"]["program"]
+    await set_state(**fields)
+    async for ev in _say(fj["text"], message, session_id, conversation_id, used=used, cards=fj.get("cards") or [],
+                         suggestions=fj.get("chips") or [], exact_chips=True, eligible=verdict.get("eligible"),
+                         resume=False):
+        yield ev
+
+
+async def _run_fee_journey(fj: dict, message, session_id, conversation_id, profile, set_state):
+    """Carry out what the fee evaluation agent decided (fee_journey.decide / after_scholarship)."""
+    state = fj["state"]
+    fields = {fee_journey.KEY: state, "offer": None}
+    if state.get("program"):
+        fields["active_program"] = state["program"]
+    if fj["kind"] == "scholarship_steps":
+        # Hand over to the existing step-by-step scholarship flow for the marks that are missing; its result
+        # comes back through fee_journey.after_scholarship.
+        step = fee_intake.decide("Calculate my scholarship", profile,
+                                 {"counsellor_mode": True, **({"program": state["program"]} if state.get("program") else {})})
+        if step and step.get("action") == "ask":
+            fields["fee_intake"] = step["state"]
+            await set_state(**fields)
+            lead = (fj.get("lead") or "").strip()
+            text = (lead + "\n\n" if lead else "") + step["text"].replace("Sure! ", "").replace("Sure, ", "")
+            async for ev in _say(text, message, session_id, conversation_id, cards=step.get("cards") or [],
+                                 suggestions=step.get("chips") or [], exact_chips=True, resume=False):
+                yield ev
+            return
+        state["scholarship"] = "no"   # nothing to ask (should not happen): carry on without it
+        fj = fee_journey.next_step(state, profile, fj.get("lead") or "")
+        state = fj["state"]
+        fields[fee_journey.KEY] = state
+    await set_state(**fields)
+    async for ev in _say(fj["text"], message, session_id, conversation_id, cards=fj.get("cards") or [],
+                         suggestions=fj.get("chips") or [], exact_chips=True, resume=False):
+        yield ev
+
+
 async def _offer_fee_chart(session_id, conversation_id, cards) -> bool:
     """True (once per conversation) when this answer shows a fee with hostel or transport added: the
     student is then asked whether to prepare the complete fee chart. Records the offer."""
@@ -408,7 +482,7 @@ async def _offer_fee_chart(session_id, conversation_id, cards) -> bool:
 
 
 async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None, profile=None,
-               eligible=None, exact_chips=False):
+               eligible=None, exact_chips=False, resume=True):
     """Stream a reply the code wrote itself (no model call), remember it, and finish the turn.
     exact_chips=True: show these chips as given (at most 4), without adding the general
     "Fee & Scholarship" / "Why SRU" chips. Used when a reply asks one question (board, marks,
@@ -424,11 +498,13 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
         yield {"type": "token", "delta": piece}
     await memory.append_history(session_id, message, text, conversation_id)
     if suggestions and exact_chips:
-        final_suggestions = list(dict.fromkeys(suggestions))[:4]
+        final_suggestions = list(dict.fromkeys(suggestions))[:6]   # answer options (4 rooms, "no hostel", "show fee")
     elif suggestions:
         final_suggestions = followups.ensure_fixed_chips(list(suggestions), answer=text, message=message)
     else:
         final_suggestions = ()
+    if resume:
+        final_suggestions = await _with_resume_chip(session_id, conversation_id, final_suggestions)
     if profile is None:
         try:
             profile = await memory.get_profile(session_id)
@@ -1400,6 +1476,32 @@ async def run_agent(
             dlg_busy = fee_intake.decide(message, profile, dict(intake_now)) is not None
         except Exception:
             dlg_busy = False
+    # ---- The fee evaluation agent (fee_journey): special consideration, concession picked, "final fee",
+    # and the answers to its own questions (programme, proof, scholarship, hostel, bus). It works from the
+    # conversation's saved selections, so a side question in between does not lose the progress.
+    if not form:
+        last_fee_args = conv_state.get("last_fee_args") or {}
+        last_reply = next((h.get("text", "") for h in reversed(history) if h.get("role") in ("model", "assistant")),
+                          "")
+        fj = fee_journey.decide(message, conv_state.get(fee_journey.KEY), profile, {
+            "program": (conv_state.get("active_program") or profile.get("program_interest")
+                        or (conv_state.get("fee_intake") or {}).get("program") or last_fee_args.get("program")),
+            "hostel": last_fee_args.get("hostel") if last_fee_args.get("hostel") not in (None, "none") else None,
+            "transport": True if last_fee_args.get("transport") else None,
+            "last_reply": last_reply,
+            "selected_concession": conv_state.get("selected_concession"),
+            "fuzzy_concession": _concession_requested(message),
+            "offer": conv_state.get("offer"),
+            "seed": f"{session_id}{len(history)}",
+        })
+        if fj:
+            async def _save_state(**fields):
+                conv_state.update(fields)
+                await memory.update_conversation_state(session_id, conversation_id, **fields)
+            async for ev in _run_fee_journey(fj, message, session_id, conversation_id, profile, _save_state):
+                yield ev
+            return
+
     # Our own fee-plan questions and requests are answered below, not by the topic clarification:
     # a concession picked in the table, "prepare my fee chart", the programme for a pending concession or
     # chart, and yes / no to the fee chart offer.
@@ -1799,37 +1901,8 @@ async def run_agent(
                     yield ev
                 return
 
-    # "Add the SRU alumni concession to my fee" (typed, or picked in the concessions table): one card with
-    # the programme's tuition with that concession, and the note that it needs verified proof.
-    concession = _concession_requested(message)
-    pending_concession = conv_state.get("pending_concession")
-    named_program = fees.find_program(message) if not concession else None
-    if not concession and pending_concession and named_program:
-        concession = pending_concession          # the programme asked for has been given
-    elif pending_concession and not concession:
-        await set_state(pending_concession=None)  # the student moved on
-    if concession:
-        program = fees.find_program(message) or (named_program if pending_concession else None) or active_program
-        if not program:
-            await set_state(pending_concession=concession)
-            async for ev in _say(f"Sure! Which programme should I apply the **{concession['label']}** concession to?",
-                                 message, session_id, conversation_id,
-                                 suggestions=["B.Tech CSE", "B.Tech ECE", "B.Tech AI & Robotics", "BBA"],
-                                 exact_chips=True):
-                yield ev
-            return
-        data = fee_plan.concession_fee(program, concession, profile)
-        if data:
-            await set_state(pending_concession=None, selected_concession=concession, active_program=program)
-            text = (f"Here's your **{data['program']}** tuition with the **{concession['label']}** concession "
-                    f"({data['concession_amount']} a year).")
-            async for ev in _say(text, message, session_id, conversation_id,
-                                 cards=[{"type": "concession_fee", "data": data}],
-                                 suggestions=["📋 Prepare my full fee chart", "Documents needed for the concession",
-                                              "Talk to a counsellor"],
-                                 exact_chips=True):
-                yield ev
-            return
+    # (v4.11.0) A concession picked or asked for ("add the sibling concession to my fee") is handled by the fee
+    # evaluation agent above (fee_journey): it is evaluated, never applied straight away.
 
     # The complete first-year fee chart (asked for, or "yes" to the offer made after a fee with hostel or
     # transport): every line from the official fee data, with a Share button on the card.
@@ -2628,11 +2701,8 @@ async def run_agent(
                         chips = ["Hostel fee details", "How do I apply?", "Talk to an admission counsellor", "Campus visit"]
                     for ev in _tool_events("calculate_fee", fee_result):
                         yield ev
-                    async for ev in _say(c_text, message, session_id, conversation_id,
-                                         used=[{"name": "calculate_fee", "status": "ok", "is_action": False}],
-                                         cards=[{"type": "calculate_fee", "data": fee_result}],
-                                         suggestions=chips, exact_chips=True,
-                                         eligible=counsellor_verdict(fee_result, intake_decision.get("counsellor_details", {})).get("eligible")):
+                    async for ev in _counsellor_result(fee_result, c_det, c_text, chips, message, session_id,
+                                                       conversation_id, conv_state, ctx, set_state):
                         yield ev
                     return
 
@@ -2686,11 +2756,8 @@ async def run_agent(
                         chips = ["Hostel fee details", "How do I apply?", "Talk to an admission counsellor", "Campus visit"]
                     for ev in _tool_events("calculate_fee", fee_result):
                         yield ev
-                    async for ev in _say(c_text, message, session_id, conversation_id,
-                                         used=[{"name": "calculate_fee", "status": "ok", "is_action": False}],
-                                         cards=[{"type": "calculate_fee", "data": fee_result}],
-                                         suggestions=chips, exact_chips=True,
-                                         eligible=counsellor_verdict(fee_result, intake_decision.get("counsellor_details", {})).get("eligible")):
+                    async for ev in _counsellor_result(fee_result, c_det, c_text, chips, message, session_id,
+                                                       conversation_id, conv_state, ctx, set_state):
                         yield ev
                     return
 
@@ -3135,6 +3202,8 @@ async def run_agent(
         suggestions = followups.suggest(message, used, ctx.get("profile"), department, history=history, active_topic=active_topic, answer=final)
         if offered_chart:
             suggestions = ["Yes, prepare my fee chart", "No, thanks"]
+        else:
+            suggestions = await _with_resume_chip(session_id, conversation_id, suggestions)
     except Exception as sugg_err:
         log.warning("Could not generate suggestions for agent: %s", sugg_err)
 

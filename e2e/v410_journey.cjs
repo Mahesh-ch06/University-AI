@@ -126,19 +126,19 @@ async function main() {
   t = await row.innerText();
   check('D4 picked AP: asks which programme (none chosen yet)', /Which programme/.test(t) && /Students from Andhra Pradesh/.test(t), t.split('\n')[0]);
   check('D5 table locks after applying', await table.locator('.fp-apply').isDisabled());
+  // v4.11.0: a picked concession is evaluated (pending), never applied straight away (see v411_fee_agent.cjs)
   row = await chip(page, 'B.Tech CSE');
-  const feeCards = await row.locator('.rich-card').count();
-  check('D6 one concession fee card, no second card', feeCards === 1 && (await row.locator('.fp-concession-fee').count()) === 1, `${feeCards} cards`);
   t = await row.innerText();
-  check('D7 fee with concession: 3,40,000 - 15,000 = 3,25,000 and proof note', /3,25,000/.test(t) && /valid proof/.test(t));
-  await row.locator('.fp-concession-fee').screenshot({ path: `${outdir}/D-concession-fee.png` });
-  row = await chip(page, 'Prepare my full fee chart');
-  check('D8 fee chart card with Share and WhatsApp', (await row.locator('.fp-plan').count()) === 1
-    && (await row.locator('.fp-plan button', { hasText: 'Share' }).count()) === 1
-    && (await row.locator('.fp-plan a.agent-card-wa-btn').count()) === 1);
+  check('D6 programme given: proof asked, no instant discount card', /supporting document/.test(t)
+    && (await row.locator('.fp-concession-fee, .fp-summary').count()) === 0);
+  row = await send(page, 'Show my final fee');
+  const summary = row.locator('.fp-summary');
   t = await row.innerText();
-  check('D9 chart shows the concession as "if approved"', /if approved/i.test(t) && /Students from Andhra Pradesh/.test(t));
-  await row.locator('.fp-plan').screenshot({ path: `${outdir}/D-fee-chart.png` });
+  check('D7 "show my final fee": summary, concession pending (3,65,000 now; 3,50,000 if approved)',
+    (await summary.count()) === 1 && /3,65,000/.test(t) && /3,50,000/.test(t) && /Pending verification/.test(t));
+  check('D8 fee summary with Share and WhatsApp', (await summary.locator('button', { hasText: 'Share' }).count()) === 1
+    && (await summary.locator('a.agent-card-wa-btn').count()) === 1);
+  check('D9 open steps listed (scholarship, hostel)', /Still open/.test(t) && /Hostel: not chosen yet/.test(t));
   // a second fresh chat (the scholarship steps started in A4 are still waiting in the first one)
   await page.locator('button[aria-label="Reset Chat"]').first().click();
   await page.waitForTimeout(1500);
@@ -150,7 +150,7 @@ async function main() {
   check('D12 one fee card (no generic table as well)', (await row.locator('.rich-card').count()) === 1, await row.locator('.rich-card').count());
   row = await chip(page, 'Yes, prepare my fee chart');
   t = await row.innerText();
-  check('D13 chart includes hostel and merit scholarship', /Hostel \(AC, 4-sharing\)/.test(t) && /Merit scholarship \(25%\)/.test(t));
+  check('D13 summary includes hostel and the merit scholarship', /Hostel \(AC, 4-sharing\)/.test(t) && /Academic scholarship \(25%\)/.test(t));
   check('D14 chart total 4,05,000 = 2,55,000 + 20,000 + 5,000 + 1,25,000 (concession shown separately)', /4,05,000/.test(t), t.replace(/\n/g, ' | ').slice(0, 400));
   row = await send(page, 'please ask a counsellor to call me');
   const callbackChips = await chipsOf(row);

@@ -950,13 +950,15 @@ WELCOME_ACTIONS_CARD = {
             "prompt": "Tell me about placements at SRU",
         },
         {
-            "id": "how_to_apply",
-            "icon": "send",
+            # v4.11.0: was "How to Apply" (still answered when asked). Starts the fee evaluation agent's
+            # special consideration flow (sru_agent/fee_journey.py).
+            "id": "special_consideration",
+            "icon": "heart",
             "color": "amber",
-            "badge": "2027-28",
-            "title": "How to Apply",
-            "subtitle": "Steps, documents & admissions help",
-            "prompt": "How do I apply for 2027-28?",
+            "badge": "₹15K–₹50K/yr",
+            "title": "Special Consideration",
+            "subtitle": "Check concessions you may qualify for",
+            "prompt": "Special consideration",
         },
     ],
 }

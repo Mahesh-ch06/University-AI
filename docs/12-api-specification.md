@@ -256,6 +256,15 @@ does not address the student by name and the model is not given it (profile key 
 The agent no longer caches answers (`AGENT_ANSWER_CACHE_SECONDS` is ignored). See
 `docs/33-fresh-answers-and-fee-plans-nov-2026.md`.
 
+### Fee evaluation agent cards (v4.11.0, `docs/34-fee-evaluation-agent-nov-2026.md`)
+
+| `type` | `data` |
+|---|---|
+| `fee_summary` | `program`, `program_key`, `course`, `academic_year`, `category`, `rows` [{`item`, `amount`, `kind`: `fee` \| `discount` \| `pending`, `status`?, `note`?}], `original_tuition`, `scholarship` {`status`: `applied` \| `estimated` \| `not_eligible` \| `not_evaluated` \| `not_requested`, `label`, `amount`}, `special_consideration` {`status`: `pending` \| `none` \| `not_explored`, `category`, `amount`, `label`}, `total_approved_concessions`, `payable_confirmed`, `payable_after_approval` (null when nothing is pending), `pending` [text], `application_fee`, `combine_note`, `share_text` |
+
+`concession_fee` and `fee_plan` (v4.10.0) are no longer produced; old chats still render them. The evaluation's
+selections are kept in the conversation state under `fee_eval` (not exposed by the API).
+
 ## Security hardening (v4.7.0, `security/API_SECURITY.md`)
 
 | Change | Contract |
