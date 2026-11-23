@@ -1731,7 +1731,7 @@ async def run_agent(
 
     # ---- Compound inquiry decomposition: split and answer all questions together ----
     from app.services.decomposition_service import _is_compound_query, _fast_split
-    if not form and _is_compound_query(message):
+    if not form and not dlg_busy and not fee_plan_turn and not _concession_requested(message) and not conv_state.get("offer") and _is_compound_query(message):
         sub_queries = _fast_split(message)
         if len(sub_queries) >= 2:
             log.info("Agent compound query decomposition: %d sub-queries for '%s'", len(sub_queries), message[:60])

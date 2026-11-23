@@ -85,7 +85,8 @@ def _is_compound_query(message: str) -> bool:
         return True
 
     # 4. Check for "and" / "&" / ";" separating two substantive topic clauses
-    parts = re.split(r"\s*(?:;\s*|,\s*(?:and\s+)?|\s+(?:and|&)\s+)\s*", msg_clean)
+    # Do not split on bare commas without 'and'/'&' (avoids breaking academic qualifications like '85%, CBSE')
+    parts = re.split(r"\s*(?:;\s*|,\s*(?:and|&)\s+|\s+(?:and|&)\s+)\s*", msg_clean)
     parts = [p.strip() for p in parts if p.strip()]
     if len(parts) >= 2:
         substantive = 0

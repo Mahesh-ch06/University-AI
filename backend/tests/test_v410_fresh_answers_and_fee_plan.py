@@ -31,6 +31,7 @@ class CountingModel:
 def model(monkeypatch):
     m = CountingModel()
     monkeypatch.setattr(agent, "get_client", lambda *a, **k: m)
+    monkeypatch.setattr(agent._ring, "next_key", lambda: None)
     return m
 
 
