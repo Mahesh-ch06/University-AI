@@ -9,13 +9,15 @@ import time
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.schemas.chat import ConversationRecoveryContext, ResetSessionRequest, ResetSessionResponse
 from . import config, fees, memory
 from .agent import run_agent
+from app import security
+from app.security import SESSION_ID_PATTERN
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 log = logging.getLogger("sru_agent")
@@ -92,7 +94,7 @@ class AcademicForm(BaseModel):
 
 
 class AgentRequest(BaseModel):
-    session_id: str = Field(min_length=1, max_length=64)
+    session_id: str = Field(min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)
     message: str = Field(min_length=1, max_length=config.AGENT_MAX_MESSAGE_CHARS)
     conversation_id: Optional[str] = None
     # "web" (the website) or "widget" (the embeddable chat bubble); stored with the chat for staff.
@@ -118,10 +120,17 @@ def _sse(event: dict) -> str:
 
 
 @router.post("/stream")
-async def agent_stream(req: AgentRequest):
+async def agent_stream(req: AgentRequest, request: Request = None):
     async def events():
-        if not await memory.allow_request(req.session_id):
-            yield _sse({"type": "error", "detail": "Too many messages. Please wait a minute and try again."})
+        # Per student, per IP (minute and day) and the server's daily budget: rotating session IDs
+        # cannot buy unlimited AI calls (app/security.py). Called without an HTTP request (tests,
+        # internal use) only the per-student limit applies.
+        if request is not None:
+            refusal = await security.ai_turn_refusal(request, req.session_id)
+        else:
+            refusal = None if await memory.allow_request(req.session_id) else security.BUSY_MESSAGE
+        if refusal:
+            yield _sse({"type": "error", "detail": refusal})
             return
 
         conv_id = req.conversation_id
@@ -183,14 +192,14 @@ async def programs():
 
 
 class ProfileUpdate(BaseModel):
-    session_id: str = Field(..., min_length=8, max_length=64)
+    session_id: str = Field(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)
     name: Optional[str] = Field(default=None, max_length=80)
     phone: Optional[str] = Field(default=None, max_length=20)
     program_interest: Optional[str] = Field(default=None, max_length=120)
 
 
 @router.get("/profile")
-async def get_profile(session_id: str = Query(..., min_length=8, max_length=64)):
+async def get_profile(session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)):
     """What the agent knows about this student (name, mobile number, course, marks).
     Settings > My details shows exactly this, so the chat and the settings cannot disagree."""
     return {"status": "ok", "profile": memory.public_profile(await memory.get_profile(session_id))}
@@ -216,7 +225,7 @@ async def update_profile(body: ProfileUpdate):
 
 
 @router.delete("/profile")
-async def forget_profile(session_id: str = Query(..., min_length=8, max_length=64)):
+async def forget_profile(session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)):
     """Settings > Forget my details: the agent forgets this student. Saved callback / visit
     requests stay with the Admissions Office; say 'cancel my callback' in the chat to withdraw one."""
     await memory.clear_profile(session_id)
@@ -232,7 +241,7 @@ async def fee_config():
 
 
 @router.get("/recovery-context", response_model=ConversationRecoveryContext)
-async def get_recovery_context(session_id: str = Query(..., min_length=1, max_length=64)):
+async def get_recovery_context(session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)):
     """Retrieve structured recovery context for returning students."""
     from app.services import recovery_service
     return await recovery_service.get_recovery_context(session_id)

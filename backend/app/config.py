@@ -52,10 +52,26 @@ class Settings(BaseSettings):
     APP_DEBUG: bool = True
     CORS_ORIGINS: str = "http://localhost:5173"
     # Other sites allowed to call this API (regular expression). The default allows local
-    # development, Vercel deployments, and sru.edu.in along with any of its subdomains (*.sru.edu.in).
+    # development, this project's Vercel deployments (university-ai-companion.vercel.app and its
+    # preview URLs) and sru.edu.in with its subdomains. It no longer allows every *.vercel.app site.
     CORS_ORIGIN_REGEX: str = (
-        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.vercel\.app$|^https://([a-zA-Z0-9-]+\.)*sru\.edu\.in$"
+        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+        r"|^https://university-ai-companion(-[a-z0-9-]+)?\.vercel\.app$"
+        r"|^https://([a-zA-Z0-9-]+\.)*sru\.edu\.in$"
     )
+
+    # ---- Security (see security/DEPLOYMENT_SECURITY.md) ----
+    # Proxies in front of the server that append to X-Forwarded-For (Render: 1). 0 = no proxy.
+    TRUSTED_PROXY_HOPS: int = 1
+    # A header the platform sets to the real client IP (e.g. "cf-connecting-ip"); empty = not used.
+    CLIENT_IP_HEADER: str = ""
+    # AI-backed chat turns: per IP per minute, per IP per day, and for the whole server per day (0 = off).
+    AI_IP_RATE_LIMIT_PER_MIN: int = 40
+    AI_IP_DAILY_LIMIT: int = 600
+    AI_DAILY_TURN_BUDGET: int = 20000
+    # Largest request body accepted (bytes): API requests, and admin document uploads.
+    MAX_REQUEST_BYTES: int = 256 * 1024
+    MAX_UPLOAD_BYTES: int = 50 * 1024 * 1024
 
     # ---- Paths ----
     PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent

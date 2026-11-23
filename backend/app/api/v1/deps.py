@@ -1,6 +1,5 @@
 """Dependencies for API routes."""
 
-import secrets
 from typing import TYPE_CHECKING, Any
 from fastapi import Depends, Header, HTTPException, Request, status
 
@@ -52,35 +51,34 @@ async def verify_admin_key(
     request: Request,
     x_admin_key: str = Header(..., alias="X-Admin-Key"),
 ) -> str:
-    """Verify the admin API key from request header.
+    """Verify the admin API key from the X-Admin-Key header (never from the URL).
 
-    The placeholder key that ships in the source code is public, so outside local debugging
-    (APP_DEBUG=false) it is refused: the admin panel stays locked until a real key is set.
+    * The placeholder key that ships in the source code is public: on a production server (APP_ENV=production,
+      on Render, or APP_DEBUG=false) it is refused and the admin panel stays locked until a real key is set.
+    * Failed attempts are limited per caller IP, read from the trusted proxy (app.security.client_ip), so a
+      forged X-Forwarded-For header cannot reset the counter.
+    * Every admin request is written to the audit log (action, outcome, hashed IP; never the key).
     """
+    from app import security
     from app.sru_agent import memory
 
-    if isinstance(request, str):
-        x_admin_key = request
-        client_ip = "unknown"
-    else:
-        client_ip = (
-            request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-            or (request.client.host if request.client else "unknown")
-        )[:64]
+    if isinstance(request, str):  # direct call from code / tests
+        x_admin_key, request = request, None
 
-    if settings.admin_key_is_default() and not settings.APP_DEBUG:
+    problem = security.admin_key_problem()
+    if problem:
+        if request is not None:
+            security.audit(request, "admin_auth", f"refused_{problem}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Admin access is disabled until ADMIN_API_KEY is set on the server.",
         )
 
-    is_valid = secrets.compare_digest(
-        x_admin_key.encode(), (settings.ADMIN_API_KEY or "").encode()
-    )
-
-    if not is_valid:
-        # Rate-limit failed admin key attempts (max 5 failed attempts per minute per IP)
-        allowed = await memory.allow_request(f"admin_fail:{client_ip}", limit=5)
+    if not security.admin_key_matches(x_admin_key):
+        bucket = security.ip_bucket(request) if request is not None else "direct"
+        allowed = await memory.allow_request(f"admin_fail:{bucket}", limit=5)
+        if request is not None:
+            security.audit(request, "admin_auth", "invalid_key" if allowed else "locked")
         if not allowed:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -91,6 +89,8 @@ async def verify_admin_key(
             detail="Invalid admin API key",
         )
 
+    if request is not None:
+        security.audit(request, "admin_request", "allowed")
     return x_admin_key
 
 

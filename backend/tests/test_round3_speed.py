@@ -218,7 +218,7 @@ async def test_done_reaches_the_browser_before_the_chat_is_saved():
         with patch("app.sru_agent.router.run_agent", side_effect=fake_run_agent):
             started = time.perf_counter()
             for text in ("first question", "second question"):
-                resp = await agent_stream(AgentRequest(session_id="speed-sess", message=text))
+                resp = await agent_stream(AgentRequest(session_id="speed-session-0001", message=text))
                 chunks = [c async for c in resp.body_iterator]
                 assert '"type": "done"' in chunks[-1]
             assert time.perf_counter() - started < 0.3   # did not wait for the slow save

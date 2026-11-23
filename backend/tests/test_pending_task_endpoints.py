@@ -25,7 +25,7 @@ async def test_pending_tasks_endpoint_returns_owned_tasks(monkeypatch):
     )()
 
     async def fake_list_pending_tasks(db, session_id):
-        assert session_id == "browser-session"
+        assert session_id == "browser-session-0001"
         return [task]
 
     monkeypatch.setattr(memory_api, "list_pending_tasks", fake_list_pending_tasks)
@@ -34,7 +34,7 @@ async def test_pending_tasks_endpoint_returns_owned_tasks(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
             "/api/v1/memory/pending-tasks",
-            params={"session_id": "browser-session"},
+            params={"session_id": "browser-session-0001"},
         )
 
     assert response.status_code == 200
@@ -48,7 +48,7 @@ async def test_pending_task_cancel_endpoint_enforces_not_found(monkeypatch):
 
     async def fake_cancel_pending_task(db, requested_conversation_id, session_id):
         assert requested_conversation_id == conversation_id
-        assert session_id == "browser-session"
+        assert session_id == "browser-session-0001"
         return False
 
     monkeypatch.setattr(memory_api, "cancel_pending_task", fake_cancel_pending_task)
@@ -57,7 +57,7 @@ async def test_pending_task_cancel_endpoint_enforces_not_found(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.delete(
             f"/api/v1/memory/pending-tasks/{conversation_id}",
-            params={"session_id": "browser-session"},
+            params={"session_id": "browser-session-0001"},
         )
 
     assert response.status_code == 404

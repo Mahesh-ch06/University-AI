@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 
 from typing import Any
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,10 +23,23 @@ from app.schemas.chat import (
 from app.schemas.common import ErrorResponse
 from app.services import chat_service, conversation_service
 from app.services.rag_service import RAGService
+from app import security
+from app.security import SESSION_ID_PATTERN
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
+
+
+async def _enforce_ai_limits(http_request: Request | None, session_id: str) -> None:
+    """HTTP 429 when the student, their network or the server's daily budget is over the limit."""
+    if http_request is not None:
+        refusal = await security.ai_turn_refusal(http_request, session_id, scope="chat")
+    else:
+        from app.sru_agent import memory as agent_memory
+        refusal = None if await agent_memory.allow_request(f"chat:{session_id}") else security.BUSY_MESSAGE
+    if refusal:
+        raise HTTPException(status_code=429, detail=refusal)
 
 
 @router.post(
@@ -40,6 +53,7 @@ async def send_message(
     llm: LLMProvider = Depends(get_llm_provider),
     rag: RAGService = Depends(get_rag_service),
     redis: Any = Depends(get_redis),
+    http_request: Request = None,
 ) -> ChatResponse:
     """Send a chat message and receive an AI response.
 
@@ -47,11 +61,9 @@ async def send_message(
     - Pass an existing `conversation_id` to continue.
     - `session_id` is a browser-generated UUID for tracking conversations.
     """
-    # Keep the non-streaming compatibility route within the same per-student
-    # quota as the streaming routes; it also consumes model capacity.
-    from app.sru_agent import memory as agent_memory
-    if not await agent_memory.allow_request(f"chat:{request.session_id}"):
-        raise HTTPException(status_code=429, detail="Too many messages. Please wait a minute and try again.")
+    # Same limits as the agent endpoint (per student, per IP, daily budget): this route also
+    # consumes model capacity.
+    await _enforce_ai_limits(http_request, request.session_id)
 
     try:
         return await chat_service.handle_chat(db, request, llm, rag, redis_client=redis)
@@ -60,6 +72,9 @@ async def send_message(
         err_msg = str(e)
         if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
             detail = "AI model rate limit reached. Please wait a moment and try again."
+        elif not security.docs_enabled():
+            # Production: never name internal services, hosts or ports in an error.
+            detail = "Something went wrong processing your message. Please try again."
         elif "11434" in err_msg or ("ConnectError" in type(e).__name__ and "embedding" in err_msg.lower()):
             detail = "Could not connect to Ollama embedding service. Please run 'ollama serve' to enable document retrieval."
         elif "5433" in err_msg or "ConnectionRefusedError" in type(e).__name__:
@@ -79,12 +94,11 @@ async def send_message_stream(
     llm: LLMProvider = Depends(get_llm_provider),
     rag: RAGService = Depends(get_rag_service),
     redis: Any = Depends(get_redis),
+    http_request: Request = None,
 ) -> StreamingResponse:
     """Send a chat message and stream tokens via Server-Sent Events (SSE)."""
-    # Same per-student limit as the agent endpoint: this route also spends Gemini quota.
-    from app.sru_agent import memory as agent_memory
-    if not await agent_memory.allow_request(f"chat:{request.session_id}"):
-        raise HTTPException(status_code=429, detail="Too many messages. Please wait a minute and try again.")
+    # Same limits as the agent endpoint: this route also spends Gemini quota.
+    await _enforce_ai_limits(http_request, request.session_id)
     return StreamingResponse(
         chat_service.handle_chat_stream(db, request, llm, rag, redis_client=redis),
         media_type="text/event-stream",
@@ -101,7 +115,7 @@ async def send_message_stream(
     response_model=list[ConversationSummary],
 )
 async def list_conversations(
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     db: AsyncSession = Depends(get_db),
 ) -> list[ConversationSummary]:
     """List all conversations for a session."""
@@ -115,15 +129,22 @@ async def list_conversations(
 )
 async def get_conversation(
     conversation_id: UUID,
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     db: AsyncSession = Depends(get_db),
     x_admin_key: str | None = Header(None, alias="X-Admin-Key"),
-    admin_key: str | None = Query(None),
+    http_request: Request = None,
 ) -> ConversationDetail:
-    """Get a conversation with all messages."""
-    from app.config import settings
-    provided_key = (x_admin_key or admin_key or "").strip()
-    is_admin = bool(provided_key and provided_key == settings.ADMIN_KEY)
+    """Get a conversation with all messages.
+
+    Staff may open any conversation by sending the admin key in the X-Admin-Key header. The key is
+    checked exactly like the admin routes (constant time, failed-attempt limit, audit log). A key in
+    the URL is never accepted: URLs end up in browser history, logs and shared links.
+    """
+    is_admin = False
+    if x_admin_key:
+        from app.api.v1.deps import verify_admin_key
+        await verify_admin_key(http_request if http_request is not None else x_admin_key, x_admin_key)
+        is_admin = True
 
     detail = await conversation_service.get_conversation(
         db, conversation_id, session_id, is_admin=is_admin
@@ -170,7 +191,7 @@ async def get_conversation(
 )
 async def get_shared_conversation(
     conversation_id: UUID,
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationDetail:
     """Get a conversation with all messages. Requires session_id verification to prevent IDOR data leakage."""
@@ -190,7 +211,7 @@ async def get_shared_conversation(
 )
 async def delete_conversation(
     conversation_id: UUID,
-    session_id: str = Query(..., min_length=1, max_length=64),
+    session_id: str = Query(..., min_length=16, max_length=64, pattern=SESSION_ID_PATTERN),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Delete a conversation and all its messages."""
@@ -214,5 +235,11 @@ async def submit_feedback(
     db: AsyncSession = Depends(get_db),
     embeddings: EmbeddingProvider = Depends(get_embedding_provider),
 ) -> FeedbackResponse:
-    """Submit user feedback (thumbs up/down and optional comment)."""
-    return await conversation_service.create_feedback(db, request, embeddings)
+    """Submit user feedback (thumbs up/down and optional comment) on one of your own answers."""
+    result = await conversation_service.create_feedback(db, request, embeddings)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Message not found",
+        )
+    return result
