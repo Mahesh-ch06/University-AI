@@ -95,7 +95,7 @@ async def test_placement_guarantee_agent_response():
 
     # Must include relevant interactive suggestion chips
     assert any("Startup Incubator (SRiX)" in s for s in done["suggestions"])
-    assert any("Top Recruiters & Packages" in s for s in done["suggestions"])
+    assert any("Top recruiters" in s for s in done["suggestions"])
 
     # Must emit rich placement card
     card_events = [e for e in events if e["type"] == "card"]

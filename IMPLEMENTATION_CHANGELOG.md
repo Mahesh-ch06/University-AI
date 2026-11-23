@@ -215,3 +215,22 @@ Full details: `docs/32-chat-memory-and-cards-nov-2026.md`. No fee / eligibility 
   - backend: 17 new memory tests (real PostgreSQL);
   - browser: a 24-check memory journey, plus layout at 5 widths;
   - full suite: 920 passed (8 known failures).
+
+## v4.9.0 (23 Nov 2026): shorter answers, step-by-step details, no repeated questions
+
+- **Shorter answers:** `agent.py` held older, much longer copies of 33 response texts that silently replaced the
+  condensed ones in `responses.py`; the copies are removed.
+- **No boxes or pep talk:** no "Official Note / Recommendation / Important Notice" boxes, and no closing pep talk.
+  The prompt asks for no caveats unless asked, varied wording and rare use of the student's name.
+- **Placements:** "packages", "recruiters", "training", "internships" and "guarantee" each get a short answer
+  (several wordings). A topic question ("What would you like to know about placements?") is asked once per
+  conversation.
+- **Scholarship details:** one small card per step (board -> status -> marks -> group), "Step n of N"; no large form.
+  Asked again after an estimate: "use these details or change them?".
+- **Fixes:**
+  - a programme switch ("CSE to ECE") is applied to the fee calculation;
+  - "add <concession> to my fee" gives tuition minus the concession;
+  - "656%" is questioned;
+  - a below-minimum result is not repeated word for word;
+  - "Change my academic details" no longer opens the phone-number update;
+  - Yes / No chips appear only for real yes / no questions.

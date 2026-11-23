@@ -113,7 +113,7 @@ def test_subject_requirement_is_asked_not_assumed_and_mismatch_is_clear():
     assert eligibility.assess("btech_cse", 85.0, "MPC")["eligible"] is True
     bipc = eligibility.assess("btech_cse", 85.0, "BiPC")
     assert bipc["eligible"] is False
-    assert "do not meet the listed subject requirement" in eligibility.explain(bipc)
+    assert "don't meet its subject requirement" in eligibility.explain(bipc)
     assert eligibility.assess("bsc_agri", 85.0, "BiPC")["eligible"] is True
 
 
@@ -239,7 +239,7 @@ async def test_full_multi_message_journey_keeps_context():
         ("I want to join SR University.", "Which programme or course"),
         ("B.Tech.", "Which B.Tech branch"),
         ("CSE.", "check your B.Tech CSE eligibility"),
-        ("Eligibility.", "please fill in your academic details below"),
+        ("Eligibility.", "Intermediate (10+2) marks"),
         ("230 out of 1000", "your percentage is **23%**"),
     ]
     answers = []

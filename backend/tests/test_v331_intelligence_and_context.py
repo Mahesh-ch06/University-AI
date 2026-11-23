@@ -154,7 +154,7 @@ async def test_scenario_d_placements_and_guarantee_flow():
     assert "Packages & record" in results[1]["suggestions"]
 
     # Turn 3: the chosen aspect is answered
-    assert "100% placement assistance" in results[2]["answer"]
+    assert "6 to 6.5 LPA" in results[2]["answer"]       # short, factual answer to the aspect asked
     assert "51" in results[2]["answer"]
 
     # Turn 4: Honest clarification of guarantee

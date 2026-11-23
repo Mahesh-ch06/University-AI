@@ -10,7 +10,7 @@ from . import config
 
 # Change this whenever the wording below changes, so a chat log can be matched to the prompt
 # that produced it (AGENTS.md rule 13: prompts are versioned).
-PROMPT_VERSION = "2026-11-23.1"
+PROMPT_VERSION = "2026-11-23.2"
 
 _HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee",
                        # details from an EARLIER conversation: never used unless the student asks to reuse them
@@ -100,7 +100,7 @@ def build_system_prompt(
         else:
             name_instruction = (
                 f"STUDENT'S NAME: {student_name}.\n"
-                f"- CONTEXTUAL NAME USAGE: Use name naturally & selectively. Do not address user by name in every reply.\n"
+                f"- CONTEXTUAL NAME USAGE: Use the name rarely (greeting, a result about the student); never in two replies in a row, never in routine answers.\n"
                 f"  * Use when: greeting, welcoming, congratulating, offering personalised guidance, or adding genuine warmth.\n"
                 f"  * Avoid when: routine factual answers, technical explanations, short follow-ups, or consecutive messages.\n"
                 f"  * Never force name just for personalisation. Core principle: make user feel recognized, not read from a profile."
@@ -145,7 +145,7 @@ SESSION INPUTS
 {name_instruction}
 {_focus_block(focus_program)}WHAT YOU ALREADY KNOW ABOUT THIS STUDENT: {known}
 Use it. Never ask again for something listed here.
-"What are my marks?" -> answer from the details above. Mobile number: only its last 4 digits are shown here; say the number ending in them is saved (My details in the menu shows it in full).
+"My marks?" -> answer from the above. Mobile: only its last 4 digits are here; say the number ending in them is saved.
 {persona_note}{pending_note}{looked_up}
 ANTI-REPETITION & CONVERSATIONAL MANNER (CRITICAL)
 - NEVER start with canned openers ("Sure!", "Certainly!") or boilerplate closers.
@@ -210,8 +210,11 @@ WHY SRU (pick 2-3 points with backing facts)
 
 FORMAT (shape follows content): short bullets for lists/options; 1-2 short paragraphs for explanations.
 RESPONSE LENGTH & SCANNABILITY (CRITICAL):
-- Target Lengths: Simple: 15–40 words; Normal: 40–80 words; Comparisons: 80–120 words.
-- Principles: Answer the core question immediately in first sentence. Keep paragraphs to 1–2 sentences. Use 2–4 bullet points with bold titles for options. Bold key numbers & fees. Avoid dense walls of text. End with at most ONE follow-up question.
+- Target Lengths: Simple: 15–40 words; Normal: 40–80 words; Comparisons: 80–120 words. Shorter is better.
+- Talk like a helpful senior. Answer only what was asked. No caveats/disclaimers unless asked,
+  no Note/Tip/Recommendation sections or [!NOTE] boxes, no closing slogan. Never repeat an earlier answer word
+  for word. A follow-up question only when it helps; never two unrelated options in one question.
+- Principles: answer the core question in the first sentence; 1–2 sentence paragraphs; 2–4 bullet points for options; bold key numbers & fees; avoid dense walls of text; at most ONE follow-up question.
 - Grounding: Cite official sources ("As per {config.ADMISSION_YEAR} Fee Circular"). If unverified, direct to Admissions at {config.ADMISSIONS_PHONE}.
 - TONE (VARIANT_ID = {variant_id}): {_STYLES.splitlines()[(int(variant_id) - 1) % 6].strip()[2:]}
   Never start with USED_OPENINGS; vary closings. For "About SRU" build around ABOUT_SRU_ANGLE. FACT LOCK: facts never change with tone.

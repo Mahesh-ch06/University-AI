@@ -173,6 +173,11 @@ def needs_yes_no(answer: str | None) -> bool:
     # Exclude open-ended questions starting with question words
     if re.match(r"^(?:what|which|who|where|how|why|when)\b", low):
         return False
+    # "Would you like to explore courses or check the fees?" offers a choice, not a yes / no: a "Yes" chip
+    # would be meaningless there.
+    question = re.split(r"(?<=[.!])\s+", last_line)[-1].lower()
+    if re.search(r"\bor\b", question):
+        return False
         
     # Check if it starts with or contains binary question stems
     binary_stems = [
@@ -192,7 +197,7 @@ def ensure_fixed_chips(chips: list[str] | None = None, answer: str | None = None
     """Ensure exactly 4 chips: 2 contextual + 2 fixed (admission + university),
     or Yes/No + 2 fixed if the assistant response ends with a binary question."""
     if needs_yes_no(answer):
-        return ["Yes", "No", FIXED_ADMISSION_CHIP, FIXED_UNIVERSITY_CHIP]
+        return ["Yes", "No"]   # the answer to the question just asked; nothing else to pick from
         
     contextual = [c for c in (chips or []) if c not in (FIXED_ADMISSION_CHIP, FIXED_UNIVERSITY_CHIP)]
     
@@ -234,7 +239,7 @@ def suggest(message: str, tools_used: list | None = None, profile: dict | None =
             department: str | None = None, limit: int = 4, history: list | None = None,
             active_topic: str | None = None, answer: str | None = None) -> list[str]:
     if needs_yes_no(answer):
-        return ["Yes", "No", FIXED_ADMISSION_CHIP, FIXED_UNIVERSITY_CHIP]
+        return ["Yes", "No"]   # the answer to the question just asked; nothing else to pick from
 
     topic = topic_of(message, tools_used, active_topic=active_topic)
     chips = _chips(topic, _short_program(profile or {}), department, message=message)

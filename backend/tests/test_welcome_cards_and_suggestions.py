@@ -31,11 +31,13 @@ def test_needs_yes_no_detection():
 def test_ensure_fixed_chips_binary_question():
     answer = "The B.Tech CSE tuition is ₹3,40,000/year. Would you like me to calculate your scholarship?"
     chips = followups.ensure_fixed_chips(["Some chip"], answer=answer)
-    assert len(chips) == 4
-    assert chips[0] == "Yes"
-    assert chips[1] == "No"
-    assert chips[2] == followups.FIXED_ADMISSION_CHIP
-    assert chips[3] == followups.FIXED_UNIVERSITY_CHIP
+    # v4.9.0: a yes / no question gets just Yes and No (no general chips that repeat under every answer)
+    assert chips == ["Yes", "No"]
+
+
+def test_either_or_question_does_not_get_yes_no():
+    answer = "Would you like to explore course options or check your fee estimates next?"
+    assert followups.needs_yes_no(answer) is False
 
 
 def test_ensure_fixed_chips_contextual_and_fixed():

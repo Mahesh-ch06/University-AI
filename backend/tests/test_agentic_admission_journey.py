@@ -73,8 +73,8 @@ async def _through_eligibility(s: Student):
     await s.say("I want to join SR University")
     await s.say("B.Tech")
     await s.say("CSE")
-    form = await s.say("Check my eligibility")
-    assert _card(form, "academic_details_form")
+    ask = await s.say("Check my eligibility")
+    assert "marks" in ask["answer"] and not _card(ask, "academic_details_form")   # v4.9.0: one step, no form
     await s.say("671")
     await s.say("671 out of 1000")
     return await s.say("MPC")
@@ -201,10 +201,8 @@ async def test_12_and_25_new_conversation_starts_clean_and_offers_saved_details(
     await s.say("B.Tech")
     await s.say("CSE")
     form = await s.say("Check my eligibility")
-    card = _card(form, "academic_details_form")
-    assert card["values"]["raw_marks"] is None and card["values"]["board_key"] is None   # clean form
-    assert card["saved_summary"] == "671/1000, MPC"                                      # opt-in reuse only
-    assert any(c.startswith("Use my saved details") for c in form["suggestions"])
+    assert "Intermediate (10+2) marks" in form["answer"] and not form.get("cards")   # asked afresh, one step
+    assert any(c.startswith("Use my saved details (671/1000, MPC") for c in form["suggestions"])   # opt-in reuse
     assert (await s.profile()).get("raw_marks") is None    # earlier marks are not assumed in this chat
 
     used = await s.say(form["suggestions"][0])
@@ -231,8 +229,8 @@ async def test_13_to_16_join_programme_branch_eligibility_marks_confirmation_gro
     assert start["answer"].startswith("That's great, Mahesh!")                 # natural first use of the name
     assert "Which B.Tech branch" in (await s.say("B.Tech."))["answer"]
     assert "check your B.Tech CSE eligibility" in (await s.say("CSE."))["answer"]
-    form = await s.say("Check my eligibility")
-    assert _card(form, "academic_details_form")["show_stream"] is True
+    ask = await s.say("Check my eligibility")
+    assert "Intermediate (10+2) marks" in ask["answer"]                        # one question, not a form
     total = await s.say("671")
     assert "Out of how many total marks is **671**" in total["answer"]          # never assumed
     group = await s.say("671 out of 1000")
@@ -251,18 +249,15 @@ async def test_17_18_19_scholarship_after_eligibility_reuses_everything():
     await _through_eligibility(s)
     done = await s.say("I want to know about the scholarship")
     text = done["answer"]
-    assert "I can help you understand the scholarship details for **B.Tech CSE**" in text
-    assert "I'll use the details you've already shared (671/1000 (67.1%), MPC)" in text
+    assert "Let's work out your scholarship for **B.Tech CSE**" in text
+    assert "I have 671/1000 (67.1%), MPC" in text                       # reused, not asked again
     assert "Which programme" not in text and "Which branch" not in text
-    card = _card(done, "academic_details_form")
-    assert card["values"]["raw_marks"] == 671.0 and card["values"]["stream"] == "MPC"   # pre-filled
-    assert card["show_stream"] is False                                               # not asked again
+    assert _card(done, "counsellor_board_selection")                    # only the missing steps
     # Only the missing details: board typed -> status only
     nxt = await s.say("Telangana Intermediate (TSBIE)")
     assert _card(nxt, "counsellor_stage_selection") and "marks" not in nxt["answer"].lower()
     result = await s.say("Completed Intermediate (Passed out)")
-    assert "### Your Scholarship Assessment" in result["answer"]
-    assert "15% Tuition Waiver" in result["answer"]                     # 67.1% State Board slab
+    assert "**15% scholarship**" in result["answer"]                     # 67.1% State Board slab
     assert s.model.calls == 0
 
 
@@ -272,8 +267,7 @@ async def test_17b_what_scholarships_are_available_inside_the_journey():
     await _through_eligibility(s)
     await s.say("Check", form={**FORM_CSE})                  # board + status known from the form
     done = await s.say("What scholarships are available?")
-    assert "### Your Scholarship Assessment" in done["answer"]
-    assert "B.Tech Computer Science & Engineering (CSE)" in done["answer"]
+    assert "scholarship" in done["answer"] and "B.Tech CSE" in done["answer"]
 
 
 # ---------------------------------------------------------------- 20-23: the form -------------------
@@ -311,9 +305,8 @@ async def test_22b_scholarship_form_with_entrance_score():
     form = {**FORM_CSE, "mode": "scholarship", "show_stream": False, "show_entrance": True,
             "entrance_type": "tg_eapcet", "entrance_value": 9000}
     done = await s.say("My details", form=form)
-    assert "### Your Scholarship Assessment" in done["answer"]
-    assert "TG EAPCET (Rank: 9,000)" in done["answer"]
-    assert "25% Tuition Waiver" in done["answer"]                         # rank 9,000 beats the 15% marks slab
+    assert "**25% scholarship**" in done["answer"]                       # rank 9,000 beats the 15% marks slab
+    assert "###" not in done["answer"]
 
 
 @pytest.mark.asyncio
@@ -323,7 +316,7 @@ async def test_23_admission_and_scholarship_are_evaluated_separately():
     form = {**FORM_CSE, "mode": "scholarship", "raw_marks": 550, "show_stream": False}
     done = await s.say("My details", form=form)
     text = done["answer"]
-    assert "### Admission Eligibility" in text and "0% (Standard Fee)" in text    # 55%: no merit slab
+    assert "standard fee" in text                                                # 55%: no merit slab
     assert "official sources list different minimum marks" in text               # 55% is disputed for B.Tech
     low = Student()
     await low.setup()
