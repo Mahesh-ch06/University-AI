@@ -244,6 +244,15 @@ async def tool_calculate_fee(args, ctx):
             ctx["profile"] = await memory.update_profile(ctx["session_id"], last_fee=summary, **told)
         except Exception:
             pass
+        # This conversation's latest fee choices, so "prepare my full fee chart" uses the same programme,
+        # hostel room and transport the student just asked about.
+        try:
+            await memory.update_conversation_state(
+                ctx["session_id"], ctx.get("conversation_id"),
+                last_fee_args={"program": result.get("program_key"), "hostel": args.get("hostel") or "none",
+                               "transport": bool(args.get("transport", False))})
+        except Exception:
+            pass
     return result
 
 

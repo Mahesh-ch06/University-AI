@@ -41,27 +41,23 @@ def test_either_or_question_does_not_get_yes_no():
 
 
 def test_ensure_fixed_chips_contextual_and_fixed():
-    # Contextual chips not overlapping with fixed chips
+    # v4.10.0: only the contextual chips are shown; nothing generic is added to fill the row.
     ctx = ["AC vs Non-AC room fees", "Mess & dining facilities"]
     chips = followups.ensure_fixed_chips(ctx, answer="Here are the hostel facilities available.")
-    assert len(chips) == 4
-    assert chips[0] == "AC vs Non-AC room fees"
-    assert chips[1] == "Mess & dining facilities"
-    # Should include fixed admission & university chips
-    assert followups.FIXED_ADMISSION_CHIP in chips or followups.FIXED_ADMISSION_ALT in chips
-    assert followups.FIXED_UNIVERSITY_CHIP in chips or followups.FIXED_UNIVERSITY_ALT in chips
+    assert chips == ctx
+    assert followups.FIXED_ADMISSION_CHIP not in chips and followups.FIXED_UNIVERSITY_CHIP not in chips
 
 
 def test_ensure_fixed_chips_deduplication():
-    # When contextual chips already mention fee/scholarship, it uses the alt admission chip
-    ctx = ["B.Tech CSE fees", "Scholarship slabs"]
+    ctx = ["B.Tech CSE fees", "Scholarship slabs", "B.Tech CSE fees", "Hostel fees", "Apply", "Visit"]
     chips = followups.ensure_fixed_chips(ctx, answer="Here is the CSE fee.")
-    assert len(chips) == 4
-    assert len(set(chips)) == 4  # No duplicates
-    assert chips[0] == "B.Tech CSE fees"
-    assert chips[1] == "Scholarship slabs"
-    assert followups.FIXED_ADMISSION_ALT in chips  # Uses "How do I apply for 2027-28?"
-    assert followups.FIXED_UNIVERSITY_CHIP in chips
+    assert chips == ["B.Tech CSE fees", "Scholarship slabs", "Hostel fees", "Apply"]   # no repeats, at most 4
+
+
+def test_no_chips_after_a_completed_request_or_without_a_topic():
+    used = [{"name": "request_counsellor_callback", "status": "saved", "is_action": True}]
+    assert followups.suggest("please call me", used, answer="Done! A counsellor will call you.") == []
+    assert followups.suggest("ok thanks", [], answer="You're welcome!") == []
 
 
 def test_welcome_actions_card_structure():

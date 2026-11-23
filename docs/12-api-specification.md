@@ -231,7 +231,7 @@ See `docs/24-agent-audit-nov-2026.md`.
 
 ```http
 GET    /api/v1/agent/profile?session_id=...     # what the agent knows: name, phone, course, marks
-PUT    /api/v1/agent/profile                    # {session_id, name?, phone?, program_interest?}
+PUT    /api/v1/agent/profile                    # {session_id, name?, phone?, program_interest?, fresh_start?}
 DELETE /api/v1/agent/profile?session_id=...     # forget this student
 ```
 
@@ -240,6 +240,21 @@ corrects it on a callback / visit request already saved from that browser. The `
 `POST /api/v1/agent/stream` now carries `profile` (the same object) and the saved message carries
 `cards` and `suggestions`, so a reopened chat looks the same. `POST /api/v1/chat/stream` returns
 429 above 20 messages a minute per session. See `docs/25-audit-round-2-nov-2026.md`.
+
+`fresh_start` (v4.10.0, optional boolean): `true` when the browser copies its saved name and number into a session
+started with "Start a new chat". The details are kept for the contact form and callbacks, but the conversation
+does not address the student by name and the model is not given it (profile key `address_by_name: false`).
+
+### Cards added in v4.10.0 (in the `done` event's `cards`)
+
+| `type` | `data` |
+|---|---|
+| `get_special_concessions` | `all_categories` [{`category`, `per_year`}], `academic_year`, `note`, `program` (current programme or null). The browser shows a selectable table; "Apply to my fee" sends `Apply the "<category>" concession to my fee` |
+| `concession_fee` | `program`, `program_key`, `academic_year`, `concession`, `concession_amount`, `tuition`, `tuition_after_concession`, `per_semester_after_concession`, `proof_note`, and with a merit scholarship `merit_percent`, `tuition_after_merit`, `combine_note` |
+| `fee_plan` | `program`, `program_key`, `academic_year`, `rows` [{`item`, `amount`, `kind`: `fee` \| `discount`, `note`?}], `first_year_total`, `per_semester`, `application_fee`, `not_included`, `concession`? {`label`, `amount`, `total_if_approved`, `note`}, `share_text` |
+
+The agent no longer caches answers (`AGENT_ANSWER_CACHE_SECONDS` is ignored). See
+`docs/33-fresh-answers-and-fee-plans-nov-2026.md`.
 
 ## Security hardening (v4.7.0, `security/API_SECURITY.md`)
 

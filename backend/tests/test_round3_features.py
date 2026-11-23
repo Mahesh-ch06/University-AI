@@ -197,7 +197,7 @@ async def test_faculty_question_is_answered_with_one_model_call_and_a_card():
 # ----------------------------------------------------- 4-5. prompt rules ----
 def test_prompt_has_strengths_formatting_and_visit_rules_and_stays_small():
     text = build_system_prompt({})
-    for phrase in ("WHY SRU", "7th among private universities", "first private university in Telangana and Andhra",
+    for phrase in ("WHY SRU", "VERIFIED FACTS FOR THIS QUESTION", "ICAR accreditation",
                    "FORMAT (shape follows content)", "short bullets", "1-2 short paragraphs",
                    "never book, schedule, approve or confirm", "never quote visiting hours", "find_faculty"):
         assert phrase in text, phrase

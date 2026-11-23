@@ -487,7 +487,7 @@ SR University is among the youngest private universities in Telangana to earn na
 • 🌏 **QS Asia Rankings 2027**: 701–710 band (ahead of ~60% of ranked Asian institutions; 19th private in India).
 • 🏆 **National Recognition**: NIRF 2025 91st in Engineering (Top 100 for 4 years) & THE World Rankings 2026 (801–1000).
 • 🎯 **Proven Outcomes**: 95% placement rate with top package of ₹51 LPA; Tier-1 NBA & ICAR accreditations.
-• 🚀 **Innovation at SRiX**: 171+ startups, 8,900+ publications, and 2,700+ patents on a 170-acre campus.
+• 🚀 **Innovation at SRiX**: 171+ startups, 9,300+ publications, and 2,700+ patents on a 170-acre campus.
 
 Would you like to explore our programs, fee structure, or campus facilities?""",
 
@@ -507,7 +507,7 @@ Which program or branch are you most curious about?""",
 SR University pairs national and global recognition with a strong research and innovation culture, where you learn by doing and graduate ready for industry:
 
 • 📊 **Global & National Ranks**: QS Asia 2027 (701–710 band), THE World Rankings 2026 (801–1000), and NIRF 2025 91st in Engineering (Top 100 four years running).
-• 💡 **Research Excellence**: Dedicated research centres, 8,900+ publications, 2,700+ patents filed, and SRiX incubator with 171+ startups.
+• 💡 **Research Excellence**: Dedicated research centres, 9,300+ publications, 2,700+ patents filed, and SRiX incubator with 171+ startups.
 • 🛠️ **Practical Learning**: Multidisciplinary hands-on curriculum, live projects, and international academic collaborations.
 • 📈 **Verified Salaries**: 95% placement rate with milestone packages reaching ₹51 LPA.
 
@@ -529,7 +529,7 @@ Can I share details on merit scholarships or specific department offerings?""",
 At SR University, classroom learning connects directly to industry, research, and global opportunities:
 
 • 🎯 **Industry-Oriented Learning**: Live industry projects, internship exposure, and active mentoring by corporate experts.
-• 🚀 **Startups & Patents**: ₹76+ Cr DST-funded SRiX incubator with 171+ ventures, 8,900+ publications, and 2,700+ patents.
+• 🚀 **Startups & Patents**: ₹76+ Cr DST-funded SRiX incubator with 171+ ventures, 9,300+ publications, and 2,700+ patents.
 • 📊 **Hiring Benchmarks**: 95% placement success rate with highest offer of ₹51 LPA (Microsoft, Amazon, and leading MNCs).
 • 🏛️ **Ranked Excellence**: QS Asia 2027 (701–710 band) and NIRF 2025 91st in Engineering.
 
@@ -889,6 +889,22 @@ def placement_reply(message: str, seed: str) -> tuple[str, list[str], str]:
     return text, list(_PLACEMENT_CHIPS[aspect]), aspect
 
 
+def special_concessions_lead(data: dict, program: str | None = None) -> str:
+    """One line above the concessions table card."""
+    n = len(data.get("all_categories", []))
+    target = f"your **{_program_short(program)}** fee" if program else "your fee"
+    return (f"SRU offers **{n} special concessions** on tuition every year, with valid proof. "
+            f"Pick the one that applies to you and I'll apply it to {target}.")
+
+
+def _program_short(program: str | None) -> str:
+    from . import fees as _fees
+    try:
+        return _fees.short_name(program) if program else ""
+    except Exception:
+        return ""
+
+
 def special_concessions_text(data: dict) -> str:
     """The special-category concessions, grouped by amount (from fees.special_concessions())."""
     groups: dict[str, list[str]] = {}
@@ -904,3 +920,81 @@ def special_concessions_text(data: dict) -> str:
         lines.append(f"• **{amount}**: " + "; ".join(groups[amount]))
     lines += ["", "Tell me which one applies to you and I'll add it to your fee."]
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- answers built from verified facts
+# Used for "why SRU", "about SRU", rankings, accreditation, research, international and similar questions
+# when no language model is available. The content always comes from the facts retrieved for the
+# question (fact_service.retrieve); only the framing line varies. Nothing here states a figure itself.
+
+_FACT_ASPECT_LABELS = {
+    "rankings": "Rankings", "accreditation": "Accreditation", "placements": "Placement record",
+    "research": "Research & patents", "innovation": "Startups at SRiX", "international": "Study abroad options",
+    "campus": "Campus life", "academics": "How teaching works", "scholarships": "💰 Fee & Scholarship Info",
+    "about": "About SRU",
+}
+
+_FACT_INTROS = {
+    "broad": ["Here's what makes SRU stand out:", "A few reasons students choose SRU:",
+              "SRU's strengths at a glance:"],
+    "more": ["A few more things worth knowing about SRU:", "Beyond that, SRU also offers:",
+             "Here's more that sets SRU apart:"],
+    "recap": ["Here's a quick recap:", "To sum up what I shared:", "In short:"],
+    "challenge": ["SRU is a strong choice, and the record backs it up:",
+                  "Here's what SRU has achieved, so you can judge for yourself:",
+                  "SRU has earned its place among India's fast-rising universities:"],
+    "rankings": ["SRU holds strong national and global ranks:", "Here's where SRU stands in the rankings:",
+                 "SRU's rankings, in short:"],
+    "accreditation": ["SRU's programmes are fully recognised:", "Here's how SRU is accredited:"],
+    "research": ["Research is a big part of SRU:", "SRU's research record:"],
+    "innovation": ["SRU backs student startups in a big way:", "Innovation at SRU:"],
+    "international": ["SRU gives you plenty of global exposure:", "Here's SRU's international side:"],
+    "campus": ["Life at SRU in a nutshell:", "Here's what campus life looks like:"],
+    "academics": ["Learning at SRU is hands-on:", "How SRU prepares you for industry:"],
+    "about": ["Here's a quick introduction to SRU:", "SRU in a few lines:"],
+}
+
+_FACT_CLOSES = ["Want details on any of these?", "Which of these matters most to you?",
+                "Shall I go deeper into any one?"]
+
+_FACT_CLOSES_NARROW = ["Anything else you'd like to know about SRU?", "What would you like to check next?"]
+
+_CHALLENGE = re.compile(
+    r"\b(bad|worst|poor|fake|worth|better than|vs\.?|versus|compare|compared|good (?:college|university)|"
+    r"reputation|why not|is it good|is sru good)\b", re.IGNORECASE)
+
+
+def facts_reply(message: str, facts: list, seed: str, aspects: list[str] | None = None,
+                repeat: bool = False, recap: bool = False) -> tuple[str, list[str]]:
+    """A short answer built from the retrieved facts: one framing line, 2–4 bullets, one question.
+
+    repeat: the student asked again and these facts are new ("a few more things"); recap: everything
+    relevant was already said, so it is framed as a recap. Returns (text, chips). With no facts it says
+    the information could not be verified.
+    """
+    aspects = aspects or []
+    if not facts:
+        return ("I couldn't find verified information on that. The Admissions Office (833 100 3030, "
+                "info@sru.edu.in) can confirm it for you.", ["📞 Admissions Office"])
+    if recap and not aspects:
+        key = "recap"
+    elif repeat:
+        key = "more"
+    elif _CHALLENGE.search(message or ""):
+        key = "challenge"
+    elif aspects and aspects[0] in _FACT_INTROS and (len(aspects) == 1 or recap):
+        key = aspects[0]
+    else:
+        key = "broad"
+    intro = _pick(_FACT_INTROS[key], seed)
+    bullets = []
+    for f in facts[:4]:
+        short = ((f.metadata or {}).get("short") or "").strip()
+        if short:
+            bullets.append(f"• {short}")
+    closes = _FACT_CLOSES if key in ("broad", "more", "recap", "challenge") else _FACT_CLOSES_NARROW
+    text = intro + "\n\n" + "\n".join(bullets) + "\n\n" + _pick(closes, seed + "close")
+    covered = {(f.metadata or {}).get("aspect") for f in facts} | set(aspects)
+    order = ["placements", "rankings", "scholarships", "campus", "research", "international"]
+    chips = [_FACT_ASPECT_LABELS[a] for a in order if a not in covered][:3]
+    return text, chips

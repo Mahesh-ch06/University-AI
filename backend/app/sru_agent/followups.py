@@ -78,7 +78,7 @@ def _chips(topic: str, program: str | None, department: str | None, message: str
 
     table = {
         "fee_personal": ["Special category concessions", f"Add hostel to my {mine} fee",
-                         f"Eligibility for {p}", "How do I apply for 2027-28?", "How is the fee paid each semester?"],
+                         "📋 Prepare my full fee chart", f"Eligibility for {p}", "How do I apply for 2027-28?"],
         "fee": ["Scholarship for my marks", "Special category concessions", "Hostel fees", "How do I apply for 2027-28?"],
         "scholarship": ["Scholarship for my marks", "Special category concessions",
                         "Do I keep my scholarship every year?", f"{p} fee after scholarship"],
@@ -193,46 +193,24 @@ def needs_yes_no(answer: str | None) -> bool:
     return False
 
 
+MAX_CHIPS = 4
+
+
 def ensure_fixed_chips(chips: list[str] | None = None, answer: str | None = None, message: str = "") -> list[str]:
-    """Ensure exactly 4 chips: 2 contextual + 2 fixed (admission + university),
-    or Yes/No + 2 fixed if the assistant response ends with a binary question."""
+    """The chips to show under an answer (v4.10.0: relevant ones only).
+
+    * the answer ends with a yes/no question: "Yes" / "No";
+    * otherwise the contextual chips given (without repeats), at most 4;
+    * nothing is added to fill the row: no chips is better than unrelated ones. (Until v4.9 every row was
+      padded with "Fee & Scholarship Info" and "Why Choose SRU?", which made most chips irrelevant.)
+    """
     if needs_yes_no(answer):
         return ["Yes", "No"]   # the answer to the question just asked; nothing else to pick from
-        
-    contextual = [c for c in (chips or []) if c not in (FIXED_ADMISSION_CHIP, FIXED_UNIVERSITY_CHIP)]
-    
-    # Take top 2 contextual chips
-    top_contextual = contextual[:2] if len(contextual) >= 2 else (contextual + [c for c in _chips("default", None, None) if c not in contextual])[:2]
-    
-    # Check for overlaps with fixed chips
-    low_ctx = " ".join(top_contextual).lower()
-    
-    adm_chip = FIXED_ADMISSION_ALT if ("fee" in low_ctx or "scholarship" in low_ctx) else FIXED_ADMISSION_CHIP
-    if adm_chip.lower() in low_ctx:
-        adm_chip = "How do I apply for 2027-28?"
-        
-    uni_chip = FIXED_UNIVERSITY_ALT if ("why choose" in low_ctx or "about" in low_ctx or "ranking" in low_ctx) else FIXED_UNIVERSITY_CHIP
-    if uni_chip.lower() in low_ctx:
-        uni_chip = "Plan a campus visit"
-        
     result = []
-    for c in top_contextual:
-        if c not in result:
+    for c in chips or []:
+        if c and c not in result:
             result.append(c)
-    if adm_chip not in result and len(result) < 3:
-        result.append(adm_chip)
-    if uni_chip not in result and len(result) < 4:
-        result.append(uni_chip)
-        
-    # If still less than 4, fill with fallbacks
-    fallbacks = [FIXED_ADMISSION_CHIP, FIXED_UNIVERSITY_CHIP, "Plan a campus visit", "How do I apply for 2027-28?"]
-    for fb in fallbacks:
-        if len(result) >= 4:
-            break
-        if fb not in result:
-            result.append(fb)
-            
-    return result[:4]
+    return result[:MAX_CHIPS]
 
 
 def suggest(message: str, tools_used: list | None = None, profile: dict | None = None,
@@ -242,10 +220,12 @@ def suggest(message: str, tools_used: list | None = None, profile: dict | None =
         return ["Yes", "No"]   # the answer to the question just asked; nothing else to pick from
 
     topic = topic_of(message, tools_used, active_topic=active_topic)
+    if topic in ("after_request", "default"):
+        # A request was just completed (callback, visit), or the message has no topic to follow up on.
+        return []
     chips = _chips(topic, _short_program(profile or {}), department, message=message)
     if topic == "career_guidance":
-        candidates = chips[:2]
-        return ensure_fixed_chips(candidates, answer=answer, message=message)
+        return ensure_fixed_chips(chips, answer=answer, message=message)   # the four interest options
 
     # Collect past questions from history to avoid repeating recent queries
     past_queries = set()
@@ -261,7 +241,6 @@ def suggest(message: str, tools_used: list | None = None, profile: dict | None =
             continue
         picked.append(c)
 
-    candidates = picked if len(picked) >= 2 else chips
-    return ensure_fixed_chips(candidates, answer=answer, message=message)
+    return ensure_fixed_chips(picked, answer=answer, message=message)
 
 

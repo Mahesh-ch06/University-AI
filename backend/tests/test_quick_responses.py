@@ -21,13 +21,13 @@ async def test_special_concessions_quick_response():
     done = [e for e in events if e["type"] == "done"][0]
     answer = done["answer"]
 
-    # v4.9.0: compact, grouped by amount, built from the official data (no 19-row table)
-    assert "**19 special concessions**" in answer
-    assert "**₹50,000**" in answer and "**₹20,000**" in answer and "**₹15,000**" in answer
-    assert "students who have lost both parents" in answer
-    assert "only girl child from telangana" in answer.lower()
-    assert "NCC 'C' certificate holders" in answer
-    assert "|" not in answer
+    # v4.10.0: one line of text; the 19 categories are in the selectable table card (official data)
+    assert "**19 special concessions**" in answer and "|" not in answer and len(answer) < 220
+    (card,) = [c for c in done["cards"] if c["type"] == "get_special_concessions"]
+    rows = {c["category"]: c["per_year"] for c in card["data"]["all_categories"]}
+    assert len(rows) == 19 and set(rows.values()) == {"₹50,000", "₹20,000", "₹15,000"}
+    assert rows["Students who have lost both parents"] == "₹50,000"
+    assert "Only girl child from Telangana" in rows and "NCC 'C' certificate holders" in rows
     assert any("Calculate my scholarship" in s for s in done["suggestions"])
 
 

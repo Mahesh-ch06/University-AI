@@ -178,13 +178,16 @@ async def test_handbook_passages_are_given_to_the_model_up_front():
 
 
 @pytest.mark.asyncio
-async def test_repeated_first_question_is_answered_from_the_saved_copy(monkeypatch):
+async def test_repeated_first_question_is_never_served_from_a_saved_copy(monkeypatch):
+    """v4.10.0: no answer cache. The same first question from different students is answered from the
+    current data each time (a text-keyed cache served one reply to everyone for hours and outlived
+    data updates)."""
     calls = []
 
     class Counting(Recorder):
         async def generate_content(self, model, contents, config):
             calls.append(1)
-            return _text("SR University is in Warangal, Telangana.")
+            return _text(f"SR University is in Warangal, Telangana. (answer {len(calls)})")
 
     ring = agent._KeyRing()
     monkeypatch.setattr(config, "GEMINI_API_KEYS", ["key-A"])
@@ -194,11 +197,7 @@ async def test_repeated_first_question_is_answered_from_the_saved_copy(monkeypat
     for sid in ("r2-cache-1", "r2-cache-2", "r2-cache-3"):
         events = [e async for e in run_agent("Where is SR University located?", sid)]
         answers.append(events[-1]["answer"])
-    assert len(calls) == 1 and len(set(answers)) == 1
-    # a student we already know something about gets a fresh, personal answer
-    await memory.update_profile("r2-cache-4", name="Ravi")
-    [e async for e in run_agent("Where is SR University located?", "r2-cache-4")]
-    assert len(calls) == 2
+    assert len(calls) == 3 and len(set(answers)) == 3
 
 
 @pytest.mark.asyncio

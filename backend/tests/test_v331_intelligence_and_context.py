@@ -146,8 +146,8 @@ async def test_scenario_d_placements_and_guarantee_flow():
     results, _ = await _run_session("sess-scenario-d", turns)
 
     assert len(results) == 4
-    # Turn 1: About SRU 5-pillar response
-    assert "SR University" in results[0]["answer"] or "Top Private University" in results[0]["answer"]
+    # Turn 1: About SRU, built from the verified facts (v4.10.0)
+    assert "SRU" in results[0]["answer"] and results[0]["answer"].count("• ") >= 2
 
     # Turn 2: "What about placements?" is broad: ask which aspect, no information dump
     assert "What would you like to know about placements" in results[1]["answer"]

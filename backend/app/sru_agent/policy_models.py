@@ -28,6 +28,10 @@ class FactCategory(str, Enum):
     ADMISSIONS = "admissions"
     LEADERSHIP = "leadership"
     GENERAL = "general"
+    ABOUT = "about"
+    RESEARCH = "research"
+    INTERNATIONAL = "international"
+    CAMPUS_LIFE = "campus_life"
 
 
 class VerifiedFact(BaseModel):

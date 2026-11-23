@@ -4,8 +4,8 @@ import ChatLeadForm from "../components/ChatLeadForm";
 import WelcomeBackPanel, { type WelcomeBackStatus } from "../components/WelcomeBackPanel";
 import { describeGap } from "../utils/timeAgo";
 import { CalculatorIcon } from "../components/Icons";
-import { getSessionId } from "../hooks/useSession";
-import { applyServerProfile, cleanPhone, forgetStudentDetails, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
+import { getSessionId, startFreshSession } from "../hooks/useSession";
+import { applyServerProfile, cleanPhone, forgetStudentDetails, keepContactOnly, readStudentDetails, syncStudentDetails } from "../utils/studentProfile";
 import { deduplicateCards } from "../components/Cards";
 import type { AcademicFormPayload } from "../components/Cards";
 import { WELCOME_QUICK_ACTIONS } from "../data/welcomeQuickActions";
@@ -106,7 +106,15 @@ type RecoveryOffer = {
 
 export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const isWidget = variant === "widget";
-  const sessionId = getSessionId();
+  // The session ID is state: "Start afresh" replaces it, so everything the server keeps per session
+  // (profile, marks, programme, pending steps, conversation state) starts empty.
+  const [sessionId, setSessionId] = useState<string>(() => getSessionId());
+  // Bumped whenever the conversation on screen is replaced (new chat, restore). A reply or restore that
+  // belongs to an earlier generation is dropped instead of landing in the new conversation.
+  const chatGenRef = useRef(0);
+  // Read by callbacks created before a re-render (e.g. a question sent right after "Start a new chat").
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
 
   // Widget visibility state: closed by default so floating bubble is visible, clicks open it
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
@@ -303,9 +311,12 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     if (restoringRef.current) return "failed";
     restoringRef.current = true;
     setIsRestoringConv(true);
+    const gen = chatGenRef.current;
     try {
       const conv = await getConversation(conversationId, sessionId);
+      if (gen !== chatGenRef.current) return "failed"; // the student started a new chat meanwhile
       if (!conv || !conv.messages || conv.messages.length === 0) return "missing";
+      chatGenRef.current += 1;
       setMessages(conv.messages);
       setVisibleMessageCount(MESSAGE_RENDER_WINDOW);
       setActiveConvId(conversationId);
@@ -444,35 +455,35 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   };
 
   /**
-   * Start a genuinely new conversation. The previous one stays saved (and can still be opened from its
-   * link); the server files its details with it and does not carry them into the new chat.
-   * Used by the welcome-back choice and by the "New chat" button in the header.
+   * "Start afresh": a genuinely new conversation in a new session.
+   *  * a new session ID, so the server has no messages, name, programme, marks, eligibility, pending steps
+   *    or confirmations for it, and cannot bring any back;
+   *  * the reply still streaming for the old chat is cancelled, and any late reply or restore is dropped;
+   *  * the old conversation is not deleted: it stays saved (and can be opened from its link);
+   *  * this browser keeps only the name and number used by the contact form; they are not given to the
+   *    new conversation ("Not {name}?" forgets those too).
+   * Used by the welcome-back choice and by the "New chat" button in the header. It works offline.
    */
   const startNewConversation = async (opts: { forgetIdentity?: boolean } = {}): Promise<boolean> => {
     const offer = recoveryRef.current;
+    const previousSession = sessionId;
     const previousId = activeConvIdRef.current || offer?.ctx.conversation_id || null;
     if (offer) setRecovery({ ...offer, status: "starting", error: null });
+    handleResetChat(); // cancels the stream and bumps the generation first
     if (opts.forgetIdentity) {
       try {
-        await forgetStudentDetails(sessionId);
+        await forgetStudentDetails(previousSession);
       } catch {}
+    } else {
+      keepContactOnly();
     }
-    const ok = await resetSessionConversation(sessionId, previousId);
-    if (!ok) {
-      if (offer) {
-        setRecovery({
-          ...offer,
-          status: "error",
-          error: "I couldn't start a new chat because the connection dropped. Please try again.",
-        });
-      } else {
-        setError("Couldn't start a new chat. Check your connection and try again.");
-      }
-      return false;
-    }
+    // File the old conversation's details with it on the server (best effort; nothing depends on it).
+    if (previousId) void resetSessionConversation(previousSession, previousId);
     markDismissed(previousId);
     if (offer?.ctx.conversation_id) markDismissed(offer.ctx.conversation_id);
-    handleResetChat();
+    const freshId = startFreshSession();
+    sessionIdRef.current = freshId;
+    setSessionId(freshId);
     setRecovery(null);
     setResumeDivider(null);
     recordUserActivity();
@@ -728,6 +739,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
     const flushAssistantRender = () => {
       renderFrame = null;
+      if (stale()) return;
       if (!assistantAppended) {
         assistantAppended = true;
         setMessages((prev) => [
@@ -762,14 +774,24 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     };
 
     const convIdToSend = activeConvIdRef.current || activeConvId;
-    const cancelFn = sendMessageStream(sessionId, text, convIdToSend, form, {
+    const gen = chatGenRef.current;
+    const stale = () => gen !== chatGenRef.current;
+    // A new session ("Start afresh") gets its contact details from this browser first, so the first question
+    // is not met by the contact gate. Usually already done: the promise is shared and settled.
+    try {
+      await syncStudentDetails(sessionIdRef.current);
+    } catch {}
+    if (stale()) return;
+    const cancelFn = sendMessageStream(sessionIdRef.current, text, convIdToSend, form, {
       onStart: (convId) => {
+        if (stale()) return;
         if (convId) {
           setActiveConvId(convId);
           activeConvIdRef.current = convId;
         }
       },
       onTool: (tool) => {
+        if (stale()) return;
         if (tool.status === "running") {
           setActiveToolStatus(tool.label || "Working...");
         } else {
@@ -777,6 +799,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         }
       },
       onCard: (card) => {
+        if (stale()) return;
         const isVideo = card?.type === "get_university_videos" || card?.type === "video_recommendations";
         const alreadyHasVideo = accumulatedCards.some(
           (c) => c?.type === "get_university_videos" || c?.type === "video_recommendations"
@@ -786,12 +809,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         scheduleAssistantRender();
       },
       onToken: (delta) => {
+        if (stale()) return;
         setActiveToolStatus(null);
         accumulatedContent += delta;
         scheduleAssistantRender();
       },
       onDone: (data: ChatResponse) => {
         cancelScheduledRender();
+        if (stale()) return; // a reply for a conversation the student has left
         setIsLoading(false);
         setActiveToolStatus(null);
         setStreamingMsgId(null);
@@ -804,7 +829,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         applyServerProfile(data.profile);
         playChime();
 
-        if (isEligibleResponse(data) && claimEligibilityCelebration(sessionId)) {
+        if (isEligibleResponse(data) && claimEligibilityCelebration(sessionIdRef.current)) {
           triggerConfetti();
         }
 
@@ -848,6 +873,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       },
       onError: (err) => {
         cancelScheduledRender();
+        if (stale()) return;
         setIsLoading(false);
         setActiveToolStatus(null);
         setStreamingMsgId(null);
@@ -859,10 +885,15 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       },
     });
 
+    if (stale()) {
+      cancelFn(); // the chat was replaced before the request even started
+      return;
+    }
     cancelStreamRef.current = cancelFn;
   }
 
   function handleResetChat() {
+    chatGenRef.current += 1;
     if (cancelStreamRef.current) {
       cancelStreamRef.current();
       cancelStreamRef.current = null;

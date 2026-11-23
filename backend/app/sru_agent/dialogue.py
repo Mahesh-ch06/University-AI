@@ -126,7 +126,7 @@ TOPICS = {
         "aspects": [
             ("Research centres", r"cent(?:re|er)|lab|facilit", "What research centres does SR University have?"),
             ("Ph.D. programmes", r"ph\.?\s?d|doctor", "Tell me about Ph.D. programmes at SR University."),
-            ("Research rankings", r"rank|quality|the\b", "What are SR University's research rankings?"),
+            ("Research rankings", r"rank|quality|times\s+higher", "What are SR University's research rankings?"),
             ("Startups & SRiX", r"startup|srix|incubat|innovation", "Tell me about SRiX and startup opportunities at SR University."),
         ],
     },
@@ -275,12 +275,18 @@ def _broad_program(message: str) -> tuple[str | None, bool]:
     return None, False
 
 
-def _pick(message: str, options: list[tuple]) -> tuple | None:
-    """The option a reply selects: exact chip label first, then the option's words."""
+def _pick(message: str, options: list[tuple], own_topic: str | None = None) -> tuple | None:
+    """The option a reply selects: exact chip label first, then the option's words.
+
+    A longer message that names another topic ("what is the hostel curfew?" after "what about
+    research?") is a new question, not a choice, even when one of its words matches an option."""
     low = _norm(message)
     for opt in options:
         if low == _norm(opt[0]):
             return opt
+    if len(low.split()) > 3 and any(re.search(rf"\b(?:{t['words']})\b", low)
+                                     for name, t in TOPICS.items() if name != own_topic):
+        return None
     for opt in options:
         if re.search(opt[1], low, re.IGNORECASE):
             return opt
@@ -634,7 +640,7 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
             return _ask_program("explore", {**state, "goal": "fees"}, name)
         if step == "topic_aspect":
             topic = TOPICS.get(state.get("topic") or "")
-            opt = _pick(message, topic["aspects"]) if topic else None
+            opt = _pick(message, topic["aspects"], state.get("topic")) if topic else None
             if opt:
                 special = _resolve_special(opt[2], state, profile, message)
                 if special:
@@ -642,7 +648,7 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
                 return _rewrite(opt[2], {"program": state.get("program")} if state.get("program") else {})
         elif step == "program_aspect":
             key = state.get("program")
-            opt = _pick(message, PROGRAM_ASPECTS)
+            opt = _pick(message, PROGRAM_ASPECTS, "")
             if key and opt:
                 special = _resolve_special(opt[2], state, profile, message)
                 if special:

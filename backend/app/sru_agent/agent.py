@@ -32,7 +32,7 @@ except ImportError:
 
 from . import affordability, ai_guard, config, dialogue, eligibility, journey, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
 from app.services import card_service
-from . import fact_service, policy_engine, policy_models, policy_service, semantic_router, observability
+from . import fact_service, fee_plan, policy_engine, policy_models, policy_service, semantic_router, observability
 from .prompt import build_system_prompt
 
 log = logging.getLogger("sru_agent")
@@ -394,6 +394,19 @@ def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=
     return d
 
 
+async def _offer_fee_chart(session_id, conversation_id, cards) -> bool:
+    """True (once per conversation) when this answer shows a fee with hostel or transport added: the
+    student is then asked whether to prepare the complete fee chart. Records the offer."""
+    if not any(isinstance(c, dict) and c.get("type") == "calculate_fee" and isinstance(c.get("data"), dict)
+               and (c["data"].get("has_hostel") or c["data"].get("transport_per_year")) for c in cards or ()):
+        return False
+    state = await memory.get_conversation_state(session_id, conversation_id)
+    if state.get("fee_chart_offered"):
+        return False
+    await memory.update_conversation_state(session_id, conversation_id, fee_chart_offered=True, offer="fee_chart")
+    return True
+
+
 async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None, profile=None,
                eligible=None, exact_chips=False):
     """Stream a reply the code wrote itself (no model call), remember it, and finish the turn.
@@ -402,6 +415,9 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     programme...) and the chips are the answers to it."""
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     text = normalize_positive_brand_advocacy(text)
+    if await _offer_fee_chart(session_id, conversation_id, cards):
+        text = text.rstrip() + "\n\n" + _FEE_CHART_OFFER
+        suggestions, exact_chips = ["Yes, prepare my fee chart", "No, thanks"], True
     for c in cards:
         yield {"type": "card", "card": c}
     for piece in _chunks(text):
@@ -702,7 +718,9 @@ def _fee_args_from_message(message: str, profile: dict):
     if not program or not fees.find_program(str(program)):
         return None
     args = {"program": in_message or str(program)}
-    m = re.search(r"(?<![\d.])(\d{2}(?:\.\d+)?)\s*(?:%|percent)", low)
+    m = (re.search(r"(?<![\d.])(\d{2}(?:\.\d+)?)\s*(?:%(?!ile)|percent(?!ile))", low)
+         # "my percentage is 85", "percent: 85", "scored 85 in inter"
+         or re.search(r"\b(?:percent(?:age)?|scored?|got)\s*(?:is|of|=|:|-)?\s*(\d{2}(?:\.\d+)?)(?!\d)(?!,\d)(?!\s*(?:rank|marks|lpa|percentile|%ile))", low))
     marks = re.search(r"(?<!\d)(\d{3,4})\s*(?:marks|/\s*1000|out\s+of\s+1000)", low)
     if m and float(m.group(1)) <= 100:
         args["percent"] = float(m.group(1))
@@ -1071,6 +1089,22 @@ SR University delivers a distinctive education blending academic prestige, pract
 • **Global Collaborations**: Strategic tie-ups with **80+ international universities** allowing students to study abroad, pursue joint research, or complete international engineering dual degrees.
 • **Next-Gen Living & Learning Campus**: A state-of-the-art **170-acre campus** with modern AC/Non-AC hostels, 4,000-seat central dining hall, DST-funded **SRiX Startup Incubator** (₹76+ Cr raised), and flexible choice-based credit learning (FFCS)."""
 
+# Overviews written once per conversation (see run_agent): a repeat goes to the model instead.
+_OVERVIEW_INTENTS = {
+    "NEXT_GEN_TECH_QUERY", "ALL_PROGRAMS_QUERY", "BTECH_PROGRAMS_QUERY", "PROGRAM_AI_ROBOTICS_QUERY",
+    "PROGRAM_CSE_QUERY", "PROGRAM_ECE_QUERY", "PROGRAM_CORE_QUERY", "PROGRAM_MANAGEMENT_QUERY",
+    "PROGRAM_AGRICULTURE_QUERY", "PROGRAM_COMP_APP_QUERY", "PROGRAM_DESIGN_QUERY", "CAMPUS_CANTEEN_QUERY",
+    "ACADEMIC_EVALUATION_QUERY", "LAB_FACILITIES_QUERY",
+}
+# Aspects answered from the verified facts when the question is otherwise general.
+_UNIVERSITY_FACT_ASPECTS = {"rankings", "accreditation", "research", "innovation", "international", "about"}
+# A question about a fee, a form, a visit or a call is never answered with university highlights.
+_TRANSACTIONAL_WORDS = re.compile(
+    r"\b(fee|fees|cost|price|pay|hostel|eligib\w*|cutoff|marks?|percent\w*|apply|application|admission\s+process|"
+    r"visit|tour|call|callback|counsell?or|document\w*|deadline|date|hall ticket|exam|scho\w*arship\w*|"
+    r"eamcet|eapcet|emcet|emact|jee|neet|sat|cuet|percentile)\b|\d+\s*%|(?<!top )\b\d{3,}\b", re.IGNORECASE)
+_BARE_WHY = re.compile(r"^\s*(?:but\s+)?(?:why|how come|why so|why is that)\s*[?!.]*\s*$", re.IGNORECASE)
+_NAMES_SRU = re.compile(r"\b(sru|sr university|this (?:college|university)|your (?:college|university))\b", re.IGNORECASE)
 _ABOUT_SRU_CHIPS = ["B.Tech CSE fees", "Calculate my scholarship", "Placement record", "Plan a campus visit"]
 
 
@@ -1088,10 +1122,6 @@ _ABOUT_SRU_CHIPS = ["B.Tech CSE fees", "Calculate my scholarship", "Placement re
 
 
 
-def _cache_key(message: str) -> str:
-    import hashlib
-    norm = re.sub(r"[^a-z0-9 ]+", " ", message.lower())
-    return "sru:answer:" + hashlib.sha1(" ".join(norm.split()).encode()).hexdigest()
 
 
 # "What is my number?", "which number did you save?", "do you have my mobile number?"
@@ -1108,6 +1138,13 @@ _SWITCH_TO = re.compile(r"\b(?:change|switch|move|update|shift|instead)\b.*?\b(?
 _CHANGE_ACADEMIC = re.compile(
     r"\b(?:change|update|edit|correct|modify|re-?enter)\b.{0,30}\b(?:academic\s+details|marks?|board|percentage|"
     r"group|stream|scores?|details)\b", re.IGNORECASE)
+_FEE_CHART_REQUEST = re.compile(
+    r"\b(?:fee\s+chart|fee\s+plan|(?:full|complete|whole|entire|total)\s+fee\s+(?:chart|plan|breakdown|details)|"
+    r"prepare\s+(?:my|the|a)\s+(?:full\s+|complete\s+|whole\s+)?fee)\b", re.IGNORECASE)
+_AFFIRM = re.compile(r"^\s*(?:yes|yeah|yep|yup|sure|ok(?:ay)?|please|go\s+ahead|do\s+it|prepare\s+it|haa?n?|avunu)\b",
+                     re.IGNORECASE)
+_DECLINE = re.compile(r"^\s*(?:no|nope|not\s+now|no\s+thanks?|later|skip)\b", re.IGNORECASE)
+_FEE_CHART_OFFER = "Shall I prepare your complete fee chart (tuition, scholarship, hostel and other fees) to share?"
 _ADD_CONCESSION = re.compile(r"\b(?:add|apply|include|use|deduct|with|in\s+my\s+fee|to\s+my\s+fee)\b", re.IGNORECASE)
 
 
@@ -1115,6 +1152,9 @@ def _concession_requested(message: str):
     """The special concession the student asks to add to their fee ({'label', 'amount'}), or None."""
     if not _ADD_CONCESSION.search(message or "") or not re.search(r"\bfee|concession|discount\b", message or "", re.I):
         return None
+    exact = fee_plan.find_concession(message)   # the category picked in the table (its exact fee-card name)
+    if exact:
+        return exact
     if re.search(r"\d|%|\bmarks?\b|\bboard\b|\bpercent", message or "", re.I):
         return None   # a fee calculation with marks, not a concession request
     words = set(re.findall(r"[a-z]{3,}", (message or "").lower())) - {
@@ -1136,9 +1176,20 @@ def _switch_target_program(message: str):
     return fees.find_program(m.group("target")) if m else None
 
 
+def _prompt_profile(profile: dict | None) -> dict:
+    """What the model is told about the student: without the name in a session started afresh."""
+    p = dict(profile or {})
+    if p.pop("address_by_name", None) is False:
+        p.pop("name", None)
+    return p
+
+
 def _natural_first_name(profile: dict, history: list) -> str | None:
     """The student's first name when using it now would read naturally: never invented, and not when one of
-    the last two replies already used it (so it is not forced into every message)."""
+    the last two replies already used it (so it is not forced into every message). None in a session started
+    with "Start afresh" (address_by_name False): the name is on file only for the contact form."""
+    if profile.get("address_by_name") is False:
+        return None
     first = _first_name(str(profile.get("name") or "").strip())
     if not first or not first.isalpha():
         return None
@@ -1258,6 +1309,11 @@ async def run_agent(
         extracted_name = intents.extract_name(message, bare_ok=not profile.get("name"))
         if extracted_name and not profile.get("name"):
             profile = await memory.update_profile(session_id, name=extracted_name)
+        elif extracted_name and profile.get("address_by_name") is False:
+            # A fresh start, and the student introduced themselves: use the name they gave from now on.
+            profile = await memory.update_profile(session_id, name=extracted_name, address_by_name=True)
+            ctx["profile"] = profile
+            natural_name = _natural_first_name(profile, history)
         if extracted_phone and not existing_phone:
             profile = await memory.update_profile(session_id, phone=extracted_phone)
         existing_name = str(profile.get("name") or "").strip()
@@ -1344,7 +1400,15 @@ async def run_agent(
             dlg_busy = fee_intake.decide(message, profile, dict(intake_now)) is not None
         except Exception:
             dlg_busy = False
-    if not dlg_busy and not tools.find_phone(message) and not intents.is_callback_request(message) \
+    # Our own fee-plan questions and requests are answered below, not by the topic clarification:
+    # a concession picked in the table, "prepare my fee chart", the programme for a pending concession or
+    # chart, and yes / no to the fee chart offer.
+    fee_plan_turn = bool(
+        _FEE_CHART_REQUEST.search(message or "") or _concession_requested(message)
+        or ((conv_state.get("pending_concession") or conv_state.get("offer") == "fee_chart_program")
+            and fees.find_program(message))
+        or (conv_state.get("offer") == "fee_chart" and (_AFFIRM.match(message or "") or _DECLINE.match(message or ""))))
+    if not dlg_busy and not fee_plan_turn and not tools.find_phone(message) and not intents.is_callback_request(message) \
             and not intents.is_cancel_contact(message, bool(profile.get("last_lead_id"))):
         dlg = dialogue.decide(message, conv_state, profile, name=natural_name)
         if dlg:
@@ -1417,6 +1481,16 @@ async def run_agent(
     async def set_state(**fields):
         conv_state.update(fields)
         await memory.update_conversation_state(session_id, conversation_id, **fields)
+
+    # A fixed overview (a programme, labs, canteen, evaluation, all programmes...) is given once per
+    # conversation. Asked again, the question goes to the model with the conversation, which answers
+    # the follow-up instead of re-sending the same block.
+    if intent in _OVERVIEW_INTENTS:
+        given = list(conv_state.get("overviews_given") or [])
+        if intent in given:
+            intent = "GENERAL"
+        else:
+            await set_state(overviews_given=(given + [intent])[-20:])
 
     # Check if welcome quick-action cards have been shown after lead collection
     welcome_actions_shown = bool(
@@ -1670,7 +1744,7 @@ async def run_agent(
     # Greetings and small talk
     chat = intents.small_talk(message) if intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO") else None
     if chat:
-        first_name = _first_name(profile["name"]) if profile.get("name") else ""
+        first_name = _first_name(profile["name"]) if profile.get("name") and profile.get("address_by_name") is not False else ""
         last_assistant_text = next(
             (h.get("text", "") for h in reversed(history) if h.get("role") in ("model", "assistant")),
             ""
@@ -1680,7 +1754,9 @@ async def run_agent(
         )
         name_bit = f", {first_name}" if (first_name and not name_used_recently) else ""
         if chat == "greeting":
-            if profile.get("name"):
+            if profile.get("name") and not first_name:   # a fresh start: name on file, not used
+                text = "Hello! What would you like to know about SR University today?"
+            elif profile.get("name"):
                 if not name_used_recently:
                     text = _select_variation(_GREETING_WITH_NAME, session_id + str(len(history))).format(name=first_name)
                 else:
@@ -1699,7 +1775,9 @@ async def run_agent(
         else:
             text = f"Hello{name_bit}! What would you like to explore about SR University today?"
 
-        async for ev in _say(text, message, session_id, conversation_id, suggestions=_SMALL_TALK_CHIPS):
+        # Starting points after a greeting; nothing after "thanks" / "bye" (the student is wrapping up).
+        chips = [] if chat in ("thanks", "bye") else _SMALL_TALK_CHIPS
+        async for ev in _say(text, message, session_id, conversation_id, suggestions=chips):
             yield ev
         return
 
@@ -1721,20 +1799,78 @@ async def run_agent(
                     yield ev
                 return
 
-    # "Add the SRU alumni concession to my fee": the programme's tuition minus that concession.
+    # "Add the SRU alumni concession to my fee" (typed, or picked in the concessions table): one card with
+    # the programme's tuition with that concession, and the note that it needs verified proof.
     concession = _concession_requested(message)
-    if concession and active_program:
-        prog_data = fees.load_data()["programs"].get(active_program) or {}
-        tuition = prog_data.get("tuition_per_year")
-        if tuition:
-            after = int(tuition) - int(concession["amount"])
-            text = (f"For **{fees.short_name(active_program)}**: tuition {fees.inr(tuition)} − "
-                    f"**{fees.inr(concession['amount'])}** ({concession['label']}) = **{fees.inr(after)}/year**, "
-                    f"once your certificate is verified. Whether it can be combined with a merit scholarship is "
-                    f"confirmed by the Admissions Office ({config.ADMISSIONS_PHONE}).")
-            async for ev in _say(text, message, session_id, conversation_id,
-                                 suggestions=["Calculate my scholarship", "Documents needed", "Talk to a counsellor"],
+    pending_concession = conv_state.get("pending_concession")
+    named_program = fees.find_program(message) if not concession else None
+    if not concession and pending_concession and named_program:
+        concession = pending_concession          # the programme asked for has been given
+    elif pending_concession and not concession:
+        await set_state(pending_concession=None)  # the student moved on
+    if concession:
+        program = fees.find_program(message) or (named_program if pending_concession else None) or active_program
+        if not program:
+            await set_state(pending_concession=concession)
+            async for ev in _say(f"Sure! Which programme should I apply the **{concession['label']}** concession to?",
+                                 message, session_id, conversation_id,
+                                 suggestions=["B.Tech CSE", "B.Tech ECE", "B.Tech AI & Robotics", "BBA"],
                                  exact_chips=True):
+                yield ev
+            return
+        data = fee_plan.concession_fee(program, concession, profile)
+        if data:
+            await set_state(pending_concession=None, selected_concession=concession, active_program=program)
+            text = (f"Here's your **{data['program']}** tuition with the **{concession['label']}** concession "
+                    f"({data['concession_amount']} a year).")
+            async for ev in _say(text, message, session_id, conversation_id,
+                                 cards=[{"type": "concession_fee", "data": data}],
+                                 suggestions=["📋 Prepare my full fee chart", "Documents needed for the concession",
+                                              "Talk to a counsellor"],
+                                 exact_chips=True):
+                yield ev
+            return
+
+    # The complete first-year fee chart (asked for, or "yes" to the offer made after a fee with hostel or
+    # transport): every line from the official fee data, with a Share button on the card.
+    offer = conv_state.get("offer")
+    wants_chart = bool(_FEE_CHART_REQUEST.search(message or "")) or (
+        offer in ("fee_chart", "fee_chart_program") and bool(_AFFIRM.match(message or "")))
+    if offer == "fee_chart_program" and fees.find_program(message):
+        wants_chart = True
+    if offer and not wants_chart:
+        await set_state(offer=None)
+        if offer == "fee_chart" and _DECLINE.match(message or ""):
+            async for ev in _say("No problem! What else would you like to know?", message, session_id,
+                                 conversation_id):
+                yield ev
+            return
+    if wants_chart:
+        last = conv_state.get("last_fee_args") or {}
+        program = fees.find_program(message) or last.get("program") or active_program
+        if not program:
+            await set_state(offer="fee_chart_program")
+            async for ev in _say("Sure! Which programme should the fee chart be for?", message, session_id,
+                                 conversation_id, suggestions=["B.Tech CSE", "B.Tech ECE", "B.Tech AI & Robotics", "BBA"],
+                                 exact_chips=True):
+                yield ev
+            return
+        said = _fee_args_from_message(message, profile) or {}
+        hostel = said.get("hostel") or (last.get("hostel") if last.get("program") == program else None) or "none"
+        transport = bool(said.get("transport") or (last.get("transport") if last.get("program") == program else False))
+        chart = fee_plan.full_fee_chart(program, profile, hostel=hostel, transport=transport,
+                                        concession=conv_state.get("selected_concession"))
+        if chart:
+            chart["share_text"] = fee_plan.chart_share_text(chart)
+            await set_state(offer=None, active_program=program)
+            chips = ["How is the fee paid each semester?", "How do I apply for 2027-28?"]
+            if not conv_state.get("selected_concession"):
+                chips.insert(0, "Special category concessions")
+            if hostel == "none":
+                chips.insert(0, f"Add hostel to my {fees.short_name(program)} fee")
+            async for ev in _say(f"Here's your complete {chart['academic_year']} fee chart for **{chart['program']}**. "
+                                 "Tap **Share** to send it to your family.", message, session_id, conversation_id,
+                                 cards=[{"type": "fee_plan", "data": chart}], suggestions=chips[:3], exact_chips=True):
                 yield ev
             return
 
@@ -1781,16 +1917,15 @@ async def run_agent(
         return
 
     if intent == "SPECIAL_CONCESSIONS_QUERY":
-        from app.services.card_service import get_session_shown_cards, record_session_card
-        cards_to_show = []
-        if "get_special_concessions" not in get_session_shown_cards(f"{session_id}:{conversation_id or ''}"):
-            cards_to_show = [{"type": "get_special_concessions", "data": fees.special_concessions()}]
-            record_session_card(f"{session_id}:{conversation_id or ''}", "get_special_concessions")
-        async for ev in _say(responses.special_concessions_text(fees.special_concessions()), message,
+        # The answer IS the table (pick a row to apply it to your fee), so it is shown every time it is asked,
+        # with a one-line lead instead of the list in text.
+        data = fees.special_concessions()
+        async for ev in _say(responses.special_concessions_lead(data, active_program), message,
                              session_id, conversation_id,
                              used=[{"name": "get_special_concessions", "status": "ok", "is_action": False}],
-                             cards=cards_to_show,
-                             suggestions=["Calculate my scholarship", "Documents needed", "Talk to a counsellor"]):
+                             cards=[{"type": "get_special_concessions", "data": {**data, "program": active_program}}],
+                             suggestions=["Calculate my scholarship", "Documents needed for the concession"],
+                             exact_chips=True):
             yield ev
         return
 
@@ -1850,19 +1985,52 @@ async def run_agent(
     if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") and any(k in (message or "").lower() for k in _SPECIFIC_SUBTOPIC_KEYWORDS):
         intent = "GENERAL"
 
-    if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY"):
-        from app.services.video_service import get_relevant_videos, get_keyword_videos, create_video_card
-        vids = get_relevant_videos(message, limit=2)
-        if not vids:
-            vids = get_keyword_videos(message, limit=2, prefer_campus=True)
-        vid_card = create_video_card(vids) if vids else None
-        cards_to_show = [vid_card] if vid_card else []
-        text_to_say = _WHY_CHOOSE_SRU_TEXT if intent == "WHY_CHOOSE_SRU_QUERY" else _ABOUT_SRU_TEXT
-        async for ev in _say(text_to_say, message, session_id, conversation_id,
-                             cards=cards_to_show,
-                             suggestions=_ABOUT_SRU_CHIPS):
-            yield ev
-        return
+    # ---- Questions about the university itself: why SRU, about SRU, rankings, accreditation, research,
+    # startups, international links, campus life, and challenges ("is SRU bad?", "is X better?").
+    # The answer is built from the verified facts retrieved for THIS question (fact_service.retrieve), not
+    # from a fixed text: facts already told in this conversation are skipped, so a repeat brings new
+    # information. With a language model, the facts go into the prompt and the model writes the answer;
+    # without one, responses.facts_reply frames them. University-reported claims are attributed.
+    if intent == "WHY_CHOOSE_SRU_QUERY" and history and _BARE_WHY.match(message or ""):
+        intent = "GENERAL"   # "why?" after an answer asks about that answer, not "why choose SRU?"
+    fact_aspects = fact_service.detect_aspects(message)
+    # (A step that is waiting for marks or a board does not stop this: "is SRU NBA accredited?" in the middle
+    # of the scholarship steps is a new question; the transactional check keeps answers like "85%" out.)
+    about_university = intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") or (
+        intent == "GENERAL" and not _TRANSACTIONAL_WORDS.search(message or "")
+        and (set(fact_aspects) & _UNIVERSITY_FACT_ASPECTS
+             or (responses._CHALLENGE.search(message or "") and _NAMES_SRU.search(message or ""))))
+    facts_note = None
+    if about_university:
+        shown_facts = list(conv_state.get("facts_shown") or [])
+        # A challenge ("is SRU bad?", "is X better?") is answered with SRU's strongest distinctions first.
+        lookup_aspects = fact_aspects or (["rankings", "placements", "accreditation"]
+                                          if responses._CHALLENGE.search(message or "") else [])
+        picked = fact_service.retrieve(message, k=4, exclude=shown_facts, aspects=lookup_aspects)
+        recap = bool(picked) and all(f.fact_id in shown_facts for f in picked)
+        # Asked "why SRU?" again: the new facts are framed as "a few more things".
+        repeat = not recap and bool(shown_facts) and intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY")
+        new_ids = [f.fact_id for f in picked if f.fact_id not in shown_facts]
+        await set_state(facts_shown=(shown_facts + new_ids)[-30:])
+        from app.services.card_service import get_session_shown_cards, record_session_card
+        scope = f"{session_id}:{conversation_id or ''}"
+        cards_to_show = []
+        if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") and "why_sru_video" not in get_session_shown_cards(scope):
+            from app.services.video_service import get_relevant_videos, get_keyword_videos, create_video_card
+            vids = get_relevant_videos(message, limit=2) or get_keyword_videos(message, limit=2, prefer_campus=True)
+            vid_card = create_video_card(vids) if vids else None
+            if vid_card:
+                cards_to_show = [vid_card]
+                record_session_card(scope, "why_sru_video")
+        if client is None or _is_mock_or_test_client(client):
+            text_to_say, fact_chips = responses.facts_reply(
+                message, picked, f"{session_id}{len(history)}{message}", lookup_aspects, repeat=repeat, recap=recap)
+            async for ev in _say(text_to_say, message, session_id, conversation_id, cards=cards_to_show,
+                                 suggestions=fact_chips, exact_chips=True):
+                yield ev
+            return
+        cards.extend(c for c in cards_to_show if c not in cards)
+        facts_note = fact_service.format_facts_for_prompt(picked)
 
     is_course_comparison = bool(re.search(r"\b(?:vs|versus|better|easier|compare|difference\s+between)\b", message or "", re.IGNORECASE))
     if (intent == "BRANCH_GUIDANCE_QUERY" or intents.is_branch_guidance_query(message)) and not is_course_comparison:
@@ -2558,18 +2726,8 @@ async def run_agent(
         else:
             await set_state(pending_turns=turns)
 
-    # The same first question (often a suggestion button) from a student we know nothing about
-    # gets the saved answer instead of a new model call.
-    personal = any(profile.get(k) not in (None, "") for k in memory.PUBLIC_PROFILE_KEYS)
-    cacheable = (client is None and config.AGENT_ANSWER_CACHE_SECONDS > 0 and not history and not personal
-                 and not pending and not action_note and not tools.find_phone(message))
-    if cacheable:
-        saved = await memory.get_cached_answer(_cache_key(message), config.AGENT_ANSWER_CACHE_SECONDS)
-        if saved:
-            async for ev in _say(saved["answer"], message, session_id, conversation_id,
-                                 saved.get("used", []), saved.get("cards", []), saved.get("suggestions", [])):
-                yield ev
-            return
+    # No answer cache: an answer is always built for this question from the current data. (A cache keyed
+    # by the message text served the same reply to every student for hours and outlived data updates.)
 
     if is_about_sru_query(message):
         from app.services.card_service import generate_cards
@@ -2615,6 +2773,10 @@ async def run_agent(
                                    ensure_ascii=False)[:3500]
     search_q = _contextual_query(message, history, active_topic=active_topic, active_program=active_program)
     passages = "" if (prefetched_fee or prefetched_faculty) else _handbook_context(search_q)
+    if facts_note:
+        # The verified facts for this question come first; the handbook passages only add detail.
+        passages = ("VERIFIED FACTS FOR THIS QUESTION (use these; attribute any marked 'as stated by SRU'):\n"
+                    + facts_note + ("\n\n" + passages if passages else ""))
 
     models = []
     for m in (config.AGENT_MODEL, *_FALLBACK_MODELS):
@@ -2646,7 +2808,7 @@ async def run_agent(
             last_round = round_no == config.AGENT_MAX_TOOL_ROUNDS
             cfg = types.GenerateContentConfig(
                 system_instruction=build_system_prompt(
-                    ctx["profile"], variant_id=variant_id, used_openings=assistant_openings,
+                    _prompt_profile(ctx["profile"]), variant_id=variant_id, used_openings=assistant_openings,
                     about_sru_angle=about_sru_angle, pending_action=pending, action_note=action_note,
                     handbook_passages=passages, fee_result=fee_note, faculty_result=faculty_note,
                     persona=persona, name_used_recently=name_used_recently,
@@ -2904,6 +3066,11 @@ async def run_agent(
     final = final or canned_action_text or get_fallback_text(session_id)
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     final = normalize_positive_brand_advocacy(final)
+    # A fee with hostel or transport added: offer the complete fee chart once per conversation.
+    offered_chart = await _offer_fee_chart(session_id, conversation_id, cards)
+    if offered_chart:
+        final = final.rstrip() + "\n\n" + _FEE_CHART_OFFER
+        conv_state.update(fee_chart_offered=True, offer="fee_chart")
     if not streamed:
         for piece in _chunks(final):
             yield {"type": "token", "delta": piece}
@@ -2938,6 +3105,10 @@ async def run_agent(
             session_id=card_scope, seen_card_types=seen_card_types,
             query_embedding=query_embedding, keyword_videos=True)
         personalised = any(t["name"] in _FEE_TOOLS for t in used)
+        if any(isinstance(c, dict) and c.get("type") == "calculate_fee" for c in cards):
+            # The student's own fee card is shown: a generic fee table (e.g. "CSE with hostel") would be a
+            # second, different set of numbers for the same question.
+            cards[:] = [c for c in cards if not (isinstance(c, dict) and c.get("type") == "fee_breakdown")]
         has_video_card = any(c.get("type") in ("get_university_videos", "video_recommendations") for c in cards)
         for c in contextual_cards:
             if personalised and c.get("type") == "fee_breakdown":
@@ -2962,12 +3133,11 @@ async def run_agent(
             department = fac.get("department") or next(
                 (p.get("department") for p in fac.get("faculty") or [] if p.get("department")), None)
         suggestions = followups.suggest(message, used, ctx.get("profile"), department, history=history, active_topic=active_topic, answer=final)
+        if offered_chart:
+            suggestions = ["Yes, prepare my fee chart", "No, thanks"]
     except Exception as sugg_err:
         log.warning("Could not generate suggestions for agent: %s", sugg_err)
 
-    if cacheable and final != FALLBACK and not any(t["is_action"] for t in used):
-        await memory.set_cached_answer(_cache_key(message), {
-            "answer": final, "used": used, "cards": cards, "suggestions": suggestions})
     turn_telemetry.total_latency_ms = round((time.perf_counter() - started) * 1000, 2)
     observability.record_policy_telemetry(turn_telemetry)
     yield _done(conversation_id, final, used, cards, suggestions, telemetry=turn_telemetry.to_dict(), profile=profile)

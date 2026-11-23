@@ -31,7 +31,7 @@
   - **Historic Distinction**: **India’s youngest and only private university in Telangana** to achieve prestigious National and Global Ranks.
 * **Research & Innovation Powerhouse**:
   - **9,300+ Research Papers Published** in top-tier peer-reviewed international journals.
-  - **2,900+ Patents Filed** demonstrating an extraordinary culture of invention and intellectual property creation.
+  - **2,700+ Patents Filed** demonstrating an extraordinary culture of invention and intellectual property creation.
   - **159 Patents Granted**, translating innovative solutions into legally recognized assets.
   - **130+ Top 10 Percentile Publications**, ranked among the most highly cited research works globally.
   - **Research Focus Domains**: Advanced Composite Materials for Aerospace & Defence, Artificial Intelligence, Generative AI, Robotics, Smart Farming, and Nanotechnology.

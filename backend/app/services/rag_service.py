@@ -82,7 +82,7 @@ ABOUT_SRU_QUERIES = (
 ABOUT_SRU_ANGLES = [
     "1. Placements & Career Launchpad (6 LPA avg, 51 LPA Microsoft, 49.3 LPA ServiceNow, 46.38 LPA Amazon, 1300+ offers, top MNCs)",
     "2. Innovation, Startups & Entrepreneurship (SRiX DST-backed incubator, 171+ startups, ₹76+ Cr funding, MakerSpace)",
-    "3. Research Excellence & Patent Powerhouse (6th in India Research Quality by THE 2027, 9,300+ papers, 2,900+ patents, 159 granted)",
+    "3. Research Excellence & Patent Powerhouse (6th in India Research Quality by THE, 9,300+ papers, 2,700+ patents, 159 granted)",
     "4. Accreditations, NIRF Rankings & UGC Recognition (NIRF 91st Engineering 4 years running, Tier-1 NBA all B.Tech, ICAR Agriculture, UGC 2(f))",
     "5. 170-Acre Master-Planned Campus Ecosystem (170-acre vast lush green campus in Warangal, next-gen architecture, Olympic gym, sports arenas)",
     "6. 50-Year Sri Rajeshwara Educational Legacy (185 institutions across TS/AP/KA, 1,00,000+ students, 17,000 staff, 5L+ alumni)",

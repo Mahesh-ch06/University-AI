@@ -18,6 +18,7 @@ import {
   ClockIcon,
   SruHostelIcon,
 } from "./Icons";
+import { ConcessionFeeCard, ConcessionsTableCard, FeePlanCard } from "./FeePlanCards";
 import "./Cards.css";
 import "./ChatCards.css";
 
@@ -2313,6 +2314,12 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
       return <HostelFacilitiesCard card={card} onSelect={onSelect} />;
     case "calculate_fee":
       return <AgentFeeCard card={card} />;
+    case "get_special_concessions": // the concessions table: pick one and apply it to your fee
+      return <ConcessionsTableCard card={card} onSelect={onSelect} />;
+    case "concession_fee":
+      return <ConcessionFeeCard card={card} />;
+    case "fee_plan":
+      return <FeePlanCard card={card} />;
     case "request_counsellor_callback":
       return <AgentCallbackCard card={card} />;
     case "book_campus_visit": // older chats only

@@ -29,6 +29,9 @@ DURABLE_KEYS = ("name", "phone", "program_interest", "percent", "board", "board_
                 "last_active_at", "eapcet_rank", "jee_percentile", "ib_score", "city",
                 "is_parent", "language", "phone_saved", "last_lead_id", "last_lead_type",
                 "last_lead_key", "open_request",
+                # False in a session started with "Start afresh": the name is on file for the contact form
+                # and callbacks, but the conversation does not address the student by it (v4.10.0)
+                "address_by_name",
                 # admission journey (see sru_agent/journey.py)
                 "stream", "marks_confirmed", "degree_percent", "no_entrance", "academic_conv", "saved_academic",
                 "saved_academic_conv")

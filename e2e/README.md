@@ -16,5 +16,6 @@ Playwright with Chromium must be installed (it is not a project dependency).
 ## Checks
 | Script | What it checks |
 |---|---|
-| `memory_journey.cjs <outdir> 390x844` | Conversation memory: refresh; back after 10 min / 2 h / 1 day; a question typed before choosing; continue; start a new chat; reopening; offline then retry; another student. "Time passing" is simulated by moving this session's saved message times back in PostgreSQL (`psql` must reach the database) |
+| `memory_journey.cjs <outdir> 390x844` | Conversation memory: refresh; back after 10 min / 2 h / 1 day; a question typed before choosing; continue; start a new chat (a new session since v4.10.0); reopening; offline then retry; another student. "Time passing" is simulated by moving this session's saved message times back in PostgreSQL (`psql` must reach the database) |
 | `cards_layout.cjs <outdir> <W>x<H> [portal\|widget]` | Sends messages that produce each card type and screenshots every answer. Reports elements wider than the chat, page sideways scroll, a hidden input and page errors (`MSGS="a\|b\|c"` overrides the messages) |
+| `v410_journey.cjs <outdir> <W>x<H>` | v4.10.0 (`docs/33`): A start afresh (new session ID, in-flight reply dropped, no old marks / name, reload); B "why SRU" twice gives new points; C ranking / NBA / a new question after a clarification; D concessions table → pick → one fee-with-concession card → fee chart with Share; fee with hostel → chart offer → chart; chips after a callback and "thanks" |

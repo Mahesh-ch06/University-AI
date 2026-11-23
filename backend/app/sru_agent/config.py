@@ -70,7 +70,8 @@ AGENT_KEY_COOLDOWN_SECONDS = float(os.getenv("AGENT_KEY_COOLDOWN_SECONDS", "45")
 AGENT_DAILY_LIMIT_COOLDOWN = float(os.getenv("AGENT_DAILY_LIMIT_COOLDOWN", "3600"))
 # The same first question from different students (for example a suggestion button) is answered
 # from a saved copy for this many seconds instead of calling the model again. 0 switches it off.
-AGENT_ANSWER_CACHE_SECONDS = int(os.getenv("AGENT_ANSWER_CACHE_SECONDS", "21600"))
+# No longer used: the agent does not cache answers (v4.10.0). Kept so older settings and tests still load.
+AGENT_ANSWER_CACHE_SECONDS = int(os.getenv("AGENT_ANSWER_CACHE_SECONDS", "0"))
 
 REDIS_URL = os.getenv("REDIS_URL") or _default_redis
 
