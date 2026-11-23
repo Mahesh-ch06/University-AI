@@ -116,7 +116,7 @@ def test_btech_complete_fee_structure_shows_pure_academic_fees():
     """Verify general B.Tech fee query returns all engineering branch tuitions, strictly NO hostel or transport."""
     from app.services.card_service import BTECH_ACADEMIC_FEE_CARD
     cards = generate_cards(
-        user_message="What is the complete fee structure and merit scholarship details for B.Tech?",
+        user_message="Show me the complete fee structure for all B.Tech branches",
         answer="B.Tech tuition fees vary by branch: CSE is ₹3,40,000/yr, ECE is ₹2,70,000/yr, and Core is ₹2,00,000/yr.",
     )
     assert len(cards) == 1

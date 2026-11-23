@@ -92,6 +92,18 @@ def find_program(text: str):
     return None
 
 
+_SHORT_NAMES = {"btech_cse": "B.Tech CSE", "btech_ece": "B.Tech ECE", "btech_eee": "B.Tech EEE",
+                "btech_mech": "B.Tech Mechanical", "btech_civil": "B.Tech Civil",
+                "btech_ai_robotics": "B.Tech AI & Robotics", "bsc_agri": "B.Sc Agriculture", "bba": "BBA",
+                "mba": "MBA", "bca": "BCA", "mca": "MCA", "bcom": "B.Com", "bdes": "B.Des", "mtech": "M.Tech",
+                "msc": "M.Sc"}
+
+
+def short_name(key: str) -> str:
+    """'B.Tech CSE' for chips and short sentences (clean_program_name gives the full official name)."""
+    return _SHORT_NAMES.get(key) or clean_program_name(key)
+
+
 def _is_generic_btech(text: str) -> bool:
     t = _normalise(text)
     return " btech " in t or " engineering " in t

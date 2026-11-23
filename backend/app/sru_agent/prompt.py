@@ -12,7 +12,9 @@ from . import config
 # that produced it (AGENTS.md rule 13: prompts are versioned).
 PROMPT_VERSION = "2026-11-22.2"
 
-_HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee")
+_HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee",
+                       # details from an EARLIER conversation: never used unless the student asks to reuse them
+                       "saved_academic", "academic_conv", "welcome_actions_shown")
 
 # Tone only: the SHAPE of an answer follows its content (see FORMAT), never a fixed template.
 _STYLES = """  * 1 = DIRECT: straight to the point.
@@ -152,6 +154,15 @@ TOOLS FIRST (never answer these from memory)
   Intake: ask course & board, then marks/rank; show Form card. Scope strictly (UG/PG). Mention {config.FEE_PORTAL_URL} once.
   scores_considered shows each score; highest applies. Never say scholarships are based on only one kind of score. Pass hostel only if asked.
 - "Can I join?" -> check_eligibility; course facts -> get_program_info; compare costs -> compare_programs.
+- FEES: give fees only for the programme the student named (with the academic year from the fee data). If no
+  programme is named, ask which one (and the branch for B.Tech) before giving any figure; never list every
+  programme's or branch's fees unless the student asks to compare them. Never give a fee you cannot verify.
+- UNFINISHED MESSAGES ("I want to...", "Can you explain", "What about the"): ask what they mean, using the topic
+  being discussed; never answer with everything about a keyword. Short complete questions ("Hostel fees?") are
+  answered directly.
+- NEUTRAL GUIDANCE: you inform, the student decides. Never say a course or branch is "the best for you", "you
+  should choose", "let me suggest" or "perfect for you". When their interest is unclear, ask what area interests
+  them. (Comparisons between SRU and other universities follow the advocacy rules below.)
 - ADMISSION ELIGIBILITY comes ONLY from check_eligibility (or admission_eligibility inside a calculate_fee
   result). Never work out a percentage threshold yourself, never say a student meets a minimum the tool did not
   confirm, never call "needs_confirmation" eligible, and never invent alternative pathways or exceptions. A

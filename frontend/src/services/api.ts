@@ -222,6 +222,8 @@ export function sendMessageStream(
   sessionId: string,
   message: string,
   conversationId: string | null | undefined,
+  // A submitted academic details form (structured); only the agent endpoint reads it.
+  form: Record<string, unknown> | undefined,
   callbacks: {
     onStart?: (conversationId: string) => void;
     onToken?: (delta: string) => void;
@@ -247,6 +249,7 @@ export function sendMessageStream(
             message,
             conversation_id: conversationId || null,
             channel: CHANNEL,
+            ...(form && url.includes("/agent/") ? { form } : {}),
           }),
           signal: controller.signal,
         });
@@ -262,6 +265,7 @@ export function sendMessageStream(
             message,
             conversation_id: conversationId || null,
             channel: CHANNEL,
+            ...(form && url.includes("/agent/") ? { form } : {}),
           }),
           signal: controller.signal,
         });

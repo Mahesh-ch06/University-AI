@@ -1,198 +1,112 @@
-"""Tests for the Enhanced SRU Buddy Scholarship & Fee Counselling Workflow.
+"""Tests for the SRU Buddy Scholarship & Fee Counselling Workflow (v4.6.0: one journey, nothing re-asked).
 
 Verifies:
-1. Entry trigger and opening message on scholarship inquiries.
-2. Step 1: Academic board selection card and natural acknowledgment.
-3. Step 2: Academic stage branching:
-   - Branch A: Intermediate 1st Year (max marks 470 for TS/AP, projected)
-   - Branch B: Intermediate 2nd Year (preliminary assessment, max 470, projected)
-   - Branch C: Completed Intermediate (actual final score, max 1000, not projected)
-4. Step 3: Admission route selection (TG EAPCET, AP EAPCET, JEE Main, SRSAT, Not decided yet).
-5. Step 4: Programme selection (PG programmes ask the degree % instead of board / year / marks).
-6. Step 5: Admission route and optional entrance score (B.Tech / B.Sc Agriculture only).
-7. Step 6: Final structured counsellor assessment and fee details presentation.
-8. Anti-repetition rule: Never re-asking for information already collected.
-9. Re-query handling: Reusing existing details with "Thanks! I already have your academic details."
-10. Single-shot query completion without redundant questions.
+1. Programme first (scholarship rules and entrance options differ by programme).
+2. Two or more of board / status / marks missing -> ONE consolidated academic details form, pre-filled.
+3. Exactly one missing -> only that field (existing board / status / marks card); typed answers after the form
+   continue field by field instead of showing the whole form again.
+4. Status branching for marks: 1st / 2nd year use 1st-year marks out of 470 (TS/AP, projected); completed uses
+   the final score out of 1000.
+5. Entrance score is optional: "Add my EAPCET rank" asks only that, then recalculates.
+6. Final structured assessment; anti-repetition; re-query wording; single-shot completion.
 """
 import pytest
 from app.sru_agent import agent, fee_intake, fees
 
 
-def test_counsellor_entry_on_scholarship_query():
-    """Asking about scholarships triggers guided counselling with opening message and Board card."""
-    res = fee_intake.decide("Tell me about scholarships for B.Tech", profile={}, intake={})
-    assert res is not None
-    assert res["action"] == "ask"
-    assert res["state"]["waiting_for"] == "board"
+def test_counsellor_entry_asks_programme_first():
+    res = fee_intake.decide("Calculate my scholarship", profile={}, intake={})
+    assert res["action"] == "ask" and res["state"]["waiting_for"] == "program"
     assert res["state"]["counsellor_mode"] is True
-    assert "Absolutely! I can help you understand your potential scholarship" in res["text"]
-    assert "I'll guide you through a few quick questions" in res["text"]
-    assert "Where did you complete your schooling / Intermediate education?" in res["text"]
-    assert len(res["cards"]) == 1
-    assert res["cards"][0]["type"] == "counsellor_board_selection"
-    assert len(res["chips"]) >= 5
-    assert any("TSBIE" in chip for chip in res["chips"])
-    assert any("CBSE" in chip for chip in res["chips"])
+    assert "Which programme would you like the scholarship details for?" in res["text"]
+    generic = fee_intake.decide("Tell me about scholarships for B.Tech", profile={}, intake={})
+    assert generic["state"]["waiting_for"] == "program"
+    assert "Which B.Tech branch" in generic["text"]
 
 
-def test_counsellor_step1_board_selection_advances_to_stage():
-    """Selecting board records board and presents Academic Stage card with natural acknowledgment."""
-    intake = {"counsellor_mode": True, "waiting_for": "board"}
-    res = fee_intake.decide("Telangana Intermediate (TSBIE)", profile={}, intake=intake)
-    assert res is not None
-    assert res["action"] == "ask"
-    assert res["state"]["waiting_for"] == "stage"
-    assert res["state"]["board"] == "state_board"
-    assert res["state"]["board_key"] == "ts_state_board"
-    assert "Great! You've selected Telangana Intermediate (TSBIE)" in res["text"]
-    assert "Which year are you currently studying in?" in res["text"]
-    assert len(res["cards"]) == 1
-    assert res["cards"][0]["type"] == "counsellor_stage_selection"
-    assert any("1st Year" in chip for chip in res["chips"])
-    assert any("2nd Year" in chip for chip in res["chips"])
-    assert any("Completed" in chip for chip in res["chips"])
+def test_counsellor_nothing_known_shows_one_prefillable_form():
+    res = fee_intake.decide("Calculate my scholarship for B.Tech CSE", profile={}, intake={}, first_name="Mahesh")
+    assert res["action"] == "ask" and res["state"]["waiting_for"] == "form"
+    assert "Absolutely, Mahesh! I can help you understand the scholarship details for **B.Tech CSE**" in res["text"]
+    assert [c["type"] for c in res["cards"]] == ["academic_details_form"]
+    card = res["cards"][0]
+    assert card["mode"] == "scholarship" and card["program"] == "btech_cse"
+    assert card["show_entrance"] is True                 # B.Tech: optional EAPCET / JEE score
+    assert card["show_stream"] is True                   # MPC not known yet
+    assert card["max_marks_table"]["ts_state_board"] == {"1st_year": 470, "2nd_year": 470, "completed": 1000}
+
+
+def test_counsellor_reuses_marks_and_group_asks_only_the_missing_fields():
+    """After an eligibility check (marks + MPC known), board and status are missing: one form, marks kept."""
+    profile = {"raw_marks": 670.0, "max_marks": 1000.0, "percent": 67.0, "stream": "MPC", "program_interest": "btech_cse"}
+    res = fee_intake.decide("I want to know about the scholarship for B.Tech CSE", profile=profile, intake={})
+    assert res["state"]["waiting_for"] == "form"
+    assert "I'll use the details you've already shared (670/1000 (67%), MPC)" in res["text"]
+    values = res["cards"][0]["values"]
+    assert values["raw_marks"] == 670.0 and values["max_marks"] == 1000.0 and values["stream"] == "MPC"
+    assert res["cards"][0]["show_stream"] is False
+    # Board typed instead of using the form: only the status is asked next (no second form)
+    nxt = fee_intake.decide("Telangana Intermediate (TSBIE)", profile=profile, intake=res["state"])
+    assert nxt["state"]["waiting_for"] == "stage"
+    assert [c["type"] for c in nxt["cards"]] == ["counsellor_stage_selection"]
+    assert "marks" not in nxt["text"].lower().split("status")[0]  # marks are not asked again
+    done = fee_intake.decide("Completed Intermediate (Passed out)", profile=profile, intake=nxt["state"])
+    assert done["action"] == "calculate" and done["args"]["percent"] == 67.0
+
+
+def test_counsellor_only_board_missing_asks_board_alone():
+    profile = {"raw_marks": 900.0, "max_marks": 1000.0, "percent": 90.0, "academic_stage": "completed",
+               "stage_label": "Completed Intermediate (Passed out)"}
+    res = fee_intake.decide("Calculate my scholarship for B.Tech CSE", profile=profile, intake={})
+    assert res["state"]["waiting_for"] == "board"
+    assert [c["type"] for c in res["cards"]] == ["counsellor_board_selection"]
+    assert "slabs differ between State Board and CBSE / ICSE" in res["text"]
+
+
+def _marks_step(stage_text):
+    intake = {"counsellor_mode": True, "waiting_for": "stage", "program": "btech_cse", "board": "state_board",
+              "board_key": "ts_state_board", "board_label": "Telangana Intermediate (TSBIE)"}
+    return fee_intake.decide(stage_text, profile={}, intake=intake)
 
 
 def test_counsellor_stage_branching_1st_year():
-    """Branch A: 1st Year asks for 1st-year marks out of 470 for TS Intermediate."""
-    intake = {
-        "counsellor_mode": True,
-        "waiting_for": "stage",
-        "board": "state_board",
-        "board_key": "ts_state_board",
-        "board_label": "Telangana Intermediate (TSBIE)",
-    }
-    res = fee_intake.decide("Intermediate 1st Year (11th)", profile={}, intake=intake)
-    assert res is not None
-    assert res["action"] == "ask"
-    assert res["state"]["waiting_for"] == "marks"
-    assert res["state"]["academic_stage"] == "1st_year"
+    res = _marks_step("Intermediate 1st Year (11th)")
+    assert res["state"]["waiting_for"] == "marks" and res["state"]["academic_stage"] == "1st_year"
     assert res["state"]["is_projected"] is True
-    assert "studying Intermediate 1st Year under Telangana Intermediate (TSBIE)" in res["text"]
-    assert len(res["cards"]) == 1
-    assert res["cards"][0]["type"] == "counsellor_marks_input"
-    assert res["cards"][0]["max_marks"] == 470
+    assert "1st-year marks (used for a preliminary estimate)" in res["text"]
+    assert res["cards"][0]["type"] == "counsellor_marks_input" and res["cards"][0]["max_marks"] == 470
 
 
 def test_counsellor_stage_branching_2nd_year():
-    """Branch B: 2nd Year asks for completed 1st-year marks for preliminary assessment (max 470)."""
-    intake = {
-        "counsellor_mode": True,
-        "waiting_for": "stage",
-        "board": "state_board",
-        "board_key": "ts_state_board",
-        "board_label": "Telangana Intermediate (TSBIE)",
-    }
-    res = fee_intake.decide("Intermediate 2nd Year (12th)", profile={}, intake=intake)
-    assert res is not None
-    assert res["action"] == "ask"
-    assert res["state"]["waiting_for"] == "marks"
-    assert res["state"]["academic_stage"] == "2nd_year"
-    assert res["state"]["is_projected"] is True
-    assert "preliminary assessment" in res["text"]
-    assert len(res["cards"]) == 1
-    assert res["cards"][0]["type"] == "counsellor_marks_input"
+    res = _marks_step("Intermediate 2nd Year (12th)")
+    assert res["state"]["academic_stage"] == "2nd_year" and res["state"]["is_projected"] is True
     assert res["cards"][0]["max_marks"] == 470
 
 
 def test_counsellor_stage_branching_completed():
-    """Branch C: Completed Intermediate asks for actual final score out of 1000."""
-    intake = {
-        "counsellor_mode": True,
-        "waiting_for": "stage",
-        "board": "state_board",
-        "board_key": "ts_state_board",
-        "board_label": "Telangana Intermediate (TSBIE)",
-    }
-    res = fee_intake.decide("Completed Intermediate (Passed out)", profile={}, intake=intake)
-    assert res is not None
-    assert res["action"] == "ask"
-    assert res["state"]["waiting_for"] == "marks"
-    assert res["state"]["academic_stage"] == "completed"
-    assert res["state"]["is_projected"] is False
-    assert "actual final examination marks" in res["text"]
-    assert len(res["cards"]) == 1
-    assert res["cards"][0]["type"] == "counsellor_marks_input"
+    res = _marks_step("Completed Intermediate (Passed out)")
+    assert res["state"]["academic_stage"] == "completed" and res["state"]["is_projected"] is False
+    assert "final Intermediate / 12th marks" in res["text"]
     assert res["cards"][0]["max_marks"] == 1000
 
 
-def test_counsellor_step3_marks_input_advances_to_programme():
-    """Entering 1st year marks (430 out of 470) calculates percent (91.49%) and, with no programme known yet,
-    asks the programme next (before any entrance-route question, which only B.Tech / B.Sc Agri need)."""
-    intake = {
-        "counsellor_mode": True,
-        "waiting_for": "marks",
-        "board": "state_board",
-        "board_key": "ts_state_board",
-        "board_label": "Telangana Intermediate (TSBIE)",
-        "academic_stage": "1st_year",
-        "stage_label": "Intermediate 1st Year (11th)",
-        "is_projected": True,
-    }
-    res = fee_intake.decide("430 out of 470", profile={}, intake=intake)
-    assert res is not None
-    assert res["action"] == "ask"
-    assert res["state"]["waiting_for"] == "program"
-    assert res["state"]["raw_marks"] == 430
-    assert res["state"]["max_marks"] == 470
-    assert res["state"]["percent"] == 91.49
-    assert "Which programme are you interested in?" in res["text"]
-    assert "for B.Tech" not in res["text"]
-    # The marks compliment is shown once, here, with the score bolded once
-    assert "**430/470 (91.49%)**" in res["text"] and "****" not in res["text"]
-    assert res["state"]["ack_shown"] is True
-    assert res["cards"][0]["type"] == "counsellor_program_selection"
-    assert res["cards"][0]["step_label"] == "Step 4: Preferred Programme"
-
-
-def test_counsellor_programme_then_route_then_rank_to_calculation():
-    """Programme -> route (B.Tech only) -> optional rank -> calculate action."""
-    intake = {
-        "counsellor_mode": True,
-        "waiting_for": "program",
-        "board": "state_board",
-        "board_key": "ts_state_board",
-        "board_label": "Telangana Intermediate (TSBIE)",
-        "academic_stage": "1st_year",
-        "stage_label": "Intermediate 1st Year (11th)",
-        "raw_marks": 430,
-        "max_marks": 470,
-        "percent": 91.49,
-        "is_projected": True,
-        "ack_shown": True,
-    }
-    r_subj = fee_intake.decide("B.Tech CSE", profile={}, intake=intake)
-    # B.Tech requires MPC: the 10+2 subjects are asked once, before the route
-    assert r_subj["action"] == "ask"
-    assert r_subj["state"]["waiting_for"] == "stream"
-    assert "MPC" in r_subj["text"]
-
-    r_prog = fee_intake.decide("MPC (Maths, Physics, Chemistry)", profile={}, intake=r_subj["state"])
-    assert r_prog["action"] == "ask"
-    assert r_prog["state"]["stream"] == "MPC"
-    assert r_prog["state"]["waiting_for"] == "route"
-    assert "Which admission route are you planning to use for B.Tech" in r_prog["text"]
-    assert "Outstanding" not in r_prog["text"]  # compliment already shown on the previous step
-    assert r_prog["cards"][0]["type"] == "counsellor_route_selection"
-    assert r_prog["cards"][0]["step_label"] == "Step 5: Admission Route"
-    assert any("TG EAPCET" in chip for chip in r_prog["chips"])
-    assert any("Not decided" in chip for chip in r_prog["chips"])
-
-    r_route = fee_intake.decide("TG EAPCET", profile={}, intake=r_prog["state"])
-    assert r_route["action"] == "ask"
-    assert r_route["state"]["waiting_for"] == "rank"
-    assert "TG EAPCET rank" in r_route["text"]
-
-    r_rank = fee_intake.decide("15000", profile={}, intake=r_route["state"])
-    assert r_rank["action"] == "calculate"
-    assert r_rank["counsellor"] is True
-    assert r_rank["args"]["program"] == "btech_cse"
-    assert r_rank["args"]["percent"] == 91.49
-    assert r_rank["args"]["eapcet_rank"] == 15000
-    assert r_rank["counsellor_details"]["is_projected"] is True
-    assert r_rank["counsellor_details"]["ack_shown"] is True
-    assert r_rank["counsellor_details"]["re_query"] is False
+def test_counsellor_all_known_calculates_and_entrance_is_optional():
+    """Everything known -> calculate at once; an EAPCET rank can be added afterwards, reusing the rest."""
+    intake = {"counsellor_mode": True, "waiting_for": "marks", "program": "btech_cse", "board": "state_board",
+              "board_key": "ts_state_board", "board_label": "Telangana Intermediate (TSBIE)",
+              "academic_stage": "1st_year", "stage_label": "Intermediate 1st Year (11th)", "is_projected": True,
+              "stream": "MPC"}
+    r = fee_intake.decide("430 out of 470", profile={}, intake=intake)
+    assert r["action"] == "calculate" and r["args"]["percent"] == 91.49
+    assert r["counsellor_details"]["uses_entrance"] is True
+    assert r["counsellor_details"]["has_entrance_score"] is False
+    add = fee_intake.decide("Add my EAPCET rank", profile={}, intake=r["state"])
+    assert add["action"] == "ask" and add["state"]["waiting_for"] == "rank"
+    assert "What is your TG EAPCET rank?" in add["text"]
+    again = fee_intake.decide("15000", profile={}, intake=add["state"])
+    assert again["action"] == "calculate"
+    assert again["args"]["eapcet_rank"] == 15000 and again["args"]["percent"] == 91.49
+    assert again["counsellor_details"]["has_entrance_score"] is True
 
 
 def test_counsellor_non_entrance_programme_skips_route():
@@ -308,7 +222,7 @@ def test_counsellor_result_formatting_projected_vs_completed():
     assert "### Your Scholarship Assessment" in proj_text
     assert "• **Academic Qualification**: Telangana Intermediate (TSBIE) (Intermediate 1st Year (11th))" in proj_text
     assert "• **Academic Score**: 430/470 (91.49%)" in proj_text
-    assert "• **Admission Route**: TG EAPCET (Rank: 15,000)" in proj_text
+    assert "• **Entrance Score**: TG EAPCET (Rank: 15,000)" in proj_text
     assert "### Your Fee Details" in proj_text
     assert "• **Original Tuition Fee**: ₹3,40,000 per year" in proj_text
     assert "Tuition Waiver" in proj_text
@@ -390,28 +304,23 @@ def test_counsellor_re_query_handling():
 
 
 def test_counsellor_program_already_known_skips_program_step():
-    """If user specifies 'What is the scholarship for B.Tech CSE?' programme is remembered and skipped."""
+    """'What is the scholarship for B.Tech CSE?': the programme is remembered and never asked again."""
     r1 = fee_intake.decide("What is the scholarship for B.Tech CSE?", profile={}, intake={})
-    assert r1 is not None
     assert r1["state"]["program"] == "btech_cse"
-    assert r1["state"]["waiting_for"] == "board"
+    assert r1["state"]["waiting_for"] == "form"          # board, status and marks all missing: one form
+    assert "Which programme" not in r1["text"]
 
     r2 = fee_intake.decide("CBSE", profile={}, intake=r1["state"])
-    assert r2["state"]["waiting_for"] == "stage"
+    assert r2["state"]["waiting_for"] == "stage"         # typed instead of the form: next field only
 
     r3 = fee_intake.decide("Completed Intermediate (Passed out)", profile={}, intake=r2["state"])
     assert r3["state"]["waiting_for"] == "marks"
 
-    r4a = fee_intake.decide("92%", profile={}, intake=r3["state"])
-    assert r4a["state"]["waiting_for"] == "stream"
-    r4 = fee_intake.decide("MPC", profile={}, intake=r4a["state"])
-    assert r4["state"]["waiting_for"] == "route"
-
-    r5 = fee_intake.decide("Not decided yet", profile={}, intake=r4["state"])
-    assert r5 is not None
-    assert r5["action"] == "calculate"
-    assert r5["args"]["program"] == "btech_cse"
-    assert r5["args"]["percent"] == 92.0
+    r4 = fee_intake.decide("92%", profile={}, intake=r3["state"])
+    assert r4["action"] == "calculate"
+    assert r4["args"]["program"] == "btech_cse"
+    assert r4["args"]["percent"] == 92.0
+    assert r4["args"]["board"] == "cbse"
 
 
 def test_counsellor_bipc_student_for_btech_is_told_clearly():

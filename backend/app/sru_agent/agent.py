@@ -30,7 +30,8 @@ except ImportError:
     genai = None
     types = None
 
-from . import affordability, config, dialogue, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
+from . import affordability, config, dialogue, eligibility, journey, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
+from app.services import card_service
 from . import fact_service, policy_engine, policy_models, policy_service, semantic_router, observability
 from .prompt import build_system_prompt
 
@@ -657,8 +658,8 @@ def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
     lines.append("### Your Scholarship Assessment")
     lines.append(f"• **Academic Qualification**: {qual_str}")
     lines.append(f"• **Academic Score**: {score_str}")
-    if not is_pg:
-        lines.append(f"• **Admission Route**: {route_str}")
+    if not is_pg and (details.get("uses_entrance") or details.get("eapcet_rank") or details.get("jee_percentile")):
+        lines.append(f"• **Entrance Score**: {route_str}")
     lines.append(f"• **Selected Programme**: {prog_name}")
     lines.append(f"• **Matching Scholarship Category**: {matching_cat}\n")
 
@@ -682,6 +683,9 @@ def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
                      "this is an estimated scholarship. Final scholarship will be confirmed upon submission of "
                      "complete 10+2 academic transcripts and entrance scorecard.")
 
+    if details.get("uses_entrance") and not details.get("has_entrance_score") and not is_pg:
+        lines.append("\nThis estimate uses your Intermediate marks. If you have a TG / AP EAPCET rank or a JEE Main "
+                     "percentile, share it and I'll check whether it gives a higher scholarship (only the best one applies).")
     lines.append(f"\nYou can also verify your scholarship on our official calculator: {fee_intake.FEE_PORTAL_URL}")
     return "\n".join(lines)
 
@@ -1600,6 +1604,81 @@ def _cache_key(message: str) -> str:
     return "sru:answer:" + hashlib.sha1(" ".join(norm.split()).encode()).hexdigest()
 
 
+def _natural_first_name(profile: dict, history: list) -> str | None:
+    """The student's first name when using it now would read naturally: never invented, and not when one of
+    the last two replies already used it (so it is not forced into every message)."""
+    first = _first_name(str(profile.get("name") or "").strip())
+    if not first or not first.isalpha():
+        return None
+    first = first[:1].upper() + first[1:]
+    recent = [h.get("text", "") for h in history if h.get("role") in ("model", "assistant")][-2:]
+    if any(re.search(rf"\b{re.escape(first)}\b", t, re.IGNORECASE) for t in recent):
+        return None
+    return first
+
+
+_USE_SAVED = re.compile(r"^\s*(?:yes,?\s*)?use\s+my\s+saved\s+details\b", re.IGNORECASE)
+
+
+def _read_academic_form(form: dict, profile: dict) -> tuple[dict, list[str], str | None, str]:
+    """Validate a submitted academic details form. Returns (profile updates, problems, programme, mode).
+    Every value is checked against the options the form offers; nothing is guessed."""
+    updates, problems = {}, []
+    mode = "scholarship" if form.get("mode") == "scholarship" else "eligibility"
+    program = form.get("program")
+    if program not in fees.load_data()["programs"]:
+        program = None
+    board = journey.board_fields(form.get("board_key"))
+    if board:
+        updates.update(board)
+    else:
+        problems.append("select your education board")
+    stage = journey.stage_fields(form.get("academic_stage"))
+    if stage:
+        updates.update(stage)
+    else:
+        problems.append("select your current academic status")
+
+    def _number(value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    raw, total = _number(form.get("raw_marks")), _number(form.get("max_marks"))
+    if board.get("board_key") == "ib":
+        if raw is not None and 0 < raw <= 45:
+            updates.update(ib_score=int(raw), raw_marks=raw, max_marks=45.0, marks_confirmed=True)
+        else:
+            problems.append("enter your IB Diploma points (out of 45)")
+    elif raw is None or total is None or total <= 0 or raw <= 0 or raw > total:
+        problems.append("enter your marks and the total they are out of (the marks cannot be more than the total)")
+    else:
+        updates.update(raw_marks=raw, max_marks=total, percent=round(raw / total * 100, 2), marks_confirmed=True)
+
+    stream = form.get("stream")
+    if stream in ("MPC", "BiPC", "MEC"):
+        updates["stream"] = stream
+    elif form.get("show_stream"):
+        problems.append("select your 10+2 / Intermediate group")
+
+    kind, value = form.get("entrance_type"), _number(form.get("entrance_value"))
+    if kind in ("tg_eapcet", "ap_eapcet"):
+        if value is not None and 1 <= value <= 500000:
+            updates.update(admission_route=kind, route_label="TG EAPCET" if kind == "tg_eapcet" else "AP EAPCET",
+                           eapcet_rank=int(value), no_entrance=None)
+        else:
+            problems.append("enter your EAPCET rank (a whole number)")
+    elif kind == "jee_main":
+        if value is not None and 0 <= value <= 100:
+            updates.update(admission_route="jee_main", route_label="JEE Main", jee_percentile=value, no_entrance=None)
+        else:
+            problems.append("enter your JEE Main percentile (0 to 100)")
+    elif kind == "none":
+        updates["no_entrance"] = True
+    return updates, problems, program, mode
+
+
 # -------------------------------------------------------------------- the agent ----
 def _is_mock_or_test_client(cl) -> bool:
     return cl is not None and type(cl).__name__ in (
@@ -1614,8 +1693,10 @@ async def run_agent(
     conversation_id=None,
     client=None,
     require_contact_details: bool = False,
+    form: dict | None = None,
 ):
-    """Async generator of events for one student message."""
+    """Async generator of events for one student message.
+    form: a submitted academic details form (structured; see _read_academic_form)."""
     started = time.perf_counter()
     message = (message or "").strip()[:config.AGENT_MAX_MESSAGE_CHARS]
     yield {"type": "start", "conversation_id": conversation_id}
@@ -1634,7 +1715,10 @@ async def run_agent(
     profile, history, conv_state = await asyncio.gather(
         memory.get_profile(session_id), memory.get_history(session_id, conversation_id),
         memory.get_conversation_state(session_id, conversation_id))
+    # Academic details belong to one conversation: a new chat starts clean (journey.py).
+    profile = await journey.scope_profile(session_id, conversation_id, profile, conv_state)
     ctx = {"session_id": session_id, "conversation_id": conversation_id, "profile": profile}
+    natural_name = _natural_first_name(profile, history)
 
     if require_contact_details:
         existing_phone = tools.clean_phone(profile.get("phone") or "")
@@ -1658,6 +1742,60 @@ async def run_agent(
                 yield ev
             return
 
+    # ---- Academic details form submitted: validate, store as this conversation's details, then continue as
+    # the request the form was for, so eligibility / scholarship are evaluated by the usual code. ----------
+    if form:
+        updates, problems, form_program, form_mode = _read_academic_form(form, profile)
+        form_program = form_program or conv_state.get("active_program") or profile.get("program_interest")
+        if problems or not form_program:
+            # Nothing is saved from a form with problems; it comes back with exactly what was entered.
+            if not form_program:
+                problems.append("choose the programme first")
+            entered = {**profile, **{k: v for k, v in form.items() if v not in (None, "")}}
+            if form.get("entrance_type") in ("tg_eapcet", "ap_eapcet"):
+                entered.update(eapcet_rank=form.get("entrance_value"), admission_route=form.get("entrance_type"))
+            elif form.get("entrance_type") == "jee_main":
+                entered.update(jee_percentile=form.get("entrance_value"))
+            card = card_service.build_academic_details_form(
+                form_mode, form_program, fees.short_name(form_program) if form_program else None, entered,
+                show_stream=bool(form.get("show_stream")), show_entrance=bool(form.get("show_entrance")))
+            text = "Almost there! Please " + "; ".join(problems) + ", then submit again."
+            async for ev in _say(text, message, session_id, conversation_id, cards=[card]):
+                yield ev
+            return
+        clean = {k: v for k, v in updates.items() if v is not None}
+        if clean:
+            profile = await memory.update_profile(session_id, **clean)
+        if "no_entrance" in updates and updates["no_entrance"] is None and profile.pop("no_entrance", None):
+            await memory.replace_profile(session_id, profile)  # an entrance score was given after all
+        ctx["profile"] = profile
+        fresh_intake = {"counsellor_mode": True, "program": form_program, "turns": 1, "waiting_for": "form",
+                        "ack_shown": bool((conv_state.get("fee_intake") or {}).get("ack_shown"))}
+        await memory.update_conversation_state(session_id, conversation_id, active_program=form_program,
+                                               fee_intake=fresh_intake if form_mode == "scholarship" else None)
+        conv_state["active_program"] = form_program
+        conv_state["fee_intake"] = fresh_intake if form_mode == "scholarship" else None
+        full_name = fees.clean_program_name(form_program)
+        message = (f"Calculate my scholarship for {full_name}" if form_mode == "scholarship"
+                   else f"Am I eligible for {full_name}?")
+
+    if _USE_SAVED.match(message) and profile.get("saved_academic"):
+        profile = await journey.restore_saved(session_id, profile)
+        ctx["profile"] = profile
+        pending_prog = (conv_state.get("dialogue") or {}).get("program") or conv_state.get("active_program")
+        intake_wait = (conv_state.get("fee_intake") or {}).get("waiting_for")
+        if pending_prog and intake_wait and (conv_state.get("fee_intake") or {}).get("counsellor_mode"):
+            message = f"Calculate my scholarship for {fees.clean_program_name(pending_prog)}"
+        elif pending_prog:
+            message = f"Am I eligible for {fees.clean_program_name(pending_prog)}?"
+        else:
+            text = (f"Done! I'll use your saved details ({journey.saved_summary(profile)}) in this chat. "
+                    "What would you like to check?")
+            async for ev in _say(text, message, session_id, conversation_id,
+                                 suggestions=["Check my eligibility", "Calculate my scholarship"], exact_chips=True):
+                yield ev
+            return
+
     # ---- Conversation manager (no AI call): broad topics -> "which aspect?", the admission journey
     # (programme -> branch -> goal -> marks -> subjects -> verdict), and short follow-ups about the programme
     # being discussed. Specific questions pass through untouched. See dialogue.py.
@@ -1668,14 +1806,15 @@ async def run_agent(
                     or conv_state.get("fee_flow_state") in ("awaiting_school_selection", "awaiting_course_selection")
                     or conv_state.get("fee_tree_step"))
     intake_now = conv_state.get("fee_intake") or {}
-    if not dlg_busy and intake_now.get("waiting_for") and not (conv_state.get("dialogue") or {}).get("step"):
+    if not dlg_busy and intake_now.get("waiting_for") not in (None, "done") \
+            and not (conv_state.get("dialogue") or {}).get("step"):
         try:  # the fee intake is waiting for an answer and this message is one: let it continue
             dlg_busy = fee_intake.decide(message, profile, dict(intake_now)) is not None
         except Exception:
             dlg_busy = False
     if not dlg_busy and not tools.find_phone(message) and not intents.is_callback_request(message) \
             and not intents.is_cancel_contact(message, bool(profile.get("last_lead_id"))):
-        dlg = dialogue.decide(message, conv_state, profile)
+        dlg = dialogue.decide(message, conv_state, profile, name=natural_name)
         if dlg:
             new_dialogue = dlg.get("state")
             if new_dialogue is not None:
@@ -1688,6 +1827,7 @@ async def run_agent(
                 ctx["profile"] = profile
             if dlg["kind"] == "reply":
                 async for ev in _say(dlg["text"], message, session_id, conversation_id,
+                                     cards=dlg.get("cards") or [],
                                      suggestions=dlg.get("chips") or [], exact_chips=True,
                                      eligible=dlg.get("eligible")):
                     yield ev
@@ -1760,7 +1900,6 @@ async def run_agent(
     if require_contact_details and not welcome_actions_shown and existing_name and existing_phone:
         await set_state(welcome_actions_shown=True)
         await memory.update_profile(session_id, welcome_actions_shown=True)
-        from app.services import card_service
         card_service.record_session_card(session_id, "welcome_actions")
         first_name = _first_name(existing_name)
         first_name = first_name[:1].upper() + first_name[1:]
@@ -2047,7 +2186,19 @@ async def run_agent(
 
     if intent == "FUTURE_YEAR_FEE_QUERY":
         await set_state(fee_intake=None)
-        async for ev in _say(_FUTURE_YEAR_FEE_TEXT, message, session_id, conversation_id,
+        text = _FUTURE_YEAR_FEE_TEXT
+        named = fees.find_program(message)
+        if named:
+            # The programme asked about: its latest verified figure, clearly labelled as 2027-28.
+            prog = fees.load_data()["programs"][named]
+            text = text.replace(
+                "\n\nWould you like the 2027-28 fees for a particular programme?",
+                f"\n\nThe latest verified figure for **{fees.clean_program_name(named)}** is the "
+                f"{config.ADMISSION_YEAR} tuition of **{fees.inr(prog['tuition_per_year'])} per year** "
+                f"(yearly increase for students admitted in {config.ADMISSION_YEAR}: "
+                f"{fees.inr(prog.get('yearly_increase', 0))}). Would you like the full {config.ADMISSION_YEAR} "
+                f"fee breakdown for it?")
+        async for ev in _say(text, message, session_id, conversation_id,
                              suggestions=_FUTURE_YEAR_FEE_CHIPS):
             yield ev
         return
@@ -2684,7 +2835,7 @@ async def run_agent(
 
         intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for")) and not is_multi_q
         if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (intake_in_progress or is_scholarship_calc_q or (is_bare_score_msg and client is None)):
-            intake_decision = fee_intake.decide(message, profile, intake_state)
+            intake_decision = fee_intake.decide(message, profile, intake_state, first_name=natural_name)
             if intake_decision and intake_decision["action"] == "ineligible":
                 await set_state(fee_intake=None)
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
@@ -2706,13 +2857,17 @@ async def run_agent(
                 fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
                 if fee_result.get("status") == "ok":
                     c_text = format_counsellor_assessment(fee_result, intake_decision.get("counsellor_details", {}))
-                    chips = ["Hostel fee details", "Campus visit", "Talk to an admission counsellor", "Explore other branches"]
+                    c_det = intake_decision.get("counsellor_details", {})
+                    if c_det.get("uses_entrance") and not c_det.get("has_entrance_score"):
+                        chips = ["Add my EAPCET rank", "Add my JEE Main percentile", "Hostel fee details", "How do I apply?"]
+                    else:
+                        chips = ["Hostel fee details", "How do I apply?", "Talk to an admission counsellor", "Campus visit"]
                     for ev in _tool_events("calculate_fee", fee_result):
                         yield ev
                     async for ev in _say(c_text, message, session_id, conversation_id,
                                          used=[{"name": "calculate_fee", "status": "ok", "is_action": False}],
                                          cards=[{"type": "calculate_fee", "data": fee_result}],
-                                         suggestions=chips,
+                                         suggestions=chips, exact_chips=True,
                                          eligible=counsellor_verdict(fee_result, intake_decision.get("counsellor_details", {})).get("eligible")):
                         yield ev
                     return
@@ -2733,7 +2888,7 @@ async def run_agent(
         # 3. Fallback check for fee intake ONLY if user wants to calculate fee
         if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (is_scholarship_calc_q or intake_in_progress):
             if not intake_decision:
-                intake_decision = fee_intake.decide(message, profile, intake_state)
+                intake_decision = fee_intake.decide(message, profile, intake_state, first_name=natural_name)
             if intake_decision and intake_decision["action"] == "ineligible":
                 await set_state(fee_intake=None)
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
@@ -2755,13 +2910,17 @@ async def run_agent(
                 fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
                 if fee_result.get("status") == "ok":
                     c_text = format_counsellor_assessment(fee_result, intake_decision.get("counsellor_details", {}))
-                    chips = ["Hostel fee details", "Campus visit", "Talk to an admission counsellor", "Explore other branches"]
+                    c_det = intake_decision.get("counsellor_details", {})
+                    if c_det.get("uses_entrance") and not c_det.get("has_entrance_score"):
+                        chips = ["Add my EAPCET rank", "Add my JEE Main percentile", "Hostel fee details", "How do I apply?"]
+                    else:
+                        chips = ["Hostel fee details", "How do I apply?", "Talk to an admission counsellor", "Campus visit"]
                     for ev in _tool_events("calculate_fee", fee_result):
                         yield ev
                     async for ev in _say(c_text, message, session_id, conversation_id,
                                          used=[{"name": "calculate_fee", "status": "ok", "is_action": False}],
                                          cards=[{"type": "calculate_fee", "data": fee_result}],
-                                         suggestions=chips,
+                                         suggestions=chips, exact_chips=True,
                                          eligible=counsellor_verdict(fee_result, intake_decision.get("counsellor_details", {})).get("eligible")):
                         yield ev
                     return

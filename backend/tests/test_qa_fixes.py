@@ -53,7 +53,9 @@ async def test_future_year_fee_intent_and_response():
     answer = events[-1]["answer"]
     
     assert "2027–28 academic year" in answer or "2027-28" in answer
-    assert "₹9,000 per year" in answer
+    # No figure is invented for a later year, and the yearly increase is not presented as a universal rule
+    assert "not published yet" in answer
+    assert "₹9,000 per year" not in answer
     cards = [c.get("type") for c in events[-1].get("cards", []) if isinstance(c, dict)]
     assert "counsellor_board_selection" not in cards
 

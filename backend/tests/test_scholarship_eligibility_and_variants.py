@@ -13,16 +13,17 @@ import pytest
 from app.sru_agent import agent, fee_intake, fees
 
 
-def test_scholarship_query_starts_with_board():
-    """Asking 'Calculate my scholarship' without specifying a course starts at Step 1: Schooling / Board."""
+def test_scholarship_query_starts_with_programme():
+    """'Calculate my scholarship' without a course asks the programme first (rules differ by programme), then
+    collects board, status and marks in one form."""
     res = fee_intake.decide("Calculate my scholarship", profile={}, intake={})
-    assert res is not None
     assert res["action"] == "ask"
-    assert res["state"]["waiting_for"] == "board"
+    assert res["state"]["waiting_for"] == "program"
     assert res["state"]["counsellor_mode"] is True
-    assert len(res["cards"]) == 1
-    assert res["cards"][0]["type"] == "counsellor_board_selection"
-    assert "Where did you complete your schooling / Intermediate education?" in res["text"]
+    assert res["cards"][0]["type"] == "counsellor_program_selection"
+    nxt = fee_intake.decide("B.Tech CSE", profile={}, intake=res["state"])
+    assert nxt["state"]["waiting_for"] == "form"
+    assert nxt["cards"][0]["type"] == "academic_details_form"
 
 
 def test_scholarship_below_50_percent_rejected():

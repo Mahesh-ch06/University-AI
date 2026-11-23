@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { FormEvent } from "react";
 import { WELCOME_QUICK_ACTIONS } from "../data/welcomeQuickActions";
 import {
   ScaleIcon,
@@ -94,10 +95,10 @@ export function FeeBreakdownCard({ card }: CardProps) {
           <tbody>
             {items.map((item: any, idx: number) => (
               <tr key={idx}>
-                <td className="fee-category-cell">{item.category}</td>
-                <td className="fee-amount-cell">{item.amount}</td>
-                <td className="fee-frequency-cell">{item.frequency}</td>
-                <td className="fee-note-cell">{item.note}</td>
+                <td className="fee-category-cell" data-label="Fee Category">{item.category}</td>
+                <td className="fee-amount-cell" data-label="Amount">{item.amount}</td>
+                <td className="fee-frequency-cell" data-label="Frequency">{item.frequency}</td>
+                <td className="fee-note-cell" data-label="Details">{item.note}</td>
               </tr>
             ))}
           </tbody>
@@ -1402,7 +1403,7 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
   const baseTuition = selectedProg?.annual_tuition || 340000;
   const netTuition = Math.round(baseTuition * (1 - previewWaiver / 100));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!scoreInput.trim() && !rankInput.trim()) {
       setErrorMsg(isPg ? "Please enter your qualifying degree marks (%)." : "Please enter your marks (%) or entrance rank.");
@@ -1614,6 +1615,288 @@ export function deduplicateCards(cards: any[] | undefined | null): any[] {
     result.push(card);
   }
   return result;
+}
+
+export type AcademicFormPayload = {
+  mode: "eligibility" | "scholarship";
+  program?: string | null;
+  board_key?: string | null;
+  academic_stage?: string | null;
+  raw_marks?: number | null;
+  max_marks?: number | null;
+  stream?: string | null;
+  show_stream?: boolean;
+  show_entrance?: boolean;
+  entrance_type?: string | null;
+  entrance_value?: number | null;
+};
+
+/**
+ * One form for the academic details an admission journey needs: board -> current status -> marks
+ * (+ 10+2 group, + optional entrance score). Values already shared in this chat are pre-filled.
+ * Submitting sends the details as structured data; the agent validates and evaluates them.
+ */
+export function AcademicDetailsFormCard({
+  card,
+  onSelect,
+}: {
+  card: any;
+  onSelect?: (text: string, form?: AcademicFormPayload) => void;
+}) {
+  const v = card.values || {};
+  const boards: { key: string; label: string }[] = card.boards || [];
+  const stages: { key: string; label: string }[] = card.stages || [];
+  const streams: { key: string; label: string }[] = card.streams || [];
+  const entrances: { key: string; label: string }[] = card.entrances || [];
+  const maxTable: Record<string, Record<string, number>> = card.max_marks_table || {};
+
+  const [board, setBoard] = useState<string | null>(v.board_key || null);
+  const [stage, setStage] = useState<string | null>(v.academic_stage || null);
+  const [raw, setRaw] = useState<string>(v.raw_marks != null ? String(Number(v.raw_marks)) : "");
+  const [maxMarks, setMaxMarks] = useState<string>(v.max_marks != null ? String(Number(v.max_marks)) : "");
+  const [maxTouched, setMaxTouched] = useState<boolean>(v.max_marks != null);
+  const [stream, setStream] = useState<string | null>(v.stream || null);
+  const [entrance, setEntrance] = useState<string>(v.entrance_type || "none");
+  const [entranceValue, setEntranceValue] = useState<string>(v.entrance_value != null ? String(v.entrance_value) : "");
+  const [submitted, setSubmitted] = useState(false);
+
+  const isIb = board === "ib";
+  // The usual total for the chosen board and status, unless the student typed their own.
+  const suggestedMax = board && stage ? maxTable[board]?.[stage] : undefined;
+  const effectiveMax = maxTouched ? maxMarks : suggestedMax ? String(suggestedMax) : maxMarks;
+
+  const rawNum = raw.trim() === "" ? NaN : Number(raw);
+  const maxNum = isIb ? 45 : effectiveMax.trim() === "" ? NaN : Number(effectiveMax);
+  const entranceNum = entranceValue.trim() === "" ? NaN : Number(entranceValue);
+
+  const problems: string[] = [];
+  if (!board) problems.push("Select your education board");
+  if (!stage) problems.push("Select your current academic status");
+  if (!Number.isFinite(rawNum) || rawNum <= 0) problems.push(isIb ? "Enter your IB points" : "Enter your marks");
+  else if (!Number.isFinite(maxNum) || maxNum <= 0) problems.push("Enter the total marks");
+  else if (rawNum > maxNum) problems.push("Marks cannot be more than the total");
+  if (card.show_stream && !stream) problems.push("Select your 10+2 group");
+  if (card.show_entrance && entrance !== "none") {
+    if (!Number.isFinite(entranceNum)) problems.push("Enter your entrance score, or choose 'No entrance score'");
+    else if (entrance === "jee_main" && (entranceNum < 0 || entranceNum > 100)) problems.push("JEE Main percentile must be 0 to 100");
+    else if (entrance !== "jee_main" && (entranceNum < 1 || !Number.isInteger(entranceNum))) problems.push("EAPCET rank must be a whole number");
+  }
+  const valid = problems.length === 0;
+  const percent = Number.isFinite(rawNum) && Number.isFinite(maxNum) && maxNum > 0 && !isIb ? (rawNum / maxNum) * 100 : null;
+
+  const boardLabel = boards.find((b) => b.key === board)?.label;
+  const stageLabel = stages.find((s) => s.key === stage)?.label;
+  const marksLabel =
+    stage === "1st_year" || stage === "2nd_year"
+      ? "Your Intermediate 1st-year marks (used for a preliminary estimate)"
+      : isIb
+        ? "Your IB Diploma points"
+        : "Your final Intermediate / Class 12 marks";
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!valid || submitted) return;
+    const marksText = isIb ? `${rawNum}/45 IB points` : `${rawNum}/${maxNum}`;
+    const parts = [boardLabel, stageLabel, marksText, card.show_stream ? stream : null];
+    if (card.show_entrance && entrance !== "none") {
+      parts.push(entrance === "jee_main" ? `JEE Main ${entranceNum} percentile` : `${entrance === "ap_eapcet" ? "AP" : "TG"} EAPCET rank ${entranceNum}`);
+    }
+    const summary = `My details: ${parts.filter(Boolean).join(", ")}`;
+    setSubmitted(true);
+    onSelect?.(summary, {
+      mode: card.mode === "scholarship" ? "scholarship" : "eligibility",
+      program: card.program || null,
+      board_key: board,
+      academic_stage: stage,
+      raw_marks: rawNum,
+      max_marks: maxNum,
+      stream: stream,
+      show_stream: Boolean(card.show_stream),
+      show_entrance: Boolean(card.show_entrance),
+      entrance_type: card.show_entrance ? entrance : null,
+      entrance_value: card.show_entrance && entrance !== "none" ? entranceNum : null,
+    });
+  };
+
+  return (
+    <div className="rich-card counsellor-card acad-form-card">
+      <div className="counsellor-card-header">
+        <span className="card-badge counsellor-step-badge">
+          <BookOpenIcon size={13} /> {card.program_name ? `${card.program_name} · ` : ""}Academic details
+        </span>
+        <h4 className="card-title counsellor-title">{card.title || "Your academic details"}</h4>
+        {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
+      </div>
+
+      {card.saved_summary && !submitted && (
+        <button
+          type="button"
+          className="acad-saved-btn"
+          onClick={() => onSelect?.(`Use my saved details (${card.saved_summary})`)}
+        >
+          Use my saved details ({card.saved_summary})
+        </button>
+      )}
+
+      {submitted ? (
+        <div className="acad-submitted" aria-live="polite">
+          <span className="acad-submitted-tick" aria-hidden="true">✓</span>
+          <span className="acad-submitted-text">
+            {boardLabel} · {stageLabel} · {isIb ? `${rawNum}/45 points` : `${rawNum}/${maxNum}`}
+            {card.show_stream && stream ? ` · ${stream}` : ""}
+            {card.show_entrance && entrance !== "none" && Number.isFinite(entranceNum)
+              ? ` · ${entrance === "jee_main" ? `JEE ${entranceNum} percentile` : `EAPCET rank ${entranceNum}`}`
+              : ""}
+          </span>
+          <button type="button" className="acad-edit-btn" onClick={() => setSubmitted(false)}>
+            Edit details
+          </button>
+        </div>
+      ) : (
+      <form className="acad-form" onSubmit={handleSubmit} noValidate>
+        <fieldset className="acad-field" disabled={submitted}>
+          <legend className="acad-legend"><span className="acad-num">1</span> Education board</legend>
+          <div className="counsellor-options-grid">
+            {boards.map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                aria-pressed={board === b.key}
+                className={`counsellor-opt-btn ${board === b.key ? "selected" : ""}`}
+                onClick={() => setBoard(b.key)}
+              >
+                <span className="counsellor-opt-label">{b.label}</span>
+                {board === b.key && <span className="counsellor-check">✓</span>}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="acad-field" disabled={submitted}>
+          <legend className="acad-legend"><span className="acad-num">2</span> Current academic status</legend>
+          <div className="acad-stage-list">
+            {stages.map((st) => (
+              <button
+                key={st.key}
+                type="button"
+                aria-pressed={stage === st.key}
+                className={`counsellor-opt-btn acad-stage-btn ${stage === st.key ? "selected" : ""}`}
+                onClick={() => setStage(st.key)}
+              >
+                <span className="counsellor-opt-label">{st.label}</span>
+                {stage === st.key && <span className="counsellor-check">✓</span>}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="acad-field" disabled={submitted}>
+          <legend className="acad-legend"><span className="acad-num">3</span> Marks</legend>
+          <label className="acad-help" htmlFor={`acad-raw-${card.mode}`}>{marksLabel}</label>
+          <div className="acad-marks-row">
+            <input
+              id={`acad-raw-${card.mode}`}
+              className="counsellor-marks-input-field acad-input"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="any"
+              placeholder={isIb ? "e.g. 36" : "Marks obtained"}
+              value={raw}
+              onChange={(e) => setRaw(e.target.value)}
+            />
+            {!isIb && (
+              <>
+                <span className="acad-outof">out of</span>
+                <input
+                  aria-label="Total marks"
+                  className="counsellor-marks-input-field acad-input acad-input-max"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  placeholder="Total"
+                  value={effectiveMax}
+                  onChange={(e) => {
+                    setMaxTouched(true);
+                    setMaxMarks(e.target.value);
+                  }}
+                />
+              </>
+            )}
+            {isIb && <span className="acad-outof">out of 45</span>}
+          </div>
+        </fieldset>
+
+        {card.show_stream && (
+          <fieldset className="acad-field" disabled={submitted}>
+            <legend className="acad-legend"><span className="acad-num">4</span> 10+2 / Intermediate group</legend>
+            <div className="acad-stage-list">
+              {streams.map((st) => (
+                <button
+                  key={st.key}
+                  type="button"
+                  aria-pressed={stream === st.key}
+                  className={`counsellor-opt-btn acad-stage-btn ${stream === st.key ? "selected" : ""}`}
+                  onClick={() => setStream(st.key)}
+                >
+                  <span className="counsellor-opt-label">{st.label}</span>
+                  {stream === st.key && <span className="counsellor-check">✓</span>}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        {card.show_entrance && (
+          <fieldset className="acad-field" disabled={submitted}>
+            <legend className="acad-legend">
+              <span className="acad-num">{card.show_stream ? 5 : 4}</span> Entrance score <span className="acad-optional">(optional)</span>
+            </legend>
+            <div className="acad-marks-row">
+              <select
+                aria-label="Entrance exam"
+                className="counsellor-marks-input-field acad-input acad-select"
+                value={entrance}
+                onChange={(e) => setEntrance(e.target.value)}
+              >
+                {entrances.map((en) => (
+                  <option key={en.key} value={en.key}>{en.label}</option>
+                ))}
+              </select>
+              {entrance !== "none" && (
+                <input
+                  aria-label={entrance === "jee_main" ? "JEE Main percentile" : "EAPCET rank"}
+                  className="counsellor-marks-input-field acad-input acad-input-max"
+                  type="number"
+                  inputMode="decimal"
+                  placeholder={entrance === "jee_main" ? "Percentile" : "Rank"}
+                  value={entranceValue}
+                  onChange={(e) => setEntranceValue(e.target.value)}
+                />
+              )}
+            </div>
+          </fieldset>
+        )}
+
+        <div className="acad-review" aria-live="polite">
+          {valid ? (
+            <span>
+              {boardLabel} · {stageLabel} · {isIb ? `${rawNum}/45 points` : `${rawNum}/${maxNum}`}
+              {percent !== null ? ` (${Math.round(percent * 100) / 100}%)` : ""}
+              {card.show_stream && stream ? ` · ${stream}` : ""}
+            </span>
+          ) : (
+            <span className="acad-todo">{problems[0]}</span>
+          )}
+        </div>
+
+        <button type="submit" className="counsellor-submit-btn acad-submit" disabled={!valid}>
+          {card.submit_label || "Submit"}
+        </button>
+      </form>
+      )}
+    </div>
+  );
 }
 
 export function CounsellorBoardCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
@@ -1974,7 +2257,7 @@ export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (
   );
 }
 
-export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
+export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: string, form?: AcademicFormPayload) => void }) {
   if (!card || !card.type) return null;
 
   switch (card.type) {
@@ -1989,6 +2272,8 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
       );
     case "welcome_actions":
       return <WelcomeActionsCard card={card} onSelect={onSelect} />;
+    case "academic_details_form":
+      return <AcademicDetailsFormCard card={card} onSelect={onSelect} />;
     case "counsellor_board_selection":
       return <CounsellorBoardCard card={card} onSelect={onSelect} />;
     case "counsellor_stage_selection":

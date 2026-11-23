@@ -239,7 +239,7 @@ async def test_full_multi_message_journey_keeps_context():
         ("I want to join SR University.", "Which programme or course"),
         ("B.Tech.", "Which B.Tech branch"),
         ("CSE.", "check your B.Tech CSE eligibility"),
-        ("Eligibility.", "please share your 10+2 / Intermediate marks"),
+        ("Eligibility.", "please fill in your academic details below"),
         ("230 out of 1000", "your percentage is **23%**"),
     ]
     answers = []

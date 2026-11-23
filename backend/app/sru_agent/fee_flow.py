@@ -873,7 +873,7 @@ def process_fee_flow(
 
             return {
                 "text": (
-                    f"{year_unverified_notice}Great choice{', ' + user_name if user_name else ''}! "
+                    f"{year_unverified_notice}Got it{', ' + user_name if user_name else ''}. "
                     f"Here are the verified programmes offered under the **{matched_school['display_name']}**.\n\n"
                     f"Which degree or programme would you like to explore for Academic Year **{saved_year}**?"
                 ),
@@ -972,7 +972,7 @@ def process_fee_flow(
 
             return {
                 "text": (
-                    f"Great choice{', ' + user_name if user_name else ''}! "
+                    f"Got it{', ' + user_name if user_name else ''}. "
                     f"Here are the verified programmes offered under the **{matched_school['display_name']}**.\n\n"
                     f"Which degree or programme would you like to explore for Academic Year **{saved_year}**?"
                 ),

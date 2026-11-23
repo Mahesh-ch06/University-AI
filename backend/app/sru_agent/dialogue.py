@@ -207,16 +207,21 @@ _GOALS = [
 _ASPECT_ONLY = re.compile(
     r"(?:fees?|fee\s+structure|cost|tuition|placements?|packages?|curriculum|syllabus|subjects|faculty|"
     r"professors|labs?|eligibility|careers?|career\s+opportunities|scope|admission\s+process)", re.IGNORECASE)
+def _goal_in(message: str) -> str | None:
+    """The goal a message states along with the programme ("Check my eligibility for CSE", "CSE fees")."""
+    if _ELIGIBILITY_Q.search(message or ""):
+        return "eligibility"
+    if _PROCESS_Q.search(message or ""):
+        return "process"
+    if re.search(r"\b(?:fees?|tuition|cost)\b", message or "", re.IGNORECASE):
+        return "fees"
+    return None
+
+
 _SKIP_WORDS = re.compile(r"^\s*(?:skip|no|nope|not\s+now|later|never\s*mind|cancel|stop)\b", re.IGNORECASE)
 
-_SHORT = {"btech_cse": "B.Tech CSE", "btech_ece": "B.Tech ECE", "btech_eee": "B.Tech EEE",
-          "btech_mech": "B.Tech Mechanical", "btech_civil": "B.Tech Civil", "btech_ai_robotics": "B.Tech AI & Robotics",
-          "bsc_agri": "B.Sc Agriculture", "bba": "BBA", "mba": "MBA", "bca": "BCA", "mca": "MCA", "bcom": "B.Com",
-          "bdes": "B.Des", "mtech": "M.Tech", "msc": "M.Sc"}
-
-
 def short_name(key: str) -> str:
-    return _SHORT.get(key) or fees.clean_program_name(key)
+    return fees.short_name(key)
 
 
 def _norm(message: str) -> str:
@@ -291,19 +296,23 @@ def _rewrite(message: str, state: dict | None, profile_updates: dict | None = No
 
 
 # ------------------------------------------------------------------------------------------ the journey
-def _ask_program(intent: str, state: dict) -> dict:
+def _ask_program(intent: str, state: dict, name: str | None = None) -> dict:
     state.update(step="program", intent=intent)
-    if intent == "join":
-        text = "That's great! Which programme or course are you interested in joining at SR University?"
+    name_bit = f", {name}" if name else ""
+    if state.get("goal") == "fees":
+        text = (f"Sure, I can help you with that{name_bit}! Which programme are you interested in? "
+                f"Are you looking for B.Tech or another course?")
+    elif intent == "join":
+        text = f"That's great{name_bit}! Which programme or course are you interested in joining at SR University?"
     else:
-        text = "Sure! Which programme would you like to explore?"
+        text = f"Sure{name_bit}! Which programme would you like to explore?"
     return _ask(text, ["B.Tech", "BBA", "MBA", "B.Sc Agriculture"], state)
 
 
 def _ask_branch(intent: str, state: dict) -> dict:
     state.update(step="branch", intent=intent, degree="btech")
-    text = ("Great! Which B.Tech branch are you interested in, such as CSE (with AI & ML, Data Science or Cyber "
-            "Security specialisations), AI & Robotics, ECE, EEE, Mechanical or Civil?")
+    text = ("Great! Which B.Tech branch are you interested in? For example, Computer Science (CSE, with AI & ML, "
+            "Data Science or Cyber Security specialisations), AI & Robotics, Electronics (ECE), EEE, Mechanical or Civil.")
     return _ask(text, ["CSE", "AI & Robotics", "ECE", "Mechanical"], state)
 
 
@@ -385,7 +394,8 @@ def _verdict_reply(key: str, marks: dict, stream: str | None, state: dict) -> di
         chips = [f"{p} fees & scholarship", f"{p} admission process", f"{p} placements"]
     if stream:
         updates["stream"] = stream
-    state.update(step=None, goal=None, marks=None, pending_raw=None, program=key)
+    state.update(step=None, goal=None, marks=None, pending_raw=None, program=key,
+                 eligibility={"program": key, "status": verdict["status"]})
     return {"kind": "reply", "text": eligibility.explain(verdict, score_text), "chips": chips, "state": state,
             "profile_updates": updates, "eligible": verdict["eligible"]}
 
@@ -407,6 +417,21 @@ def _eligibility_step(key: str, message: str, state: dict, profile: dict, first_
                     f"or 500 / 600 for some other boards.", [f"{raw} out of 1000", f"{raw} out of 600", f"{raw} out of 500"],
                     state)
     if marks.get("percent") is None:
+        req = eligibility.stream_requirement(key)
+        ug = fees.load_data()["programs"][key].get("level") != "pg"
+        if ug and req.get("any_of") and not profile.get("stream"):
+            # Marks AND the 10+2 group are needed: one form (board, status, marks, group) instead of a
+            # question per field. The board and status are kept for a later scholarship estimate.
+            from app.services.card_service import build_academic_details_form
+            from . import journey
+            state.update(step="form", program=key, goal="eligibility")
+            saved = journey.saved_summary(profile) if profile.get("saved_academic") else None
+            card = build_academic_details_form("eligibility", key, short_name(key), profile, show_stream=True,
+                                               saved_summary=saved)
+            text = (f"Sure! To check your {short_name(key)} eligibility, please fill in your academic details below "
+                    f"and tap **Check my eligibility**. You can also just type your marks (for example 850 out of 1000).")
+            return {"kind": "reply", "text": text, "chips": [f"Use my saved details ({saved})"] if saved else [],
+                    "cards": [card], "state": state}
         state.update(step="marks", program=key, goal="eligibility")
         return _ask(_marks_question(key), [], state)
     stream = eligibility.parse_stream(message) if re.search(r"\b(?:mpc|pcm|bipc|pcb)\b", message.lower()) else None
@@ -461,8 +486,111 @@ def _ask_topic(topic: str, state: dict, program: str | None = None) -> dict:
     return _ask(text, chips, state)
 
 
+
+# ---------------------------------------------------------------------------- incomplete messages
+# "I want to...", "Can you explain", "I need information about", "What about the": the request is unfinished,
+# so ask what the student means (using the conversation's context) instead of guessing from keywords.
+_INCOMPLETE = re.compile(
+    r"""^\s*(?:
+        (?:hi|hello|hey|ok|okay|so|and|also)?[,\s]*
+        (?:
+            (?:i\s*(?:'m|am)?\s*)?(?:want|wanna|would\s+like|need|wish|am\s+looking|looking)(?:\s+to)?
+                (?:\s+(?:know|ask|see|get|learn|check|find(?:\s+out)?|understand|enquire|inquire|clarify))?
+                (?:\s+(?:about|regarding|on|the|some|info(?:rmation)?|details|something|a|an))*
+          | (?:can|could|will|would)\s+you\s+(?:please\s+)?(?:explain|tell(?:\s+me)?|show(?:\s+me)?|help(?:\s+me)?|describe|give(?:\s+me)?|share)
+                (?:\s+(?:about|with|on|the|some|me))*
+          | (?:i\s+)?(?:need|want)\s+(?:some\s+)?(?:information|info|details|help|clarity)(?:\s+(?:about|on|regarding|with|for))?
+          | what\s+about(?:\s+the)?
+          | (?:please\s+)?(?:tell\s+me|explain|show\s+me|describe|i\s+have\s+a\s+(?:question|doubt))(?:\s+(?:about|the|regarding))*
+          | (?:and|so|also|then|but|what|how|is|the|about|regarding|i|my)
+        )
+    )\s*(?:\.{2,}|…|\.|,)?\s*$""",
+    re.IGNORECASE | re.VERBOSE,
+)
+# Only words that cannot end a complete question ("what is SRU known for" and "what does it lead to" are fine).
+_DANGLING_END = re.compile(r"\b(?:about|the|a|an|and|or|regarding|my|your)\s*(?:\.{2,}|…)?\s*$",
+                           re.IGNORECASE)
+_TOPIC_PHRASE = {"hostel": "the hostel", "placements": "placements", "admissions": "admissions",
+                 "scholarships": "scholarships", "transport": "transport", "campus": "campus facilities",
+                 "faculty": "our faculty", "labs": "the labs", "internships": "internships", "research": "research",
+                 "student_life": "student life", "events": "events", "departments": "our schools and departments"}
+
+
+def is_incomplete(message: str) -> bool:
+    text = (message or "").strip()
+    if not text or re.search(r"\d", text):
+        return False
+    if _INCOMPLETE.match(text):
+        return True
+    words = re.findall(r"[a-zA-Z']+", text)
+    trailing_dots = bool(re.search(r"(?:\.{2,}|…)\s*$", text))
+    return len(words) <= 6 and (bool(_DANGLING_END.search(text)) or (trailing_dots and len(words) <= 4))
+
+
+def _incomplete_reply(state: dict, conv_state: dict) -> dict:
+    """Ask what the student means, from what the conversation is about. The pending question is kept."""
+    step = state.get("step")
+    topic = state.get("topic") if step == "topic_aspect" else None
+    key = state.get("program")
+    if topic in TOPICS:
+        chips = [a[0] for a in TOPICS[topic]["aspects"]]
+        return _ask(f"No problem! What would you like to know about {_TOPIC_PHRASE.get(topic, topic)}?", chips, state)
+    if step == "program_aspect" and key:
+        return _ask(f"No problem! What would you like to know about {short_name(key)}? For example, its eligibility, "
+                    f"fees, curriculum or placements.", ["Eligibility", "Fees", "Placements", "Curriculum"], state)
+    if step == "program":
+        return _ask("No problem! Which programme are you interested in?", ["B.Tech", "BBA", "MBA", "B.Sc Agriculture"], state)
+    if step == "branch":
+        return _ask("No problem! Which B.Tech branch are you interested in?", ["CSE", "AI & Robotics", "ECE", "Mechanical"], state)
+    if step == "goal" and key:
+        p = short_name(key)
+        return _ask(f"No problem! Would you like to check your {p} eligibility, understand the admission process, or "
+                    f"know the fees?", ["Check my eligibility", "Admission process", f"{p} fees"], state)
+    if step in ("marks", "total", "form", "stream") and key:
+        return _ask(f"No problem, take your time. Whenever you're ready, share your marks and I'll check your "
+                    f"{short_name(key)} eligibility.", [], state)
+    active_topic = conv_state.get("active_topic")
+    if active_topic in TOPICS:
+        new_state = {**state, "step": "topic_aspect", "topic": active_topic, "intent": "explore"}
+        chips = [a[0] for a in TOPICS[active_topic]["aspects"]]
+        return _ask(f"No problem! What would you like to know about {_TOPIC_PHRASE.get(active_topic, active_topic)}?",
+                    chips, new_state)
+    if key:
+        return _ask(f"Could you tell me a little more about what you'd like to know? For example, {short_name(key)}'s "
+                    f"fees, eligibility, placements or curriculum.", ["Fees", "Eligibility", "Placements", "Curriculum"], state)
+    return _ask("Could you tell me a little more about what you're looking for? For example, admissions, fees, "
+                "scholarships or the hostel.", ["Admissions", "Fees", "Scholarships", "Hostel"], state)
+
+
+# ---------------------------------------------------------------------------- fees without a programme
+_OTHER_FEE = re.compile(r"\b(?:hostel|mess|transport|bus|exam(?:ination)?|other|application|admission\s+fee|"
+                        r"enrol+ment|specialis|specializ|caution|laundry|deposit|ph\.?\s?d|refund|late)\b", re.IGNORECASE)
+_FEE_WORD = re.compile(r"\b(?:fees?|fee\s+structure|tuition|cost)\b", re.IGNORECASE)
+_FEE_ONLY = re.compile(
+    r"(?:fees?|fee\s+structure|structure|tuition|tuition\s+fees?|course\s+fees?|college\s+fees?|total\s+fees?|cost|"
+    r"how\s+much|much|academic|per\s+(?:year|annum|sem(?:ester)?)|semester|yearly|annual|breakdown|full|complete|"
+    r"overall|20\d\d|\d\d|-|\s)+", re.IGNORECASE)
+
+
+def _broad_fee(message: str) -> bool:
+    """'What are the fee details?', 'fee structure', 'how much is the fee' with no programme named."""
+    low = _norm(message)
+    if not _FEE_WORD.search(low) or _OTHER_FEE.search(low) or _program_in(message):
+        return False
+    years = re.findall(r"\b(20\d\d)\b", low)
+    if any(y != config.ADMISSION_YEAR[:4] for y in years):
+        return False  # another academic year: the future-year reply handles it
+    rest = _strip_filler(_DEGREE_WORDS.sub(" ", low))
+    return bool(rest) and bool(_FEE_ONLY.fullmatch(rest))
+
+
+_RESULTS = re.compile(
+    r"\b(?:got|received|have|has\s+come|came|out|released|announced|declared)\b.{0,30}\b(?:results?|rank|marks|"
+    r"scores?|percentile|scorecard|memo)\b|\b(?:results?|rank|scorecard|marks)\s+(?:came|is|are|has\s+been)\s+"
+    r"(?:out|released|announced|declared)\b", re.IGNORECASE)
+
 # ------------------------------------------------------------------------------------------- decide()
-def decide(message: str, conv_state: dict, profile: dict) -> dict | None:
+def decide(message: str, conv_state: dict, profile: dict, name: str | None = None) -> dict | None:
     """What to do with this message before any other route. None = not handled (state unchanged).
     Otherwise a dict with kind 'reply' (send text + chips), 'rewrite' (continue with a more specific
     message) or 'pass' (continue as is), plus the new dialogue state."""
@@ -474,9 +602,23 @@ def decide(message: str, conv_state: dict, profile: dict) -> dict | None:
 
     # ---- 1. An answer to our own last question -------------------------------------------------------
     if step:
+        if step in ("goal", "marks", "total", "form", "stream") and program_now and program_now != state.get("program") \
+                and not _broad_fee(message):
+            # The student changed the programme midway: switch, keep the marks already given, redo the check.
+            state.update(program=program_now, eligibility=None)
+            p = short_name(program_now)
+            if state.get("goal") == "eligibility" or step in ("marks", "total", "form", "stream"):
+                out = _eligibility_step(program_now, message, state, profile, first_time=True)
+                out["text"] = f"Got it, switching to **{p}**. " + out["text"]
+                return out
+            return _ask_goal(program_now, state, name_first=f"Got it, switching to {p}. ")
+        if is_incomplete(message):
+            return _incomplete_reply(state, conv_state)
         if _SKIP_WORDS.match(low) and len(low.split()) <= 3:
             return {"kind": "reply", "text": "No problem! What else would you like to know about SR University?",
                     "chips": ["Explore programmes", "Hostel", "Placements", "Scholarships"], "state": {}}
+        if step == "topic_aspect" and state.get("goal") == "fees" and re.search(r"\b(?:course|tuition|programme|program|college)\b", low):
+            return _ask_program("explore", {**state, "goal": "fees"}, name)
         if step == "topic_aspect":
             topic = TOPICS.get(state.get("topic") or "")
             opt = _pick(message, topic["aspects"]) if topic else None
@@ -496,26 +638,28 @@ def decide(message: str, conv_state: dict, profile: dict) -> dict | None:
                                 {"program_interest": key})
         elif step == "program":
             if program_now:
-                if state.get("goal"):
-                    return _goal_reply(state["goal"], program_now, message, state, profile)
+                goal = state.get("goal") or _goal_in(message)
+                if goal:
+                    return _goal_reply(goal, program_now, message, state, profile)
                 if state.get("intent") == "join":
                     return _ask_goal(program_now, state)
-                return _ask_aspect(program_now, state, lead="Great choice! ")
+                return _ask_aspect(program_now, state, lead="Got it. ")
             if _generic_btech(message):
                 return _ask_branch(state.get("intent") or "join", state)
         elif step == "branch":
             if program_now:
-                if state.get("goal"):
-                    return _goal_reply(state["goal"], program_now, message, state, profile)
+                goal = state.get("goal") or _goal_in(message)
+                if goal:
+                    return _goal_reply(goal, program_now, message, state, profile)
                 if state.get("intent") == "join":
                     return _ask_goal(program_now, state)
-                return _ask_aspect(program_now, state, lead="Great choice! ")
+                return _ask_aspect(program_now, state, lead="Got it. ")
         elif step == "goal":
             key = state.get("program")
             goal = next((g for g, pat in _GOALS if re.search(pat, low)), None)
             if key and goal:
                 return _goal_reply(goal, key, message, state, profile)
-        elif step in ("marks", "total"):
+        elif step in ("marks", "total", "form"):
             key = state.get("program")
             marks = _read_marks(message, state)
             if key and (marks.get("percent") is not None or marks.get("raw_only") is not None):
@@ -553,6 +697,32 @@ def decide(message: str, conv_state: dict, profile: dict) -> dict | None:
         # "850 marks, planning to join B.Tech, which branch?" is a specific request: branch guidance answers it.
         return {"kind": "pass", "state": state} if state != original else None
 
+    if is_incomplete(message):
+        return _incomplete_reply(state, conv_state)
+
+    if _RESULTS.search(message or "") and not re.search(r"\d", message or ""):
+        key = state.get("program")
+        name_bit = f", {name}" if name else ""
+        for_p = f" for {short_name(key)}" if key else ""
+        if key:
+            state.update(step="marks", goal="eligibility", intent="join")
+        return _ask(f"That's great{name_bit}! How did you do? Share your marks (with the total), rank or percentile, "
+                    f"and I can check your eligibility and scholarship{for_p}.", [], state)
+
+    if _broad_fee(message):
+        state["goal"] = "fees"
+        if state.get("program"):
+            key = state["program"]
+            return _rewrite(f"{fees.clean_program_name(key)} fees", {"program": key}, {"program_interest": key})
+        if conv_state.get("active_topic") in ("hostel", "transport"):
+            # The conversation is about the hostel / transport: "what is the fee?" means that fee.
+            topic = conv_state["active_topic"]
+            fee_aspect = next(a for a in TOPICS[topic]["aspects"] if "fee" in a[0].lower())
+            return _rewrite(fee_aspect[2], {k: v for k, v in state.items() if k != "goal"})
+        if _DEGREE_WORDS.search(message or ""):
+            return _ask_branch("explore", state)
+        return _ask_program("explore", state, name)
+
     if _INTEREST_ONLY.match(message or ""):
         state.update(step="interest", intent="explore")
         return _ask("That's great! What are you interested in exploring at SR University: admissions, a particular "
@@ -577,6 +747,9 @@ def decide(message: str, conv_state: dict, profile: dict) -> dict | None:
         if _generic_btech(message):
             state.update(goal="eligibility" if (asks_eligibility or marks) else None)
             return _ask_branch("join", state)
+        if not asks_eligibility:
+            state.update(goal=None)
+            return _ask_program("join", state, name)
         if marks.get("percent") is not None and marks["percent"] < eligibility.lowest_minimum_any_program("ug"):
             # Below the lowest minimum of every programme: say so now, whatever the programme.
             known = {"percent": marks["percent"], "raw_marks": marks.get("raw"), "max_marks": marks.get("max")}
@@ -603,13 +776,26 @@ def decide(message: str, conv_state: dict, profile: dict) -> dict | None:
     if this_ref and not state.get("program") and topic in ("placements", "faculty", "labs"):
         return _ask_program("explore", state)
     # Right after a fee answer, "what about hostel?" / "and transport?" means that topic's fee.
-    if topic and conv_state.get("active_topic") in ("fee", "scholarship", "hostel_fee", "fees"):
+    follow_up = re.search(r"\b(?:what|how)\s+about\b|^\s*(?:and|plus|also)\b|\bwith\b", low)
+    if topic and follow_up and conv_state.get("active_topic") in ("fee", "scholarship", "hostel_fee", "fees"):
         fee_aspect = next((a for a in TOPICS[topic]["aspects"] if "fee" in a[0].lower()), None)
         if fee_aspect:
             return _rewrite(fee_aspect[2], state)
     if topic == "placements" and state.get("program"):
         key = state["program"]
         return _rewrite(f"What are the placements for {fees.clean_program_name(key)}?", {"program": key})
+    # Inside an admission journey, a scholarship question is about the chosen programme: estimate it with the
+    # details already collected (only missing ones are asked). Special-category questions keep their route.
+    if state.get("program") and not topic and re.search(r"\bscholarships?\b", low) and not program_now \
+            and not re.search(r"\b(?:special|categor|concession|sports|defen[cs]e|orphan|single\s+parent|girl|"
+                              r"disab|ncc|calculat)\w*", low):
+        key = state["program"]
+        return _rewrite(f"Calculate my scholarship for {fees.clean_program_name(key)}", {"program": key},
+                        {"program_interest": key})
+    if topic == "scholarships" and state.get("program"):
+        key = state["program"]
+        return _rewrite(f"Calculate my scholarship for {fees.clean_program_name(key)}", {"program": key},
+                        {"program_interest": key})
     if topic in ("faculty", "labs") and state.get("program"):
         key = state["program"]
         aspect = "Faculty" if topic == "faculty" else "Labs"

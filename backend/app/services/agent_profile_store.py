@@ -28,7 +28,9 @@ DURABLE_KEYS = ("name", "phone", "program_interest", "percent", "board", "board_
                 "is_projected", "admission_route", "route_label", "scholarship_percent",
                 "last_active_at", "eapcet_rank", "jee_percentile", "ib_score", "city",
                 "is_parent", "language", "phone_saved", "last_lead_id", "last_lead_type",
-                "last_lead_key", "open_request")
+                "last_lead_key", "open_request",
+                # admission journey (see sru_agent/journey.py)
+                "stream", "marks_confirmed", "degree_percent", "no_entrance", "academic_conv", "saved_academic")
 _last_saved: dict[str, dict] = {}
 
 
