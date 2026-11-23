@@ -85,17 +85,16 @@ async def list_conversations(
 
 
 async def get_conversation(
-    db: AsyncSession, conversation_id: uuid.UUID, session_id: str
+    db: AsyncSession, conversation_id: uuid.UUID, session_id: str, is_admin: bool = False
 ) -> ConversationDetail | None:
-    """Get a conversation with all messages. Verifies session ownership."""
+    """Get a conversation with all messages. Verifies session ownership unless is_admin=True."""
     stmt = (
         select(Conversation)
         .options(selectinload(Conversation.messages))
-        .where(
-            Conversation.id == conversation_id,
-            Conversation.session_id == session_id,
-        )
+        .where(Conversation.id == conversation_id)
     )
+    if not is_admin:
+        stmt = stmt.where(Conversation.session_id == session_id)
     result = await db.execute(stmt)
     conv = result.scalar_one_or_none()
 

@@ -114,13 +114,60 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const [visibleMessageCount, setVisibleMessageCount] = useState(MESSAGE_RENDER_WINDOW);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const activeConvIdRef = useRef<string | null>(activeConvId);
+  const [copiedChatLink, setCopiedChatLink] = useState(false);
 
   useEffect(() => {
     activeConvIdRef.current = activeConvId;
     if (activeConvId) {
       sessionStorage.setItem("sru_active_conv_id", activeConvId);
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("chat") !== activeConvId) {
+          url.searchParams.set("chat", activeConvId);
+          window.history.replaceState(null, "", url.toString());
+        }
+      } catch {}
     }
   }, [activeConvId]);
+
+  // Deep linking: Load conversation if ?chat=<id> or ?cid=<id> is in URL on mount
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlConvId = params.get("chat") || params.get("cid") || params.get("chat_id");
+      const adminKeyParam = params.get("admin_key") || sessionStorage.getItem("university_ai_admin_key") || "";
+      if (urlConvId && urlConvId !== activeConvIdRef.current) {
+        setIsRestoringConv(true);
+        getConversation(urlConvId, sessionId, adminKeyParam || undefined)
+          .then((conv) => {
+            if (conv && conv.messages && conv.messages.length > 0) {
+              setMessages(conv.messages);
+              setActiveConvId(urlConvId);
+              activeConvIdRef.current = urlConvId;
+              setIsWidgetOpen(true);
+              setShowRecoveryCard(false);
+            }
+          })
+          .catch((err) => {
+            console.warn("Could not load deep-linked conversation:", err);
+          })
+          .finally(() => {
+            setIsRestoringConv(false);
+          });
+      }
+    } catch {}
+  }, [sessionId]);
+
+  const handleCopyShareLink = () => {
+    if (!activeConvId) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("chat", activeConvId);
+      navigator.clipboard.writeText(url.toString());
+      setCopiedChatLink(true);
+      setTimeout(() => setCopiedChatLink(false), 2200);
+    } catch {}
+  };
 
   const handleLeadFormComplete = () => {
     setShowInlineLeadForm(false);
@@ -681,6 +728,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     setStreamingMsgId(null);
     setActiveConvId(null);
     activeConvIdRef.current = null;
+    try {
+      sessionStorage.removeItem("sru_active_conv_id");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("chat");
+      url.searchParams.delete("cid");
+      url.searchParams.delete("chat_id");
+      window.history.replaceState(null, "", url.toString());
+    } catch {}
     setMessages([getInitialWelcomeMessage(sessionId + Date.now().toString())]);
     setVisibleMessageCount(MESSAGE_RENDER_WINDOW);
     setError(null);
@@ -1289,6 +1344,28 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   <path d="M8 16H3v5" />
                 </svg>
               </button>
+              {activeConvId && (
+                <button
+                  className="sru-widget-hdr-btn"
+                  onClick={handleCopyShareLink}
+                  title={copiedChatLink ? "Link Copied!" : "Share / Copy Chat Link"}
+                  aria-label="Share Chat Link"
+                >
+                  {copiedChatLink ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="5" r="3" />
+                      <circle cx="6" cy="12" r="3" />
+                      <circle cx="18" cy="19" r="3" />
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                    </svg>
+                  )}
+                </button>
+              )}
               <button
                 className="sru-widget-hdr-btn"
                 onClick={() => setIsMinimized((prev) => !prev)}

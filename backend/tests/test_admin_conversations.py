@@ -85,3 +85,25 @@ async def test_admin_conversations_export_markdown():
         except Exception:
             pytest.skip("Database container not currently accessible")
 
+
+def test_admin_message_detail_schema_and_metadata():
+    """Verify that AdminMessageDetail supports cards, suggestions, and metadata fields."""
+    from app.schemas.admin import AdminMessageDetail
+    from datetime import datetime, timezone
+
+    detail = AdminMessageDetail(
+        id=uuid.uuid4(),
+        role="assistant",
+        content="Here is your fee calculation",
+        cards=[{"type": "calculate_fee", "data": {"status": "ok"}}],
+        suggestions=["Explore CSE", "Hostel fees"],
+        metadata={"channel": "web", "tools_used": ["calculate_fee"]},
+        created_at=datetime.now(timezone.utc),
+    )
+    data = detail.model_dump()
+    assert len(data["cards"]) == 1
+    assert data["cards"][0]["type"] == "calculate_fee"
+    assert "Explore CSE" in data["suggestions"]
+    assert data["metadata"]["channel"] == "web"
+
+

@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,10 +117,16 @@ async def get_conversation(
     conversation_id: UUID,
     session_id: str = Query(..., min_length=1, max_length=64),
     db: AsyncSession = Depends(get_db),
+    x_admin_key: str | None = Header(None, alias="X-Admin-Key"),
+    admin_key: str | None = Query(None),
 ) -> ConversationDetail:
     """Get a conversation with all messages."""
+    from app.config import settings
+    provided_key = (x_admin_key or admin_key or "").strip()
+    is_admin = bool(provided_key and provided_key == settings.ADMIN_KEY)
+
     detail = await conversation_service.get_conversation(
-        db, conversation_id, session_id
+        db, conversation_id, session_id, is_admin=is_admin
     )
     if detail is None:
         from app.sru_agent import memory as agent_memory

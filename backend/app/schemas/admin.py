@@ -46,6 +46,9 @@ class AdminMessageDetail(BaseModel):
     model: str | None = None
     sources: list[dict] | None = None
     feedback: AdminMessageFeedback | None = None
+    cards: list[dict] | None = None
+    suggestions: list[str] | None = None
+    metadata: dict | None = None
     created_at: datetime
 
 

@@ -23,6 +23,8 @@ import {
   type ProspectiveLeadItem,
   type LeadStats,
 } from "../services/api";
+import MarkdownContent from "../components/MarkdownContent";
+import { RenderCard } from "../components/Cards";
 import "./AdminPage.css";
 
 interface Props {
@@ -134,6 +136,12 @@ export default function AdminPage({ onBackToChat }: Props) {
   const [pageSize, setPageSize] = useState<number>(50);
   const [isExportingAll, setIsExportingAll] = useState<boolean>(false);
 
+  // Rich Transcript UX State
+  const [transcriptViewMode, setTranscriptViewMode] = useState<"student" | "inspector">("student");
+  const [transcriptFilterText, setTranscriptFilterText] = useState<string>("");
+  const [copiedChatId, setCopiedChatId] = useState<string | null>(null);
+  const [copiedTranscript, setCopiedTranscript] = useState<boolean>(false);
+
   // Leads State
   const [leads, setLeads] = useState<ProspectiveLeadItem[]>([]);
   const [leadsTotal, setLeadsTotal] = useState<number>(0);
@@ -146,6 +154,21 @@ export default function AdminPage({ onBackToChat }: Props) {
   const [leadPageSize] = useState<number>(50);
   const [isExportingLeads, setIsExportingLeads] = useState<boolean>(false);
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
+
+  const matchedLead = selectedConvDetail
+    ? leads.find(
+        (l) =>
+          l.conversation_id === selectedConvDetail.id ||
+          (l.phone && selectedConvDetail.title?.includes(l.phone.replace(/\D/g, "").slice(-6)))
+      )
+    : null;
+
+  const filteredMessages = selectedConvDetail
+    ? selectedConvDetail.messages.filter((m) => {
+        if (!transcriptFilterText.trim()) return true;
+        return m.content.toLowerCase().includes(transcriptFilterText.toLowerCase());
+      })
+    : [];
 
   const [promotingMessageId, setPromotingMessageId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -247,6 +270,18 @@ export default function AdminPage({ onBackToChat }: Props) {
   useEffect(() => {
     if (adminKey) {
       loadData(adminKey);
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get("tab") as any;
+        if (tabParam && ["leads", "chats", "overview", "documents", "feedback"].includes(tabParam)) {
+          setActiveTab(tabParam);
+        }
+        const cidParam = params.get("cid") || params.get("chat_id") || params.get("conv_id");
+        if (cidParam) {
+          setSelectedConvId(cidParam);
+          handleSelectConversation(cidParam);
+        }
+      } catch {}
     }
   }, [adminKey, loadData]);
 
@@ -382,6 +417,12 @@ export default function AdminPage({ onBackToChat }: Props) {
     setIsLoadingDetail(true);
     setActionNotice(null);
     try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "chats");
+      url.searchParams.set("cid", convId);
+      window.history.replaceState(null, "", url.toString());
+    } catch {}
+    try {
       const detail = await fetchAdminConversationDetail(adminKey, convId);
       setSelectedConvDetail(detail);
       setTimeout(() => {
@@ -394,6 +435,55 @@ export default function AdminPage({ onBackToChat }: Props) {
     } finally {
       setIsLoadingDetail(false);
     }
+  };
+
+  const handleOpenLiveStudentChat = (convId: string) => {
+    const targetUrl = `/?chat=${encodeURIComponent(convId)}&admin_key=${encodeURIComponent(adminKey)}`;
+    window.open(targetUrl, "_blank");
+  };
+
+  const handleCopyConvId = (convId: string) => {
+    navigator.clipboard.writeText(convId);
+    setCopiedChatId(convId);
+    setTimeout(() => setCopiedChatId(null), 2000);
+  };
+
+  const handleCopyShareableChatLink = (convId: string) => {
+    const link = `${window.location.origin}/?chat=${encodeURIComponent(convId)}&admin_key=${encodeURIComponent(adminKey)}`;
+    navigator.clipboard.writeText(link);
+    setActionNotice({ text: "🔗 Direct student chat link copied to clipboard!", type: "success" });
+    setTimeout(() => setActionNotice(null), 3000);
+  };
+
+  const handleCopyFullTranscriptText = (conv: AdminConversationDetail) => {
+    const lines = [
+      `# SR University AI Companion — Conversation Transcript`,
+      `Conversation Title: ${conv.title}`,
+      `Conversation ID: ${conv.id}`,
+      `Session ID: ${conv.session_id}`,
+      `Created At: ${new Date(conv.created_at).toLocaleString()}`,
+      `Message Count: ${conv.messages.length}`,
+      "",
+      "---",
+      "",
+    ];
+    conv.messages.forEach((m, idx) => {
+      const sender = m.role === "user" ? "Student" : "SRU Buddy";
+      const time = new Date(m.created_at).toLocaleTimeString();
+      lines.push(`### Message ${idx + 1} • ${sender} [${time}]`);
+      lines.push(m.content);
+      if (m.suggestions && m.suggestions.length > 0) {
+        lines.push(`*Quick Suggestions Shown:* ${m.suggestions.join(" | ")}`);
+      }
+      lines.push("");
+    });
+    navigator.clipboard.writeText(lines.join("\n"));
+    setCopiedTranscript(true);
+    setActionNotice({ text: "📋 Complete conversation dialogue copied to clipboard!", type: "success" });
+    setTimeout(() => {
+      setCopiedTranscript(false);
+      setActionNotice(null);
+    }, 3000);
   };
 
   const handleDeleteConversation = async (convId: string) => {
@@ -881,13 +971,24 @@ export default function AdminPage({ onBackToChat }: Props) {
                                   </select>
                                 </td>
                                 <td className="col-actions">
-                                  <button
-                                    className="admin-btn-action-view"
-                                    title="Inspect student chat conversation"
-                                    onClick={() => handleViewLeadChat(lead)}
-                                  >
-                                    View Chat ↗
-                                  </button>
+                                  <div className="lead-actions-flex">
+                                    <button
+                                      className="admin-btn-action-view"
+                                      title={lead.conversation_id ? `Inspect conversation #${lead.conversation_id.slice(0, 8)} in Admin` : "Search and inspect conversation in Admin"}
+                                      onClick={() => handleViewLeadChat(lead)}
+                                    >
+                                      💬 Inspect
+                                    </button>
+                                    {lead.conversation_id ? (
+                                      <button
+                                        className="admin-btn-action-student"
+                                        title="Open conversation in Live Student Portal"
+                                        onClick={() => handleOpenLiveStudentChat(lead.conversation_id!)}
+                                      >
+                                        🎓 Live ↗
+                                      </button>
+                                    ) : null}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -1129,129 +1230,321 @@ export default function AdminPage({ onBackToChat }: Props) {
                       </div>
                     ) : selectedConvDetail ? (
                       <div className="transcript-box">
-                        {/* Header */}
-                        <div className="transcript-top-header">
-                          <div className="transcript-headline">
-                            <h3>{selectedConvDetail.title}</h3>
-                            <div className="transcript-meta-row">
-                              <span>Session: <code>{selectedConvDetail.session_id}</code></span>
-                              <span>•</span>
-                              <span>Started: {new Date(selectedConvDetail.created_at).toLocaleString()}</span>
-                              <span>•</span>
-                              <span>{selectedConvDetail.messages.length} Messages</span>
-                            </div>
-                          </div>
-                          <div className="transcript-toolbar-btns">
-                            <button className="admin-btn-secondary" onClick={handlePrintPdf}>
-                              📄 Print / PDF
-                            </button>
-                            <button
-                              className="admin-btn-secondary"
-                              onClick={() => handleExportSingleJson(selectedConvDetail)}
-                            >
-                              📥 JSON
-                            </button>
-                            <button
-                              className="admin-btn-danger"
-                              onClick={() => handleDeleteConversation(selectedConvDetail.id)}
-                            >
-                              🗑️ Delete
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Dialogue Thread */}
-                        <div className="transcript-scroll-area" ref={detailScrollRef}>
-                          {selectedConvDetail.messages.length === 0 ? (
-                            <p className="transcript-empty-text">
-                              No messages recorded in this conversation.
-                            </p>
-                          ) : (
-                            selectedConvDetail.messages.map((m) => {
-                              const isUser = m.role === "user";
-                              return (
-                                <div
-                                  key={m.id}
-                                  className={`transcript-message-bubble ${isUser ? "role-user" : "role-assistant"}`}
-                                >
-                                  <div className="msg-header-row">
-                                    <span className="msg-role-badge">
-                                      {isUser ? "👤 Student" : "🤖 SRU Buddy"}
-                                    </span>
-                                    {m.model && <span className="msg-model-tag">{m.model}</span>}
-                                    <span className="msg-timestamp">
-                                      {new Date(m.created_at).toLocaleTimeString([], {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                        second: "2-digit",
-                                      })}
+                            {/* Header */}
+                            <div className="transcript-top-header">
+                              <div className="transcript-headline">
+                                <div className="transcript-title-row">
+                                  <h3>{selectedConvDetail.title}</h3>
+                                  <button
+                                    className="transcript-id-badge"
+                                    title="Click to copy full Conversation ID"
+                                    onClick={() => handleCopyConvId(selectedConvDetail.id)}
+                                  >
+                                    #{selectedConvDetail.id.slice(0, 8)}
+                                    {copiedChatId === selectedConvDetail.id ? " ✓ Copied" : " 📋"}
+                                  </button>
+                                </div>
+                                <div className="transcript-meta-row">
+                                  <span>Session: <code>{selectedConvDetail.session_id.slice(0, 16)}...</code></span>
+                                  <span>•</span>
+                                  <span>Started: {new Date(selectedConvDetail.created_at).toLocaleString()}</span>
+                                  <span>•</span>
+                                  <span>{selectedConvDetail.messages.length} Messages</span>
+                                </div>
+                                {matchedLead && (
+                                  <div className="transcript-lead-snapshot">
+                                    <span className="lead-snap-pill lead-snap-name">👤 {matchedLead.name}</span>
+                                    <span className="lead-snap-pill lead-snap-phone">📱 {matchedLead.phone}</span>
+                                    {matchedLead.program_interest && (
+                                      <span className="lead-snap-pill lead-snap-prog">🎓 {matchedLead.program_interest}</span>
+                                    )}
+                                    {matchedLead.score && (
+                                      <span className="lead-snap-pill lead-snap-score">
+                                        📊 {matchedLead.score} {matchedLead.exam_type ? `(${matchedLead.exam_type})` : ""}
+                                      </span>
+                                    )}
+                                    <span className={`lead-snap-pill status-pill status-${matchedLead.status}`}>
+                                      {matchedLead.status}
                                     </span>
                                   </div>
+                                )}
+                              </div>
+                              <div className="transcript-toolbar-btns">
+                                <button
+                                  className="admin-btn-action-student"
+                                  title="Open in Student Live Chat view (recreates student experience)"
+                                  onClick={() => handleOpenLiveStudentChat(selectedConvDetail.id)}
+                                >
+                                  🎓 Student View ↗
+                                </button>
+                                <button
+                                  className="admin-btn-secondary"
+                                  title="Copy direct shareable link to this conversation"
+                                  onClick={() => handleCopyShareableChatLink(selectedConvDetail.id)}
+                                >
+                                  🔗 Copy Link
+                                </button>
+                                <button
+                                  className="admin-btn-secondary"
+                                  title="Copy complete formatted dialogue to clipboard"
+                                  onClick={() => handleCopyFullTranscriptText(selectedConvDetail)}
+                                >
+                                  {copiedTranscript ? "✓ Copied!" : "📋 Copy Dialogue"}
+                                </button>
+                                <button className="admin-btn-secondary" onClick={handlePrintPdf} title="Print or save as PDF">
+                                  📄 PDF
+                                </button>
+                                <button
+                                  className="admin-btn-secondary"
+                                  onClick={() => handleExportSingleJson(selectedConvDetail)}
+                                  title="Export JSON"
+                                >
+                                  📥 JSON
+                                </button>
+                                <button
+                                  className="admin-btn-danger"
+                                  onClick={() => handleDeleteConversation(selectedConvDetail.id)}
+                                  title="Delete conversation permanently"
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </div>
+                            </div>
 
-                                  <div className="msg-body-content">{m.content}</div>
+                            {/* View Controls Sub-bar */}
+                            <div className="transcript-sub-bar">
+                              <div className="transcript-view-toggle">
+                                <button
+                                  className={`view-toggle-btn ${transcriptViewMode === "student" ? "active" : ""}`}
+                                  onClick={() => setTranscriptViewMode("student")}
+                                  title="Exact student view with Markdown tables, cards, avatars, and chips"
+                                >
+                                  🎓 Student View
+                                </button>
+                                <button
+                                  className={`view-toggle-btn ${transcriptViewMode === "inspector" ? "active" : ""}`}
+                                  onClick={() => setTranscriptViewMode("inspector")}
+                                  title="Developer inspection view with telemetry and exemplar promotion"
+                                >
+                                  🛠️ Inspector View
+                                </button>
+                              </div>
+                              <div className="transcript-inline-search">
+                                <span className="search-icon">🔍</span>
+                                <input
+                                  type="text"
+                                  placeholder="Search inside this dialogue..."
+                                  value={transcriptFilterText}
+                                  onChange={(e) => setTranscriptFilterText(e.target.value)}
+                                  className="transcript-search-input"
+                                />
+                                {transcriptFilterText && (
+                                  <button className="clear-search-btn" onClick={() => setTranscriptFilterText("")}>
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                            </div>
 
-                                  {/* Grounded Sources */}
-                                  {m.sources && m.sources.length > 0 && (
-                                    <div className="msg-sources-box">
-                                      <div className="sources-headline">
-                                        📚 Grounded Sources ({m.sources.length}):
-                                      </div>
-                                      <div className="sources-tags-list">
-                                        {m.sources.map((src, i) => (
-                                          <div key={i} className="source-citation-chip">
-                                            <span>📄</span>
-                                            <span className="src-title">{src.title}</span>
-                                            {src.page && <span className="src-page">(Page {src.page})</span>}
-                                            {src.department && (
-                                              <span className="src-dept">[{src.department}]</span>
+                            {/* Dialogue Thread */}
+                            <div className="transcript-scroll-area" ref={detailScrollRef}>
+                              {filteredMessages.length === 0 ? (
+                                <p className="transcript-empty-text">
+                                  {transcriptFilterText
+                                    ? `No messages matched "${transcriptFilterText}".`
+                                    : "No messages recorded in this conversation."}
+                                </p>
+                              ) : (
+                                filteredMessages.map((m) => {
+                                  const isUser = m.role === "user";
+
+                                  if (transcriptViewMode === "student") {
+                                    return (
+                                      <div
+                                        key={m.id}
+                                        className={`transcript-bubble-wrap ${isUser ? "role-user" : "role-assistant"}`}
+                                      >
+                                        <div className={`transcript-avatar ${isUser ? "student-avatar" : "bot-avatar"}`}>
+                                          {isUser ? "👤" : "🏛️"}
+                                        </div>
+                                        <div className="transcript-bubble-box">
+                                          <div className="transcript-bubble-meta">
+                                            <span className="sender-name">{isUser ? "Student" : "SRU Buddy"}</span>
+                                            {!isUser && <span className="bot-role-tag">AI Guide</span>}
+                                            {m.model && <span className="msg-model-tag">{m.model}</span>}
+                                            <span className="msg-time">
+                                              {new Date(m.created_at).toLocaleTimeString([], {
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                              })}
+                                            </span>
+                                          </div>
+
+                                          {/* Message Content with Markdown Support */}
+                                          <div className={`transcript-bubble-content ${isUser ? "user-text" : "bot-markdown"}`}>
+                                            {isUser ? (
+                                              m.content
+                                            ) : (
+                                              <MarkdownContent content={m.content} />
                                             )}
                                           </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
 
-                                  {/* User Feedback */}
-                                  {m.feedback && (
+                                          {/* Visual Cards Rendered */}
+                                          {!isUser && m.cards && m.cards.length > 0 && (
+                                            <div className="transcript-cards-area">
+                                              {m.cards.map((card, cIdx) => (
+                                                <div key={cIdx} className="transcript-card-item">
+                                                  <RenderCard card={card} />
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+
+                                          {/* Visual Quick Response Chips Rendered */}
+                                          {!isUser && m.suggestions && m.suggestions.length > 0 && (
+                                            <div className="transcript-chips-area">
+                                              <span className="chips-title">Quick Responses Shown:</span>
+                                              <div className="chips-flex">
+                                                {m.suggestions.map((chip, sIdx) => (
+                                                  <span key={sIdx} className="transcript-chip-pill">
+                                                    {chip}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {/* Grounded Sources */}
+                                          {m.sources && m.sources.length > 0 && (
+                                            <div className="msg-sources-box">
+                                              <div className="sources-headline">
+                                                📚 Grounded Sources ({m.sources.length}):
+                                              </div>
+                                              <div className="sources-tags-list">
+                                                {m.sources.map((src, i) => (
+                                                  <div key={i} className="source-citation-chip">
+                                                    <span>📄</span>
+                                                    <span className="src-title">{src.title}</span>
+                                                    {src.page && <span className="src-page">(Page {src.page})</span>}
+                                                    {src.department && (
+                                                      <span className="src-dept">[{src.department}]</span>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {/* User Feedback Alert */}
+                                          {m.feedback && (
+                                            <div
+                                              className={`msg-feedback-alert ${
+                                                m.feedback.rating === 1 ? "fb-positive" : "fb-negative"
+                                              }`}
+                                            >
+                                              <span>
+                                                {m.feedback.rating === 1
+                                                  ? "👍 Student rated helpful"
+                                                  : "👎 Student rated inaccurate"}
+                                              </span>
+                                              {m.feedback.comment && (
+                                                <span className="feedback-comment-quote">
+                                                  — "{m.feedback.comment}"
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  // Inspector / Telemetry View Mode
+                                  return (
                                     <div
-                                      className={`msg-feedback-alert ${
-                                        m.feedback.rating === 1 ? "fb-positive" : "fb-negative"
-                                      }`}
+                                      key={m.id}
+                                      className={`transcript-message-bubble ${isUser ? "role-user" : "role-assistant"}`}
                                     >
-                                      <span>
-                                        {m.feedback.rating === 1
-                                          ? "👍 Student rated helpful"
-                                          : "👎 Student rated inaccurate"}
-                                      </span>
-                                      {m.feedback.comment && (
-                                        <span className="feedback-comment-quote">
-                                          — "{m.feedback.comment}"
+                                      <div className="msg-header-row">
+                                        <span className="msg-role-badge">
+                                          {isUser ? "👤 Student" : "🤖 SRU Buddy"}
                                         </span>
+                                        {m.model && <span className="msg-model-tag">{m.model}</span>}
+                                        <span className="msg-timestamp">
+                                          {new Date(m.created_at).toLocaleTimeString([], {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                            second: "2-digit",
+                                          })}
+                                        </span>
+                                      </div>
+
+                                      <div className="msg-body-content inspector-content">
+                                        <pre className="inspector-raw-text">{m.content}</pre>
+                                      </div>
+
+                                      {/* Grounded Sources */}
+                                      {m.sources && m.sources.length > 0 && (
+                                        <div className="msg-sources-box">
+                                          <div className="sources-headline">
+                                            📚 Grounded Sources ({m.sources.length}):
+                                          </div>
+                                          <div className="sources-tags-list">
+                                            {m.sources.map((src, i) => (
+                                              <div key={i} className="source-citation-chip">
+                                                <span>📄</span>
+                                                <span className="src-title">{src.title}</span>
+                                                {src.page && <span className="src-page">(Page {src.page})</span>}
+                                                {src.department && (
+                                                  <span className="src-dept">[{src.department}]</span>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* User Feedback */}
+                                      {m.feedback && (
+                                        <div
+                                          className={`msg-feedback-alert ${
+                                            m.feedback.rating === 1 ? "fb-positive" : "fb-negative"
+                                          }`}
+                                        >
+                                          <span>
+                                            {m.feedback.rating === 1
+                                              ? "👍 Student rated helpful"
+                                              : "👎 Student rated inaccurate"}
+                                          </span>
+                                          {m.feedback.comment && (
+                                            <span className="feedback-comment-quote">
+                                              — "{m.feedback.comment}"
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Model Improvement Action on Assistant Responses */}
+                                      {!isUser && (
+                                        <div className="msg-exemplar-action">
+                                          <button
+                                            className="btn-exemplar-promote"
+                                            disabled={promotingMessageId === m.id}
+                                            onClick={() => handlePromoteExemplar(m, selectedConvDetail.messages)}
+                                            title="Store this verified Q&A in ChromaDB verified_exemplars to train the AI model"
+                                          >
+                                            {promotingMessageId === m.id
+                                              ? "Registering..."
+                                              : "⭐ Promote to Verified Exemplar (Train Model)"}
+                                          </button>
+                                        </div>
                                       )}
                                     </div>
-                                  )}
-
-                                  {/* Model Improvement Action on Assistant Responses */}
-                                  {!isUser && (
-                                    <div className="msg-exemplar-action">
-                                      <button
-                                        className="btn-exemplar-promote"
-                                        disabled={promotingMessageId === m.id}
-                                        onClick={() => handlePromoteExemplar(m, selectedConvDetail.messages)}
-                                        title="Store this verified Q&A in ChromaDB verified_exemplars to train the AI model"
-                                      >
-                                        {promotingMessageId === m.id
-                                          ? "Registering..."
-                                          : "⭐ Promote to Verified Exemplar (Train Model)"}
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
                     ) : (
                       <div className="admin-empty-state transcript-placeholder">
                         <div className="empty-icon">💬</div>

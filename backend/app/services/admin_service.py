@@ -225,6 +225,7 @@ async def get_conversation_detail(
             else None
         )
 
+        meta = m.metadata_ or {}
         message_details.append(
             AdminMessageDetail(
                 id=m.id,
@@ -233,6 +234,9 @@ async def get_conversation_detail(
                 model=m.model,
                 sources=_parse_sources_to_dict(m.sources),
                 feedback=fb_schema,
+                cards=meta.get("cards") or [],
+                suggestions=meta.get("suggestions") or [],
+                metadata=meta,
                 created_at=m.created_at,
             )
         )

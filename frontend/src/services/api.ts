@@ -405,11 +405,17 @@ export async function listConversations(
  */
 export async function getConversation(
   conversationId: string,
-  sessionId: string
+  sessionId: string,
+  adminKey?: string
 ): Promise<ConversationDetail> {
   try {
+    const headers: Record<string, string> = {};
+    if (adminKey) {
+      headers["X-Admin-Key"] = adminKey;
+    }
     const res = await fetch(
-      `${API_BASE}/api/v1/conversations/${conversationId}?session_id=${encodeURIComponent(sessionId)}`
+      `${API_BASE}/api/v1/conversations/${conversationId}?session_id=${encodeURIComponent(sessionId)}${adminKey ? `&admin_key=${encodeURIComponent(adminKey)}` : ""}`,
+      { headers }
     );
     return await handleResponse<ConversationDetail>(res, "Failed to load conversation");
   } catch (err) {
@@ -644,6 +650,9 @@ export interface AdminMessageDetail {
     department?: string | null;
   }> | null;
   feedback: AdminMessageFeedback | null;
+  cards?: any[] | null;
+  suggestions?: string[] | null;
+  metadata?: Record<string, any> | null;
   created_at: string;
 }
 
