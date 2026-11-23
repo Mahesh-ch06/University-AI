@@ -1,0 +1,241 @@
+/* v4.12.0 agent cards: the agent's plan, and "talk to a counsellor". Built on the chat card tokens (ChatCards.css). */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- the agent's plan ---------- */
+.message-cards-container .rich-card.ag-plan {
+  padding: 12px 14px;
+}
+
+.ag-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ag-plan-count {
+  font-size: var(--chat-card-small, 0.76rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--chat-card-muted, #64748b);
+}
+
+.ag-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ag-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: var(--chat-card-text, 0.86rem);
+  line-height: 1.35;
+}
+
+.ag-step-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--chat-card-border, #cbd5e1);
+  background: var(--chat-card-bg, #ffffff);
+  color: #ffffff;
+}
+
+.ag-step-icon svg {
+  display: block;
+}
+
+.ag-step--done .ag-step-icon {
+  border-color: #16a34a;
+  background: #16a34a;
+}
+
+.ag-step--now .ag-step-icon {
+  border-color: var(--primary, #0055a4);
+}
+
+.ag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary, #0055a4);
+  animation: agPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes agPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.ag-dash {
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--chat-card-muted, #64748b);
+}
+
+.ag-step--skipped .ag-step-title {
+  color: var(--chat-card-muted, #64748b);
+}
+
+.ag-step-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ag-step-title {
+  color: var(--chat-card-text-color, #0a1b3a);
+}
+
+.ag-step--todo .ag-step-title {
+  color: var(--chat-card-muted, #64748b);
+}
+
+.ag-step--now .ag-step-title {
+  font-weight: 650;
+}
+
+.ag-step-detail {
+  font-size: var(--chat-card-small, 0.76rem);
+  color: var(--chat-card-muted, #64748b);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- talk to a counsellor ---------- */
+.message-cards-container .rich-card.ag-connect {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.ag-connect--ok,
+.ag-connect--busy {
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 10px !important;
+}
+
+.ag-connect-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ag-connect-row > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ag-connect-title {
+  margin: 0;
+  font-size: var(--chat-card-text, 0.86rem);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--chat-card-text-color, #0a1b3a);
+}
+
+.ag-connect-msg {
+  margin: 2px 0 0;
+  font-size: var(--chat-card-text, 0.86rem);
+  line-height: 1.45;
+  color: var(--chat-card-text-color, #0a1b3a);
+}
+
+.ag-connect--waiting .ag-connect-msg {
+  font-size: var(--chat-card-small, 0.76rem);
+  color: var(--chat-card-muted, #64748b);
+}
+
+.ag-connect-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #ffffff;
+}
+
+.ag-connect-icon svg {
+  display: block;
+}
+
+.ag-connect--ok .ag-connect-icon {
+  background: #16a34a;
+}
+
+.ag-connect--busy .ag-connect-icon {
+  background: var(--primary, #0055a4);
+}
+
+.ag-timer {
+  flex: 0 0 auto;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary, #0055a4);
+}
+
+.ag-spinner {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--primary, #0055a4) 20%, transparent);
+  border-top-color: var(--primary, #0055a4);
+  animation: agSpin 0.9s linear infinite;
+}
+
+@keyframes agSpin {
+  to { transform: rotate(360deg); }
+}
+
+.ag-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--chat-card-inner-bg, #f1f5f9);
+  overflow: hidden;
+}
+
+.ag-bar span {
+  display: block;
+  height: 100%;
+  background: var(--primary, #0055a4);
+  transition: width 0.25s linear;
+}
+
+.message-cards-container .rich-card .ag-connect-change {
+  margin-top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-dot,
+  .ag-spinner {
+    animation: none;
+  }
+}

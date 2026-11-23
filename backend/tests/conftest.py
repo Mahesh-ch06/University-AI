@@ -3,6 +3,17 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def _chat_settings_are_the_defaults():
+    """The admin panel's chat settings live in the database; tests use the defaults unless they set others."""
+    from app.services import app_settings
+
+    app_settings.set_for_tests()          # defaults, and no database reload during the test
+    yield
+    app_settings.reset_for_tests()
+    app_settings.set_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def _agent_memory_stays_in_the_test():
     """The live app keeps student profiles and chat context in PostgreSQL (app/main.py wires the
     hooks). Unit tests use fixed session names, so with a real database one run would find the

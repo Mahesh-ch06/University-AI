@@ -127,7 +127,7 @@ async def lifespan(fastapi_app: FastAPI):
 app = FastAPI(
     title="University AI Companion",
     description="Conversational AI with RAG and Function-Calling Agent for university knowledge",
-    version="4.11.0",
+    version="4.12.0",
     lifespan=lifespan,
     docs_url="/docs" if security.docs_enabled() else None,
     redoc_url="/redoc" if security.docs_enabled() else None,
@@ -232,6 +232,14 @@ async def root():
 async def liveness_check():
     """Fast process-only probe for load balancers and restart controllers."""
     return {"status": "alive"}
+
+
+# ---- Keep-awake ping (v4.12.0) ----
+@app.api_route("/ping", methods=["GET", "HEAD"], tags=["system"], include_in_schema=False)
+async def ping() -> dict:
+    """For the keep-awake pinger: touches nothing (no database, Redis or search index), so pinging every few
+    minutes keeps the server awake without waking the database. Real health monitoring stays on /health."""
+    return {"status": "ok"}
 
 
 # ---- Health check ----
@@ -376,6 +384,15 @@ async def agent_lead_saver(lead_data: dict):
     from app.schemas.lead import LeadCreate
     from app.services import lead_service
     lead_obj = LeadCreate(**lead_data)
+    # A brand-new chat's conversation row is written in the background; a request made in its very first
+    # message ("talk to a counsellor") must wait for it, or the lead's link to the conversation fails (v4.12.0).
+    conv_id = lead_data.get("conversation_id")
+    creating = _creating_conversations.get(str(conv_id)) if conv_id else None
+    if creating is not None:
+        try:
+            await creating
+        except Exception:
+            pass
     async with async_session_factory() as session:
         created = await lead_service.create_lead(session, lead_obj)
         return {"id": str(created.id), "status": created.status}

@@ -277,3 +277,31 @@ selections are kept in the conversation state under `fee_eval` (not exposed by t
 | Admin routes | HTTP 503 while `ADMIN_API_KEY` is the placeholder on a production server (`APP_ENV=production`, on Render, or `APP_DEBUG=false`) |
 | `/docs`, `/openapi.json` | Only on a development machine (`APP_DEBUG=true`, not production) |
 | Errors | Production error messages never name internal services, hosts or ports |
+
+## v4.12.0 endpoints (`docs/35-agentic-features-and-admin-switches-nov-2026.md`)
+
+```http
+GET  /ping                                              # keep-awake: {"status": "ok"}, touches nothing (also HEAD)
+GET  /api/v1/agent/connect/{request_id}?session_id=…    # "talk to a counsellor" status, the student's own request only
+GET  /api/v1/admin/settings                             # chat settings (admin key)
+PUT  /api/v1/admin/settings                             # change some settings (admin key; audited)
+GET  /api/v1/admin/live-requests                        # students waiting for a counsellor now
+POST /api/v1/admin/live-requests/{request_id}/accept?counsellor=Name   # first counsellor wins; 409 if too late
+GET  /api/v1/admin/copilot/priorities?limit=20          # who to call first: ranked open leads with reasons
+GET  /api/v1/admin/copilot/draft/{lead_id}              # a draft follow-up message (nothing is sent)
+```
+
+| Shape | Fields |
+|---|---|
+| Connect status | `request_id`, `status` (`waiting` \| `accepted` \| `busy`), `seconds_left`, `wait_seconds`, `phone_last4`, `counsellor` |
+| Settings (`PUT` body: any subset) | `concession_picker` (`grouped` \| `table`), `connect_enabled` (bool), `connect_wait_seconds` (10–120), `office_hours_start` / `office_hours_end` ("HH:MM", India time), `office_days` (0 = Monday … 6 = Sunday). 422 on an invalid value |
+
+New cards in `done.cards`:
+- `agent_plan`: `{title, steps: [{title, status: done | now | todo | skipped, detail}]}`
+- `counsellor_connect`: the connect status above
+- `get_special_concessions`: now also carries `mode` (`grouped` | `table`) and `allow_none`, and with grouped mode
+  `groups` [{`key`, `title`, `hint`, `private`, `items` [{`category`, `per_year`}]}]
+
+Callback / visit leads carry `metadata.case`: `program`, `marks`, `scholarship`, `concession`, `hostel`, `fee`,
+`asked` (numbers masked) and `signals`.
+

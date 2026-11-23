@@ -18,7 +18,8 @@ import {
   ClockIcon,
   SruHostelIcon,
 } from "./Icons";
-import { ConcessionFeeCard, ConcessionsTableCard, FeePlanCard, FeeSummaryCard } from "./FeePlanCards";
+import { ConcessionFeeCard, ConcessionsCard, FeePlanCard, FeeSummaryCard } from "./FeePlanCards";
+import { AgentPlanCard, CounsellorConnectCard } from "./AgentCards";
 import "./Cards.css";
 import "./ChatCards.css";
 
@@ -2321,13 +2322,17 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
     case "calculate_fee":
       return <AgentFeeCard card={card} />;
     case "get_special_concessions": // the concessions table: pick one and apply it to your fee
-      return <ConcessionsTableCard card={card} onSelect={onSelect} />;
+      return <ConcessionsCard card={card} onSelect={onSelect} />;
     case "concession_fee":
       return <ConcessionFeeCard card={card} />;
     case "fee_plan": // older chats (v4.10.0)
       return <FeePlanCard card={card} />;
     case "fee_summary": // the fee evaluation agent's final card (v4.11.0)
       return <FeeSummaryCard card={card} />;
+    case "agent_plan": // the agent's visible plan (v4.12.0)
+      return <AgentPlanCard card={card} />;
+    case "counsellor_connect": // "talk to a counsellor" (v4.12.0)
+      return <CounsellorConnectCard card={card} onSelect={onSelect} />;
     case "request_counsellor_callback":
       return <AgentCallbackCard card={card} />;
     case "book_campus_visit": // older chats only

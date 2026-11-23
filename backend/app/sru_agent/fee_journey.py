@@ -25,7 +25,7 @@ from __future__ import annotations
 import hashlib
 import re
 
-from . import config, fee_plan, fees
+from . import config, fee_intake, fee_plan, fees
 
 KEY = "fee_eval"
 
@@ -61,6 +61,13 @@ _REMOVE_CONCESSION = re.compile(r"\b(?:remove|drop|cancel|without|no)\b.{0,12}\b
                                 re.IGNORECASE)
 _REMOVE_HOSTEL = re.compile(r"\b(?:remove|drop|without|no)\s+(?:the\s+)?hostel\b|\bday\s*scholar\b", re.IGNORECASE)
 _CHANGE_HOSTEL = re.compile(r"\b(?:change|add|include|switch)\b.{0,12}\bhostel\b", re.IGNORECASE)
+# "Find me the lowest fee" (v4.12.0): the agent takes the goal, shows its plan and runs every check itself.
+_LOWEST = re.compile(
+    r"\b(?:lowest|cheapest|minimum|least|lower|reduce|less)\b.{0,30}\b(?:fee|fees|cost|tuition|pay|amount)\b"
+    r"|\b(?:maximum|max|best|highest|biggest)\s+(?:possible\s+)?(?:scholarship|discount|concession|saving)s?\b"
+    r"|\bhow\s+(?:can|do|to)\s+(?:i\s+)?(?:pay\s+less|save\s+(?:on|money)|reduce\s+(?:my\s+)?fee)",
+    re.IGNORECASE)
+ENTRANCE_CHIPS = ["Add my EAPCET rank", "Add my JEE Main percentile", "No entrance exam"]
 _CONTINUE = re.compile(r"continue\s+my\s+fee|resume\s+my\s+fee|back\s+to\s+my\s+fee", re.IGNORECASE)
 
 
@@ -77,7 +84,7 @@ def new_state(program: str | None = None, origin: str = "fee", scholarship: str 
               hostel: str | None = None, transport: bool | None = None) -> dict:
     return {"active": True, "origin": origin, "program": program, "concession": None, "concession_decided": False,
             "proof": None, "scholarship": scholarship, "hostel": hostel, "transport": transport,
-            "awaiting": None, "asked_text": None, "final_shown": False}
+            "awaiting": None, "asked_text": None, "final_shown": False, "goal": None, "entrance": None}
 
 
 def has_marks(profile: dict) -> bool:
@@ -100,6 +107,112 @@ def _read_hostel(message: str) -> str | None:
         return None
     share = "3" if re.search(r"(?<!\d)3\s*[- ]?(?:shar|bed|person|member|sea)", low) else "4"
     return f"{kind}_{share}"
+
+
+def _cheapest_room() -> tuple[str, int]:
+    per_year = fees.load_data().get("hostel_per_year", {})
+    key = min(per_year, key=lambda k: (per_year[k], k))
+    return fees.HOSTEL_LABELS.get(key, key), int(per_year[key])
+
+
+def _read_entrance(message: str, awaiting: str | None) -> dict:
+    """{'eapcet_rank': 18500} / {'jee_percentile': 96.5} from what the student typed (or {})."""
+    low = (message or "").lower().replace(",", "")
+    out = {}
+    m = re.search(r"\b(?:eapcet|eamcet|emcet|ts\s*eapcet|ap\s*eapcet)\b\D{0,20}(\d{1,6})\b", low) \
+        or re.search(r"\brank\D{0,10}(\d{1,6})\b|\b(\d{1,6})\s*(?:th\s+)?rank\b", low)
+    if m:
+        out["eapcet_rank"] = int(next(g for g in m.groups() if g))
+    m = re.search(r"\bjee\b\D{0,20}(\d{1,2}(?:\.\d+)?)\b|(\d{1,2}(?:\.\d+)?)\s*(?:percentile|%ile)", low)
+    if m and "eapcet_rank" not in out:
+        out["jee_percentile"] = float(next(g for g in m.groups() if g))
+    if not out and awaiting in ("eapcet_value", "jee_value"):
+        m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*", low)
+        if m:
+            value = float(m.group(1))
+            if awaiting == "eapcet_value" and value >= 1 and value == int(value):
+                out["eapcet_rank"] = int(value)
+            elif awaiting == "jee_value" and 0 < value <= 100:
+                out["jee_percentile"] = value
+    if out.get("jee_percentile") is not None and not (0 < out["jee_percentile"] <= 100):
+        out.pop("jee_percentile")
+    if out.get("eapcet_rank") is not None and not (1 <= out["eapcet_rank"] <= 400000):
+        out.pop("eapcet_rank")
+    return out
+
+
+def plan_card(state: dict, profile: dict) -> dict:
+    """The agent's visible plan for the lowest-fee goal: each step done / now / to do, with what it found."""
+    program = state.get("program")
+    key = fees.find_program(program) if program else None
+    fee = None
+    if key and has_marks(profile):
+        merit = _merit(profile)
+        fee = fees.calculate_fee(key, **{k: v for k, v in merit.items() if k != "board"},
+                                 board=merit.get("board") or "state_board")
+    aw = state.get("awaiting")
+    steps = []
+
+    def add(title, done, detail=None, now=False):
+        steps.append({"title": title, "status": "done" if done else "now" if now else "todo", "detail": detail})
+
+    add("Programme", bool(key), fees.short_name(key) if key else None, now=aw == "program")
+    marks_done = has_marks(profile)
+    add("Your marks and eligibility", marks_done,
+        (fee or {}).get("scholarship_basis_text") if marks_done else None, now=aw == "scholarship_steps")
+    routes_done = marks_done and (state.get("entrance") is not None or not (key and fee_intake._uses_entrance(key))
+                                  or bool((profile or {}).get("eapcet_rank") or (profile or {}).get("jee_percentile")))
+    best = None
+    if fee and fee.get("status") == "ok":
+        best = f"{fee.get('scholarship_percent', 0)}% from {fee.get('scholarship_basis_text') or 'your marks'}"
+    add("Compare scholarship routes (board, EAPCET, JEE)", routes_done, best if routes_done else None,
+        now=aw in ("entrance", "eapcet_value", "jee_value"))
+    conc = state.get("concession")
+    add("Special concessions", bool(state.get("concession_decided")),
+        (f"{conc['label']} (pending proof)" if conc else "none apply") if state.get("concession_decided") else None,
+        now=aw in ("concession", "proof"))
+    hostel = state.get("hostel")
+    add("Hostel or day scholar", hostel is not None and (hostel != "none" or state.get("transport") is not None),
+        (fees.HOSTEL_LABELS.get(hostel, "") if hostel not in (None, "none") else
+         ("day scholar" + (" + bus" if state.get("transport") else "")) if hostel == "none" else None),
+        now=aw in ("hostel", "transport"))
+    add("Your lowest fee", bool(state.get("final_shown")))
+    if state.get("final_shown"):   # the student asked for the result early: open steps were skipped, not pending
+        for step in steps:
+            if step["status"] != "done":
+                step.update(status="skipped", detail=step.get("detail") or "skipped: you can add it any time")
+    return {"type": "agent_plan", "data": {"title": "Finding your lowest fee", "steps": steps}}
+
+
+def _lowest_explanation(state: dict, profile: dict, data: dict) -> tuple[str, list[str]]:
+    """What made the fee lowest, and the one change that would lower it further (if any)."""
+    key = data["program_key"]
+    merit = _merit(profile)
+    fee = fees.calculate_fee(key, **{k: v for k, v in merit.items() if k != "board"},
+                             board=merit.get("board") or "state_board")
+    lines, chips = [], []
+    considered = fee.get("scores_considered") or []
+    if len(considered) > 1:
+        routes = ", ".join(f"{c['score']} → {c['scholarship_percent']}%" for c in considered)
+        lines.append(f"• **Scholarship:** I compared {routes}, and used the best: "
+                     f"**{fee.get('scholarship_percent', 0)}%**.")
+    elif fee.get("scholarship_percent"):
+        lines.append(f"• **Scholarship:** {fee['scholarship_percent']}% from {fee.get('scholarship_basis_text')}.")
+    if state.get("concession"):
+        c = state["concession"]
+        lines.append(f"• **Concession:** {c['label']} (− {fees.inr(c['amount'])}/year) once your proof is verified.")
+    hostel = state.get("hostel")
+    if hostel not in (None, "none"):
+        per_year = fees.load_data().get("hostel_per_year", {})
+        cheapest_label, cheapest = _cheapest_room()
+        if per_year.get(hostel, cheapest) > cheapest:
+            lines.append(f"• 💡 A {cheapest_label} room would save **{fees.inr(per_year[hostel] - cheapest)}** a year.")
+            chips.append(f"Switch to {cheapest_label.replace(', ', ' ')}")
+    nxt = fee.get("next_scholarship_slab")
+    if nxt and (profile or {}).get("is_projected"):
+        lines.append(f"• 🎯 {nxt['requires']} in your final exam would give {nxt['scholarship_percent']}% "
+                     f"({nxt['extra_saving_first_year']} less in the first year).")
+    return "\n".join(lines), chips
 
 
 # ------------------------------------------------------------------------------------------ amounts
@@ -241,7 +354,13 @@ def _ask(state: dict, awaiting: str, text: str, chips: list[str], cards: list | 
 
 
 def _concession_card(program: str | None) -> dict:
-    return {"type": "get_special_concessions", "data": {**fees.special_concessions(), "program": program}}
+    return fee_plan.concession_card(program, in_evaluation=True)
+
+
+def _concession_chips() -> list[str]:
+    """The grouped card has its own "None of these apply" button; the full table needs the chip."""
+    from app.services import app_settings
+    return [SHOW_FEE] if app_settings.get("concession_picker") == "grouped" else [NONE_APPLY, SHOW_FEE]
 
 
 def next_step(state: dict, profile: dict, lead: str = "", seed: str = "") -> dict:
@@ -252,15 +371,27 @@ def next_step(state: dict, profile: dict, lead: str = "", seed: str = "") -> dic
     consideration_first = state.get("origin") == "special_consideration" and not state.get("concession_decided")
     if not program and not consideration_first:
         return _ask(state, "program", lead + "Which programme should I work out the fee for?", PROGRAM_CHIPS)
+    if state.get("goal") == "lowest" and program:
+        if not has_marks(profile):
+            state["scholarship"] = "yes"
+            state["awaiting"] = "scholarship_steps"
+            state["asked_text"] = None
+            return {"kind": "scholarship_steps", "lead": lead, "state": state}
+        if state.get("entrance") is None and fee_intake._uses_entrance(fees.find_program(program)) \
+                and not (profile or {}).get("eapcet_rank") and not (profile or {}).get("jee_percentile"):
+            return _ask(state, "entrance",
+                        lead + "Do you have an EAPCET rank or a JEE Main percentile? Sometimes it gives a bigger "
+                               "scholarship than board marks, and I'll use whichever is better.",
+                        ENTRANCE_CHIPS)
     if not state.get("concession_decided"):
         if state.get("origin") == "eligibility":
             ask = ("Before we finalise your fee, there may be additional concessions or special considerations "
                    "available. Would you like to explore them? Select one that applies to see your potential "
                    "final fee.")
         else:
-            ask = ("Pick the category that applies to you from the list, and I'll check what it means for your "
-                   "fee. Only choose one you can prove with a document.")
-        return _ask(state, "concession", lead + ask, [NONE_APPLY, SHOW_FEE], [_concession_card(program)])
+            ask = ("Pick the category that applies to you, and I'll check what it means for your fee. Only "
+                   "choose one you can prove with a document.")
+        return _ask(state, "concession", lead + ask, _concession_chips(), [_concession_card(program)])
     if not program:
         return _ask(state, "program", lead + "Which programme should I work out the fee for?", PROGRAM_CHIPS)
     conc = state.get("concession")
@@ -281,6 +412,12 @@ def next_step(state: dict, profile: dict, lead: str = "", seed: str = "") -> dic
         state["awaiting"] = "scholarship_steps"
         state["asked_text"] = None
         return {"kind": "scholarship_steps", "lead": lead, "state": state}
+    if state.get("hostel") is None and state.get("goal") == "lowest":
+        cheapest = _cheapest_room()
+        return _ask(state, "hostel",
+                    lead + f"Will you stay in the hostel? The lowest-cost room is **{cheapest[0]}** "
+                           f"({fees.inr(cheapest[1])} a year, meals included).",
+                    _hostel_chips() + [NO_HOSTEL])
     if state.get("hostel") is None:
         return _ask(state, "hostel",
                     lead + _pick(["Will you stay in the university hostel? Pick a room type to add it to your fee.",
@@ -328,6 +465,12 @@ def final(state: dict, profile: dict, lead: str = "") -> dict:
     chips += ["Documents needed for the concession" if state.get("concession") else "How do I apply for 2027-28?",
               "Talk to a counsellor"]
     head = "Here's your updated fee summary." if updated else "Here's your personalised fee summary."
+    if state.get("goal") == "lowest":
+        head = "✓ Done. Here's your lowest first-year fee."
+        how, extra_chips = _lowest_explanation(state, profile, data)
+        if how:
+            summary = summary + "\n\n" + how
+        chips = (extra_chips + chips)[:4]
     text = (lead.strip() + "\n\n" if lead.strip() else "") + head + " " + summary
     return {"kind": "final", "text": text, "chips": chips[:4],
             "cards": [{"type": "fee_summary", "data": data}], "state": state}
@@ -348,6 +491,21 @@ def resolve_program(*candidates) -> str | None:
 
 
 def decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict | None:
+    """What the fee agent does with this message, or None. Adds the visible plan for the lowest-fee goal."""
+    result = _decide(message, state, profile, ctx)
+    return with_plan(result, {**(profile or {}), **((result or {}).get("profile_updates") or {})})
+
+
+def with_plan(result: dict | None, profile: dict) -> dict | None:
+    """The lowest-fee goal shows the agent's plan above every step (one plan card, replaced each time)."""
+    if not result or (result.get("state") or {}).get("goal") != "lowest":
+        return result
+    cards = [c for c in result.get("cards") or [] if c.get("type") != "agent_plan"]
+    result["cards"] = [plan_card(result["state"], profile)] + cards
+    return result
+
+
+def _decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict | None:
     """What the fee agent does with this message, or None (not about the fee evaluation).
 
     ctx: program (the programme in this conversation), hostel / transport (last fee asked about),
@@ -366,6 +524,15 @@ def decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict |
         st.update(concession_decided=False)
         lead = ("Your special consideration can be evaluated for an additional fee concession. Let's collect the "
                 "relevant details before working out your final payable fee.")
+        return next_step(st, profile, lead, seed)
+
+    if _LOWEST.search(msg) and not picked and not re.search(r"\b(?:hostel|mess|bus|transport)\b", msg, re.IGNORECASE):
+        if not active:
+            st = new_state(resolve_program(msg, ctx.get("program")), "lowest_fee", scholarship="yes")
+        elif fees.find_program(msg):
+            st["program"] = fees.find_program(msg)
+        st.update(goal="lowest", final_shown=False)
+        lead = "Sure! I'll work out the lowest fee you can get. Here's my plan, and I'll run each check myself."
         return next_step(st, profile, lead, seed)
 
     if picked and (aw0 == "concession"
@@ -437,6 +604,32 @@ def decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict |
                 f"Added the {fees.HOSTEL_LABELS[hostel_now]} hostel room.")
         return next_step(st, profile, lead, seed)
 
+    if aw in ("entrance", "eapcet_value", "jee_value"):
+        found = _read_entrance(msg, aw)
+        if found:
+            st["entrance"] = "given"
+            merged = {**(profile or {}), **found}
+            key = fees.find_program(st.get("program") or "")
+            lead = "Got it."
+            if key:
+                merit = _merit(merged)
+                fee = fees.calculate_fee(key, **{k: v for k, v in merit.items() if k != "board"},
+                                         board=merit.get("board") or "state_board")
+                routes = fee.get("scores_considered") or []
+                if len(routes) > 1:
+                    lead = ("I compared " + ", ".join(f"{r['score']} → {r['scholarship_percent']}%" for r in routes)
+                            + f". The best is **{fee.get('scholarship_percent', 0)}%**, so I'll use that.")
+            step = next_step(st, merged, lead, seed)
+            step["profile_updates"] = found
+            return step
+        if re.search(r"add\s+my\s+eapcet|eapcet|eamcet", msg, re.IGNORECASE):
+            return _ask(st, "eapcet_value", "Type your EAPCET rank (just the number).", [])
+        if re.search(r"add\s+my\s+jee|\bjee\b", msg, re.IGNORECASE):
+            return _ask(st, "jee_value", "Type your JEE Main percentile (for example 92.5).", [])
+        if aw == "entrance" and (_NO.match(msg) or re.search(r"no\s+entrance|didn'?t\s+write|not\s+written|none",
+                                                            msg, re.IGNORECASE)):
+            st["entrance"] = "none"
+            return next_step(st, profile, "Okay, board marks it is.", seed)
     if aw == "program":
         key = fees.find_program(msg)
         if key:
@@ -497,12 +690,20 @@ def resume_chip(state: dict | None) -> str | None:
 
 
 def after_scholarship(state: dict, profile: dict, assessment_text: str, eligible, seed: str = "") -> dict:
+    """See _after_scholarship; adds the visible plan for the lowest-fee goal."""
+    return with_plan(_after_scholarship(state, profile, assessment_text, eligible, seed), profile)
+
+
+def _after_scholarship(state: dict, profile: dict, assessment_text: str, eligible, seed: str = "") -> dict:
     """The scholarship / eligibility result is in (the existing step-by-step flow finished).
 
     First time (the student came for the scholarship): confirm the qualification and introduce the special
     concessions before any fee card. Inside an evaluation: use the result and go on to the next open step.
     """
     st = dict(state or {})
+    if st.get("goal") == "lowest":   # the agent asks about entrance scores itself, as a step
+        assessment_text = re.sub(r"\s*Have an EAPCET rank or JEE Main percentile\? Share it and I'll check if it "
+                                 r"gives more\.", "", assessment_text).strip()
     if st.get("active"):
         st["scholarship"] = "yes"
         if st.get("final_shown"):
@@ -510,6 +711,10 @@ def after_scholarship(state: dict, profile: dict, assessment_text: str, eligible
         return next_step(st, profile, assessment_text, seed)
     program = resolve_program(st.get("program"), (profile or {}).get("program_interest"))
     st = new_state(program, "eligibility", scholarship="yes")
+    return _after_first_result(st, profile, assessment_text, eligible, seed)
+
+
+def _after_first_result(st, profile, assessment_text, eligible, seed):
     if eligible is True:
         intro = _pick(["Congratulations! Based on your academic details, you qualify for this programme.",
                        "Congratulations! Your academic details meet the requirements for this programme.",

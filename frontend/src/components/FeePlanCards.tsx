@@ -18,6 +18,137 @@ function amountValue(text: string): number {
   return Number(String(text || "").replace(/[^0-9]/g, "")) || 0;
 }
 
+/** The special concessions card: grouped (default) or the full table, as chosen in the admin panel. */
+export function ConcessionsCard({ card, onSelect }: { card: any; onSelect?: Select }) {
+  const data = card.data || card;
+  if (data.mode === "grouped" && Array.isArray(data.groups) && data.groups.length > 0) {
+    return <GroupedConcessionsCard card={card} onSelect={onSelect} />;
+  }
+  return <ConcessionsTableCard card={card} onSelect={onSelect} />;
+}
+
+/**
+ * Grouped picker (v4.12.0): five folded groups, one open at a time, so a student reads only the group that
+ * may apply. "None of these apply" (during a fee evaluation) is one tap. The "Other circumstances" group holds
+ * the personal categories: never asked about, chosen privately.
+ */
+export function GroupedConcessionsCard({ card, onSelect }: { card: any; onSelect?: Select }) {
+  const data = card.data || card;
+  const groups: { key: string; title: string; hint: string; private?: boolean; items: { category: string; per_year: string }[] }[] =
+    data.groups || [];
+  const [open, setOpen] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [done, setDone] = useState<"" | "picked" | "none">("");
+  const locked = done !== "";
+
+  const apply = () => {
+    if (!picked || locked || !onSelect) return;
+    setDone("picked");
+    onSelect(`Apply the "${picked}" concession to my fee`);
+  };
+  const none = () => {
+    if (locked || !onSelect) return;
+    setDone("none");
+    onSelect("None of these apply");
+  };
+
+  return (
+    <div className="rich-card fp-card fp-concessions fp-grouped">
+      <div className="card-header">
+        <span className="card-badge">
+          <AwardIcon size={14} /> Special concessions
+        </span>
+        <h4 className="card-title">Do any of these apply to you?</h4>
+      </div>
+      <p className="fp-hint">
+        Open a group to see its categories ({data.academic_year || "2027-28"}, per year). Each one is approved only
+        after your proof is verified.
+      </p>
+      <div className="fp-groups">
+        {groups.map((g) => {
+          const isOpen = open === g.key;
+          const amounts = Array.from(new Set(g.items.map((i) => i.per_year)));
+          return (
+            <div key={g.key} className={`fp-group${isOpen ? " is-open" : ""}`}>
+              <button
+                type="button"
+                className="fp-group-head"
+                aria-expanded={isOpen}
+                onClick={() => setOpen(isOpen ? null : g.key)}
+                disabled={locked && !g.items.some((i) => i.category === picked)}
+              >
+                <span className="fp-group-title">
+                  {g.title}
+                  <span className="fp-group-hint">{g.hint}</span>
+                </span>
+                <span className="fp-group-meta">
+                  {amounts.join(" / ")}
+                  <svg className="fp-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </span>
+              </button>
+              {isOpen && (
+                <div className="fp-group-body" role="radiogroup" aria-label={g.title}>
+                  {g.private && (
+                    <p className="fp-private-note">Private: pick one only if it applies. You won't be asked about it.</p>
+                  )}
+                  {g.items.map((it) => {
+                    const on = picked === it.category;
+                    return (
+                      <button
+                        type="button"
+                        key={it.category}
+                        role="radio"
+                        aria-checked={on}
+                        className={`fp-option${on ? " is-on" : ""}`}
+                        onClick={() => !locked && setPicked(it.category)}
+                        disabled={locked && !on}
+                      >
+                        <span className="fp-pick">
+                          <span className="fp-radio" aria-hidden="true">
+                            {on && <CheckIcon size={11} strokeWidth={3} />}
+                          </span>
+                          <span className="fp-cat">{it.category}</span>
+                        </span>
+                        <span className="fp-num">{it.per_year}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="agent-card-footer fp-footer">
+        {picked && (
+          <button type="button" className="agent-card-map-btn fp-apply" onClick={apply} disabled={locked || !onSelect}>
+            {done === "picked" ? (
+              <>
+                <CheckIcon size={14} /> Selected
+              </>
+            ) : (
+              "Check my fee with this"
+            )}
+          </button>
+        )}
+        {data.allow_none && (
+          <button type="button" className="card-more-btn fp-none" onClick={none} disabled={locked || !onSelect}>
+            {done === "none" ? (
+              <>
+                <CheckIcon size={14} /> None apply
+              </>
+            ) : (
+              "None of these apply"
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ConcessionsTableCard({ card, onSelect }: { card: any; onSelect?: Select }) {
   const data = card.data || card;
   const rows: { category: string; per_year: string }[] = useMemo(
