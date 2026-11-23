@@ -351,3 +351,77 @@ async def test_ping_touches_nothing():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         res = await client.get("/ping")
         assert res.status_code == 200 and res.json() == {"status": "ok"}
+
+
+# ------------------------------------------------------------------ v4.12.1: understand what the student asks
+SRJC = 'Apply the "Students of SR Junior College" concession to my fee'
+DAY_SCHOLAR = ["No hostel, I'm a day scholar", "No, I'll manage"]
+
+
+@pytest.mark.parametrize("program_answer,expected", [
+    ("B.Tech CSE", "B.Tech Computer Science & Engineering (CSE)"),
+    ("B.Tech CSE AIML", "B.Tech CSE (Artificial Intelligence & Machine Learning)"),
+    ("CSE with robotics", "B.Tech CSE (Robotics & Automation)"),
+])
+async def test_fee_summary_shows_the_programme_the_student_chose(program_answer, expected):
+    out = await _chat(["Calculate my scholarship", program_answer, "Telangana State Board", "Completed", "885", "MPC",
+                       "None of these apply"] + DAY_SCHOLAR)
+    course = _card(out[-1], "fee_summary")["course"]
+    assert course == expected and "Data Science" not in course.replace(expected, "")
+
+
+async def test_documents_question_answers_about_the_selected_concession():
+    out = await _chat(STEPS[:-1] + ["885", "MPC", SRJC, "Not yet"] + DAY_SCHOLAR + ["Documents needed for the concession"])
+    ans = out[-1]["answer"]
+    assert "Students of SR Junior College" in ans and "₹15,000" in ans
+    assert "₹2,80,000 → ₹2,65,000" in ans                      # the effect on this student's fee
+    assert "I already have your details" not in ans            # never sent to the scholarship steps
+    assert "Yes, I have the proof" in out[-1]["suggestions"]
+
+
+async def test_documents_question_without_a_selection_explains_and_offers_to_check():
+    done, = await _chat(["Documents needed for the concession"])
+    assert "haven't selected one" in done["answer"] and "Explore special concessions" in done["suggestions"]
+
+
+async def test_documents_question_mid_flow_answers_then_returns_to_the_open_step():
+    out = await _chat(STEPS + [SRJC, "what documents do I need for it?"])
+    ans = out[-1]["answer"]
+    assert "Students of SR Junior College" in ans and "back to your fee" in ans and "supporting document" in ans
+    assert out[-1]["suggestions"] == ["Yes, I have it", "Not yet"]          # the proof question again
+
+
+async def test_is_my_concession_approved_and_proof_ready():
+    out = await _chat(STEPS + [SRJC, "Not yet"] + DAY_SCHOLAR + ["is my concession approved?", "Yes, I have the proof"])
+    assert out[-2]["answer"].startswith("Not yet") and "pending verification" in out[-2]["answer"]
+    d = _card(out[-1], "fee_summary")
+    assert "proof ready" in d["special_consideration"]["label"] and "updated fee summary" in out[-1]["answer"]
+
+
+async def test_add_hostel_goes_to_the_hostel_question_even_with_open_steps():
+    out = await _chat(["Show my final fee", "B.Tech CSE", "Add hostel to my fee"])
+    assert "hostel" in out[-1]["answer"].lower() and not _card(out[-1], "get_special_concessions")
+    assert "No hostel, I'm a day scholar" in out[-1]["suggestions"]
+
+
+@pytest.mark.parametrize("setup", [
+    STEPS + [SRJC, "Not yet"] + DAY_SCHOLAR,                        # final with a concession
+    ["Show my final fee", "B.Tech CSE"],                            # final, concessions not explored
+    STEPS + [SRJC, "Not yet"] + DAY_SCHOLAR + ["Documents needed for the concession"],
+    ["Find me the lowest fee for B.Tech CSE", "Telangana State Board", "Completed", "885", "MPC", "No entrance exam",
+     "None of these apply", "AC 3-sharing (₹1,35,000)"],
+])
+async def test_every_button_the_fee_agent_offers_gets_a_relevant_answer(setup, leads, model):
+    base = (await _chat(setup))[-1]
+    assert base["suggestions"]
+    expect = {"Add hostel to my fee": "hostel", "Change hostel": "hostel", "Documents needed for the concession": "document",
+              "Talk to a counsellor": "******3210", "Explore special concessions": "category",
+              "How do I apply for 2027-28?": "apply", "Show my final fee": "fee summary",
+              "Yes, I have the proof": "proof", "Switch to Non-AC 4-sharing": "Non-AC, 4-sharing"}
+    for chip in base["suggestions"]:
+        before = model.calls
+        out = (await _chat(setup + [chip]))[-1]
+        text = out["answer"] + " " + " ".join(str(c.get("data", "")) for c in out.get("cards") or [])
+        assert "I already have your details" not in text, chip
+        assert expect.get(chip, chip.split()[0]).lower() in text.lower(), (chip, out["answer"][:200])
+        assert model.calls == before, chip                         # answered by the agent, not a generic model reply

@@ -141,3 +141,9 @@ Screenshots: `docs/images/v4.12/`.
   - moving the website calculator's "4-Year Tuition" row behind a "Show later years" link.
 - **cron-job.org:** this pinger must be set up once by you (see `docs/uptime-monitoring-setup.md`). The GitHub
   backup already runs on the new schedule once this is on `main`.
+
+## 9. v4.12.1 follow-up
+
+Fixes reported in testing, and the standing priority on understanding the student: see
+`docs/36-understanding-the-student-backlog.md`.
+

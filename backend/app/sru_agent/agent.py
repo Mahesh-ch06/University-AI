@@ -481,7 +481,8 @@ async def _counsellor_result(fee_result, details, c_text, chips, message, sessio
         return
     profile_now = ctx.get("profile") or {}
     fj = fee_journey.after_scholarship(conv_state.get(fee_journey.KEY), profile_now, c_text,
-                                       verdict.get("eligible"), seed=f"{session_id}{message}")
+                                       verdict.get("eligible"), seed=f"{session_id}{message}",
+                                       specialization=details.get("specialization"))
     fields = {fee_journey.KEY: fj["state"], "offer": None}
     if fj["state"].get("program"):
         fields["active_program"] = fj["state"]["program"]
@@ -494,6 +495,11 @@ async def _counsellor_result(fee_result, details, c_text, chips, message, sessio
 
 async def _run_fee_journey(fj: dict, message, session_id, conversation_id, profile, set_state):
     """Carry out what the fee evaluation agent decided (fee_journey.decide / after_scholarship)."""
+    if fj["kind"] == "info":   # an answer that does not change any evaluation (e.g. concession documents)
+        async for ev in _say(fj["text"], message, session_id, conversation_id, cards=fj.get("cards") or [],
+                             suggestions=fj.get("chips") or [], exact_chips=True, resume=False):
+            yield ev
+        return
     state = fj["state"]
     fields = {fee_journey.KEY: state, "offer": None}
     if state.get("program"):

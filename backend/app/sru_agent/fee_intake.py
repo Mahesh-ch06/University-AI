@@ -346,7 +346,7 @@ def parse_details(message: str) -> dict:
         elif re.search(r"\b(?:quantum\s*ai|quantum)\b", low):
             out["specialization"] = "Quantum AI"
             out["program_raw"] = "Quantum AI"
-        elif re.search(r"\b(?:robotics\s*(?:&|and)\s*automation)\b", low):
+        elif re.search(r"\brobotics(?:\s*(?:&|and)\s*automation)?\b", low):   # inside CSE: the R&A specialisation
             out["specialization"] = "Robotics & Automation"
             out["program_raw"] = "Robotics & Automation"
         elif re.search(r"\b(?:core\s*cse|core)\b", low):

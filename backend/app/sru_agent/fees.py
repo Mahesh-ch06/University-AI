@@ -124,7 +124,7 @@ def clean_program_name(key: str, specialization: str | bool | None = None, user_
             return "B.Tech CSE (Cyber Security)"
         if any(k in spec for k in ("quantum ai", "quantum")) or re.search(r"\b(?:quantum\s*ai|quantum)\b", low_text):
             return "B.Tech CSE (Quantum AI)"
-        if any(k in spec for k in ("robotics & automation", "robotics and automation")) or re.search(r"\b(?:robotics\s*(?:&|and)\s*automation)\b", low_text):
+        if any(k in spec for k in ("robotics & automation", "robotics and automation", "robotics")) or re.search(r"\b(?:robotics(?:\s*(?:&|and)\s*automation)?)\b", low_text):
             return "B.Tech CSE (Robotics & Automation)"
         return "B.Tech Computer Science & Engineering (CSE)"
 
