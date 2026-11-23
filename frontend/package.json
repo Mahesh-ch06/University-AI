@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "4.1.9",
+  "version": "4.2.0",
 
   "type": "module",
   "scripts": {
@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test:calc": "node scripts/test-fee-calculator.mjs",
-    "test": "npm run test:calc"
+    "test:effects": "node scripts/test-effects.mjs",
+    "test": "npm run test:calc && npm run test:effects"
   },
   "dependencies": {
     "react": "^19.2.8",

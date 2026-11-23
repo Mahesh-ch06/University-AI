@@ -68,8 +68,8 @@ export function triggerConfetti() {
   canvas.height = window.innerHeight * dpr;
   ctx.scale(dpr, dpr);
 
-  const colors = ["#0ea5e9", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#3b82f6"];
-  const particleCount = 70;
+  const colors = ["#10b981", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ec4899", "#3b82f6", "#eab308"];
+  const particleCount = 85;
   const particles: Array<{
     x: number;
     y: number;
@@ -86,14 +86,14 @@ export function triggerConfetti() {
   for (let i = 0; i < particleCount; i++) {
     particles.push({
       x: window.innerWidth * Math.random(),
-      y: window.innerHeight * -0.2 - Math.random() * 100,
-      w: 8 + Math.random() * 8,
-      h: 5 + Math.random() * 5,
+      y: window.innerHeight * -0.2 - Math.random() * 120,
+      w: 8 + Math.random() * 10,
+      h: 5 + Math.random() * 6,
       color: colors[Math.floor(Math.random() * colors.length)],
-      vx: (Math.random() - 0.5) * 4,
-      vy: 3 + Math.random() * 5,
+      vx: (Math.random() - 0.5) * 4.5,
+      vy: 3.5 + Math.random() * 5.5,
       rotation: Math.random() * 360,
-      vRot: (Math.random() - 0.5) * 10,
+      vRot: (Math.random() - 0.5) * 12,
       opacity: 1,
     });
   }
@@ -111,8 +111,8 @@ export function triggerConfetti() {
       p.x += p.vx;
       p.y += p.vy;
       p.rotation += p.vRot;
-      if (elapsed > 1800) {
-        p.opacity = Math.max(0, 1 - (elapsed - 1800) / 700);
+      if (elapsed > 2000) {
+        p.opacity = Math.max(0, 1 - (elapsed - 2000) / 700);
       }
 
       if (p.y < window.innerHeight && p.opacity > 0) {
@@ -127,7 +127,7 @@ export function triggerConfetti() {
       }
     }
 
-    if (allDone || elapsed > 2600) {
+    if (allDone || elapsed > 2800) {
       cancelAnimationFrame(animationFrameId);
       if (canvas.parentNode) {
         canvas.parentNode.removeChild(canvas);
@@ -139,3 +139,81 @@ export function triggerConfetti() {
 
   animationFrameId = requestAnimationFrame(animate);
 }
+
+/**
+ * Accurately determines if the assistant response indicates the student IS eligible for admission or scholarship.
+ * Strictly guarantees that ineligible responses (e.g. below 50% threshold, rejection messages) NEVER trigger the effect.
+ */
+export function isEligibleResponse(data: { answer?: string; cards?: any[]; eligible?: boolean }): boolean {
+  // Explicit server flag wins if provided
+  if (data.eligible === true) return true;
+  if (data.eligible === false) return false;
+
+  const text = (data.answer || "").toLowerCase();
+  if (!text) return false;
+
+  // Strict negative exclusions: If any rejection indicator is found, student is NOT eligible!
+  const ineligiblePhrases = [
+    "not eligible",
+    "not be eligible",
+    "ineligible",
+    "below 50%",
+    "below the 50%",
+    "does not meet",
+    "do not meet",
+    "cannot be provided",
+    "sorry, but with",
+    "sorry you are not",
+    "unfortunately",
+  ];
+  if (ineligiblePhrases.some((phrase) => text.includes(phrase))) {
+    return false;
+  }
+
+  // Positive eligibility affirmations
+  const eligiblePhrases = [
+    "eligible for admission",
+    "eligible for our",
+    "eligible to apply",
+    "qualify for our",
+    "qualify for an",
+    "qualify for a",
+    "qualify for merit",
+    "qualify for the",
+    "qualifies you for",
+    "qualifies for",
+    "fully eligible",
+    "congratulations on qualifying",
+    "you are eligible",
+    "you're eligible",
+    "top-tier merit scholarship",
+    "premier merit scholarship",
+    "highest merit scholarship",
+    "merit scholarship tier",
+    "tuition fee waiver",
+    "scholarship reduction",
+    "### your scholarship assessment",
+    "matching scholarship category",
+    "meets the academic eligibility",
+    "meet the academic eligibility",
+    "meets the eligibility",
+    "meet the eligibility",
+    "fulfill sr university's academic eligibility",
+    "fulfills sr university's academic eligibility",
+  ];
+
+  if (eligiblePhrases.some((phrase) => text.includes(phrase))) {
+    return true;
+  }
+
+  // Check if cards contain calculate_fee or scholarship assessment data
+  if (data.cards && Array.isArray(data.cards)) {
+    const hasFeeCalc = data.cards.some((c) => c?.type === "calculate_fee" && c?.data?.status === "ok");
+    if (hasFeeCalc) {
+      return true;
+    }
+  }
+
+  return false;
+}
+

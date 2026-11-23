@@ -363,7 +363,7 @@ def _chunks(text: str, words_per_chunk: int = 6):
 
 
 # ------------------------------------------------------- small reply helpers ----
-def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None):
+def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None):
     d = {"type": "done", "conversation_id": conversation_id, "answer": answer,
          "tools_used": list(used), "model": config.AGENT_MODEL,
          # kept so the existing frontend 'done' handler does not break
@@ -372,10 +372,17 @@ def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=
         d["profile"] = profile
     if telemetry is not None:
         d["telemetry"] = telemetry
+    if eligible is not None:
+        d["eligible"] = eligible
+    else:
+        cards_list = list(cards)
+        has_fee_ok = any(isinstance(c, dict) and c.get("type") == "calculate_fee" and (c.get("data") or {}).get("status") == "ok" for c in cards_list)
+        if has_fee_ok:
+            d["eligible"] = True
     return d
 
 
-async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None, profile=None):
+async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None):
     """Stream a reply the code wrote itself (no model call), remember it, and finish the turn."""
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     text = normalize_positive_brand_advocacy(text)
@@ -393,7 +400,7 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
             profile = await memory.get_profile(session_id)
         except Exception:
             profile = None
-    yield _done(conversation_id, text, used, cards, final_suggestions, telemetry=telemetry, profile=profile)
+    yield _done(conversation_id, text, used, cards, final_suggestions, telemetry=telemetry, profile=profile, eligible=eligible)
 
 
 async def _run_action(name: str, args: dict, ctx: dict, used: list, cards: list):
@@ -2596,7 +2603,8 @@ async def run_agent(
                 await set_state(fee_intake=None)
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=[],
-                                     suggestions=intake_decision.get("chips", [])):
+                                     suggestions=intake_decision.get("chips", []),
+                                     eligible=False):
                     yield ev
                 return
             elif intake_decision and intake_decision["action"] == "ask":
@@ -2618,7 +2626,8 @@ async def run_agent(
                     async for ev in _say(c_text, message, session_id, conversation_id,
                                          used=[{"name": "calculate_fee", "status": "ok", "is_action": False}],
                                          cards=[{"type": "calculate_fee", "data": fee_result}],
-                                         suggestions=chips):
+                                         suggestions=chips,
+                                         eligible=True):
                         yield ev
                     return
 
@@ -2643,7 +2652,8 @@ async def run_agent(
                 await set_state(fee_intake=None)
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=[],
-                                     suggestions=intake_decision.get("chips", [])):
+                                     suggestions=intake_decision.get("chips", []),
+                                     eligible=False):
                     yield ev
                 return
             elif intake_decision and intake_decision["action"] == "ask":
@@ -2665,7 +2675,8 @@ async def run_agent(
                     async for ev in _say(c_text, message, session_id, conversation_id,
                                          used=[{"name": "calculate_fee", "status": "ok", "is_action": False}],
                                          cards=[{"type": "calculate_fee", "data": fee_result}],
-                                         suggestions=chips):
+                                         suggestions=chips,
+                                         eligible=True):
                         yield ev
                     return
 
@@ -2988,7 +2999,8 @@ async def run_agent(
                     yield ev
                 async for ev in _say(text, message, session_id, conversation_id,
                                      [{"name": "calculate_fee", "status": "ok", "is_action": False}],
-                                     [{"type": "calculate_fee", "data": fee}]):
+                                     [{"type": "calculate_fee", "data": fee}],
+                                     eligible=True):
                     yield ev
                 return
 

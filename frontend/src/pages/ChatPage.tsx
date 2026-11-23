@@ -15,7 +15,7 @@ import {
   type MessageData,
   type ChatResponse,
 } from "../services/api";
-import { playChime, triggerConfetti } from "../utils/effects";
+import { playChime, triggerConfetti, isEligibleResponse } from "../utils/effects";
 import { APP_VERSION } from "../version";
 import "./ChatPage.css";
 
@@ -614,8 +614,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         applyServerProfile(data.profile);
         playChime();
 
-        const ansLower = (data.answer || "").toLowerCase();
-        if (ansLower.includes("fully eligible") || ansLower.includes("congratulations")) {
+        if (isEligibleResponse(data)) {
           triggerConfetti();
         }
 

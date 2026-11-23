@@ -169,3 +169,23 @@ def test_done_helper_includes_profile():
     ev = agent._done("conv-123", "Test reply", profile=prof)
     assert ev["type"] == "done"
     assert ev["profile"] == prof
+
+
+def test_done_helper_eligible_flag_handling():
+    """_done() sets eligible flag explicitly or infers from calculate_fee card."""
+    # Explicit False
+    ev_false = agent._done("conv-1", "Not eligible", eligible=False)
+    assert ev_false.get("eligible") is False
+
+    # Explicit True
+    ev_true = agent._done("conv-2", "Eligible for scholarship", eligible=True)
+    assert ev_true.get("eligible") is True
+
+    # Inferred True from calculate_fee card
+    ev_inferred = agent._done("conv-3", "Fee calculated", cards=[{"type": "calculate_fee", "data": {"status": "ok"}}])
+    assert ev_inferred.get("eligible") is True
+
+    # General chat without fee card does not set eligible: True
+    ev_general = agent._done("conv-4", "Hello there")
+    assert "eligible" not in ev_general
+
