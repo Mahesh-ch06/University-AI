@@ -57,7 +57,7 @@ clearly that the student does not meet the minimum.
 
 | Check | Result |
 |---|---|
-| New suite `tests/test_conversation_logic_audit.py` (production code path, 64 tests: every case in the brief, boundaries, spelling, interruptions, topic changes, follow-ups) | All pass |
+| New suite `tests/test_conversation_logic_audit.py` (production code path, 63 tests: every case in the brief, boundaries, spelling, interruptions, topic changes, follow-ups) | All pass |
 | Full backend suite | 793 passed, 9 failed, 8 skipped. The 9 also fail on v4.3.1 (no PostgreSQL / Redis / API key here, and older follow-up-chip tests). None of them is new |
 | Frontend build, lint (no new warnings), fee calculator (3,477 checks), effects tests | Pass |
 
