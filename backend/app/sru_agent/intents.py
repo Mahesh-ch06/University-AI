@@ -764,10 +764,17 @@ def is_cancel_contact(message: str, has_open_request: bool = False) -> bool:
 # "Talk to a counsellor / a person" (v4.12.0): the student wants a human now. Handled by the counsellor connect
 # flow (services/live_connect.py): a short real attempt, then a callback. "Call me" stays a callback request.
 _CONNECT_PATTERN = re.compile(
-    r"\b(?:talk|speak|chat|connect)\s+(?:me\s+)?(?:to|with)\s+(?:(?:a|an|the|your|some|real|live)\s+)*"
+    r"\b(?:talk|speak|chat|connect|transfer|put)\s+(?:me\s+)?(?:to|with|through\s+to)\s+"
+    r"(?:(?:a|an|the|your|some|real|live)\s+)*"
     r"(?:counsell?or|admissions?(?:\s+(?:team|officer|counsell?or|office))?|someone|somebody|human|person|"
-    r"representative|agent|staff|executive)\b"
-    r"|\breal\s+(?:person|human)\b|\blive\s+(?:agent|counsell?or|person)\b|\bconnect\s+me\b",
+    r"representative|agent|staff|executive|customer\s+(?:care|support|service)|support(?:\s+team)?|"
+    r"help\s*desk|helpline|call\s*cent(?:er|re))\b"
+    r"|\breal\s+(?:person|human)\b|\blive\s+(?:agent|counsell?or|person|support|chat)\b|\bconnect\s+me\b"
+    # v4.13.0: "customer care", "human please", "I need help from a person"
+    r"|(?<!the\s)\bcustomer\s+(?:care|support|service)\b(?!\s+(?:of|at|in|for)\b)"
+    r"|\b(?:human|person|agent|counsell?or)\s+please\b"
+    r"|\b(?:help|assistance)\s+from\s+(?:a\s+)?(?:person|human|someone|counsell?or)\b"
+    r"|\b(?:need|want)\s+(?:to\s+talk\s+to\s+)?(?:a\s+)?(?:human|real\s+person)\b",
     re.IGNORECASE)
 
 
