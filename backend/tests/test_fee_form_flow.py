@@ -81,7 +81,7 @@ def test_decide_multi_step_flow():
     assert r1["action"] == "ask"
     assert r1["state"]["waiting_for"] == "program"
     assert len(r1["cards"]) == 1
-    assert r1["cards"][0]["type"] == "fee_scholarship_form"
+    assert r1["cards"][0]["type"] == "counsellor_program_selection"   # v4.13.0: step card, not the old form
     assert "course" in r1["text"].lower() and "board" in r1["text"].lower()
 
     # Step 2: User specifies course, but board is missing
@@ -91,7 +91,7 @@ def test_decide_multi_step_flow():
     assert r2["state"]["program"] == "btech_cse"
     assert r2["state"]["waiting_for"] == "board"
     assert len(r2["cards"]) == 1
-    assert r2["cards"][0]["selected_program"] == "btech_cse"
+    assert r2["cards"][0]["program"] == "btech_cse"
     assert any("board" in chip.lower() for chip in r2["chips"])
 
     # Direct course enquiry: "what is the fee for btech cse"
@@ -101,7 +101,7 @@ def test_decide_multi_step_flow():
     assert r2_direct["state"]["program"] == "btech_cse"
     assert r2_direct["state"]["waiting_for"] == "board"
     assert len(r2_direct["cards"]) == 1
-    assert r2_direct["cards"][0]["selected_program"] == "btech_cse"
+    assert r2_direct["cards"][0]["program"] == "btech_cse"
 
     # Step 3: User specifies board, but marks/rank are missing
     r3 = fee_intake.decide("Telangana State Board", profile={}, intake=r2["state"])
@@ -110,7 +110,8 @@ def test_decide_multi_step_flow():
     assert r3["state"]["board"] == "state_board"
     assert r3["state"]["waiting_for"] == "percent"
     assert len(r3["cards"]) == 1
-    assert r3["cards"][0]["selected_board"] == "ts_state_board"
+    # v4.13.0: the marks step card for the board chosen (Telangana Intermediate: out of 1000)
+    assert r3["cards"][0]["type"] == "counsellor_marks_input" and r3["cards"][0]["max_marks"] == 1000
     assert any("%" in chip for chip in r3["chips"])
 
     # Step 4: User provides marks
@@ -170,7 +171,7 @@ def test_fee_flow_followup_preserves_course():
     assert "B.Tech CSE" in result["text"] or "Computer Science" in result["text"]
     assert "10+2 / Intermediate Board" in result["text"]
     assert len(result["cards"]) == 1
-    assert result["cards"][0]["type"] == "fee_scholarship_form"
-    assert result["cards"][0]["selected_program"] == "btech_cse"
+    assert result["cards"][0]["type"] == "counsellor_board_selection"   # v4.13.0: step card, not the old form
+    assert result["cards"][0]["program"] == "btech_cse"
     assert result["new_state"]["fee_intake"]["program"] == "btech_cse"
     assert result["new_state"]["fee_intake"]["waiting_for"] == "board"

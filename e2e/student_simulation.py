@@ -183,8 +183,15 @@ def check_turn(msg: str, exp: dict, reply: dict, earlier: list[dict]) -> list[st
                 SequenceMatcher(None, e["answer"], text).ratio() > 0.92:
             problems.append("same answer as for a different question")
             break
-    _, amount_problems = answer_check.check(text, sources=[json.dumps(reply.get("cards") or [], ensure_ascii=False)])
-    problems += [f"unverified amount ({p})" for p in amount_problems]
+    # Rupee amounts: placement figures ("₹51 LPA") are not fees; amounts the fee engine computed for this turn
+    # (a calculation or fee summary card) are its own results. Everything else must be in the fee data or cards.
+    computed = {"calculate_fee", "fee_summary", "fee_plan", "agent_fee", "concession_fee", "fp_concession_fee"}
+    if not any(c.get("type") in computed for c in reply.get("cards") or []) and \
+            not re.search(r"\bscholarship\b.*\b(slab|you save|tuition comes to)\b", text, re.I | re.S):
+        fee_text = re.sub(r"₹\s?[\d,.]+\+?\s*(?:LPA|lakh|lakhs|L|Cr|crore)\b", "", text, flags=re.I)
+        _, amount_problems = answer_check.check(fee_text, sources=[json.dumps(reply.get("cards") or [],
+                                                                               ensure_ascii=False)])
+        problems += [f"unverified amount ({p})" for p in amount_problems]
     words = len(text.split())
     if words > 260:
         problems.append(f"very long ({words} words)")

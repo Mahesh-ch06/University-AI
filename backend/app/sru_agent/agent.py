@@ -2945,7 +2945,7 @@ async def run_agent(
         ))
 
         is_scholarship_calc_q = not is_other_fee_inquiry and bool(re.search(
-            r"\b(?:schol\w*|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
+            r"\b(?:(?:schol\w*|s[ck]?h?o[lr]+[ae]?r?s+h?i*p+\w*)|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
             r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee|expected\s+scholarship|"
             r"scholarship\s+counsell?or|fee\s+counsell?or)\b",
             low_msg,

@@ -36,7 +36,9 @@ def test_no_fluff_and_no_assumed_total_for_bare_marks():
         assert f"{slab} merit scholarship" in second["text"].lower()
         assert "₹" not in second["text"]
         assert "Which programme are you interested in?" in second["text"]
-        assert any(c.get("type") == "fee_scholarship_form" for c in second.get("cards", []))
+        # v4.13.0: the old consolidated form is never shown; the programme is asked with its step card
+        assert not any(c.get("type") == "fee_scholarship_form" for c in second.get("cards", []))
+        assert any(c.get("type") == "counsellor_program_selection" for c in second.get("cards", []))
 
 
 def test_bare_numbers_routed_to_intake():

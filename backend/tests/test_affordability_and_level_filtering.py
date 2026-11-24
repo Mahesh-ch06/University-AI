@@ -72,7 +72,7 @@ def test_affordability_multi_step_flow_turn_by_turn():
     assert "Step 1 of 2: Academic Programme & Marks" in res1["text"]
     assert res1["new_state"]["affordability_flow"]["step"] == "awaiting_academics"
     assert len(res1["cards"]) == 1
-    assert res1["cards"][0]["type"] == "fee_scholarship_form"
+    assert res1["cards"][0]["type"] == "counsellor_program_selection"   # v4.13.0: step card, not the old form
 
     # Turn 2: Student enters Course and Marks
     state2 = res1["new_state"]
