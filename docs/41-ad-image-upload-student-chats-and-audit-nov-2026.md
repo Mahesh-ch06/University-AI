@@ -89,3 +89,17 @@ Questions with no verified answer in the sources are listed for the university t
 the Admissions Office until then): NAAC grade, scholarship renewal rules, instalments, education loans,
 admission dates and documents list, spot admission / management quota, lateral-entry eligibility, hostel Wi-Fi,
 laundry details, parent visits, attendance rule, exam pattern, Sunday campus visits, starting a new club.
+
+## 6. Crash fix and final checks
+
+* Fixed a crash that is also on main: when the AI model failed (quota, "high demand", timeout) while a callback or
+  campus visit was pending, the fallback read `is_other_fee_inquiry`, which only the skipped fee block set
+  (`UnboundLocalError`, the reply errored). It is now set first. Test:
+  `test_model_failure_during_a_pending_callback_or_visit_never_crashes` (fails without the fix).
+* "is SRU ranked number one?" was taken for a phone-number question by the new contacts answer; "number one / 1"
+  no longer counts as a phone number.
+* Final checks: backend 1,326 passed; browser journeys v410 32/32, v411 27/27, v412 19/19, memory journey 26/26,
+  memory flow 16/16, upload journey passed, video card on phone and laptop (real thumbnails, no page errors);
+  248 unexpected questions with no errors; 2,000-student simulation (seed 4242): 93.1% of students passed every
+  check, all critical metrics 100%, 1.3% of replies repeated earlier wording; frontend build clean.
+* Not tested here: answers written by the AI model, for lack of API quota (free tier).

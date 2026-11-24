@@ -361,7 +361,7 @@ _RULES += [
      _not_on_fee_card("education-loan arrangement")),
     (re.compile(r"\b(?:phone|contact|mobile|whatsapp|helpline)\s*(?:number|no\.?|details|info)?\b.{0,25}\b(?:admissions?|"
                 r"sru|university|office|college|counsell?or)\b|\b(?:admissions?|office|sru)\b.{0,20}\b(?:phone|contact|"
-                r"email|e-?mail|whatsapp|number|address)\b|\bemail\s*(?:id)?\b.{0,15}\badmissions?\b|"
+                r"email|e-?mail|whatsapp|number(?!\s+(?:one|1|two|three|\d))|address)\b|\bemail\s*(?:id)?\b.{0,15}\badmissions?\b|"
                 r"^\W*(?:whatsapp|email|contact)\s*(?:number|no|id|details)?\W*$|\bwhere\s+is\s+(?:the\s+)?admissions?\s+office\b|"
                 r"\boffice\s+(?:timings?|hours)\b", re.I), _contacts),
     (re.compile(r"\b(?:duration|how\s+many\s+years|how\s+long)\b.{0,30}\b(?:b\.?\s?tech|btech|engineering|bba|bca|mba|mca|"

@@ -558,3 +558,19 @@ async def test_number_alone_after_the_agent_asked_for_it(leads):
     await memory.append_history(sid, "yes please", "Great. What is your 10-digit mobile number?")
     _, done = await _run("9700012345", sid)
     assert len(leads["saved"]) == 1 and leads["saved"][0]["name"] == "Harika Rao"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("pending", ["callback", "campus_visit"])
+async def test_model_failure_during_a_pending_callback_or_visit_never_crashes(no_waiting, pending):
+    """v4.15.1: with a callback / campus visit pending, the fee and topic block is skipped; when the model then fails
+    (quota, "high demand", timeout) the fallback read a variable only that block set, and the reply crashed."""
+    class Down(ScriptedClient):
+        async def generate_content(self, model, contents, config):
+            raise _ApiError(503, "503 UNAVAILABLE: high demand")
+
+    session = f"act-pending-{pending}"
+    await memory.update_conversation_state(session, None, pending_action=pending)
+    for message in ("what are the other charges?", "tell me something about the library", "zzz qqq xyzzy"):
+        _, done = await _run(message, session, Down())
+        assert done["type"] == "done" and done["answer"].strip()

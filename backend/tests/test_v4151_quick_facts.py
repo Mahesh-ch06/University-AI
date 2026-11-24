@@ -132,3 +132,14 @@ async def test_a_callback_request_with_a_fee_question_still_books_the_callback()
     events = [e async for e in agent.run_agent("call me on 9876501234, what is the caution deposit", sid, None)]
     done = next(e for e in events if e.get("type") == "done")
     assert "caution deposit of" not in (done.get("answer") or "")
+
+
+@pytest.mark.parametrize("question", ["is SRU ranked number one in india?", "is sru number 1"])
+def test_a_ranking_question_is_not_taken_for_a_phone_number(question):
+    assert quick_facts.answer(question) is None
+
+
+@pytest.mark.parametrize("question", ["sru phone number", "admissions number?", "sru contact number"])
+def test_contact_number_questions_still_get_the_contacts(question):
+    a = quick_facts.answer(question)
+    assert a and "833 100 3030" in a.text
