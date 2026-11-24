@@ -1,7 +1,7 @@
 """Lead service — business logic for prospective student leads, inquiries, and conversion tracking."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -149,6 +149,33 @@ async def create_lead(db: AsyncSession, data: LeadCreate) -> ProspectiveLead:
         raw_program=data.program_interest,
         metadata=data.metadata,
     )
+    # v4.15.0: the same student asking again (another browser, after "Start fresh", a day later) must not give
+    # the admissions team a second lead: a callback / visit request from the same mobile number that is still
+    # "new" (not yet handled) and less than 7 days old is updated instead, and the repeat is counted.
+    request_type = (data.metadata or {}).get("request_type")
+    if data.source == "chat_inquiry" and request_type:
+        since = datetime.now(timezone.utc) - timedelta(days=7)
+        existing = (await db.execute(
+            select(ProspectiveLead).where(ProspectiveLead.phone == data.phone.strip(),
+                                          ProspectiveLead.status == "new",
+                                          ProspectiveLead.source == "chat_inquiry",
+                                          ProspectiveLead.created_at >= since)
+            .order_by(ProspectiveLead.created_at.desc()))).scalars().all()
+        same = next((x for x in existing if (x.metadata_ or {}).get("request_type") == request_type), None)
+        if same is not None:
+            meta = dict(same.metadata_ or {})
+            meta.update({k: v for k, v in (data.metadata or {}).items() if v is not None})
+            meta["repeat_requests"] = int((same.metadata_ or {}).get("repeat_requests") or 0) + 1
+            meta["last_requested_at"] = datetime.now(timezone.utc).isoformat()
+            same.metadata_ = meta
+            same.name = data.name.strip() or same.name
+            same.program_interest = clean_prog or same.program_interest
+            same.score = (data.score.strip() if data.score else None) or same.score
+            same.conversation_id = data.conversation_id or same.conversation_id
+            await db.commit()
+            await db.refresh(same)
+            logger.info("Repeat request merged into lead %s (mobile ending %s)", same.id, (same.phone or "")[-4:])
+            return same
     lead = ProspectiveLead(
         name=data.name.strip(),
         phone=data.phone.strip(),

@@ -650,6 +650,12 @@ export function AgentFeeCard({ card }: CardProps) {
 }
 
 
+/** The name for the confirmation, never a placeholder ("Unknown", "Student", "undefined"...). */
+function callbackName(name: unknown): string {
+  const n = String(name ?? "").trim().split(/\s+/)[0] || "";
+  return /^(unknown|student|user|guest|null|undefined|n\/?a|none|-+)$/i.test(n) ? "" : n;
+}
+
 export function AgentCallbackCard({ card }: CardProps) {
   const d = card.data || {};
   return (
@@ -662,7 +668,9 @@ export function AgentCallbackCard({ card }: CardProps) {
       </div>
       <div className="agent-action-body">
         <p className="agent-action-msg">
-          Thank you, <strong>{d.name || "Student"}</strong>. An official SR University admissions counselor will contact you on your registered mobile (ending in <strong>•••{d.phone_last4 || "••••"}</strong>).
+          {callbackName(d.name) ? <>Thank you, <strong>{callbackName(d.name)}</strong>. </> : "Thank you. "}
+          Your callback request has been successfully submitted. Our admissions counsellor will contact you on your
+          mobile ending in <strong>•••{d.phone_last4 || "••••"}</strong>.
         </p>
         <div className="agent-action-meta">
           {d.preferred_time && <div><strong>Preferred Time:</strong> {d.preferred_time}</div>}
@@ -2000,103 +2008,128 @@ export function CounsellorStageCard({ card, onSelect }: { card: any; onSelect?: 
   );
 }
 
+/**
+ * Marks entry (v4.15.0): a labelled form, never a guess from free text.
+ *  * The board's total is known (e.g. Telangana Intermediate: 1000): one field, "Marks obtained / 1000".
+ *  * Not known: the student picks "Percentage" or "Marks", and for marks enters both the marks obtained and the
+ *    maximum marks. Each value is checked (a number, within range) with a clear message before it is sent.
+ * The value sent is the one shown, and it replaces any earlier marks on the server (agent._sync_marks).
+ */
 export function CounsellorMarksCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
-  const [val, setVal] = useState<string>(card.default_val ? String(card.default_val) : "");
-  const [submitted, setSubmitted] = useState<boolean>(false);
+  const fixedMax: number | null = card.max_marks ? Number(card.max_marks) : null;
+  const [mode, setMode] = useState<"marks" | "percent">(fixedMax && fixedMax <= 100 ? "percent" : "marks");
+  const [got, setGot] = useState<string>(card.default_val ? String(card.default_val) : "");
+  const [total, setTotal] = useState<string>(fixedMax && fixedMax > 100 ? String(fixedMax) : "");
+  const [submitted, setSubmitted] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const flexible = !fixedMax;
+  const uid = useState(() => Math.random().toString(36).slice(2, 8))[0];
 
-  const maxMarks = card.max_marks || 1000;
-  const isPercentage = maxMarks <= 100;
+  const num = (v: string) => {
+    const n = parseFloat(String(v).replace(/,/g, "").trim());
+    return Number.isFinite(n) ? n : NaN;
+  };
 
-  const handleSubmit = (marksVal?: number) => {
+  const submit = () => {
     if (submitted) return;
-    const num = marksVal !== undefined ? marksVal : parseFloat(val.replace(/[^\d.]/g, ""));
-    if (isNaN(num) || num <= 0) {
-      setError(`Please enter a valid score (between 1 and ${maxMarks}).`);
+    const g = num(got);
+    if (mode === "percent") {
+      if (isNaN(g) || g <= 0 || g > 100) {
+        setError("Enter your percentage as a number between 1 and 100, for example 87.5.");
+        return;
+      }
+      setError(null);
+      const text = `${g}%`;
+      setSubmitted(text);
+      onSelect?.(text);
       return;
     }
-    if (num > maxMarks) {
-      setError(`Entered score exceeds the maximum marks (${maxMarks}).`);
+    const t = fixedMax && fixedMax > 100 ? fixedMax : num(total);
+    if (isNaN(t) || t < 100 || t > 2000) {
+      setError("Enter the maximum marks for your exam, for example 1000 or 600.");
+      return;
+    }
+    if (isNaN(g) || g <= 0) {
+      setError("Enter the marks you obtained as a number, for example 870.");
+      return;
+    }
+    if (g > t) {
+      setError(`Marks obtained can't be more than the maximum (${t}).`);
       return;
     }
     setError(null);
-    setSubmitted(true);
-    if (onSelect) {
-      if (isPercentage) {
-        onSelect(`${num}%`);
-      } else {
-        onSelect(`${num} out of ${maxMarks}`);
-      }
-    }
+    const text = `${g} out of ${t}`;
+    setSubmitted(text);
+    onSelect?.(text);
   };
 
-  const quickMarks = isPercentage
-    ? [80, 88, 92, 96]
-    : [Math.round(maxMarks * 0.85), Math.round(maxMarks * 0.92), Math.round(maxMarks * 0.96)];
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submit();
+    }
+  };
 
   return (
     <div className="rich-card counsellor-card counsellor-marks-card">
       <div className="counsellor-card-header">
         <span className="card-badge counsellor-step-badge">
-          <AwardIcon size={13} /> {card.step_label || "Step 3: Academic Marks"}
+          <AwardIcon size={13} /> {card.step_label || "Your marks"}
         </span>
-        <h4 className="card-title counsellor-title">{card.title}</h4>
+        <h4 className="card-title counsellor-title">{card.title || "Enter your marks"}</h4>
         {card.subtitle && <p className="card-subtitle counsellor-subtitle">{card.subtitle}</p>}
       </div>
 
-      <div className="counsellor-marks-body">
-        <div className="counsellor-input-row">
-          <div className="counsellor-input-wrapper">
-            <input
-              type="number"
-              className={`counsellor-marks-input-field ${error ? "error" : ""}`}
-              placeholder={card.placeholder || (isPercentage ? "e.g. 88" : `e.g. ${Math.round(maxMarks * 0.88)}`)}
-              value={val}
-              onChange={(e) => {
-                setVal(e.target.value);
-                if (error) setError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSubmit();
-              }}
-              disabled={submitted}
-              autoFocus
-            />
-            <span className="counsellor-marks-unit">{isPercentage ? "%" : `/ ${maxMarks}`}</span>
-          </div>
-          <button
-            type="button"
-            className="counsellor-submit-btn"
-            onClick={() => handleSubmit()}
-            disabled={submitted || !val.trim()}
-          >
-            {submitted ? "Submitted ✓" : "Continue →"}
-          </button>
-        </div>
-
-        {error && <div className="counsellor-inline-error">{error}</div>}
-
-        {!submitted && (
-          <div className="counsellor-benchmarks">
-            <span className="counsellor-benchmarks-title">Quick select:</span>
-            <div className="counsellor-benchmarks-chips">
-              {quickMarks.map((qm) => (
-                <button
-                  key={qm}
-                  type="button"
-                  className="counsellor-benchmark-chip"
-                  onClick={() => {
-                    setVal(String(qm));
-                    handleSubmit(qm);
-                  }}
-                >
-                  {isPercentage ? `${qm}%` : `${qm} / ${maxMarks}`}
-                </button>
-              ))}
+      {submitted ? (
+        <div className="cm-marks-done" role="status">✓ Sent: <strong>{submitted}</strong></div>
+      ) : (
+        <div className="counsellor-marks-body cm-marks-form">
+          {flexible && (
+            <div className="cm-marks-mode" role="radiogroup" aria-label="How do you want to enter your marks?">
+              <button type="button" role="radio" aria-checked={mode === "marks"} className={mode === "marks" ? "on" : ""}
+                      onClick={() => { setMode("marks"); setError(null); }}>Marks</button>
+              <button type="button" role="radio" aria-checked={mode === "percent"} className={mode === "percent" ? "on" : ""}
+                      onClick={() => { setMode("percent"); setError(null); }}>Percentage</button>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+          {mode === "percent" ? (
+            <label className="cm-marks-field" htmlFor={`pct-${uid}`}>
+              <span className="cm-marks-label">Your percentage</span>
+              <span className="counsellor-input-wrapper">
+                <input id={`pct-${uid}`} type="number" inputMode="decimal" min={1} max={100} step="0.01"
+                       className={`counsellor-marks-input-field ${error ? "error" : ""}`} placeholder="e.g. 87.5"
+                       value={got} onChange={(e) => { setGot(e.target.value); setError(null); }} onKeyDown={onKey}
+                       aria-invalid={!!error} />
+                <span className="counsellor-marks-unit">%</span>
+              </span>
+            </label>
+          ) : (
+            <div className="cm-marks-pair">
+              <label className="cm-marks-field" htmlFor={`got-${uid}`}>
+                <span className="cm-marks-label">Marks obtained</span>
+                <input id={`got-${uid}`} type="number" inputMode="numeric" min={1}
+                       className={`counsellor-marks-input-field ${error ? "error" : ""}`}
+                       placeholder={fixedMax && fixedMax > 100 ? `e.g. ${Math.round(fixedMax * 0.87)}` : "e.g. 870"}
+                       value={got} onChange={(e) => { setGot(e.target.value); setError(null); }} onKeyDown={onKey}
+                       aria-invalid={!!error} />
+              </label>
+              <span className="cm-marks-slash" aria-hidden="true">/</span>
+              <label className="cm-marks-field" htmlFor={`max-${uid}`}>
+                <span className="cm-marks-label">Maximum marks</span>
+                <input id={`max-${uid}`} type="number" inputMode="numeric" min={100}
+                       className="counsellor-marks-input-field" placeholder="e.g. 1000" value={total}
+                       readOnly={!!(fixedMax && fixedMax > 100)} aria-readonly={!!(fixedMax && fixedMax > 100)}
+                       onChange={(e) => { setTotal(e.target.value); setError(null); }} onKeyDown={onKey} />
+              </label>
+            </div>
+          )}
+          {error && <div className="counsellor-inline-error" role="alert">{error}</div>}
+          <button type="button" className="counsellor-submit-btn cm-marks-submit" onClick={submit} disabled={!got.trim()}>
+            Continue
+          </button>
+          {card.hint && <p className="cm-marks-hint">{card.hint}</p>}
+        </div>
+      )}
     </div>
   );
 }

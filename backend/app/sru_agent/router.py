@@ -225,7 +225,9 @@ async def update_profile(body: ProfileUpdate):
     if body.program_interest:
         await memory.update_profile(body.session_id, program_interest=body.program_interest.strip())
     if body.fresh_start is not None:
-        await memory.update_profile(body.session_id, address_by_name=not body.fresh_start)
+        # v4.15.0: "Start fresh" resets the conversation, not the student's identity: the name stays usable (a
+        # shared computer uses "Not {name}?", which forgets the details instead).
+        await memory.update_profile(body.session_id, address_by_name=True)
     return {"status": "ok", "profile": memory.public_profile(await memory.get_profile(body.session_id))}
 
 

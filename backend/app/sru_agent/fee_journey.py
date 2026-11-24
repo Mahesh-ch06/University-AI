@@ -39,9 +39,11 @@ HOSTEL_CHOICES = [  # (chip, key); amounts are added to the chip label from the 
 ]
 NO_HOSTEL = "No hostel, I'm a day scholar"
 
-_YES = re.compile(r"^\s*(?:yes|yeah|yep|yup|sure|ok(?:ay)?|please|go\s+ahead|of\s+course|haa?n?|avunu|y)\b",
+_YES = re.compile(r"^\s*(?:yes|yeah|yep|yup|sure|ok(?:ay)?|please|go\s+ahead|of\s+course|haa?n?|avunu|y|ha|haan|ji|"
+                  r"kavali)\b",
                   re.IGNORECASE)
-_NO = re.compile(r"^\s*(?:no|nope|nah|not\s+(?:now|yet|interested|needed|required)|skip|later|n)\b",
+_NO = re.compile(r"^\s*(?:no|nope|nah|none|not\s+(?:now|yet|interested|needed|required)|skip|later|n|ledu|vaddu|nahi|"
+                 r"nahin)\b",
                  re.IGNORECASE)
 # The "Special Consideration" tile (and the student asking for it). "What special category concessions are
 # there?" is an information question, answered with the concessions table, not an evaluation.
@@ -53,6 +55,9 @@ _FINAL = re.compile(
     r"(?:full|complete|whole|entire|total)\s+fee\s+(?:chart|plan|breakdown|details)|"
     r"prepare\s+(?:my|the|a)\s+(?:full\s+|complete\s+|whole\s+)?fee|give\s+(?:me\s+)?(?:the\s+)?final)\b",
     re.IGNORECASE)
+_PAY_Q = re.compile(r"how\s+much\b.{0,30}\b(?:will|would|do|should|must|have\s+to)\s+(?:i\s+)?(?:have\s+to\s+)?pay|"
+                    r"what\s+(?:will|would)\s+i\s+pay", re.IGNORECASE)
+_EXPLICIT_FINAL = re.compile(r"\b(?:final|summary|chart|plan|breakdown|total)\b", re.IGNORECASE)
 _WRAP_UP = re.compile(r"^\s*(?:ok(?:ay)?\s+)?(?:thanks?|thank\s+you|thx|ty|bye|goodbye|that'?s\s+all|done|"
                       r"ok(?:ay)?|cool|got\s+it|fine)\b[\s!.]*$", re.IGNORECASE)
 _CHANGE_CONCESSION = re.compile(r"\b(?:change|different|another|other|switch)\b.{0,20}\b(?:concession|consideration|category)\b",
@@ -231,6 +236,41 @@ def _lowest_explanation(state: dict, profile: dict, data: dict) -> tuple[str, li
 
 
 # ------------------------------------------------------------------------------------------ amounts
+_SWITCH = re.compile(r"\b(?:actually|instead|change(?:d)?\s+(?:it\s+)?(?:to|my\s+mind)|switch(?:ed)?\s+(?:it\s+)?to|"
+                     r"i\s+(?:want|prefer|would\s+like)|no\s+wait|rather|make\s+it|not\s+\w+(?:\s+\w+)?,?\s+(?:but|i\s+want))\b",
+                     re.IGNORECASE)
+
+
+def _switched_program(message: str, current: str | None) -> str | None:
+    """The programme the student switches to in this message, or None."""
+    if not _SWITCH.search(message or "") or fee_intake.parse_details(message).get("qualifying_degree"):
+        return None
+    key = fee_intake.parse_details(message).get("program") or fees.find_program(message or "")
+    key = fees.find_program(str(key)) if key else None
+    if not key or key == fees.find_program(str(current or "")):
+        return None
+    return key
+
+
+def marks_update_text(state: dict, profile: dict) -> str:
+    """One line: what the student's (new) marks mean for the scholarship on the programme being evaluated."""
+    key = fees.find_program(str(state.get("program") or ""))
+    if not key or state.get("scholarship") == "no" or not has_marks(profile):
+        return ""
+    merit = _merit(profile)
+    fee = fees.calculate_fee(key, **{k: v for k, v in merit.items() if k != "board"},
+                             board=merit.get("board") or "state_board")
+    if fee.get("status") != "ok":
+        return ""
+    short = fees.short_name(key)
+    pct = int(fee.get("scholarship_percent") or 0)
+    if pct <= 0:
+        return (f"With your marks there's no merit scholarship slab on **{short}**, so the standard tuition "
+                f"of **{fee.get('tuition_first_year')}/year** applies.")
+    return (f"With your marks, your scholarship on **{short}** is **{pct}%**: tuition comes to "
+            f"**{fee.get('tuition_first_year_after_scholarship') or fee.get('tuition_first_year')}/year**.")
+
+
 def _merit(profile: dict) -> dict:
     return fee_plan._merit_args(profile or {})
 
@@ -577,6 +617,12 @@ def _decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict 
 
     wants_final = bool(_FINAL.search(msg)) and not (
         not active and re.search(r"\b(?:hostel|mess|bus|transport|exam|application)\b", msg, re.IGNORECASE))
+    if wants_final and not active and ctx.get("evaluate_first") and not has_marks(profile) \
+            and _PAY_Q.search(msg) and not _EXPLICIT_FINAL.search(msg):
+        # v4.15.0: "how much do I pay for AI & Robotics?" from a student with no marks yet is a fee question: the
+        # evaluation (marks -> scholarship -> concessions -> hostel) runs first, as for "AI & Robotics fees?".
+        wants_final = False
+        return None
     if not active and ctx.get("offer") == "fee_chart" and _YES.match(msg):
         wants_final = True          # "yes" to "shall I prepare your complete fee chart?"
     if wants_final:
@@ -605,6 +651,25 @@ def _decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict 
     # ---- while an evaluation is running ----------------------------------------------------------------------
     answering = _answering(st, ctx.get("last_reply"))
     aw = st.get("awaiting")
+
+    # v4.15.0: a change of programme in the middle ("actually I want ECE", "change to AI and Robotics"): the
+    # evaluation continues for the new programme (same marks, same selections), with what that changes.
+    new_key = _switched_program(msg, st.get("program"))
+    if new_key:
+        _set_program(st, new_key, msg)
+        lead = f"Sure, switching to **{fees.short_name(new_key)}**. " + marks_update_text(st, profile)
+        if st.get("final_shown") and not aw:
+            return final(st, profile, lead)
+        return next_step(st, profile, lead, seed)
+
+    # v4.15.0: the student corrected their marks ("No, my marks are 671 out of 1000"). The new marks are already
+    # the only marks on file (agent._sync_marks); say what they change, then ask the open step again. The "No"
+    # in the correction is NOT an answer to the open step (it used to be read as "no concession").
+    if ctx.get("marks_corrected") and aw != "scholarship_steps":
+        lead = marks_update_text(st, profile)
+        if st.get("final_shown") and not aw:
+            return final(st, profile, lead)
+        return next_step(st, profile, lead, seed)
 
     if _CONTINUE.search(msg):
         if st.get("final_shown") and not aw:
@@ -665,7 +730,8 @@ def _decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict 
             return next_step(st, profile, f"Got it, **{fees.short_name(key)}**.", seed)
     elif aw == "concession" and (answering or re.search(r"none\s+of\s+(?:these|them)|doesn'?t\s+apply|"
                                                          r"don'?t\s+(?:have|qualify)", msg, re.IGNORECASE)):
-        if re.search(r"none\s+of|doesn'?t\s+apply|don'?t\s+(?:have|qualify)|^\s*no\b|skip|not\s+applicable",
+        if re.search(r"none\s+of|doesn'?t\s+apply|don'?t\s+(?:have|qualify)|^\s*(?:no|none|nothing|nope|nah|na|"
+                     r"ledu|kuch\s+nahi|nahi)\b|skip|not\s+applicable",
                      msg, re.IGNORECASE):
             st.update(concession=None, concession_decided=True, proof=None)
             return next_step(st, profile, "No problem, no special concession then.", seed)

@@ -43,9 +43,9 @@ def test_system_prompt_unknown_name_behavior():
     """Verify system prompt does not assume, invent, or unnecessarily ask for unknown names."""
     p = prompt.build_system_prompt({})
     
-    assert "STUDENT'S NAME: Unknown" in p
-    assert "Never assume/invent a name" in p or "Never assume" in p
-    assert "without asking unnecessarily" in p
+    assert "STUDENT'S NAME: not given yet" in p
+    assert "Never assume or invent a name" in p
+    assert "'Unknown'" in p                       # placeholders are named as forbidden (v4.15.0)
 
 
 @pytest.mark.asyncio

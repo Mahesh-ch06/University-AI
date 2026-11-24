@@ -27,6 +27,8 @@ import MarkdownContent from "../components/MarkdownContent";
 import { RenderCard } from "../components/Cards";
 import AgentControlTab, { LiveRequestBanner } from "../components/admin/AgentControlTab";
 import CampusMediaTab from "../components/admin/CampusMediaTab";
+import AdminLogin from "../components/admin/AdminLogin";
+import "../components/admin/AdminShell.css";
 import "./AdminMobile.css";
 import "./AdminPage.css";
 
@@ -116,11 +118,17 @@ function formatProgramInterest(raw?: string | null, meta?: any): string {
   return "General Admissions";
 }
 
+function NavIcon({ d }: { d: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"
+         strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+  );
+}
+
 export default function AdminPage({ onBackToChat }: Props) {
   const [adminKey, setAdminKey] = useState<string>(
     () => sessionStorage.getItem("university_ai_admin_key") || ""
   );
-  const [keyInput, setKeyInput] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"leads" | "chats" | "overview" | "documents" | "feedback" | "agent" | "media">("leads");
 
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -360,13 +368,6 @@ export default function AdminPage({ onBackToChat }: Props) {
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!keyInput.trim()) return;
-    sessionStorage.setItem("university_ai_admin_key", keyInput.trim());
-    setAdminKey(keyInput.trim());
-  };
-
   const handleLogout = () => {
     sessionStorage.removeItem("university_ai_admin_key");
     setAdminKey("");
@@ -456,7 +457,7 @@ export default function AdminPage({ onBackToChat }: Props) {
     // The link never carries the admin key: whoever opens it must be signed in to the admin panel.
     const link = `${window.location.origin}/?chat=${encodeURIComponent(convId)}`;
     navigator.clipboard.writeText(link);
-    setActionNotice({ text: "🔗 Chat link copied (opens for signed-in staff only).", type: "success" });
+    setActionNotice({ text: "Chat link copied (opens for signed-in staff only).", type: "success" });
     setTimeout(() => setActionNotice(null), 3000);
   };
 
@@ -484,7 +485,7 @@ export default function AdminPage({ onBackToChat }: Props) {
     });
     navigator.clipboard.writeText(lines.join("\n"));
     setCopiedTranscript(true);
-    setActionNotice({ text: "📋 Complete conversation dialogue copied to clipboard!", type: "success" });
+    setActionNotice({ text: "Complete conversation dialogue copied to clipboard!", type: "success" });
     setTimeout(() => {
       setCopiedTranscript(false);
       setActionNotice(null);
@@ -515,7 +516,7 @@ export default function AdminPage({ onBackToChat }: Props) {
         feedbackFilter,
       });
       setActionNotice({
-        text: `📥 Complete dataset downloaded in Markdown (.md)! Ready for AI model training / evaluation.`,
+        text: `Complete dataset downloaded in Markdown (.md)! Ready for AI model training / evaluation.`,
         type: "success",
       });
     } catch (err: unknown) {
@@ -633,119 +634,82 @@ export default function AdminPage({ onBackToChat }: Props) {
   // Authentication Box
   if (!adminKey) {
     return (
-      <div className="admin-container">
-        <header className="admin-header">
-          <div className="admin-brand">
-            <span className="admin-brand-icon">🏛️</span>
-            <span className="admin-brand-name">SR University AI</span>
-            <span className="admin-badge">Admin</span>
-          </div>
-          <button className="admin-btn-secondary" onClick={onBackToChat}>
-            ← Student Portal
-          </button>
-        </header>
-
-        <div className="admin-main-scroll admin-login-wrap">
-          <div className="admin-auth-card">
-            <div className="auth-card-icon">🔐</div>
-            <h2>Admin Authentication</h2>
-            <p>Enter the master admin key to access prospective admissions leads, student conversations, and knowledge management.</p>
-            <form onSubmit={handleLogin}>
-              <input
-                type="password"
-                className="admin-input"
-                placeholder="Enter Admin API Key"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                autoFocus
-                required
-              />
-              {error && <div className="admin-auth-error">{error}</div>}
-              <button type="submit" className="admin-btn-primary admin-btn-block">
-                Access Dashboard
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
+      <AdminLogin
+        onBackToChat={onBackToChat}
+        initialError={error}
+        onSuccess={(key) => {
+          sessionStorage.setItem("university_ai_admin_key", key);
+          setError(null);
+          setAdminKey(key);
+        }}
+      />
     );
   }
 
-  return (
-    <div className="admin-container">
-      {/* Sleek Minimal Header */}
-      <header className="admin-header">
-        <div className="admin-brand">
-          <span className="admin-brand-icon">🏛️</span>
-          <span className="admin-brand-name">SRU Buddy</span>
-          <span className="admin-badge">Admin Console</span>
-          <span className="admin-status-indicator" title="System Online">
-            <span className="status-dot"></span> Live
-          </span>
-        </div>
+  const NAV: { key: typeof activeTab; label: string; icon: React.ReactNode; count?: number }[] = [
+    { key: "leads", label: "Leads", icon: <NavIcon d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />, count: leadStats?.total_leads ?? leadsTotal },
+    { key: "chats", label: "Student chats", icon: <NavIcon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />, count: conversationsTotal || conversations.length },
+    { key: "overview", label: "Overview", icon: <NavIcon d="M3 3v18h18M7 16l4-4 3 3 5-6" /> },
+    { key: "agent", label: "Agent & counsellors", icon: <NavIcon d="M12 2a3 3 0 0 0-3 3v1H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2V5a3 3 0 0 0-3-3zM9 13h.01M15 13h.01M9 17h6" /> },
+    { key: "media", label: "Campus media", icon: <NavIcon d="M23 7l-7 5 7 5V7zM1 5h15v14H1z" /> },
+    { key: "documents", label: "Knowledge base", icon: <NavIcon d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM20 22H6.5A2.5 2.5 0 0 1 4 19.5" />, count: documents.length },
+    { key: "feedback", label: "Feedback", icon: <NavIcon d="M14 9V5a3 3 0 0 0-6 0v4M5 9h14l-1 12H6L5 9z" />, count: feedback.length },
+  ];
+  const activeLabel = NAV.find((n) => n.key === activeTab)?.label || "Dashboard";
 
+  return (
+    <div className="admin-container adm-shell">
+      <aside className="adm-sidebar" aria-label="Admin navigation">
+        <div className="adm-side-brand">
+          <img src="/sru-logo.png" alt="SR University" />
+          <div>
+            <div className="adm-side-name">SRU Buddy</div>
+            <div className="adm-side-sub">Admissions console</div>
+          </div>
+        </div>
+        <nav className="adm-side-nav">
+          {NAV.map((n) => (
+            <button key={n.key} type="button" className={`adm-side-link ${activeTab === n.key ? "active" : ""}`}
+                    aria-current={activeTab === n.key ? "page" : undefined} onClick={() => setActiveTab(n.key)}>
+              <span className="adm-side-icon">{n.icon}</span>
+              <span className="adm-side-label">{n.label}</span>
+              {typeof n.count === "number" && n.count > 0 && <span className="adm-side-count">{n.count}</span>}
+            </button>
+          ))}
+        </nav>
+        <div className="adm-side-foot">
+          <span className="adm-live"><span className="adm-live-dot" /> Live</span>
+          <button type="button" className="adm-side-signout" onClick={handleLogout}>Sign out</button>
+        </div>
+      </aside>
+
+      <div className="adm-body">
+      <header className="admin-header adm-topbar">
+        <div className="adm-top-left">
+          <img src="/sru-logo.png" alt="" className="adm-top-logo" />
+          <h1 className="adm-top-title">{activeLabel}</h1>
+        </div>
         <div className="admin-header-actions">
-          <button className="admin-btn-secondary" onClick={onBackToChat}>
-            💬 Student Chat
+          <span className="adm-live adm-live--top"><span className="adm-live-dot" /> Live</span>
+          <button className="admin-btn-secondary adm-top-btn" onClick={onBackToChat}>
+            <NavIcon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /> <span>Open student chat</span>
           </button>
-          <button className="admin-btn-secondary" onClick={handleLogout}>
-            Exit
-          </button>
+          <button className="admin-btn-secondary adm-top-btn adm-top-signout" onClick={handleLogout}>Sign out</button>
         </div>
       </header>
 
-      {/* Segmented Minimal Navigation Tabs */}
-      <nav className="admin-nav-bar" ref={(nav) => {
+      {/* Phones and tablets: one scrollable row of sections (the sidebar is hidden there) */}
+      <nav className="admin-nav-bar adm-mobile-tabs" ref={(nav) => {
         const active = nav?.querySelector<HTMLElement>(".admin-tab-btn.active");
         if (active && nav && nav.scrollWidth > nav.clientWidth) active.scrollIntoView({ block: "nearest", inline: "nearest" });
       }}>
         <div className="admin-tabs-list">
-          <button
-            className={`admin-tab-btn ${activeTab === "leads" ? "active" : ""}`}
-            onClick={() => setActiveTab("leads")}
-          >
-            🎯 Prospective Leads
-            <span className="tab-counter">{leadStats?.total_leads ?? leadsTotal}</span>
-          </button>
-          <button
-            className={`admin-tab-btn ${activeTab === "chats" ? "active" : ""}`}
-            onClick={() => setActiveTab("chats")}
-          >
-            💬 Student Chats
-            <span className="tab-counter">{conversationsTotal || conversations.length}</span>
-          </button>
-          <button
-            className={`admin-tab-btn ${activeTab === "overview" ? "active" : ""}`}
-            onClick={() => setActiveTab("overview")}
-          >
-            📊 Overview
-          </button>
-          <button
-            className={`admin-tab-btn ${activeTab === "documents" ? "active" : ""}`}
-            onClick={() => setActiveTab("documents")}
-          >
-            📚 Knowledge Base
-            <span className="tab-counter">{documents.length}</span>
-          </button>
-          <button
-            className={`admin-tab-btn ${activeTab === "feedback" ? "active" : ""}`}
-            onClick={() => setActiveTab("feedback")}
-          >
-            ⭐ Feedback
-            <span className="tab-counter">{feedback.length}</span>
-          </button>
-          <button
-            className={`admin-tab-btn ${activeTab === "agent" ? "active" : ""}`}
-            onClick={() => setActiveTab("agent")}
-          >
-            🤖 Agent
-          </button>
-          <button
-            className={`admin-tab-btn ${activeTab === "media" ? "active" : ""}`}
-            onClick={() => setActiveTab("media")}
-          >
-            🎬 Campus media
-          </button>
+          {NAV.map((n) => (
+            <button key={n.key} className={`admin-tab-btn ${activeTab === n.key ? "active" : ""}`} onClick={() => setActiveTab(n.key)}>
+              <span className="adm-tab-icon">{n.icon}</span> {n.label}
+              {typeof n.count === "number" && n.count > 0 && <span className="tab-counter">{n.count}</span>}
+            </button>
+          ))}
         </div>
       </nav>
 
@@ -809,7 +773,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                       <input
                         type="text"
                         className="admin-input-search"
-                        placeholder="🔍 Search student name or mobile number..."
+                        placeholder="Search student name or mobile number..."
                         value={leadSearch}
                         onChange={(e) => {
                           setLeadSearch(e.target.value);
@@ -857,8 +821,8 @@ export default function AdminPage({ onBackToChat }: Props) {
                       }}
                     >
                       <option value="all">All Sources</option>
-                      <option value="chat_inquiry">💬 Chat Inquiry</option>
-                      <option value="calculator">🧮 Calculator</option>
+                      <option value="chat_inquiry">Chat Inquiry</option>
+                      <option value="calculator">Calculator</option>
                     </select>
 
                     <select
@@ -903,7 +867,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                       onClick={handleExportLeads}
                       disabled={isExportingLeads}
                     >
-                      {isExportingLeads ? "Exporting..." : "📥 Export CSV"}
+                      {isExportingLeads ? "Exporting..." : "Export CSV"}
                     </button>
                   </div>
                 </div>
@@ -912,7 +876,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                 <div className="admin-table-card">
                   {leads.length === 0 ? (
                     <div className="admin-empty-state">
-                      <div className="empty-icon">🎯</div>
+                      <div className="empty-icon"></div>
                       <h3>No Prospective Leads Found</h3>
                       <p>
                         {leadSearch || leadProgramFilter !== "all" || leadStatusFilter !== "all" || leadSourceFilter !== "all"
@@ -953,7 +917,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                 </td>
                                 <td className="col-phone" data-label="Mobile">
                                   <a href={`tel:${lead.phone}`} className="student-phone-link">
-                                    📞 {lead.phone}
+                                    {lead.phone}
                                   </a>
                                 </td>
                                 <td className="col-program" data-label="Programme">
@@ -975,7 +939,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                 </td>
                                 <td className="col-source" data-label="Source">
                                   <span className={`source-pill source-${lead.source}`}>
-                                    {lead.source === "calculator" ? "🧮 Calculator" : "💬 Chat Inquiry"}
+                                    {lead.source === "calculator" ? "Calculator" : "Chat Inquiry"}
                                   </span>
                                 </td>
                                 <td className="col-date" data-label="Captured">{formattedDate}</td>
@@ -1002,7 +966,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                       title={lead.conversation_id ? `Inspect conversation #${lead.conversation_id.slice(0, 8)} in Admin` : "Search and inspect conversation in Admin"}
                                       onClick={() => handleViewLeadChat(lead)}
                                     >
-                                      💬 Inspect
+                                      Inspect
                                     </button>
                                     {lead.conversation_id ? (
                                       <button
@@ -1010,7 +974,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                         title="Open conversation in Live Student Portal"
                                         onClick={() => handleOpenLiveStudentChat(lead.conversation_id!)}
                                       >
-                                        🎓 Live ↗
+                                        Live ↗
                                       </button>
                                     ) : null}
                                   </div>
@@ -1067,7 +1031,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                       <input
                         type="text"
                         className="admin-input-search"
-                        placeholder="🔍 Search questions, answers, topics, mobile numbers, or session IDs..."
+                        placeholder="Search questions, answers, topics, mobile numbers, or session IDs..."
                         value={chatSearch}
                         onChange={(e) => {
                           setChatSearch(e.target.value);
@@ -1134,7 +1098,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                       onClick={handleExportAllMarkdown}
                       title="Download ALL conversations in Markdown (.md) to train or evaluate the AI model"
                     >
-                      {isExportingAll ? "Generating Dataset..." : "📥 Export All Chats (.md for AI Training)"}
+                      {isExportingAll ? "Generating Dataset..." : "Export All Chats (.md for AI Training)"}
                     </button>
                   </div>
                 </div>
@@ -1158,7 +1122,7 @@ export default function AdminPage({ onBackToChat }: Props) {
 
                     {conversations.length === 0 ? (
                       <div className="sidebar-empty">
-                        <div style={{ fontSize: "1.8rem", marginBottom: "8px" }}>🔍</div>
+                        <div style={{ fontSize: "1.8rem", marginBottom: "8px" }}></div>
                         <p>No conversations found matching filters.</p>
                       </div>
                     ) : (
@@ -1269,7 +1233,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                     onClick={() => handleCopyConvId(selectedConvDetail.id)}
                                   >
                                     #{selectedConvDetail.id.slice(0, 8)}
-                                    {copiedChatId === selectedConvDetail.id ? " ✓ Copied" : " 📋"}
+                                    {copiedChatId === selectedConvDetail.id ? " ✓ Copied" : " "}
                                   </button>
                                 </div>
                                 <div className="transcript-meta-row">
@@ -1281,14 +1245,14 @@ export default function AdminPage({ onBackToChat }: Props) {
                                 </div>
                                 {matchedLead && (
                                   <div className="transcript-lead-snapshot">
-                                    <span className="lead-snap-pill lead-snap-name">👤 {matchedLead.name}</span>
-                                    <span className="lead-snap-pill lead-snap-phone">📱 {matchedLead.phone}</span>
+                                    <span className="lead-snap-pill lead-snap-name">{matchedLead.name}</span>
+                                    <span className="lead-snap-pill lead-snap-phone">{matchedLead.phone}</span>
                                     {matchedLead.program_interest && (
-                                      <span className="lead-snap-pill lead-snap-prog">🎓 {matchedLead.program_interest}</span>
+                                      <span className="lead-snap-pill lead-snap-prog">{matchedLead.program_interest}</span>
                                     )}
                                     {matchedLead.score && (
                                       <span className="lead-snap-pill lead-snap-score">
-                                        📊 {matchedLead.score} {matchedLead.exam_type ? `(${matchedLead.exam_type})` : ""}
+                                        {matchedLead.score} {matchedLead.exam_type ? `(${matchedLead.exam_type})` : ""}
                                       </span>
                                     )}
                                     <span className={`lead-snap-pill status-pill status-${matchedLead.status}`}>
@@ -1303,38 +1267,38 @@ export default function AdminPage({ onBackToChat }: Props) {
                                   title="Open in Student Live Chat view (recreates student experience)"
                                   onClick={() => handleOpenLiveStudentChat(selectedConvDetail.id)}
                                 >
-                                  🎓 Student View ↗
+                                  Student View ↗
                                 </button>
                                 <button
                                   className="admin-btn-secondary"
                                   title="Copy direct shareable link to this conversation"
                                   onClick={() => handleCopyShareableChatLink(selectedConvDetail.id)}
                                 >
-                                  🔗 Copy Link
+                                  Copy Link
                                 </button>
                                 <button
                                   className="admin-btn-secondary"
                                   title="Copy complete formatted dialogue to clipboard"
                                   onClick={() => handleCopyFullTranscriptText(selectedConvDetail)}
                                 >
-                                  {copiedTranscript ? "✓ Copied!" : "📋 Copy Dialogue"}
+                                  {copiedTranscript ? "✓ Copied!" : "Copy Dialogue"}
                                 </button>
                                 <button className="admin-btn-secondary" onClick={handlePrintPdf} title="Print or save as PDF">
-                                  📄 PDF
+                                  PDF
                                 </button>
                                 <button
                                   className="admin-btn-secondary"
                                   onClick={() => handleExportSingleJson(selectedConvDetail)}
                                   title="Export JSON"
                                 >
-                                  📥 JSON
+                                  JSON
                                 </button>
                                 <button
                                   className="admin-btn-danger"
                                   onClick={() => handleDeleteConversation(selectedConvDetail.id)}
                                   title="Delete conversation permanently"
                                 >
-                                  🗑️ Delete
+                                  Delete
                                 </button>
                               </div>
                             </div>
@@ -1347,18 +1311,18 @@ export default function AdminPage({ onBackToChat }: Props) {
                                   onClick={() => setTranscriptViewMode("student")}
                                   title="Exact student view with Markdown tables, cards, avatars, and chips"
                                 >
-                                  🎓 Student View
+                                  Student View
                                 </button>
                                 <button
                                   className={`view-toggle-btn ${transcriptViewMode === "inspector" ? "active" : ""}`}
                                   onClick={() => setTranscriptViewMode("inspector")}
                                   title="Developer inspection view with telemetry and exemplar promotion"
                                 >
-                                  🛠️ Inspector View
+                                  Inspector View
                                 </button>
                               </div>
                               <div className="transcript-inline-search">
-                                <span className="search-icon">🔍</span>
+                                <span className="search-icon"></span>
                                 <input
                                   type="text"
                                   placeholder="Search inside this dialogue..."
@@ -1393,7 +1357,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                         className={`transcript-bubble-wrap ${isUser ? "role-user" : "role-assistant"}`}
                                       >
                                         <div className={`transcript-avatar ${isUser ? "student-avatar" : "bot-avatar"}`}>
-                                          {isUser ? "👤" : "🏛️"}
+                                          {isUser ? "" : ""}
                                         </div>
                                         <div className="transcript-bubble-box">
                                           <div className="transcript-bubble-meta">
@@ -1446,12 +1410,12 @@ export default function AdminPage({ onBackToChat }: Props) {
                                           {m.sources && m.sources.length > 0 && (
                                             <div className="msg-sources-box">
                                               <div className="sources-headline">
-                                                📚 Grounded Sources ({m.sources.length}):
+                                                Grounded Sources ({m.sources.length}):
                                               </div>
                                               <div className="sources-tags-list">
                                                 {m.sources.map((src, i) => (
                                                   <div key={i} className="source-citation-chip">
-                                                    <span>📄</span>
+                                                    <span></span>
                                                     <span className="src-title">{src.title}</span>
                                                     {src.page && <span className="src-page">(Page {src.page})</span>}
                                                     {src.department && (
@@ -1495,7 +1459,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                     >
                                       <div className="msg-header-row">
                                         <span className="msg-role-badge">
-                                          {isUser ? "👤 Student" : "🤖 SRU Buddy"}
+                                          {isUser ? "Student" : "SRU Buddy"}
                                         </span>
                                         {m.model && <span className="msg-model-tag">{m.model}</span>}
                                         <span className="msg-timestamp">
@@ -1515,12 +1479,12 @@ export default function AdminPage({ onBackToChat }: Props) {
                                       {m.sources && m.sources.length > 0 && (
                                         <div className="msg-sources-box">
                                           <div className="sources-headline">
-                                            📚 Grounded Sources ({m.sources.length}):
+                                            Grounded Sources ({m.sources.length}):
                                           </div>
                                           <div className="sources-tags-list">
                                             {m.sources.map((src, i) => (
                                               <div key={i} className="source-citation-chip">
-                                                <span>📄</span>
+                                                <span></span>
                                                 <span className="src-title">{src.title}</span>
                                                 {src.page && <span className="src-page">(Page {src.page})</span>}
                                                 {src.department && (
@@ -1575,7 +1539,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                           </div>
                     ) : (
                       <div className="admin-empty-state transcript-placeholder">
-                        <div className="empty-icon">💬</div>
+                        <div className="empty-icon"></div>
                         <h3>Select a Conversation to Inspect</h3>
                         <p>
                           Click any conversation on the left to review student questions, AI responses, grounded citations, and feedback ratings.
@@ -1632,7 +1596,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                       <strong>One-Click Few-Shot Learning:</strong> Click <strong>"⭐ Promote to Verified Exemplar"</strong> on any verified high-quality response to immediately embed it in ChromaDB's <code>verified_exemplars</code> collection.
                     </li>
                     <li>
-                      <strong>Bulk Export for Fine-Tuning:</strong> Click <strong>"📥 Export All Chats (.md)"</strong> to export all student interactions into a single clean training document ready for evaluation benchmarks or fine-tuning models like Gemini, Llama, or Mistral.
+                      <strong>Bulk Export for Fine-Tuning:</strong> Click <strong>"Export All Chats (.md)"</strong> to export all student interactions into a single clean training document ready for evaluation benchmarks or fine-tuning models like Gemini, Llama, or Mistral.
                     </li>
                   </ol>
                 </div>
@@ -1821,6 +1785,7 @@ export default function AdminPage({ onBackToChat }: Props) {
           </>
         )}
       </main>
+      </div>
     </div>
   );
 }

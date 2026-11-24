@@ -33,4 +33,4 @@ if os.environ.get("REVIEW_MODEL") != "live":
     agent.get_client = lambda *a, **k: ContextEchoModel()
 import app.main as main
 import uvicorn
-uvicorn.run(main.app, host="127.0.0.1", port=8080, log_level="warning")
+uvicorn.run(main.app, host="127.0.0.1", port=int(os.environ.get("PORT", "8080")), log_level="warning")

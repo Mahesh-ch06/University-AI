@@ -29,8 +29,11 @@ def _agent_memory_stays_in_the_test():
     from app.sru_agent import memory
 
     before = (memory._profile_loader, memory._profile_saver, memory._history_loader)
+    state_before = (memory._state_loader, memory._state_saver)
     memory.set_profile_store(None, None)
     memory.set_history_loader(None)
+    memory.set_state_store(None, None)          # the conversation-state store too (v4.15.0)
+    memory._state_saved.clear()
     memory._local.clear()
     memory._hot.clear()
     memory._pending_writes.clear()
@@ -53,3 +56,4 @@ def _agent_memory_stays_in_the_test():
         except Exception:
             pass
     memory._profile_loader, memory._profile_saver, memory._history_loader = before
+    memory.set_state_store(*state_before)

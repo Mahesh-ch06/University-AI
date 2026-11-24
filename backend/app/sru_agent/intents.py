@@ -471,7 +471,7 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
         return "CONFUSION_QUERY"
 
     # 2b. General join query without course
-    if _JOIN_SRU_PATTERN.match(msg):
+    if _JOIN_SRU_PATTERN.match(msg) and not re.match(r"^\s*how\b", msg):   # "how to get admission?" -> the process
         from . import fees as _fees
         if not _fees.find_program(msg):
             return "JOIN_SRU_QUERY"
@@ -774,7 +774,11 @@ _CONNECT_PATTERN = re.compile(
     r"|(?<!the\s)\bcustomer\s+(?:care|support|service)\b(?!\s+(?:of|at|in|for)\b)"
     r"|\b(?:human|person|agent|counsell?or)\s+please\b"
     r"|\b(?:help|assistance)\s+from\s+(?:a\s+)?(?:person|human|someone|counsell?or)\b"
-    r"|\b(?:need|want)\s+(?:to\s+talk\s+to\s+)?(?:a\s+)?(?:human|real\s+person)\b",
+    r"|\b(?:need|want)\s+(?:to\s+talk\s+to\s+)?(?:a\s+)?(?:human|real\s+person)\b"
+    # v4.15.0: Telugu / Hindi in English letters: "counsellor tho matladali", "counsellor se baat karni hai"
+    r"|\b(?:counsell?or|admissions?\s+team|evarito|someone)\s+(?:tho|to|toh)\s+(?:matladali|matladalanu|matladali|"
+    r"matladatanu|matladtha|maatladali)\b"
+    r"|\b(?:counsell?or|admissions?\s+team|kisi|insaan)\s+(?:se|say)\s+(?:baat|bat)\s+(?:karni|karna|karwa|karao|karwao)\b",
     re.IGNORECASE)
 
 

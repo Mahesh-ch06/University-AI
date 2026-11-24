@@ -956,6 +956,7 @@ export interface CounsellorConnectStatus {
   seconds_left: number;
   wait_seconds: number;
   phone_last4: string;
+  first_name?: string;
   counsellor?: string | null;
 }
 

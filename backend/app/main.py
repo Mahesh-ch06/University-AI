@@ -127,7 +127,7 @@ async def lifespan(fastapi_app: FastAPI):
 app = FastAPI(
     title="University AI Companion",
     description="Conversational AI with RAG and Function-Calling Agent for university knowledge",
-    version="4.14.0",
+    version="4.15.0",
     lifespan=lifespan,
     docs_url="/docs" if security.docs_enabled() else None,
     redoc_url="/redoc" if security.docs_enabled() else None,
@@ -539,6 +539,7 @@ from app.services import agent_profile_store
 from app.sru_agent import memory as agent_memory
 agent_memory.set_profile_store(agent_profile_store.load_profile, agent_profile_store.save_profile)
 agent_memory.set_history_loader(agent_profile_store.load_history)
+agent_memory.set_state_store(agent_profile_store.load_conversation_state, agent_profile_store.save_conversation_state)
 agent_tools.set_lead_updater(agent_profile_store.update_lead_contact)
 
 app.include_router(chat_router)

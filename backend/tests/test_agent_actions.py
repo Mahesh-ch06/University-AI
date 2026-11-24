@@ -210,7 +210,7 @@ async def test_same_request_is_not_saved_twice(leads):
     await _run("please call me. Kiran Rao 9012345678", sid)
     _, done = await _run("please call me. Kiran Rao 9012345678", sid)
     assert len(leads["saved"]) == 1
-    assert "already saved" in done["answer"]
+    assert "already with our admissions team" in done["answer"]
 
 
 @pytest.mark.asyncio
@@ -223,7 +223,7 @@ async def test_other_question_in_the_same_message_is_still_answered(leads):
     # If the model is down, the saved request is still confirmed.
     client = ScriptedClient([RuntimeError("boom")])
     _, done = await _run("please call me, Anil Kumar 9876512399. also what about transport?", "act-and-question-2", client)
-    assert done["type"] == "done" and "callback request is saved" in done["answer"]
+    assert done["type"] == "done" and "callback request has been successfully submitted" in done["answer"]
 
 
 # ------------------------------------------------------------- campus visit ----

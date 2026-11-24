@@ -39,7 +39,7 @@ def test_counsellor_reuses_marks_and_group_asks_only_the_missing_fields():
     profile = {"raw_marks": 670.0, "max_marks": 1000.0, "percent": 67.0, "stream": "MPC", "program_interest": "btech_cse"}
     res = fee_intake.decide("I want to know about the scholarship for B.Tech CSE", profile=profile, intake={})
     assert res["state"]["waiting_for"] == "board"
-    assert "I have 670/1000 (67%), MPC" in res["text"]
+    assert "Noted: 670/1000 (67%), MPC" in res["text"]
     nxt = fee_intake.decide("Telangana Intermediate (TSBIE)", profile=profile, intake=res["state"])
     assert nxt["state"]["waiting_for"] == "stage"
     assert [c["type"] for c in nxt["cards"]] == ["counsellor_stage_selection"]

@@ -4946,3 +4946,19 @@
     grid-column: auto;
   }
 }
+
+/* ---- v4.15.0: marks entry form ---- */
+.cm-marks-form { display: flex; flex-direction: column; gap: 10px; }
+.cm-marks-mode { display: inline-flex; align-self: flex-start; border: 1px solid var(--border, #e4e6eb); border-radius: 8px; overflow: hidden; }
+.cm-marks-mode button { border: 0; background: var(--surface-1, #fff); color: var(--text-2, #3a3b45); font: inherit; font-size: 0.8rem; font-weight: 600; padding: 6px 14px; cursor: pointer; min-height: 34px; }
+.cm-marks-mode button + button { border-left: 1px solid var(--border, #e4e6eb); }
+.cm-marks-mode button.on { background: var(--primary, #194f90); color: #fff; }
+.cm-marks-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 8px; }
+.cm-marks-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cm-marks-label { font-size: 0.75rem; font-weight: 600; color: var(--text-2, #3a3b45); }
+.cm-marks-slash { padding-bottom: 10px; color: var(--text-3, #5d5e6c); font-weight: 600; }
+.cm-marks-field .counsellor-marks-input-field { width: 100%; box-sizing: border-box; min-height: 40px; }
+.cm-marks-field .counsellor-marks-input-field[readonly] { background: var(--surface-2, #f7f8fa); color: var(--text-2, #3a3b45); }
+.cm-marks-submit { align-self: flex-start; min-height: 38px; padding: 0 18px; }
+.cm-marks-hint { margin: 0; font-size: 0.72rem; color: var(--text-3, #5d5e6c); }
+.cm-marks-done { font-size: 0.82rem; color: var(--primary, #194f90); padding: 4px 0; }

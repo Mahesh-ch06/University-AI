@@ -114,6 +114,16 @@ def _number_on_file(given, profile: dict):
     return clean_phone(profile.get("phone", "")) or None
 
 
+_PLACEHOLDER_NAMES = re.compile(
+    r"^\s*(?:unknown|n/?a|na|none|null|undefined|nil|not\s+(?:given|provided|available|known)|student|user|"
+    r"guest|anonymous|name|sir|madam|-+|\?+)\s*$", re.I)
+
+
+def is_placeholder_name(name: str | None) -> bool:
+    """'Unknown', 'Student', 'User', 'N/A'...: a model's or a form's filler, never a student's name."""
+    return not (name or "").strip() or bool(_PLACEHOLDER_NAMES.match(name or ""))
+
+
 async def _save_lead(args: dict, ctx: dict, request_type: str, extra: dict) -> dict:
     if args.get("consent") is not True:
         return {"status": "needs_consent",
@@ -122,7 +132,9 @@ async def _save_lead(args: dict, ctx: dict, request_type: str, extra: dict) -> d
     name = (args.get("name") or "").strip()
     profile = ctx.get("profile") or {}
     phone = clean_phone(args.get("phone", "")) or _number_on_file(args.get("phone"), profile)
-    if len(name) < 2:
+    if is_placeholder_name(name):
+        name = str(profile.get("name") or "").strip()           # the name the student gave in the contact form
+    if len(name) < 2 or is_placeholder_name(name):
         return {"status": "invalid", "problem": "Name is missing. Ask for the student's full name."}
     if not phone:
         return {"status": "invalid", "problem": "Phone must be a 10-digit Indian mobile number. Ask again."}

@@ -35,3 +35,24 @@ python e2e/student_simulation_1000.py /tmp/sim1000 --users 1000 --concurrency 12
 
 Writes `report.md` (by topic, problems, examples), `results.json` and every transcript. All students come from one
 IP, so the per-IP daily limit must be raised for the review server as above (never in production).
+
+### 2,000-student simulation with checked outcomes (v4.15.0)
+
+`student_simulation_2000.py`: 2,000 students, 20 personas, 7 writing styles (English, Telugu-English, Hindi-English,
+short, typos, informal, long), 80% typing only and 20% also tapping the card and quick-reply buttons. Each student has
+a journey with an outcome checked exactly: the full fee evaluation; 1-3 marks corrections (the profile on the server
+and the final card must hold the LATEST marks, and the scholarship must be the official slab for them); impossible
+marks; a side question or a "hi" in the middle; a programme change; "call me back" / the 30-second connect (the
+student's name, never "Unknown", one lead per number); no name on file; Start fresh then a callback; and returning
+minutes later (same server) or days later (a second server, `PORT=8081`, with the Redis keys removed so only the
+database is left). The report gives the metrics (intent, relevance, facts, continuity, memory restoration, marks,
+eligibility, callback identity, fee completion, quick replies, UI failures, repeats, overall) and the failures with
+examples. Turns answered by the AI model are counted separately and not judged without a Gemini key.
+
+```bash
+for P in 8080 8081; do PORT=$P AI_IP_RATE_LIMIT_PER_MIN=100000 AGENT_RATE_LIMIT_PER_MIN=100000 \
+  AI_IP_DAILY_LIMIT=1000000 AI_DAILY_TURN_BUDGET=10000000 python e2e/review_server.py & done
+python e2e/student_simulation_2000.py /tmp/sim2000 --users 2000 --concurrency 16
+```
+
+It sets office hours to all day and the connect wait to 10 s for the run, and restores the settings afterwards.

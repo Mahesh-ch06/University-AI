@@ -16,8 +16,10 @@ const check = (name, pass, detail = '') => results.push({ name, pass: !!pass, de
 async function open(browser, sid, url = BASE) {
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: Number(scale), isMobile: W < 600, hasTouch: W < 600 });
   await ctx.addInitScript(([s]) => {
+    if (sessionStorage.getItem('seeded')) return;      // once per tab: a refresh keeps what the page chose
     localStorage.setItem('university_ai_session_id', s);
     localStorage.setItem('sru_student_lead', JSON.stringify({ name: 'Asha Rani', phone: '9876543210' }));
+    sessionStorage.setItem('seeded', '1');
   }, [sid]);
   const page = await ctx.newPage();
   page.errors = [];
@@ -58,85 +60,88 @@ async function send(page, text) {
   check('refresh: no welcome-back question', (await page.locator('.wb-panel').count()) === 0);
   await ctx.close();
 
-  // 3. Browser closed and reopened after 10 minutes: continues quietly
+  // 3. Browser closed and reopened after 10 minutes (a new tab): nothing pops up and nothing is restored on load
+  //    (v4.15.0: the choice is asked only after the student's first message)
   age(sid, '10 minutes');
   ({ ctx, page } = await open(browser, sid));
-  await page.waitForSelector('.message-bubble-row.user', { timeout: 8000 }).catch(() => {});
-  await page.waitForTimeout(600);
-  check('back after 10 min: conversation restored without asking', (await page.locator('.message-bubble-row.user').count()) === 2 && (await page.locator('.wb-panel').count()) === 0);
+  await page.waitForTimeout(1500);
+  check('new visit: no welcome-back panel on load', (await page.locator('.wb-panel').count()) === 0);
+  check('new visit: nothing restored behind the student\'s back', (await page.locator('.message-bubble-row.user').count()) === 0);
   await ctx.close();
 
-  // 4. Back after 2 hours: the choice appears
+  // 4. Back after 2 hours: the first message brings the choice (by name, with what the earlier chat was about)
   age(sid, '2 hours');
   ({ ctx, page } = await open(browser, sid));
-  await page.waitForSelector('.wb-panel', { timeout: 8000 }).catch(() => {});
-  const panelText = (await page.locator('.wb-panel').innerText().catch(() => '')) || '';
-  check('back after 2 h: welcome-back choice shown', panelText.includes('Welcome back, Asha'), panelText.replace(/\n/g, ' | '));
-  check('choice shows when and what', /2 hours ago/.test(panelText) && /hostel facilities/i.test(panelText));
-  check('nothing restored or started before choosing', (await page.locator('.message-bubble-row.user').count()) === 0);
-  await page.screenshot({ path: `${outdir}/1-welcome-back.png` });
-  // a question typed before choosing waits for the choice
+  await page.waitForTimeout(1200);
+  check('back after 2 h: still nothing on load', (await page.locator('.wb-panel').count()) === 0);
   await page.fill('.sru-widget-textarea', 'Is there a gym?');
   await page.keyboard.press('Enter');
-  await page.waitForTimeout(500);
-  check('typed question waits for the choice', /answer “Is there a gym\?”/.test(await page.locator('.wb-panel').innerText()));
-  await page.screenshot({ path: `${outdir}/2-pending-question.png` });
+  await page.waitForSelector('.wb-panel', { timeout: 8000 }).catch(() => {});
+  const panelText = (await page.locator('.wb-panel').innerText().catch(() => '')) || '';
+  check('after the first message: welcome-back choice by name', /Hey Asha! Welcome back/.test(panelText), panelText.replace(/\n/g, ' | '));
+  check('choice shows when and what', /2 hours ago/.test(panelText) && /hostel facilities/i.test(panelText), panelText.replace(/\n/g, ' | '));
+  check('the typed question is shown and waits for the choice', (await page.locator('.message-bubble-row.user').allInnerTexts()).some((t) => /Is there a gym\?/.test(t)));
+  await page.screenshot({ path: `${outdir}/1-welcome-back.png` });
   // Continue
-  await page.click('.wb-btn--primary');
+  await page.getByRole('button', { name: 'Continue previous chat' }).click();
   await page.waitForSelector('.wb-resume-divider', { timeout: 10000 }).catch(() => {});
-  await page.waitForFunction(() => !document.querySelector('.sru-typing-bubble') && document.querySelectorAll('.message-bubble-row.assistant').length >= 4, null, { timeout: 30000 }).catch(() => {});
+  await page.waitForFunction(() => !document.querySelector('.sru-typing-bubble') && document.querySelectorAll('.message-bubble-row.assistant').length >= 3, null, { timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(900);
   const lastAnswer = await page.locator('.message-bubble-row.assistant').last().innerText();
   check('continue: earlier messages restored', (await page.locator('.message-bubble-row.user').count()) === 3);
   check('continue: divider shows where it resumed', (await page.locator('.wb-resume-divider').count()) === 1);
-  check('continue: pending question answered in the SAME conversation with its history', /received [1-9]\d* earlier turn/.test(lastAnswer), lastAnswer.slice(0, 160));
+  check('continue: the question answered in the SAME conversation', /gym/i.test(lastAnswer), lastAnswer.slice(0, 160));
   const convCount1 = psql(`SELECT count(*) FROM conversations WHERE session_id='${sid}'`);
   check('continue: no duplicate conversation created', convCount1 === '1', convCount1);
   await page.screenshot({ path: `${outdir}/3-continued.png` });
   await ctx.close();
 
-  // 5. Back the next day: start a new chat
+  // 5. Back the next day: start fresh
   age(sid, '1 day');
   ({ ctx, page } = await open(browser, sid));
+  await page.waitForTimeout(1000);
+  await page.fill('.sru-widget-textarea', 'hi');
+  await page.keyboard.press('Enter');
   await page.waitForSelector('.wb-panel', { timeout: 8000 });
-  await page.click('.wb-btn--secondary');
-  await page.waitForFunction(() => !document.querySelector('.wb-panel'), null, { timeout: 10000 });
-  check('start new: welcome with quick actions', (await page.locator('.welcome-actions-card-wrapper, .welcome-actions-grid, [class*="welcome-action"]').count()) > 0);
-  check('start new: old messages not shown', (await page.locator('.message-bubble-row.user').count()) === 0);
+  await page.getByRole('button', { name: 'Start fresh' }).click();
+  await page.waitForFunction(() => !document.querySelector('.wb-panel') && !document.querySelector('.sru-typing-bubble')
+    && document.querySelectorAll('.message-bubble-row.assistant').length >= 2, null, { timeout: 20000 });
+  check('start fresh: welcome with quick actions', (await page.locator('.welcome-actions-card-wrapper, .welcome-actions-grid, [class*="welcome-action"]').count()) > 0);
+  check('start fresh: old messages not shown', !(await page.locator('.message-bubble-row.user').allInnerTexts()).some((t) => /hostel facilities|B.Tech CSE fees/.test(t)));
   const fresh = await send(page, 'Tell me about the library');
-  check('start new: model got NO earlier turns', /received 0 earlier turn/.test(fresh), fresh.slice(0, 160));
-  check('start new: no previous course carried over', !/btech_cse/.test(fresh), fresh.slice(0, 200));
-  // v4.10.0: "Start a new chat" starts a NEW SESSION (nothing of the old one can come back); the old
-  // conversation stays saved under the old session.
+  check('start fresh: nothing of the old chat given to the model', /received 1 earlier turn/.test(fresh) && !/btech_cse/.test(fresh), fresh.slice(0, 200));
   const newSid = await page.evaluate(() => localStorage.getItem('university_ai_session_id'));
-  check('start new: a new session ID', newSid && newSid !== sid, `${sid} -> ${newSid}`);
+  check('start fresh: a new session ID', newSid && newSid !== sid, `${sid} -> ${newSid}`);
+  const prof = await (await fetch(`${API}/agent/profile?session_id=${newSid}`)).json();
+  check('start fresh: name and number kept', prof.profile && prof.profile.name === 'Asha Rani', JSON.stringify(prof.profile || {}));
   const oldMsgs = psql(`SELECT count(*) FROM messages WHERE conversation_id='${firstConv}'`);
   const newConvs = psql(`SELECT count(*) FROM conversations WHERE session_id='${newSid}'`);
-  check('start new: old conversation still saved with its messages; new one in the new session',
+  check('start fresh: old conversation still saved; new one in the new session',
     Number(oldMsgs) >= 6 && newConvs === '1', `old messages=${oldMsgs} new-session conversations=${newConvs}`);
   await page.screenshot({ path: `${outdir}/4-new-chat.png` });
-  await ctx.close();
-
-  // 6. Reopen soon after (this browser now holds the new session): the NEW conversation continues
-  ({ ctx, page } = await open(browser, newSid));
-  await page.waitForTimeout(1500);
+  // a refresh in this tab: the fresh conversation carries on, no question
+  await page.reload();
+  await page.waitForTimeout(1800);
   const users = await page.locator('.message-bubble-row.user').allInnerTexts();
-  check('reopen: the new conversation continues, old one not offered', users.length === 1 && /library/.test(users[0]) && (await page.locator('.wb-panel').count()) === 0, users.join(' | '));
+  check('refresh after fresh: the new conversation continues, no question', users.some((u) => /library/.test(u)) && (await page.locator('.wb-panel').count()) === 0, users.join(' | '));
   await ctx.close();
 
   // 7. Connection drops while restoring: honest error, then retry works
   age(newSid, '3 hours');
   ({ ctx, page } = await open(browser, newSid));
+  await page.waitForTimeout(1000);
+  await page.fill('.sru-widget-textarea', 'hello');
+  await page.keyboard.press('Enter');
   await page.waitForSelector('.wb-panel', { timeout: 8000 });
   await page.route('**/api/v1/conversations/**', (r) => r.abort('internetdisconnected'));
-  await page.click('.wb-btn--primary');
+  await page.getByRole('button', { name: 'Continue previous chat' }).click();
   await page.waitForSelector('.wb-error', { timeout: 8000 }).catch(() => {});
   check('offline: error shown, nothing lost', /connection/i.test(await page.locator('.wb-error').innerText().catch(() => '')));
   await page.screenshot({ path: `${outdir}/5-offline-error.png` });
   await page.unroute('**/api/v1/conversations/**');
-  await page.click('.wb-btn--primary');
+  await page.getByRole('button', { name: /Try again|Continue previous chat/ }).click();
   await page.waitForSelector('.wb-resume-divider', { timeout: 10000 }).catch(() => {});
-  check('offline: retry restores the conversation', (await page.locator('.message-bubble-row.user').count()) === 1);
+  check('offline: retry restores the conversation', (await page.locator('.message-bubble-row.user').allInnerTexts()).some((t) => /library/.test(t)));
   check('no page errors in the journey', page.errors.length === 0, page.errors.join(' | '));
   await ctx.close();
 
