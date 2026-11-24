@@ -510,6 +510,14 @@ async def _counsellor_connect(message, session_id, conversation_id, profile, ctx
         yield ev
 
 
+def _vary(options: list[str], *seed) -> str:
+    """One of several natural wordings for a line the code writes (v4.15.0: no fixed phrasing for the same line
+    every time). The choice depends on the conversation and the turn, so a repeat is worded differently."""
+    import hashlib
+    key = "|".join(str(x) for x in seed)
+    return options[int(hashlib.md5(key.encode()).hexdigest(), 16) % len(options)]
+
+
 def _other_program_named(message: str, conv_state: dict) -> bool:
     """'Can I join Civil with 88%?' during a CSE estimate: a question about another programme (an eligibility
     check), not a correction of the marks for the one being evaluated (v4.15.0)."""
@@ -686,7 +694,10 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
         _MARKS_NOTE.set("")
         shown = re.sub(r"\s*\(.*\)", "", note)
         if shown not in text and note not in text:
-            text = f"Updated: I'm now using your marks **{note}**.\n\n" + text
+            text = _vary([f"Updated: I'm now using your marks **{note}**.",
+                          f"Got it, I've updated your marks to **{note}**.",
+                          f"Thanks for correcting that. I'm using **{note}** from now on.",
+                          f"No problem, your marks are now **{note}**."], session_id, message) + "\n\n" + text
     try:   # the same step question as the last reply (the student asked something else): say why it is asked again
         hist = await memory.get_history(session_id, conversation_id)
         last = next((h.get("text", "") for h in reversed(hist or []) if h.get("role") in ("model", "assistant")), "")
@@ -701,9 +712,13 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
                 first = first + "\n" + "\n".join(points[:3]) + ("\n…" if len(points) > 3 else "")
             elif len(first) < 140 and len(paras) > 1:        # a short lead: the line after it too (e.g. the fee)
                 first = first + "\n\n" + paras[1]
-            text = (f"As I shared just above:\n\n{first}" if len(first) <= 600
-                    else "That's the same as my answer just above.")
-            text += "\n\nScroll up for the full details, or ask me anything about it."
+            lead_r = _vary(["As I shared just above:", "Here's the short version of what I mentioned above:",
+                            "Quick recap from my earlier answer:"], session_id, message, len(hist or []))
+            text = (f"{lead_r}\n\n{first}" if len(first) <= 600 else "That's the same as my answer just above.")
+            text += "\n\n" + _vary(["Scroll up for the full details, or ask me anything about it.",
+                                     "The full details are just above; ask me if anything is unclear.",
+                                     "You'll find everything above, and I'm happy to explain any part."],
+                                    session_id, message, len(hist or []))
         if last and last.strip().endswith(text.strip()) and text.rstrip().endswith("?") and len(text) < 400 \
                 and re.match(r"\s*Step\s+\d", text):
             st_prog = fees.find_program(str(((await memory.get_conversation_state(session_id, conversation_id))
@@ -711,13 +726,23 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
             said_prog = fee_intake.parse_details(message or "").get("program")
             if st_prog and said_prog and fees.find_program(str(said_prog)) == st_prog \
                     and fee_journey._SWITCH.search(message or ""):
-                text = f"Sure, switching to **{fees.short_name(st_prog)}**.\n\n" + text   # a change of programme
+                sp = fees.short_name(st_prog)                                              # a change of programme
+                text = _vary([f"Sure, switching to **{sp}**.", f"No problem, let's go with **{sp}** instead.",
+                              f"Okay, **{sp}** it is."], session_id, message) + "\n\n" + text
             elif st_prog and said_prog and fees.find_program(str(said_prog)) == st_prog \
                     and not fee_intake.is_fee_enquiry(message or ""):
-                lead_p = ("Yes, SR University offers" if _DO_YOU_HAVE.search(message or "") else "Got it,")
-                text = f"{lead_p} **{fees.short_name(st_prog)}**.\n\n" + text              # the programme named
+                sp = fees.short_name(st_prog)                                              # the programme named
+                lead_p = (_vary([f"Yes, SR University offers **{sp}**.", f"Yes, we do have **{sp}**.",
+                                 f"Yes! **{sp}** is offered at SR University."], session_id, message)
+                          if _DO_YOU_HAVE.search(message or "") else
+                          _vary([f"Got it, **{sp}**.", f"Great, **{sp}**.", f"**{sp}**, noted."], session_id, message))
+                text = f"{lead_p}\n\n" + text
             else:
-                text = "To work out your exact fee I still need this one detail.\n\n" + text
+                text = _vary(["To work out your exact fee I still need this one detail.",
+                              "Just one more detail and I can work out your exact fee.",
+                              "I need this one detail to give you your exact fee.",
+                              "Almost there: this detail decides your exact fee."],
+                             session_id, message, len(hist or [])) + "\n\n" + text
             if st_prog:
                 suggestions, exact_chips = list(suggestions or []) + [f"Just show the {fees.short_name(st_prog)} fee"], True
     except Exception:
@@ -957,8 +982,15 @@ async def _small_talk_reply(kind: str, message, session_id, conversation_id, *, 
         text = _SMALL_TALK_FALLBACK.get(key, _SMALL_TALK_FALLBACK["greeting"]).format(name=name or "")
         first = _first_name((profile or {}).get("name")) if (profile or {}).get("address_by_name") is not False else ""
         if key in ("greeting", "greeting_again") and first and not tools.is_placeholder_name(first):
-            text = (f"Hi again, {first}! What would you like to know next?" if key == "greeting_again"
-                    else f"Hi {first}! What would you like to know about SR University?")
+            seed = (session_id, message, len(history or []))
+            text = (_vary([f"Hi again, {first}! What would you like to know next?",
+                           f"Hello again, {first}! What else can I help you with?",
+                           f"Hey {first}! What would you like to explore next?"], *seed)
+                    if key == "greeting_again" else
+                    _vary([f"Hi {first}! What would you like to know about SR University?",
+                           f"Hello {first}! How can I help you with SR University today?",
+                           f"Hey {first}! Ask me anything about admissions, fees or campus life at SR University."],
+                          *seed))
     async for ev in _say(text, message, session_id, conversation_id, suggestions=suggestions, profile=profile):
         yield ev
 
@@ -2711,8 +2743,12 @@ async def run_agent(
         if step:
             # A greeting in the middle of the fee steps: say hello, then the same question again (nothing reset).
             first = _first_name(profile.get("name")) if profile.get("address_by_name") is not False else ""
-            hello = ("I'm doing well, thanks for asking!" if chat == "how_are_you"
-                     else f"Hi{', ' + first if first else ''}!")
+            name_bit = f", {first}" if first else ""
+            hello = (_vary(["I'm doing well, thanks for asking!", "All good here, thank you!",
+                            "Doing great, thanks!"], session_id, message, len(history or []))
+                     if chat == "how_are_you" else
+                     _vary([f"Hi{name_bit}!", f"Hello{name_bit}!", f"Hey{name_bit}!"],
+                           session_id, message, len(history or [])))
             if _use_model(client):   # the hello is written for this conversation; the step itself stays exact
                 words = await _model_words(
                     "REPLY BRIEF: The student said hello (or asked how you are) in the middle of their fee estimate. "
@@ -2724,7 +2760,9 @@ async def run_agent(
             if step.get("fee_state"):
                 await set_state(**{fee_journey.KEY: step["fee_state"]})
             joined = hello if re.search(r"carry on|continue|pick up", hello, re.I) else \
-                f"{hello} Let's carry on with your fee estimate."
+                f"{hello} " + _vary(["Let's carry on with your fee estimate.", "Let's pick up your fee estimate.",
+                                     "We were in the middle of your fee estimate, so let's continue."],
+                                    session_id, len(history or []))
             async for ev in _say(f"{joined}\n\n{step['text']}", message,
                                  session_id, conversation_id, cards=step["cards"], suggestions=step["chips"],
                                  exact_chips=True, profile=profile, resume=False):

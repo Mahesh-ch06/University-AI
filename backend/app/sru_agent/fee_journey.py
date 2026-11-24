@@ -252,7 +252,7 @@ def _switched_program(message: str, current: str | None) -> str | None:
     return key
 
 
-def marks_update_text(state: dict, profile: dict) -> str:
+def marks_update_text(state: dict, profile: dict, seed: str = "") -> str:
     """One line: what the student's (new) marks mean for the scholarship on the programme being evaluated."""
     key = fees.find_program(str(state.get("program") or ""))
     if not key or state.get("scholarship") == "no" or not has_marks(profile):
@@ -265,10 +265,17 @@ def marks_update_text(state: dict, profile: dict) -> str:
     short = fees.short_name(key)
     pct = int(fee.get("scholarship_percent") or 0)
     if pct <= 0:
-        return (f"With your marks there's no merit scholarship slab on **{short}**, so the standard tuition "
-                f"of **{fee.get('tuition_first_year')}/year** applies.")
-    return (f"With your marks, your scholarship on **{short}** is **{pct}%**: tuition comes to "
-            f"**{fee.get('tuition_first_year_after_scholarship') or fee.get('tuition_first_year')}/year**.")
+        std = fee.get('tuition_first_year')
+        return _pick([f"With your marks there's no merit scholarship slab on **{short}**, so the standard tuition "
+                      f"of **{std}/year** applies.",
+                      f"These marks don't reach a merit scholarship slab on **{short}**: the tuition is the standard "
+                      f"**{std}/year**.",
+                      f"On **{short}**, your marks are below the scholarship slabs, so the standard tuition of "
+                      f"**{std}/year** applies."], seed + short)
+    after = fee.get('tuition_first_year_after_scholarship') or fee.get('tuition_first_year')
+    return _pick([f"With your marks, your scholarship on **{short}** is **{pct}%**: tuition comes to **{after}/year**.",
+                  f"That gives you a **{pct}%** scholarship on **{short}**, so tuition is **{after}/year**.",
+                  f"Your marks qualify for **{pct}%** off on **{short}**: **{after}/year** in tuition."], seed + short)
 
 
 def _merit(profile: dict) -> dict:
@@ -657,7 +664,9 @@ def _decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict 
     new_key = _switched_program(msg, st.get("program"))
     if new_key:
         _set_program(st, new_key, msg)
-        lead = f"Sure, switching to **{fees.short_name(new_key)}**. " + marks_update_text(st, profile)
+        sk = fees.short_name(new_key)
+        lead = _pick([f"Sure, switching to **{sk}**.", f"No problem, let's go with **{sk}** instead.",
+                      f"Okay, **{sk}** it is."], seed) + " " + marks_update_text(st, profile, seed)
         if st.get("final_shown") and not aw:
             return final(st, profile, lead)
         return next_step(st, profile, lead, seed)
@@ -666,7 +675,7 @@ def _decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict 
     # the only marks on file (agent._sync_marks); say what they change, then ask the open step again. The "No"
     # in the correction is NOT an answer to the open step (it used to be read as "no concession").
     if ctx.get("marks_corrected") and aw != "scholarship_steps":
-        lead = marks_update_text(st, profile)
+        lead = marks_update_text(st, profile, seed)
         if st.get("final_shown") and not aw:
             return final(st, profile, lead)
         return next_step(st, profile, lead, seed)
@@ -734,7 +743,9 @@ def _decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict 
                      r"ledu|kuch\s+nahi|nahi)\b|skip|not\s+applicable",
                      msg, re.IGNORECASE):
             st.update(concession=None, concession_decided=True, proof=None)
-            return next_step(st, profile, "No problem, no special concession then.", seed)
+            return next_step(st, profile, _pick(["No problem, no special concession then.",
+                                                 "Okay, no special concession.",
+                                                 "Got it, we'll skip the special concessions."], seed), seed)
         if re.search(SHOW_FEE, msg, re.IGNORECASE):
             st.update(concession_decided=True)
             return final(st, profile)
