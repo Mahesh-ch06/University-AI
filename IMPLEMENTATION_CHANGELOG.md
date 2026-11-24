@@ -376,3 +376,6 @@ See `docs/38-conversational-intelligence-nov-2026.md`.
   - **Why Choose SRU?** added;
   - fully editable in Admin → 🤖 Agent (add, edit, reorder, hide, remove, live preview; up to 8);
   - no migration (long setting values are saved in pieces).
+- **Buttons:**
+  - only the ones that fit the question asked (at most 3), with unrelated ones dropped;
+  - hostel-room options in a two-column grid, with the price on a second line (3 rows instead of 4–5).

@@ -140,3 +140,27 @@ def test_an_open_question_after_a_greeting_is_not_a_yes_no_question():
     assert followups.needs_yes_no("Hello! What would you like to know about SR University?") is False
     assert followups.needs_yes_no("Do you want to add the hostel fee?") is True
     assert followups.needs_yes_no("Great. Would you like me to check your eligibility?") is True
+
+
+@pytest.mark.parametrize("answer, chips, expected", [
+    # a specific question: only the buttons about what it asks (at most 3)
+    ("The canteen serves food.\n\n*Would you like to know more about hostel room options, rules, or fees?*",
+     ["Hostel Mess & Dining", "Hostel Facilities & Rooms", "Campus Tour & Visit", "B.Tech CSE Fees"],
+     ["Hostel Mess & Dining", "Hostel Facilities & Rooms", "B.Tech CSE Fees"]),
+    ("Are you looking to check your B.Tech AI & Robotics eligibility, understand the admission process, or know the fees?",
+     ["Check my eligibility", "Admission process", "B.Tech AI & Robotics fees", "Placements at SRU"],
+     ["Check my eligibility", "Admission process", "B.Tech AI & Robotics fees"]),
+    # an open invitation: up to 3 starting points
+    ("Hello! What would you like to know about SR University?",
+     ["B.Tech CSE fees", "Scholarship for my marks", "Placements at SRU", "Plan a campus visit"],
+     ["B.Tech CSE fees", "Scholarship for my marks", "Placements at SRU"]),
+    # "which ...?": the buttons are its answers
+    ("Which board did you study under?", ["Telangana State Board", "CBSE", "ISC / ICSE"],
+     ["Telangana State Board", "CBSE", "ISC / ICSE"]),
+    # yes / no
+    ("Do you want to add the hostel fee?", ["Yes", "No"], ["Yes", "No"]),
+    # no question: nothing
+    ("SRU has a 4,000-seat dining hall.", ["Hostel fees", "Placements"], []),
+])
+def test_buttons_fit_the_question_asked(questions_only, answer, chips, expected):
+    assert agent._chips_for(answer, chips, options=False) == expected

@@ -456,3 +456,28 @@
     min-height: 32px;
   }
 }
+
+/* Options with a price: two per row, the price under the label (it stays in the same text, so the button
+   sends exactly what it shows) */
+.suggestion-chips-wrapper .suggestion-chips-list.is-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.suggestion-chips-list.is-options-grid .suggestion-chip {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 5px 10px;
+}
+
+.suggestion-chips-list.is-options-grid .suggestion-chip-meta {
+  display: inline-block;
+  width: 100%;
+  margin-top: 1px;
+}
+
+.suggestion-chips-list.is-options-grid > .suggestion-chip:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}

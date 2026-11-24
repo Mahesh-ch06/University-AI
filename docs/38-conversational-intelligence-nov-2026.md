@@ -127,7 +127,17 @@ The older tests run with the switch off, so they keep checking the verified text
 | **Only when asked** (default) | Buttons appear when SRU Buddy asks the student something: Yes / No, room types, boards, and the options of a flow step. After a plain answer that asks nothing, there are no buttons. The "Continue my fee estimate" button is always kept |
 | **After every answer** | As before |
 
+- **Only the buttons that fit the question asked** (at most 3):
+  - a yes / no question gets Yes / No;
+  - an open "what would you like to know?" gets up to 3 starting points;
+  - "which board / branch / room?" keeps its answer buttons;
+  - a specific question ("…hostel rooms, rules or fees?") keeps only the buttons about what it asks;
+  - unrelated buttons are dropped.
 - **Where:** `agent._chips_for`, in `_done`, so every reply follows the same rule.
+- **Size:**
+  - compact buttons;
+  - options with a price (hostel rooms) in a two-column grid, with the price on a small second line;
+  - the five room options take 3 rows at 360, 390 and 420 px, instead of 4–5.
 - **Fix:** "Hello! What would you like to know?" no longer gets Yes / No buttons (`followups.needs_yes_no` now
   checks the question itself, not the greeting before it).
 - **Eligibility rule answer:** it now ends with "Shall I check yours with your marks?", so its buttons answer a
