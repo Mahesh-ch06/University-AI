@@ -167,3 +167,29 @@ The older tests run with the switch off, so they keep checking the verified text
   back to 1 (the leftover pieces removed); the greeting yes / no fix.
 - Browser journeys: v410 32/32, v411 27/27, v412 19/19. Frontend build, fee calculator checks and lint pass (18
   warnings, as before).
+
+## 8. A fee question evaluates first (v4.13.0)
+
+Admin → 🤖 Agent → **When a student asks for a fee**: **Evaluate first** (default) or **Standard fee card**.
+
+**Evaluate first** works like this:
+
+```
+Student: B.Tech CSE fees
+SRU Buddy: Before I give you the B.Tech CSE fee, let's check your eligibility and scholarship, so any merit
+           scholarship or special concession you qualify for is included in your final fee.
+           Step 1 of 4: which board did you study under?      [board card]  [Just show the B.Tech CSE fee]
+… status → marks → group → eligible, 25% scholarship → special concessions → hostel → bus
+→ the final fee summary (e.g. ₹2,80,000)
+```
+
+- **No programme yet** ("fees?", "B.Tech fee"): the same lead, then "Which programme / which B.Tech branch are you
+  interested in?" with its step card.
+- **Marks already known:** the evaluation runs at once.
+- **"Just show the B.Tech CSE fee"** (the button, or "standard fee", "fee only", "without scholarship"): the
+  standard fee card at once.
+- **Not changed:** hostel / mess / bus fees, other fees, the fee chart, per-semester and payment questions, other
+  years, and an evaluation already running.
+- **Where:** `agent._starts_fee_evaluation` and the block before the topic menus in `run_agent`. It uses the same
+  counsellor steps (`fee_intake`) and the fee evaluation agent (`fee_journey`) as "Calculate my scholarship".
+- **Tests:** `tests/test_v413_fee_questions.py` (10); journeys v410 32/32, v411 27/27, v412 19/19, memory 25/25.

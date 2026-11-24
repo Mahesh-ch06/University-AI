@@ -12,10 +12,12 @@ def _chat_settings_are_the_defaults():
     # tests of the model-written replies turn it on (tests/test_v413_dynamic_replies.py).
     # Likewise "suggestion_chips" is 'always' here (the older tests check the chips themselves); the default
     # 'questions_only' is covered by tests/test_v413_chips_and_tiles.py.
-    app_settings.set_for_tests(ai_answers=False, suggestion_chips="always")
+    # and "fee_questions" is 'fee_card' (the standard fee at once, as those tests expect); the default
+    # 'evaluate_first' is covered by tests/test_v413_fee_questions.py.
+    app_settings.set_for_tests(ai_answers=False, suggestion_chips="always", fee_questions="fee_card")
     yield
     app_settings.reset_for_tests()
-    app_settings.set_for_tests(ai_answers=False, suggestion_chips="always")
+    app_settings.set_for_tests(ai_answers=False, suggestion_chips="always", fee_questions="fee_card")
 
 
 @pytest.fixture(autouse=True)

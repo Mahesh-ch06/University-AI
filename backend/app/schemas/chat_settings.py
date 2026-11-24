@@ -19,6 +19,7 @@ class ChatSettingsUpdate(BaseModel):
     connect_enabled: Optional[bool] = None
     ai_answers: Optional[bool] = None
     suggestion_chips: Optional[Literal["questions_only", "always"]] = None
+    fee_questions: Optional[Literal["evaluate_first", "fee_card"]] = None
     welcome_tiles: Optional[list[WelcomeTile]] = Field(None, max_length=8)
     connect_wait_seconds: Optional[int] = Field(None, ge=10, le=120)
     office_hours_start: Optional[str] = Field(None, max_length=5)

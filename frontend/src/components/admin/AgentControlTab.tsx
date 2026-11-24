@@ -303,6 +303,32 @@ function SettingsPanel({ adminKey }: { adminKey: string }) {
 
       <div className="agc-setting">
         <div>
+          <div className="agc-setting-title">When a student asks for a fee</div>
+          <div className="agc-muted">
+            Evaluate first (recommended): SRU Buddy checks the marks and eligibility, the merit scholarship and special
+            concessions, then gives the final fee ("Just show the fee" gives the standard fee at once). Standard fee
+            card: the fee card at once, as before.
+          </div>
+        </div>
+        <div className="agc-segment" role="radiogroup" aria-label="Fee questions">
+          {(["evaluate_first", "fee_card"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="radio"
+              aria-checked={settings.fee_questions === mode}
+              className={settings.fee_questions === mode ? "is-on" : ""}
+              disabled={busy}
+              onClick={() => settings.fee_questions !== mode && save({ fee_questions: mode })}
+            >
+              {mode === "evaluate_first" ? "Evaluate first (recommended)" : "Standard fee card"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="agc-setting">
+        <div>
           <div className="agc-setting-title">Quick-response buttons under answers</div>
           <div className="agc-muted">
             Only when asked (recommended): buttons appear when SRU Buddy asks the student something (Yes / No, room

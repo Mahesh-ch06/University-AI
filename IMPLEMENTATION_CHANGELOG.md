@@ -379,3 +379,7 @@ See `docs/38-conversational-intelligence-nov-2026.md`.
 - **Buttons:**
   - only the ones that fit the question asked (at most 3), with unrelated ones dropped;
   - hostel-room options in a two-column grid, with the price on a second line (3 rows instead of 4–5).
+- **A fee question evaluates first:**
+  - eligibility → scholarship → concessions → hostel → final fee;
+  - "Just show the fee" gives the standard fee at once;
+  - admin choice: "Evaluate first" / "Standard fee card".
