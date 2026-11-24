@@ -181,8 +181,8 @@ def topic(message: str, waiting: bool = False) -> str | None:
     text = (message or "").strip()
     if not text or len(text) > 300:
         return None
-    if waiting and not _QUESTIONISH.search(text):
-        return None
+    if waiting and not _QUESTIONISH.search(text) and len(text.split()) <= 2 and not find_event(text):
+        return None                       # a bare word ("sports", "yes") answers the step that is waiting
     if _OTHER_TOPIC.search(text) or _WORLD.search(text):
         return None
     event = find_event(text)
@@ -346,8 +346,44 @@ def _answer(key: str, message: str = "") -> Answer:
                       video_query="")
     if key == "sports":
         ids = [i for i in ("sports_day",) if i in evs]
+        low = (message or "").lower()
+        listed = [x for x in ("basketball", "cricket", "football", "badminton", "tennis") if x in low]
+        unlisted = [x for x in ("swimming", "volleyball", "kabaddi", "hockey", "chess", "squash", "table tennis",
+                                "athletics", "skating", "archery") if x in low and not (x == "tennis" and listed)]
+        if re.search(r"\bgym|gymnasium|fitness|workout", low):
+            return Answer("Yes. SR University has an **Olympic-standard gym** and fitness centres, alongside the indoor and "
+                          "outdoor sports complex (basketball, cricket, football, badminton, tennis and more).\n\n"
+                          "Would you like to know about the Sports or Yoga clubs?", ["Sports clubs", "Events at SRU"], [])
+        if listed:
+            names = " and ".join(listed)
+            return Answer(f"Yes. **{names.title()}** is part of SR University's sports complex, which has indoor and "
+                          "outdoor facilities for basketball, cricket, football, badminton, tennis and more, plus an "
+                          "Olympic-standard gym. Students also play in the annual inter-university tournaments.\n\n"
+                          "Would you like to know about the Annual Sports Day or the sports clubs?",
+                          ["Annual Sports Day", "Sports clubs"], ids)
+        if unlisted:
+            names = " / ".join(unlisted)
+            return Answer(f"**{names.title()}** isn't among the facilities SR University lists for its sports complex "
+                          "(basketball, cricket, football, badminton, tennis and more, plus an Olympic-standard gym). "
+                          "The Admissions team can confirm it for you.\n\nWould you like to know about the sports clubs?",
+                          ["Sports clubs", "Talk to a counsellor"], [])
         return Answer(_SPORTS_TEXT, ["Clubs at SRU", "Events at SRU"], ids)
     if key == "food":
+        low = (message or "").lower()
+        if re.search(r"timing|\btime\b|when\s+is|what\s+time|breakfast|lunch|dinner|snacks", low) \
+                and not re.search(r"\b(?:good|quality|tasty|how\s+is)\b", low):
+            return Answer("Mess timings at SR University:\n\n• **Breakfast:** 7:30–8:30 AM\n• **Lunch:** 12:00–2:00 PM\n"
+                          "• **Snacks:** 5:00–6:00 PM\n• **Dinner:** 7:30–8:30 PM\n\nBetween meals, the Central Cafeteria "
+                          "is open 8:30 AM–6:00 PM and the food kiosks 9:00 AM–7:00 PM. Would you like to know about hostel "
+                          "life?", ["Hostel life", "Hostel fees"], [])
+        if re.search(r"non-?\s?veg|chicken|egg|vegetarian|\bveg\b", low):
+            return Answer("Yes. The dining hall serves **vegetarian and non-vegetarian** food, with 4 meals a day "
+                          "(healthy, hygienic and nutritious), and the cafeteria and kiosks for snacks.\n\nWould you like "
+                          "the mess timings?", ["Mess timings", "Hostel life"], [], ["rpRekBrnGYs"])
+        if re.search(r"canteen|cafeteria|cafe|kiosk|food\s+court|snack", low):
+            return Answer("Yes. Besides the 4,000-seat dining hall, SR University has the **Central Cafeteria** (8:30 AM–"
+                          "6:00 PM) and the **Tasty Treat, Meet and Eat and Bharat Foods** kiosks (9:00 AM–7:00 PM).\n\n"
+                          "Would you like the mess timings?", ["Mess timings", "Hostel life"], [])
         return Answer(_FOOD_TEXT, ["Hostel life", "Hostel fees"], [], ["rpRekBrnGYs"], video_query="hostel food")
     if key == "hostel_life":
         ids = [i for i in ("lumina",) if i in evs]
@@ -365,6 +401,44 @@ def _answer(key: str, message: str = "") -> Answer:
             "• **Support:** 24/7 medical help and counsellors\n\n"
             "What would you like to explore: events, clubs, hostel life or sports?")
     return Answer(text, ["Events", "Clubs", "Hostel life", "Sports"], list(evs)[:6])
+
+
+_RECAPS = {
+    "food": ("In short: 4 meals a day in the 4,000-seat dining hall, vegetarian and non-vegetarian, plus the "
+             "cafeteria and food kiosks for snacks. Would you like the mess timings or the hostel fees?",
+             ["Mess timings", "Hostel fees"]),
+    "hostel_life": ("In short: comfortable AC / non-AC rooms, 4 meals a day, laundry, Wi-Fi, 24/7 security and "
+                    "Lumina, the hostellers' own Hostel Night. Would you like the hostel fees or the room options?",
+                    ["Hostel fees", "Room options"]),
+    "events": ("SRU has 50+ events a year; the highlights are in the cards above. Which one would you like to know "
+               "about?", []),
+    "clubs": ("There are 39 clubs, tech, cultural, sports and business. Tell me what you enjoy and I'll point you to "
+              "the right club.", ["Tech clubs", "Culture & creativity clubs", "Sports & wellbeing clubs"]),
+    "sports": ("In short: an indoor and outdoor sports complex, an Olympic-standard gym, the Annual Sports Day and "
+               "sports clubs. Would you like to know about the clubs or the events?", ["Clubs at SRU", "Events at SRU"]),
+    "campus_life": ("In short: 50+ events, 39 clubs, sports, the SRiX incubator and a green 170+ acre campus. What "
+                    "would you like to explore: events, clubs, hostel life or sports?",
+                    ["Events", "Clubs", "Hostel life", "Sports"]),
+    "wellness": ("In short: 24/7 medical help with hospital tie-ups, counsellors and career guidance. Would you like "
+                 "to know about hostel life?", ["Hostel life"]),
+}
+
+
+def recap(key: str, full: "Answer", message: str = "") -> "Answer":
+    """The same topic asked again in one conversation: a short recap instead of the same block (a specific question,
+    e.g. the mess timings or a cricket ground, keeps its own answer)."""
+    if key in ("food", "sports") and full.text not in (_FOOD_TEXT, _SPORTS_TEXT):
+        return full
+    if key == "clubs" and (find_club(message) or club_group(message) or _unknown_club(message)):
+        return full                                      # a specific club or group is a new question
+    text, chips = _RECAPS.get(key, (None, None))
+    if not text:
+        return full
+    if key == "events":
+        names = ", ".join(_short(e) for e in events()[:4])
+        text = f"SRU has 50+ events a year, like {names}. Which one would you like to know about?"
+        chips = [_short(e) for e in events()[:3]]
+    return Answer(text, chips or full.chips, [], [], "", options=True)
 
 
 def event_cards(ids: list[str]) -> dict | None:

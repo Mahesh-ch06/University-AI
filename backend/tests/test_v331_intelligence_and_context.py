@@ -91,7 +91,8 @@ async def test_scenario_a_hostel_multiturn_flow():
 async def test_scenario_b_scholarship_multiturn_flow():
     """Scenario B: What scholarships are available? -> 85% in inter -> Am I eligible? -> What about 90%?"""
     turns = [
-        ("What scholarships are available?", "SR University offers merit scholarships up to 40% based on 10+2 marks and national entrance test ranks."),
+        # v4.14.0: answered from the official slab data (no model call), so no scripted model reply is used here
+        ("What scholarships are available?", None),
         ("I scored 85% in intermediate.", "Congratulations on scoring 85%! That puts you in a strong bracket for merit scholarship consideration."),
         ("Am I eligible?", None),
         ("What about 90%?", "Scoring 90% or above elevates your eligibility to the next scholarship tier, granting up to a 30% to 40% tuition fee waiver."),

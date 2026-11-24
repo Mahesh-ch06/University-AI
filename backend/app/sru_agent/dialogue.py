@@ -22,6 +22,7 @@ State lives in conv_state["dialogue"]: {"step", "intent", "topic", "program", "d
 """
 from __future__ import annotations
 
+import contextvars
 import re
 
 from . import config, eligibility, fee_intake, fees
@@ -144,7 +145,7 @@ TOPICS = {
         "words": r"events?|fests?|festivals?",
         "question": "Sure! Which kind of events would you like to know about?",
         "aspects": [
-            ("Technical fests & hackathons", r"tech|hackathon|coding", "What technical fests and hackathons happen at SR University?"),
+            ("Technical fests & hackathons", r"(?<![.\w])tech(?!\s*(?:cse|ece|eee|mech|civil|fee))|hackathon|coding", "What technical fests and hackathons happen at SR University?"),
             ("Cultural events", r"cultur|dance|music", "What cultural events happen at SR University?"),
             ("Sports events", r"sport|game|tournament", "What sports events happen at SR University?"),
         ],
@@ -332,9 +333,26 @@ def _ask_goal(key: str, state: dict, name_first: str = "Great! ") -> dict:
     return _ask(text, ["Check my eligibility", "Admission process", f"{p} fees"], state)
 
 
+# The specialisation the student named ("AI & ML" is a B.Tech CSE specialisation in the official fee data), so
+# the reply names what they asked about (v4.14.0, 1,000-student test).
+_MESSAGE: contextvars.ContextVar[str] = contextvars.ContextVar("dialogue_message", default="")
+_CSE_SPECS = (("AI & ML", r"\bai\s*(?:&|and)?\s*ml\b|\baiml\b|artificial\s+intelligence\s+(?:&|and)\s+machine"),
+              ("Data Science", r"\bdata\s+science\b"), ("Cyber Security", r"\bcyber\s*security\b"),
+              ("Quantum AI", r"\bquantum\b"))
+
+
+def _named(key: str) -> str:
+    p = short_name(key)
+    if key == "btech_cse":
+        for label, pattern in _CSE_SPECS:
+            if re.search(pattern, _MESSAGE.get() or "", re.I):
+                return f"{p} ({label})"
+    return p
+
+
 def _ask_aspect(key: str, state: dict, lead: str = "Sure! ") -> dict:
     state.update(step="program_aspect", intent="explore", program=key)
-    p = short_name(key)
+    p = _named(key)
     text = (f"{lead}What would you like to explore about {p}: admission eligibility, fees, curriculum, placements, "
             f"faculty, labs or career opportunities?")
     return _ask(text, ["Eligibility", "Fees", "Placements", "Curriculum"], state)
@@ -604,6 +622,7 @@ _RESULTS = re.compile(
 def decide(message: str, conv_state: dict, profile: dict, name: str | None = None) -> dict | None:
     """See _decide. Topics already asked about in this conversation are remembered across every step (several
     steps return a fresh state), so a topic question is never asked twice."""
+    _MESSAGE.set(message or "")
     result = _decide(message, conv_state, profile, name)
     asked = (conv_state.get("dialogue") or {}).get("asked_topics")
     if result and asked and result.get("state") is not None:
