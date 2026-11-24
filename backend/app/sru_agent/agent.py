@@ -373,9 +373,29 @@ def _is_personal_eligibility(fee: dict | None) -> bool:
     return (fee.get("admission_eligibility") or {}).get("eligible") is True
 
 
-def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None):
+def _asks_question(answer) -> bool:
+    """True when the reply ends by asking the student something (a "?" in its last lines)."""
+    text = re.sub(r"[*_`>#]+", "", str(answer or "")).strip()
+    tail = "\n".join(line for line in text.splitlines()[-3:] if line.strip())[-260:]
+    return "?" in tail
+
+
+def _chips_for(answer, suggestions, options: bool) -> list:
+    """Quick-response buttons (admin setting "suggestion_chips", v4.13.0). 'questions_only' (default): the answer
+    options of a step (Yes / No, rooms, boards...) are always kept; other suggestions only when the reply asks the
+    student something. The "continue my fee estimate" button is always kept. 'always': as before."""
+    from app.services import app_settings
+    chips = list(suggestions or [])
+    if not chips or options or app_settings.get("suggestion_chips") == "always" or _asks_question(answer):
+        return chips
+    return [c for c in chips if c == fee_journey.RESUME]
+
+
+def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None,
+          options=False):
     # Every answer passes here: one that leaks internal instructions or a secret-shaped string is replaced.
     answer = ai_guard.guard_reply(answer) if isinstance(answer, str) else answer
+    suggestions = _chips_for(answer, suggestions, options)
     fee_plan.apply_card_settings(cards)   # the admin panel's concessions picker choice, for every card
     d = {"type": "done", "conversation_id": conversation_id, "answer": answer,
          "tools_used": list(used), "model": config.AGENT_MODEL,
@@ -573,7 +593,8 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
             profile = await memory.get_profile(session_id)
         except Exception:
             profile = None
-    yield _done(conversation_id, text, used, cards, final_suggestions, telemetry=telemetry, profile=profile, eligible=eligible)
+    yield _done(conversation_id, text, used, cards, final_suggestions, telemetry=telemetry, profile=profile, eligible=eligible,
+                options=bool(exact_chips))
 
 
 # ---- v4.13.0: the model writes the words, the code keeps the facts -------------------------------------------

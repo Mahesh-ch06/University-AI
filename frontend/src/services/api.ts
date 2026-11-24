@@ -968,10 +968,38 @@ export async function fetchConnectStatus(requestId: string, sessionId: string): 
   return res.json();
 }
 
+/** One Quick Start tile under the opening welcome message (Admin -> Agent -> Quick Start tiles). */
+export interface WelcomeTile {
+  id: string;
+  title: string;
+  badge: string;
+  icon: string;
+  prompt: string;
+  subtitle?: string;
+  enabled?: boolean;
+}
+
+let welcomeActionsRequest: Promise<{ heading: string; items: WelcomeTile[] }> | null = null;
+
+/** The Quick Start tiles set in the admin panel (public; cached for the page). */
+export function fetchWelcomeActions(): Promise<{ heading: string; items: WelcomeTile[] }> {
+  if (!welcomeActionsRequest) {
+    welcomeActionsRequest = fetch(`${API_BASE}/api/v1/agent/welcome-actions`)
+      .then((res) => handleResponse<{ heading: string; items: WelcomeTile[] }>(res, "Failed to load quick start"))
+      .catch((error) => {
+        welcomeActionsRequest = null;
+        throw error;
+      });
+  }
+  return welcomeActionsRequest;
+}
+
 export interface ChatSettings {
   concession_picker: "grouped" | "table";
   connect_enabled: boolean;
   ai_answers: boolean;
+  suggestion_chips: "questions_only" | "always";
+  welcome_tiles: WelcomeTile[];
   connect_wait_seconds: number;
   office_hours_start: string;
   office_hours_end: string;

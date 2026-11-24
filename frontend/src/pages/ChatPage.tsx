@@ -55,6 +55,7 @@ const WELCOME_QUICK_ACTIONS_CARD = {
   type: "welcome_actions",
   heading: "⚡ Quick start",
   items: WELCOME_QUICK_ACTIONS,
+  live: true, // the tiles set in Admin -> Agent -> Quick Start tiles (these are the fallback)
 };
 
 export function getInitialWelcomeMessage(_seed: string = ""): MessageData {

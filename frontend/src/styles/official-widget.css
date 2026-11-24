@@ -224,6 +224,8 @@ html[data-surface="widget"] .sru-widget-body > button[type="button"]:first-child
    -------------------------------------------------------------------------- */
 html[data-surface="widget"] .suggestion-chip {
   border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.76rem;
   border: 1px solid #C9D2DE;
   background: #ffffff;
   color: #194F90;
@@ -272,14 +274,13 @@ html[data-surface="widget"] .welcome-action-icon-box,
 html[data-surface="widget"] .welcome-action-icon-box:is(.icon-box-blue, .icon-box-green, .icon-box-purple, .icon-box-amber) {
   background: #EFF8FF;
   color: #194F90;
-  border-radius: 6px;
 }
 
-html[data-surface="widget"] .welcome-action-badge,
-html[data-surface="widget"] .welcome-action-badge:is(.badge-blue, .badge-green, .badge-purple, .badge-amber) {
-  background: #194F90;
-  color: #ffffff;
-  border-radius: 4px;
+html[data-surface="widget"] .welcome-actions-grid .welcome-action-tile .welcome-action-badge {
+  background: none;
+  color: #297DE5;
+  padding: 0;
+  border-radius: 0;
   font-weight: 600;
 }
 

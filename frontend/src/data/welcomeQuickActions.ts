@@ -2,7 +2,9 @@
 // Badges use verified facts only: fee card slabs (up to 40%), NIRF 2025 Engineering rank 91,
 // placements page (highest 51 LPA, 150+ recruiters, 1,300+ offers), special concessions on the fee card
 // (₹15,000 to ₹50,000 a year). The 4th tile was "How to Apply" until v4.11.0 (still answered when asked).
-// The backend keeps the same list (backend/app/services/card_service.py, WELCOME_ACTIONS_CARD).
+// v4.13.0: the live list is set in Admin -> Agent -> Quick Start tiles (backend/app/services/app_settings.py,
+// DEFAULT_WELCOME_TILES); this copy is only the fallback while it loads or if it can't be loaded.
+// "#6 Research": Times Higher Education, Research Quality, 6th in India.
 export const WELCOME_QUICK_ACTIONS = [
   {
     id: "calculate_scholarship",
@@ -39,5 +41,14 @@ export const WELCOME_QUICK_ACTIONS = [
     title: "Special Consideration",
     subtitle: "Check concessions you may qualify for",
     prompt: "Special consideration",
+  },
+  {
+    id: "why_sru",
+    icon: "award",
+    color: "blue",
+    badge: "#6 Research",
+    title: "Why Choose SRU?",
+    subtitle: "Rankings, research and campus life",
+    prompt: "Why should I choose SR University?",
   },
 ];

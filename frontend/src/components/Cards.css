@@ -4872,3 +4872,77 @@
     color: var(--text-2, var(--o-muted, #64748b));
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   v4.13.0: compact Quick Start tiles (room for 6-8 without a tall block): icon, a short title, the badge as a small
+   highlight under it. Two columns; an odd last tile spans both. The subtitle is the tile's tooltip.
+   --------------------------------------------------------------------------------------------------------------- */
+.welcome-actions-card-wrapper .welcome-actions-grid {
+  gap: 8px;
+}
+
+.welcome-actions-grid .welcome-action-tile {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  min-height: 52px;
+  border-radius: 10px;
+}
+
+.welcome-actions-grid .welcome-action-tile:hover:not(:disabled) {
+  transform: none;
+}
+
+.welcome-actions-grid.is-odd > .welcome-action-tile:last-child {
+  grid-column: 1 / -1;
+}
+
+.welcome-actions-grid .welcome-action-tile .welcome-action-icon-box {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  margin: 0;
+  border-radius: 8px;
+}
+
+.welcome-actions-grid .welcome-action-tile .welcome-action-icon-box svg {
+  width: 17px;
+  height: 17px;
+}
+
+.welcome-actions-grid .welcome-action-tile .welcome-action-info {
+  gap: 2px;
+  min-width: 0;
+}
+
+.welcome-actions-grid .welcome-action-tile .welcome-action-title {
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.welcome-actions-grid .welcome-action-tile .welcome-action-badge {
+  padding: 0;
+  max-width: 100%;
+  border-radius: 0;
+  background: none;
+  color: var(--sru-blue, #0055a4);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 340px) {
+  .welcome-actions-card-wrapper .welcome-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-actions-grid.is-odd > .welcome-action-tile:last-child {
+    grid-column: auto;
+  }
+}
