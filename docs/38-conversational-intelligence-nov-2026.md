@@ -32,7 +32,7 @@ settings gain one switch.
 | Conversation state for the model | `agent._conversation_note` | Programme, details already given ("never ask again"), open step, selected concession (pending), topic, "already greeted". Used by the fact replies and the main model path |
 | Prompt | `sru_agent/prompt.py` (version `2026-11-24.1`) | Continue the conversation (no re-welcome); follow-ups read the state; no filler endings ("How can I assist you today?"). Kept under the 9,000-character budget |
 | Small talk | `agent._SMALL_TALK_BRIEFS` | A brief per kind (greeting, greeting + ask name, thanks, how are you, bye, who are you, name given, ask name first). The banks are deleted; one plain line each only when the model is unavailable |
-| Admin switch | Admin → 🤖 Agent → **Answers written by the AI** (`ai_answers`) | On by default. Off = the verified texts, no AI call for them (for a day when the free quota runs low). Cards, fees and workflows are the same |
+| Admin switch | Admin → 🤖 Agent → **Answers written by the AI** (`ai_answers`) | **Off when first deployed** (not yet tested on the real model; more AI calls on the free quota). On = the model writes the answers from the verified facts. Off = the verified texts, no AI call for them. Cards, fees, workflows and every other fix in this document work either way |
 | Meaning before keyword | `fee_plan.infer_concession`, `agent._CUTOFF_FACT`, `agent._ELIGIBILITY_RULE_Q`, `eligibility.rule_text` | See section 3 |
 | Fee intake | `fee_intake.decide` wraps `_decide` | The old form card is never returned; the step card for the detail being asked is shown instead. Marks given before the board are kept (`pending_raw_marks`) |
 

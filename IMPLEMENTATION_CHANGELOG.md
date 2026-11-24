@@ -355,7 +355,7 @@ See `docs/38-conversational-intelligence-nov-2026.md`.
   - fallback: the verified text when the model can't be used, or when its words fail a check;
   - the greeting banks are deleted;
   - the conversation state (programme, details, open step, concession) is given to the model;
-  - admin switch **Answers written by the AI**.
+  - admin switch **Answers written by the AI** (off when first deployed; turn it on in Admin → 🤖 Agent).
 - **Understanding:**
   - a family-link discount question → the named concession;
   - cut-off / closing-rank questions → not published;
