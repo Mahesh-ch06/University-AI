@@ -220,9 +220,7 @@ function MessageBubble({
         {/* Clean Suggestion Chips */}
         {!isStreaming && role === "assistant" && suggestions && suggestions.length > 0 && (
           <div className="suggestion-chips-wrapper">
-            {/* Options with a price ("AC 4-sharing (₹1,25,000)"): a two-column grid, the price on a small
-                second line, so they read two per row (v4.13.0). Other buttons stay compact pills. */}
-            <div className={`suggestion-chips-list ${suggestions.some((s) => /\(₹[^)]*\)$/.test(s)) ? "is-options-grid" : ""}`}>
+            <div className="suggestion-chips-list">
               {suggestions.map((suggestion, idx) => {
                 const cleanSuggestion = suggestion.replace(/Ask admissions to call me/gi, "Ask counsellor to call me");
                 const { icon, label } = parseSuggestionChip(cleanSuggestion);
@@ -232,18 +230,22 @@ function MessageBubble({
                     className="suggestion-chip"
                     onClick={() => onSuggestionClick?.(cleanSuggestion)}
                     type="button"
+                    title={cleanSuggestion}
+                    aria-label={cleanSuggestion}
                   >
                     {icon && <span className="suggestion-chip-icon">{icon}</span>}
                     {(() => {
-                      // "AC 4-sharing (₹1,25,000)": the price in a lighter, smaller style (v4.13.0) so two options
-                      // fit on one line; the text sent and read is unchanged.
-                      const m = label.match(/^(.*\S)\s(\(₹[^)]*\))$/);
-                      return m ? (
+                      // "AC 4-sharing (₹1,25,000)" is shown short ("AC 4-sharing · ₹1.25L", v4.13.0) so the options
+                      // stay small pills; the button still sends the full text.
+                      const m = label.match(/^(.*\S)\s\(₹\s?([\d,]+)\)$/);
+                      if (!m) return <span className="suggestion-chip-text">{label}</span>;
+                      const n = Number(m[2].replace(/,/g, ""));
+                      const short = n >= 100000 ? `₹${(n / 100000).toFixed(2).replace(/\.?0+$/, "")}L`
+                        : n >= 1000 ? `₹${Math.round(n / 1000)}K` : `₹${n}`;
+                      return (
                         <span className="suggestion-chip-text">
-                          {m[1]} <span className="suggestion-chip-meta">{m[2]}</span>
+                          {m[1]} <span className="suggestion-chip-meta">· {short}</span>
                         </span>
-                      ) : (
-                        <span className="suggestion-chip-text">{label}</span>
                       );
                     })()}
                   </button>

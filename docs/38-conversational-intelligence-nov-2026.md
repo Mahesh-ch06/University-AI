@@ -135,9 +135,10 @@ The older tests run with the switch off, so they keep checking the verified text
   - unrelated buttons are dropped.
 - **Where:** `agent._chips_for`, in `_done`, so every reply follows the same rule.
 - **Size:**
-  - compact buttons;
-  - options with a price (hostel rooms) in a two-column grid, with the price on a small second line;
-  - the five room options take 3 rows at 360, 390 and 420 px, instead of 4–5.
+  - small pills, about 26–28 px tall, with 11 px text;
+  - prices shown short and light ("AC 4-sharing · ₹1.25L"), while the button still sends the full text
+    ("AC 4-sharing (₹1,25,000)");
+  - the five room options take 3 lines at 390 / 420 px.
 - **Fix:** "Hello! What would you like to know?" no longer gets Yes / No buttons (`followups.needs_yes_no` now
   checks the question itself, not the greeting before it).
 - **Eligibility rule answer:** it now ends with "Shall I check yours with your marks?", so its buttons answer a
