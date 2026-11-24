@@ -36,6 +36,7 @@
 | 4.12.0 | Lowest-fee agent with a visible plan; "talk to a counsellor"; self-check of AI-written numbers |
 | 4.12.1 | Questions about the student's own evaluation (documents, "is it approved?", "my scholarship"), answered from their selections; the programme shown as chosen; "Add hostel" goes to the hostel step; the button-contract test |
 | 4.13.0 | Multi-question messages (Nikhil's decomposition) split only when safe: never a message with an action or the student's own data, a button label, a single question or another programme's fees; a pending question's answer is still read as the answer (`sru_agent/compound.py`, docs/37) |
+| 4.13.0 | Replies written by the model from verified facts with the conversation state (docs/38); a family-link discount question gets the named concession; cut-off questions answered as unpublished; "what is the eligibility?" gives the programme's rule; marks read with the board's total; typos recognised; the student simulation (`e2e/student_simulation.py`) for replaying many students |
 
 ## Next (in order)
 
