@@ -190,6 +190,9 @@ _JOIN = re.compile(
     r"|can\s+i\s+(?:join|get\s+(?:an\s+)?admission|get\s+(?:a\s+)?seat)"
     r"|i\s+need\s+(?:an\s+)?admission|interested\s+in\s+joining|admission\s+(?:in|into|for)\b)",
     re.IGNORECASE)
+_CAN_JOIN = re.compile(r"^\W*(?:can|could|may)\s+i\s+(?:join|get\s+(?:an?\s+)?(?:admission|seat)(?:\s+(?:in|into|at))?|"
+                       r"study\s+(?:in|at)|apply\s+(?:to|at))\s*(?:sru|sr\s*u(?:niversity)?|your\s+(?:college|university))"
+                       r"\W*$", re.IGNORECASE)
 _INTEREST_ONLY = re.compile(
     r"^\s*(?:hi|hello|hey)?[,\s]*(?:i\s*(?:am|'m|m)\s+|me\s+)?(?:very\s+|really\s+|so\s+)?interested"
     r"(?:\s+in\s+(?:sru|sr\s+university|this\s+university|your\s+university|it|this))?\s*[.!]*\s*$",
@@ -328,9 +331,51 @@ def _ask_branch(intent: str, state: dict) -> dict:
     return _ask(text, ["CSE", "AI & Robotics", "ECE", "Mechanical"], state)
 
 
+# v4.15.0 (Phase 2 roadmap): "Tell me about B.Tech CSE" gets the programme itself first, from the official
+# 2027-28 fee card only (name, duration, specialisations, eligibility, tuition, scholarship range), then the
+# question of what to explore next. Nothing is added that the fee card does not say.
+_ABOUT_Q = re.compile(r"\b(?:tell\s+me\s+(?:about|more\s+about)|about|details?|overview|info(?:rmation)?\s+(?:on|about)|"
+                      r"what\s+is)\b", re.IGNORECASE)
+
+
+def program_overview(key: str) -> str:
+    prog = fees.load_data()["programs"].get(key) or {}
+    if not prog:
+        return ""
+    full = fees.clean_program_name(key)
+    years = prog.get("duration_years")
+    lines = [f"**{full}** at SR University:"]
+    m = re.search(r"\(([^)]+)\)", prog.get("name") or "")
+    spec = _named(key)
+    if "(" in spec and spec != short_name(key):          # the specialisation the student named
+        lines.append(f"• **Specialisation:** {spec.split('(')[-1].rstrip(')')}, one of the B.Tech CSE specialisations")
+    elif m and "," in m.group(1):
+        lines.append(f"• **Specialisations:** {m.group(1)}")
+    if years:
+        lines.append(f"• **Duration:** {years} years")
+    if prog.get("eligibility_note"):
+        lines.append(f"• **Eligibility:** {prog['eligibility_note']}"
+                     + (f", with at least {prog['min_percent']}%" if prog.get("min_percent") else ""))
+    if prog.get("tuition_per_year"):
+        extra = prog.get("specialization_fee_per_year_from_year2")
+        lines.append(f"• **Tuition 2027-28:** {fees.inr(prog['tuition_per_year'])} a year, before any scholarship"
+                     + (f" (plus a specialisation fee of {fees.inr(extra)} a year from the 2nd year)" if extra else ""))
+    if prog.get("level") == "pg":
+        lines.append("• **Merit scholarship:** up to 40% of tuition, from your qualifying-degree percentage")
+    elif fees._uses_entrance(key) if hasattr(fees, "_uses_entrance") else key.startswith(("btech_", "bsc_agri")):
+        lines.append("• **Merit scholarship:** up to 40% of tuition, from your marks, EAPCET rank or JEE Main percentile")
+    else:
+        lines.append("• **Merit scholarship:** up to 40% of tuition, from your 10+2 / Intermediate marks")
+    return "\n".join(lines)
+
+
 def _ask_goal(key: str, state: dict, name_first: str = "Great! ") -> dict:
     state.update(step="goal", intent="join", program=key)
     p = short_name(key)
+    if _ABOUT_Q.search(_MESSAGE.get() or "") and program_overview(key):
+        text = (program_overview(key) + f"\n\nWould you like to check your eligibility, see how to apply, or "
+                                         f"work out your {p} fee?")
+        return _ask(text, ["Check my eligibility", "Admission process", f"{p} fees"], state)
     text = f"{name_first}Are you looking to check your {p} eligibility, understand the admission process, or know the fees?"
     return _ask(text, ["Check my eligibility", "Admission process", f"{p} fees"], state)
 
@@ -355,6 +400,10 @@ def _named(key: str) -> str:
 def _ask_aspect(key: str, state: dict, lead: str = "Sure! ") -> dict:
     state.update(step="program_aspect", intent="explore", program=key)
     p = _named(key)
+    if _ABOUT_Q.search(_MESSAGE.get() or "") and program_overview(key):
+        text = (program_overview(key) + f"\n\nWhat would you like to explore about {p} next: eligibility, fees, "
+                                         f"curriculum, placements, faculty or labs?")
+        return _ask(text, ["Eligibility", "Fees", "Placements", "Curriculum"], state)
     text = (f"{lead}What would you like to explore about {p}: admission eligibility, fees, curriculum, placements, "
             f"faculty, labs or career opportunities?")
     return _ask(text, ["Eligibility", "Fees", "Placements", "Curriculum"], state)
@@ -625,6 +674,16 @@ def decide(message: str, conv_state: dict, profile: dict, name: str | None = Non
     """See _decide. Topics already asked about in this conversation are remembered across every step (several
     steps return a fresh state), so a topic question is never asked twice."""
     _MESSAGE.set(message or "")
+    if _CAN_JOIN.match(message or ""):
+        state = dict(conv_state.get("dialogue") or {})
+        state.pop("step", None)
+        key = state.get("program") or conv_state.get("active_program")
+        lead = "Yes, you can! SR University admits students who meet each programme's eligibility. "
+        if key in fees.load_data()["programs"]:
+            return _ask_goal(key, state, name_first=lead)
+        state.update(step="program", intent="join")
+        return _ask(lead + "Would you like to check your eligibility for a programme, or see how to apply?",
+                    ["Check my eligibility", "How do I apply?", "Programmes offered"], state)
     result = _decide(message, conv_state, profile, name)
     asked = (conv_state.get("dialogue") or {}).get("asked_topics")
     if result and asked and result.get("state") is not None:
