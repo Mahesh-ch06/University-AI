@@ -220,7 +220,9 @@ function MessageBubble({
         {/* Clean Suggestion Chips */}
         {!isStreaming && role === "assistant" && suggestions && suggestions.length > 0 && (
           <div className="suggestion-chips-wrapper">
-            <div className="suggestion-chips-list">
+            {/* Options with a price ("AC 4-sharing (₹1,25,000)"): a two-column grid, the price on a small
+                second line, so they read two per row (v4.13.0). Other buttons stay compact pills. */}
+            <div className={`suggestion-chips-list ${suggestions.some((s) => /\(₹[^)]*\)$/.test(s)) ? "is-options-grid" : ""}`}>
               {suggestions.map((suggestion, idx) => {
                 const cleanSuggestion = suggestion.replace(/Ask admissions to call me/gi, "Ask counsellor to call me");
                 const { icon, label } = parseSuggestionChip(cleanSuggestion);

@@ -380,15 +380,51 @@ def _asks_question(answer) -> bool:
     return "?" in tail
 
 
+_CHIP_STOP = {"would", "like", "know", "more", "about", "want", "your", "this", "that", "with", "have", "tell",
+              "need", "please", "check", "explore", "also", "there", "here", "what", "which", "shall", "could", "should",
+              "next", "help", "information", "details", "university", "sru", "the", "and", "for", "you", "any", "can"}
+_OPEN_INVITE = re.compile(r"\bwhat\s+(?:else\s+)?(?:would|do|can)\s+you\s+(?:like|want)\b|\banything\s+else\b|"
+                          r"\bwhat\s+can\s+i\s+help\b|\bwhere\s+would\s+you\s+like\s+to\s+start\b", re.IGNORECASE)
+
+
+def _chip_words(text: str) -> set:
+    words = set()
+    for w in re.findall(r"[a-z]{3,}", str(text or "").lower()):
+        if w in _CHIP_STOP:
+            continue
+        w = w[:-1] if w.endswith("s") and len(w) > 3 else w
+        words.add(w[:5])
+    return words
+
+
 def _chips_for(answer, suggestions, options: bool) -> list:
-    """Quick-response buttons (admin setting "suggestion_chips", v4.13.0). 'questions_only' (default): the answer
-    options of a step (Yes / No, rooms, boards...) are always kept; other suggestions only when the reply asks the
-    student something. The "continue my fee estimate" button is always kept. 'always': as before."""
+    """Quick-response buttons (admin setting "suggestion_chips", v4.13.0). 'questions_only' (default):
+    - the answer options of a step (Yes / No, rooms, boards...) are always kept, and so is "continue my fee estimate";
+    - other suggestions only when the reply asks the student something, and only the ones that fit that question:
+      a yes / no question -> its Yes / No; an open "what would you like to know?" -> up to 3 starting points; a
+      specific question ("...hostel rooms, rules or fees?") -> up to 3 buttons about what it asks; nothing unrelated.
+    'always': every suggestion, as before."""
     from app.services import app_settings
     chips = list(suggestions or [])
-    if not chips or options or app_settings.get("suggestion_chips") == "always" or _asks_question(answer):
+    if not chips or options or app_settings.get("suggestion_chips") == "always":
         return chips
-    return [c for c in chips if c == fee_journey.RESUME]
+    resume = [c for c in chips if c == fee_journey.RESUME]
+    others = [c for c in chips if c != fee_journey.RESUME]
+    if not _asks_question(answer):
+        return resume
+    text = re.sub(r"[*_`>#]+", "", str(answer or "")).strip()
+    question = next((s for s in reversed(re.split(r"(?<=[.!?])\s+", text)) if "?" in s), "")
+    if followups.needs_yes_no(answer) or all(re.match(r"^\W*(?:yes|no)\b", c, re.I) for c in others):
+        return others + resume
+    if _OPEN_INVITE.search(question):
+        return others[:3] + resume
+    if re.match(r"^\W*(?:which|what\s+(?:kind|type))\b", question, re.I):
+        return others[:4] + resume   # "Which board / branch / room?": the buttons are its answers
+    # The question and the paragraph it is in (options are often listed there: "...CSE, AI & Robotics or ECE?")
+    last_paragraph = text.split("\n\n")[-1]
+    asked = _chip_words(question) | _chip_words(last_paragraph)
+    fitting = [c for c in others if _chip_words(c) & asked]
+    return fitting[:3] + resume
 
 
 def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None,
