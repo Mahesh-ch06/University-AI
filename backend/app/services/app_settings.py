@@ -35,6 +35,10 @@ class ChatSettings(BaseModel):
                     "or 'table' (all 19 rows).")
     connect_enabled: bool = Field(
         True, description="'Talk to a counsellor' rings the admin panel and waits before arranging a callback.")
+    ai_answers: bool = Field(
+        True, description="Answers written by the AI from the verified facts (on), or the verified texts as they "
+                          "are (off: no AI call for them, e.g. when the daily AI quota runs low). Cards, numbers and "
+                          "workflows are the same either way.")
     connect_wait_seconds: int = Field(30, ge=10, le=120, description="How long the student waits for a counsellor.")
     office_hours_start: str = Field("09:00", description="Counsellors available from (India time, HH:MM).")
     office_hours_end: str = Field("18:00", description="Counsellors available until (India time, HH:MM).")

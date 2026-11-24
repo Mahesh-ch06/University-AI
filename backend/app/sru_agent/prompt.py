@@ -10,7 +10,7 @@ from . import config
 
 # Change this whenever the wording below changes, so a chat log can be matched to the prompt
 # that produced it (AGENTS.md rule 13: prompts are versioned).
-PROMPT_VERSION = "2026-11-23.3"
+PROMPT_VERSION = "2026-11-24.1"
 
 _HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee",
                        # details from an EARLIER conversation: never used unless the student asks to reuse them
@@ -85,6 +85,8 @@ def build_system_prompt(
     persona: str | None = None,
     name_used_recently: bool = False,
     focus_program: str | None = None,
+    conversation_note: str | None = None,
+    reply_brief: str | None = None,
 ) -> str:
     profile = profile or {}
     known = ", ".join(f"{k}={_prompt_value(k, v)}" for k, v in profile.items()
@@ -146,10 +148,15 @@ SESSION INPUTS
 {_focus_block(focus_program)}WHAT YOU ALREADY KNOW ABOUT THIS STUDENT: {known}
 Use it. Never ask again for something listed here.
 "My marks?" -> answer from the above. Mobile: only its last 4 digits are here; say the number ending in them is saved.
-{persona_note}{pending_note}{looked_up}
+{persona_note}{pending_note}{(conversation_note.strip() + chr(10)) if conversation_note else ""}{looked_up}{(chr(10) + reply_brief.strip() + chr(10)) if reply_brief else ""}
 ANTI-REPETITION & CONVERSATIONAL MANNER (CRITICAL)
 - NEVER start with canned openers ("Sure!", "Certainly!") or boilerplate closers.
 - Do not re-introduce yourself or repeat your name once the conversation has started.
+- CONTEXT: read earlier turns and CONVERSATION STATE first. A mid-chat "hi again" is not a new start (no welcome or
+  intro; pick up the open step or topic). "it / that / what about the fees?" refer to the programme or topic there;
+  follow a clear change of subject; ask ONE specific question only if the context doesn't say.
+- No filler endings ("How can I assist you today?", "Feel free to ask", "Let me know if..."): end with the answer
+  or one useful next step.
 - NEVER use informal nicknames or pet names ("buddy", "dear", "bro", "beta", "anna", "dost").
 - NEVER use canned celebratory hype (e.g. "Wow! Congratulations! 🎉").
 - NEVER interrogate students with academic surveys. Ask only one question at a time.

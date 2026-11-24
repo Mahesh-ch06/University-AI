@@ -1,5 +1,5 @@
-"""Full-stack review server: the real FastAPI app (PostgreSQL, Redis, agent, cards). Only the Gemini model is
-replaced, because there is no API key here. The replacement says plainly that it is a test model and reports
+"""Full-stack review server: the real FastAPI app (PostgreSQL, Redis, agent, cards). By default only the Gemini
+model is replaced (no API key needed); REVIEW_MODEL=live keeps the real model. The replacement says plainly that it is a test model and reports
 how many earlier turns of THIS conversation it received and what the agent knows, so restored context is visible."""
 import os, re, sys
 from pathlib import Path
@@ -27,7 +27,10 @@ class ContextEchoModel:
         return types.GenerateContentResponse(candidates=[types.Candidate(content=types.Content(
             role="model", parts=[types.Part.from_text(text=text)]))])
 
-agent.get_client = lambda *a, **k: ContextEchoModel()
+# REVIEW_MODEL=live: keep the real Gemini client (keys from GEMINI_API_KEYS / GEMINI_API_KEY; in the review sandbox a
+# placeholder key, the network proxy adds the real one). Default: the test model above, no key needed.
+if os.environ.get("REVIEW_MODEL") != "live":
+    agent.get_client = lambda *a, **k: ContextEchoModel()
 import app.main as main
 import uvicorn
 uvicorn.run(main.app, host="127.0.0.1", port=8080, log_level="warning")

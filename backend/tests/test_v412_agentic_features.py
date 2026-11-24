@@ -411,7 +411,10 @@ async def test_add_hostel_goes_to_the_hostel_question_even_with_open_steps():
     ["Find me the lowest fee for B.Tech CSE", "Telangana State Board", "Completed", "885", "MPC", "No entrance exam",
      "None of these apply", "AC 3-sharing (₹1,35,000)"],
 ])
-async def test_every_button_the_fee_agent_offers_gets_a_relevant_answer(setup, leads, model):
+async def test_every_button_the_fee_agent_offers_gets_a_relevant_answer(setup, leads, model, monkeypatch):
+    # Outside office hours "Talk to a counsellor" arranges the callback at once (inside, it rings the admin panel
+    # first): fixed here so the result does not depend on the time the test runs.
+    monkeypatch.setattr(live_connect, "in_office_hours", lambda *a, **k: False)
     base = (await _chat(setup))[-1]
     assert base["suggestions"]
     expect = {"Add hostel to my fee": "hostel", "Change hostel": "hostel", "Documents needed for the concession": "document",

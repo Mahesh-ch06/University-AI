@@ -7,10 +7,13 @@ def _chat_settings_are_the_defaults():
     """The admin panel's chat settings live in the database; tests use the defaults unless they set others."""
     from app.services import app_settings
 
-    app_settings.set_for_tests()          # defaults, and no database reload during the test
+    # Defaults, and no database reload during the test. "Answers written by the AI" is off here so the older
+    # tests keep checking the verified texts themselves (they are the facts and the fallback since v4.13.0);
+    # tests of the model-written replies turn it on (tests/test_v413_dynamic_replies.py).
+    app_settings.set_for_tests(ai_answers=False)
     yield
     app_settings.reset_for_tests()
-    app_settings.set_for_tests()
+    app_settings.set_for_tests(ai_answers=False)
 
 
 @pytest.fixture(autouse=True)

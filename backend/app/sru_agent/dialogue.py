@@ -621,6 +621,10 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
     # ("Which branch?" -> "CSE and AIML") is still read as that answer.
     if _is_compound_query(message) and not (conv_state.get("dialogue") or {}).get("step"):
         return None
+    # A question about SRU's cut-offs / closing ranks is a fact question, not the start of the eligibility steps.
+    if re.search(r"\bclosing\s+(?:rank|cut)|\bcut[- ]?off\s+ranks?\b|\blast\s+year'?s?\s+(?:closing|cut[- ]?off|ranks?)\b",
+                 message or "", re.I) and not (conv_state.get("dialogue") or {}).get("step"):
+        return None
     original = dict(conv_state.get("dialogue") or {})
     state = dict(original)
     step = state.get("step")

@@ -221,6 +221,26 @@ def _minimum_cell(program_key: str) -> str:
     return "; ".join(parts)
 
 
+def rule_text(program_key: str) -> str:
+    """The eligibility rule for one programme, from the data file (v4.13.0): qualification, minimum marks (every
+    documented minimum when the sources differ), the entrance note, and the closing caveat."""
+    prog = fees.load_data()["programs"][program_key]
+    t = thresholds(program_key)
+    name = fees.clean_program_name(program_key)
+    lines = [f"**Eligibility for {name} ({config.ADMISSION_YEAR})**", ""]
+    lines.append(f"- Qualification: {prog.get('eligibility_note') or 'as listed by the Admissions Office'}")
+    if t["conflict"]:
+        parts = ", ".join(f"{show_percent(s['percent'])} in {s['source'].replace('the ', '', 1)}" for s in t["sources"])
+        lines.append(f"- Minimum marks: the official sources differ ({parts}); the Admissions Office confirms the "
+                     f"{config.ADMISSION_YEAR} figure ({config.ADMISSIONS_PHONE}).")
+    else:
+        lines.append(f"- Minimum marks: {show_percent(t['floor'])}")
+    if t.get("entrance_note"):
+        lines.append(f"- Entrance: {t['entrance_note']}")
+    lines += ["", "Final admission depends on document verification and seat availability."]
+    return "\n".join(lines)
+
+
 def overview_text() -> str:
     """Eligibility for the main programmes, built from the data file (never hand-written thresholds)."""
     data = fees.load_data()["programs"]

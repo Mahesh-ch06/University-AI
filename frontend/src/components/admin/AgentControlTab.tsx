@@ -195,6 +195,28 @@ function SettingsPanel({ adminKey }: { adminKey: string }) {
 
       <div className="agc-setting">
         <div>
+          <div className="agc-setting-title">Answers written by the AI</div>
+          <div className="agc-muted">
+            On: SRU Buddy writes each answer for the student's own question and conversation, from the verified facts.
+            Off: the verified texts are shown as they are (no AI call for them; useful if the daily AI quota runs low).
+            Cards, fees and workflows are the same either way.
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={settings.ai_answers}
+          className={`agc-switch ${settings.ai_answers ? "is-on" : ""}`}
+          disabled={busy}
+          onClick={() => save({ ai_answers: !settings.ai_answers })}
+        >
+          <span />
+          {settings.ai_answers ? "On" : "Off"}
+        </button>
+      </div>
+
+      <div className="agc-setting">
+        <div>
           <div className="agc-setting-title">"Talk to a counsellor" rings this panel</div>
           <div className="agc-muted">
             On: during office hours the student waits while this panel rings, then gets a callback if nobody answers.
