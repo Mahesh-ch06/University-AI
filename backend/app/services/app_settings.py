@@ -77,6 +77,11 @@ class ChatSettings(BaseModel):
                     "or 'table' (all 19 rows).")
     connect_enabled: bool = Field(
         True, description="'Talk to a counsellor' rings the admin panel and waits before arranging a callback.")
+    fee_questions: Literal["evaluate_first", "fee_card"] = Field(
+        "evaluate_first",
+        description="A fee question ('B.Tech CSE fees'): 'evaluate_first' checks the student's marks and eligibility, "
+                    "merit scholarship and special concessions, then gives the final fee (a 'Just show the fee' "
+                    "button gives the standard fee at once); 'fee_card' shows the standard fee card at once.")
     suggestion_chips: Literal["questions_only", "always"] = Field(
         "questions_only",
         description="Quick-response buttons under an answer: 'questions_only' (when SRU Buddy asks the student "

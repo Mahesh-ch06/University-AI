@@ -999,6 +999,7 @@ export interface ChatSettings {
   connect_enabled: boolean;
   ai_answers: boolean;
   suggestion_chips: "questions_only" | "always";
+  fee_questions: "evaluate_first" | "fee_card";
   welcome_tiles: WelcomeTile[];
   connect_wait_seconds: number;
   office_hours_start: string;

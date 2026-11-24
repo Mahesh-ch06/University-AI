@@ -1464,6 +1464,36 @@ _ELIGIBILITY_RULE_Q = re.compile(
     r"\b(?:what|which)\b.{0,25}\b(?:eligibility|cut[- ]?off|minimum\s+(?:marks|percentage)|criteria|requirements?)\b|"
     r"\beligibility\s+(?:criteria|cut[- ]?off|requirements?|rules?)\b|\b(?:and|about)\s+(?:the\s+)?eligibility\b|"
     r"\bminimum\s+(?:marks|percentage)\s+(?:for|required|needed)\b)", re.IGNORECASE)
+# A fee question that should evaluate first (see run_agent), and what keeps the standard fee at once instead.
+_FEE_STANDARD_ONLY = re.compile(
+    r"\b(?:just|only|standard|plain|basic)\b.{0,30}\bfees?\b|\bfees?\b.{0,20}\b(?:only|without\s+(?:my\s+)?"
+    r"(?:marks|scholarship|details))\b|\bwithout\s+(?:my\s+)?(?:marks|scholarship|details)\b|"
+    r"\bfee\s+(?:breakdown|table|chart)\b|\bper\s+sem(?:ester)?\b|\b(?:pay|payment|instal\w*|refund|due|deadline)\b",
+    re.IGNORECASE)
+_FEE_OTHER_TOPIC = re.compile(r"\b(?:hostel|mess|bus|transport|room|application\s+fee|exam\s+fee|other\s+fees?|"
+                              r"4[- ]?years?|four[- ]years?|total\s+course|20\d\d)\b", re.IGNORECASE)
+_FEE_STEP_OPENER = re.compile(r"^(?:Sure|Absolutely|Great)[^!.]*[!.]\s*(?:Let's work out your scholarship for \*\*[^*]+\*\*\.\s*)?",
+                              re.IGNORECASE)
+
+
+def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
+    """A plain fee question ("B.Tech CSE fees", "fee for MBA?") with no evaluation running: evaluate first."""
+    from app.services import app_settings
+    if app_settings.get("fee_questions") != "evaluate_first":
+        return False
+    text = message or ""
+    if not fee_intake.is_fee_enquiry(text) or _FEE_STANDARD_ONLY.search(text) or _FEE_OTHER_TOPIC.search(text):
+        return False
+    if _FEE_CHART_REQUEST.search(text) or _concession_requested(text) or tools.find_phone(text) \
+            or intents.is_callback_request(text):
+        return False
+    intake = conv_state.get("fee_intake") or {}
+    evaluation = conv_state.get(fee_journey.KEY) or {}
+    if intake.get("waiting_for") not in (None, "done") or (evaluation.get("active") and not evaluation.get("final_shown")):
+        return False   # an evaluation is already running: its own steps answer
+    return True
+
+
 _DISCOUNT_ASK = re.compile(r"\b(?:discounts?|concessions?|reductions?|waivers?|fee\s+relief|less\s+fee|benefits?|"
                            r"offers?|rebate)\b", re.IGNORECASE)
 _CUTOFF_FACT = re.compile(
@@ -1819,6 +1849,43 @@ async def run_agent(
             async for ev in _run_fee_journey(fj, message, session_id, conversation_id, profile, _save_state):
                 yield ev
             return
+
+    # ---- A fee question ("B.Tech CSE fees", "MBA fee?") evaluates first (v4.13.0, admin "fee_questions"): the
+    # marks and eligibility, the merit scholarship, special concessions, hostel, then the FINAL fee, step by step
+    # (fee_intake's counsellor steps -> fee_journey). "Just show the ... fee" gives the standard fee at once.
+    if not form and not dlg_busy and _starts_fee_evaluation(message, conv_state):
+        fee_prog = fees.find_program(message) or (conv_state.get("dialogue") or {}).get("program") \
+            or conv_state.get("active_program") or profile.get("program_interest")
+        if fee_prog not in fees.load_data()["programs"]:
+            fee_prog = None
+        start = {"counsellor_mode": True, **({"program": fee_prog} if fee_prog else {})}
+        step = fee_intake.decide("Calculate my scholarship. " + message, profile, start, first_name=natural_name)
+        if step and step.get("action") == "ask":
+            conv_state["fee_intake"] = step["state"]
+            await memory.update_conversation_state(session_id, conversation_id, fee_intake=step["state"],
+                                                   **({"active_program": fee_prog} if fee_prog else {}))
+            short = fees.short_name(fee_prog) if fee_prog else ""
+            lead = (f"Before I give you the **{short}** fee, let's check your eligibility and scholarship, so any "
+                    "merit scholarship or special concession you qualify for is included in your final fee."
+                    if fee_prog else
+                    "Before I give you the fee, let's check your eligibility and scholarship, so any merit "
+                    "scholarship or special concession you qualify for is included in your final fee.")
+            body = _FEE_STEP_OPENER.sub("", step["text"]).strip()
+            if not fee_prog:
+                body = ("Which B.Tech branch are you interested in?" if "branch" in step["text"]
+                        else "Which programme are you interested in?")
+            chips = list(step.get("chips") or [])
+            if fee_prog:
+                chips.append(f"Just show the {short} fee")
+            async for ev in _say(f"{lead}\n\n{body}", message, session_id, conversation_id,
+                                 cards=step.get("cards") or [], suggestions=chips, exact_chips=True, profile=profile):
+                yield ev
+            return
+        if step and step.get("action") == "calculate":
+            # Everything is known already: the same evaluation as "Calculate my scholarship", at once.
+            conv_state["fee_intake"] = start
+            await memory.update_conversation_state(session_id, conversation_id, fee_intake=start)
+            message = "Calculate my scholarship" + (f" for {fees.short_name(fee_prog)}" if fee_prog else "")
 
     # Our own fee-plan questions and requests are answered below, not by the topic clarification:
     # a concession picked in the table, "prepare my fee chart", the programme for a pending concession or
