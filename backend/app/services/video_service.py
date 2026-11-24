@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import random
 from pathlib import Path
 import re
 
@@ -156,6 +157,45 @@ def load_videos(force_reload: bool = False) -> list[dict]:
     except Exception as e:
         logger.error("Error loading university videos: %s", e)
         return []
+
+
+def catalog() -> list[dict]:
+    """The videos the chat may show: the official list (app/data/university_videos.json) with the admin panel's
+    changes applied (Admin -> Campus media -> Videos): hidden videos left out, topics changed, added videos
+    included. Never raises; without settings it is the file as it is."""
+    videos = load_videos()
+    try:
+        from app.services import app_settings
+        changes = app_settings.get("videos") or {}
+    except Exception:
+        return videos
+    hidden = set(changes.get("hidden") or [])
+    topics = changes.get("topics") or {}
+    out = []
+    for v in videos:
+        if v.get("id") in hidden:
+            continue
+        out.append({**v, "category": topics[v["id"]]} if v.get("id") in topics else v)
+    known = {v.get("id") for v in videos}
+    for a in changes.get("added") or []:
+        if a.get("id") in hidden or a.get("id") in known:
+            continue
+        vid = a["id"]
+        short = a.get("type") == "short"
+        out.append({
+            "id": vid, "platform": "youtube", "type": a.get("type") or "video", "title": a.get("title") or "",
+            "category": topics.get(vid) or a.get("category") or "Campus Life & Fests",
+            "url": f"https://www.youtube.com/shorts/{vid}" if short else f"https://www.youtube.com/watch?v={vid}",
+            "thumbnail_url": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+            "channel_name": "SR University Official", "channel_url": "https://www.youtube.com/@SRUniversity/videos",
+            "keywords": [k.strip().lower() for k in (a.get("keywords") or "").split(",") if k.strip()],
+        })
+    return out
+
+
+def video_by_id(video_id: str) -> dict | None:
+    """One video the chat may show (see catalog()), or None when hidden or unknown."""
+    return next((v for v in catalog() if v.get("id") == video_id), None)
 
 
 def _get_video_collection():
@@ -499,11 +539,13 @@ _TOPIC_CATEGORIES = (
     (("cse", "computer", "ai", "aiml", "machine learning", "robotics", "coding", "hackathon", "technology"), "CS, AI & Technology"),
     (("campus", "tour", "infrastructure", "building", "library", "lab", "about sru", "night view", "green"), "Campus Tour & Infrastructure"),
 )
+_rng = random.Random()
 _VIDEO_STOP = frozenset("a an the of in on at to for from with and or is are me my show video videos watch see "
                         "any some about sru sr university please can you i want tell give link clip".split())
 
 
-def get_keyword_videos(text: str, limit: int = 2, prefer_campus: bool = False) -> list[dict]:
+def get_keyword_videos(text: str, limit: int = 2, prefer_campus: bool = False,
+                       exclude: "set[str] | frozenset[str]" = frozenset()) -> list[dict]:
     """Videos whose title, category or keywords match the request. No AI call, never irrelevant:
     returns [] when nothing matches (the caller decides on a campus-tour fallback)."""
     low = " " + re.sub(r"[^a-z0-9& ]+", " ", (text or "").lower()) + " "
@@ -512,7 +554,7 @@ def get_keyword_videos(text: str, limit: int = 2, prefer_campus: bool = False) -
     if prefer_campus and not wanted:
         wanted = {"Campus Tour & Infrastructure"}
     scored = []
-    for order, video in enumerate(load_videos()):
+    for order, video in enumerate(catalog()):
         category = (video.get("category") or "")
         title = (video.get("title") or "").lower()
         keywords = " ".join(k.lower() for k in (video.get("keywords") or []))
@@ -531,6 +573,16 @@ def get_keyword_videos(text: str, limit: int = 2, prefer_campus: bool = False) -
         if score >= 2:
             scored.append((-score, order, video))
     scored.sort(key=lambda item: item[:2])
+    # Not the same videos every time (v4.14.0): every video about as relevant as the best one (its topic, or
+    # nearly as many matching words) is a candidate, and `limit` of them are picked at random. Videos already
+    # shown in this conversation (`exclude`) are used only when there are not enough others.
+    if scored:
+        top = -scored[0][0]
+        pool = [item for item in scored if -item[0] >= max(2.0, top - 2)]
+        fresh = [item for item in pool if item[2].get("id") not in exclude] or pool
+        rest = [item for item in pool if item not in fresh]
+        picked = _rng.sample(fresh, min(limit, len(fresh)))
+        scored = picked + rest + [item for item in scored if item not in picked and item not in rest]
     seen, out = set(), []
     for _score, _order, video in scored:
         if video.get("url") in seen:
@@ -601,7 +653,7 @@ def get_relevant_videos(
             matched = get_keyword_videos(user_message, limit=limit, prefer_campus=should_prefer_campus)
             if matched:
                 return matched
-            all_vids = load_videos()
+            all_vids = catalog()
             if should_prefer_campus:
                 campus_vids = [v for v in all_vids if v.get("category") == "Campus Tour & Infrastructure"]
                 return campus_vids[:limit] if campus_vids else all_vids[:limit]
@@ -755,6 +807,9 @@ def get_post_video_suggestions(category_name: str = "") -> list[str]:
 def create_video_card(videos: list[dict], is_explicit: bool = False) -> dict:
     """Format structured official YouTube video recommendation card."""
     title = "Official SR University Video Tours" if is_explicit else "Related Campus Videos"
+    # Videos hidden in the admin panel are never shown, whichever search found them; topic changes apply.
+    allowed = {v.get("id"): v for v in catalog()}
+    videos = [allowed[v.get("id")] for v in videos if v.get("id") in allowed]
 
     return {
         "type": "video_recommendations",

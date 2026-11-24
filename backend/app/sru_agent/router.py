@@ -248,6 +248,25 @@ async def welcome_actions():
                                                                          "subtitle")} for t in tiles]}
 
 
+@router.get("/chat-ads")
+async def chat_ads():
+    """The small ads at the bottom of the chat, as set in Admin -> Campus media -> Ads (v4.14.0). Public: the
+    widget shows them. Only ads switched on, in order."""
+    from app.services import app_settings
+    await app_settings.refresh()
+    ads = [a for a in app_settings.get("chat_ads") or [] if a.get("enabled") and a.get("link_url")]
+    keys = ("id", "title", "subtitle", "tag", "image_url", "cta_text", "link_url")
+    return {"rotate_seconds": app_settings.get("ads_rotate_seconds"), "items": [{k: a.get(k, "") for k in keys}
+                                                                                for a in ads]}
+
+
+@router.get("/videos")
+async def official_videos():
+    """The official SRU YouTube videos the chat may show (the built-in list with the admin panel's changes)."""
+    from app.services.video_service import catalog
+    return {"items": catalog()}
+
+
 @router.get("/fee-config")
 async def fee_config():
     """Everything the Fee & Scholarship Calculator needs to draw itself: programs, the exams each

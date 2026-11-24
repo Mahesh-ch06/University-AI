@@ -370,7 +370,7 @@ _HOSTEL_CURFEW_RULES_TEXT = """### ⏰ Hostel Curfew & Timings
 
 SR University maintains a secure residential campus with clear guidelines:
 
-• ⏰ **In-Time Curfew**: **9:00 PM** weekdays and **9:30 PM** weekends, followed by nightly biometric roll call.
+• ⏰ **In-Time**: first-year students by **8:30 PM**; senior students by **9:00 PM** on weekdays and **9:30 PM** at weekends, followed by a biometric roll call.
 • 📱 **Digital Out-Pass**: Mandatory online pass via **Sruniv portal** with parent SMS confirmation.
 • 📚 **Study Extensions**: Extended up to **11:00 PM** for hackathons and library projects with warden approval.
 

@@ -994,6 +994,66 @@ export function fetchWelcomeActions(): Promise<{ heading: string; items: Welcome
   return welcomeActionsRequest;
 }
 
+export interface EventHighlight {
+  id: string;
+  title: string;
+  when: string;
+  summary: string;
+  image_url: string;
+  video_id: string;
+  keywords: string;
+  enabled?: boolean;
+}
+
+export interface ChatAd {
+  id: string;
+  title: string;
+  subtitle: string;
+  tag: string;
+  image_url: string;
+  cta_text: string;
+  link_url: string;
+  enabled?: boolean;
+}
+
+export interface AddedVideo {
+  id: string;
+  title: string;
+  category: string;
+  type: "video" | "short";
+  keywords: string;
+}
+
+export interface VideoChanges {
+  hidden: string[];
+  topics: Record<string, string>;
+  added: AddedVideo[];
+}
+
+export interface BuiltinVideo {
+  id: string;
+  title: string;
+  category: string;
+  type: string;
+  url: string;
+  thumbnail_url: string;
+}
+
+let chatAdsRequest: Promise<{ rotate_seconds: number; items: ChatAd[] }> | null = null;
+
+/** The small ads at the bottom of the chat (Admin -> Campus media -> Ads). Loaded once per page. */
+export function fetchChatAds(): Promise<{ rotate_seconds: number; items: ChatAd[] }> {
+  if (!chatAdsRequest) {
+    chatAdsRequest = fetch(`${API_BASE}/api/v1/agent/chat-ads`)
+      .then((res) => handleResponse<{ rotate_seconds: number; items: ChatAd[] }>(res, "Failed to load ads"))
+      .catch((error) => {
+        chatAdsRequest = null;
+        throw error;
+      });
+  }
+  return chatAdsRequest;
+}
+
 export interface ChatSettings {
   concession_picker: "grouped" | "table";
   connect_enabled: boolean;
@@ -1001,6 +1061,10 @@ export interface ChatSettings {
   suggestion_chips: "questions_only" | "always";
   fee_questions: "evaluate_first" | "fee_card";
   welcome_tiles: WelcomeTile[];
+  event_highlights: EventHighlight[];
+  chat_ads: ChatAd[];
+  ads_rotate_seconds: number;
+  videos: VideoChanges;
   connect_wait_seconds: number;
   office_hours_start: string;
   office_hours_end: string;
@@ -1035,6 +1099,10 @@ export function fetchChatSettings(adminKey: string) {
 
 export function saveChatSettings(adminKey: string, changes: Partial<ChatSettings>) {
   return adminJson<ChatSettingsResponse>(adminKey, "/settings", { method: "PUT", body: JSON.stringify(changes) });
+}
+
+export function fetchAdminVideos(adminKey: string) {
+  return adminJson<{ builtin: BuiltinVideo[]; topics: string[]; changes: VideoChanges }>(adminKey, "/videos");
 }
 
 export interface LiveRequest {

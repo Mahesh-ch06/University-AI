@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { EventHighlightsCard } from "./CampusCards";
 import type { FormEvent } from "react";
 import { WELCOME_QUICK_ACTIONS } from "../data/welcomeQuickActions";
 import { WelcomeTileIcon } from "./WelcomeTileIcon";
@@ -2311,6 +2312,8 @@ export function RenderCard({ card, onSelect }: { card: any; onSelect?: (text: st
       return <VideoRecommendationsCard card={card} />;
     case "placement_highlights":
       return <PlacementHighlightsCard card={card} />;
+    case "event_highlights": // events' photo cards (v4.14.0, Admin -> Campus media -> Events)
+      return <EventHighlightsCard card={card} />;
     case "sru_comparison":
     case "programs_offered":
       return null;

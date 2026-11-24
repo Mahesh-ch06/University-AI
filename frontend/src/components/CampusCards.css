@@ -1,0 +1,195 @@
+/* v4.14.0: events' photo cards and the small chat ad. Uses the app's theme tokens (official look in the widget). */
+.sru-events {
+  width: 100%;
+  max-width: 100%;
+  margin: 6px 0 2px;
+}
+.sru-events-head {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-2, #3a3b45);
+  margin: 0 0 6px 2px;
+}
+.sru-events-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+}
+.sru-event {
+  flex: 0 0 min(220px, 78%);
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1, #fff);
+  border: 1px solid var(--border, #e4e6eb);
+  border-radius: 10px;
+  overflow: hidden;
+  min-width: 0;
+}
+.sru-events.is-single .sru-event {
+  flex-basis: min(320px, 100%);
+}
+.sru-event-img {
+  aspect-ratio: 16 / 9;
+  background: var(--surface-3, #f2f3f6);
+  overflow: hidden;
+}
+.sru-event-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sru-event-body {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.sru-event-title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-1, #0f0f11);
+}
+.sru-event-when {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary, #194f90);
+}
+.sru-event-summary {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-3, #5d5e6c);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sru-event-video {
+  margin-top: 4px;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent, #297de5);
+  text-decoration: none;
+}
+.sru-event-video:hover { text-decoration: underline; }
+.sru-event-video:focus-visible { outline: 2px solid var(--accent, #297de5); outline-offset: 2px; border-radius: 3px; }
+
+/* ---- the small ad above the message box ---- */
+.sru-ad {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0 0 6px;
+  border: 1px solid var(--border, #e4e6eb);
+  border-radius: 8px;
+  background: var(--surface-2, #f7f8fa);
+  min-height: 44px;
+}
+.sru-ad-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 30px 5px 5px;
+  color: inherit;
+  text-decoration: none;
+}
+.sru-ad-main:focus-visible { outline: 2px solid var(--accent, #297de5); outline-offset: 1px; border-radius: 8px; }
+.sru-ad-img {
+  width: 52px;
+  height: 34px;
+  border-radius: 5px;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+.sru-ad-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.sru-ad-title {
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-1, #0f0f11);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sru-ad-tag {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+  background: var(--primary, #194f90);
+  color: #fff;
+}
+.sru-ad-sub {
+  font-size: 0.7rem;
+  color: var(--text-3, #5d5e6c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sru-ad-cta {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 4px;
+  background: var(--accent, #297de5);
+  color: #fff;
+}
+.sru-ad-close {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3, #5d5e6c);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.sru-ad-close:hover { background: var(--surface-3, #f2f3f6); }
+.sru-ad-close:focus-visible { outline: 2px solid var(--accent, #297de5); }
+.sru-ad-dots {
+  position: absolute;
+  bottom: 3px;
+  right: 9px;
+  display: flex;
+  gap: 3px;
+}
+.sru-ad-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border, #cfd3da);
+}
+.sru-ad-dots span.on { background: var(--primary, #194f90); }
+@media (max-width: 360px) {
+  .sru-ad-img { display: none; }
+}

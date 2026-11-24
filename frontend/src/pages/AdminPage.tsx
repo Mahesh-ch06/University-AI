@@ -26,6 +26,8 @@ import {
 import MarkdownContent from "../components/MarkdownContent";
 import { RenderCard } from "../components/Cards";
 import AgentControlTab, { LiveRequestBanner } from "../components/admin/AgentControlTab";
+import CampusMediaTab from "../components/admin/CampusMediaTab";
+import "./AdminMobile.css";
 import "./AdminPage.css";
 
 interface Props {
@@ -119,7 +121,7 @@ export default function AdminPage({ onBackToChat }: Props) {
     () => sessionStorage.getItem("university_ai_admin_key") || ""
   );
   const [keyInput, setKeyInput] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"leads" | "chats" | "overview" | "documents" | "feedback" | "agent">("leads");
+  const [activeTab, setActiveTab] = useState<"leads" | "chats" | "overview" | "documents" | "feedback" | "agent" | "media">("leads");
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -274,7 +276,7 @@ export default function AdminPage({ onBackToChat }: Props) {
       try {
         const params = new URLSearchParams(window.location.search);
         const tabParam = params.get("tab") as any;
-        if (tabParam && ["leads", "chats", "overview", "documents", "feedback", "agent"].includes(tabParam)) {
+        if (tabParam && ["leads", "chats", "overview", "documents", "feedback", "agent", "media"].includes(tabParam)) {
           setActiveTab(tabParam);
         }
         const cidParam = params.get("cid") || params.get("chat_id") || params.get("conv_id");
@@ -693,7 +695,10 @@ export default function AdminPage({ onBackToChat }: Props) {
       </header>
 
       {/* Segmented Minimal Navigation Tabs */}
-      <nav className="admin-nav-bar">
+      <nav className="admin-nav-bar" ref={(nav) => {
+        const active = nav?.querySelector<HTMLElement>(".admin-tab-btn.active");
+        if (active && nav && nav.scrollWidth > nav.clientWidth) active.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }}>
         <div className="admin-tabs-list">
           <button
             className={`admin-tab-btn ${activeTab === "leads" ? "active" : ""}`}
@@ -734,6 +739,12 @@ export default function AdminPage({ onBackToChat }: Props) {
             onClick={() => setActiveTab("agent")}
           >
             🤖 Agent
+          </button>
+          <button
+            className={`admin-tab-btn ${activeTab === "media" ? "active" : ""}`}
+            onClick={() => setActiveTab("media")}
+          >
+            🎬 Campus media
           </button>
         </div>
       </nav>
@@ -936,21 +947,21 @@ export default function AdminPage({ onBackToChat }: Props) {
 
                             return (
                               <tr key={lead.id} className="lead-row">
-                                <td className="col-name">
+                                <td className="col-name" data-label="Student">
                                   <div className="student-name-text">{lead.name}</div>
                                   {lead.email && <div className="student-sub-email">{lead.email}</div>}
                                 </td>
-                                <td className="col-phone">
+                                <td className="col-phone" data-label="Mobile">
                                   <a href={`tel:${lead.phone}`} className="student-phone-link">
                                     📞 {lead.phone}
                                   </a>
                                 </td>
-                                <td className="col-program">
+                                <td className="col-program" data-label="Programme">
                                   <span className="program-badge">
                                     {formatProgramInterest(lead.program_interest, lead.metadata)}
                                   </span>
                                 </td>
-                                <td className="col-score">
+                                <td className="col-score" data-label="Score / exam">
                                   {lead.score || lead.exam_type ? (
                                     <div className="score-cell">
                                       {lead.score && <span className="score-val">{lead.score}</span>}
@@ -962,13 +973,13 @@ export default function AdminPage({ onBackToChat }: Props) {
                                     <span className="cell-muted">—</span>
                                   )}
                                 </td>
-                                <td className="col-source">
+                                <td className="col-source" data-label="Source">
                                   <span className={`source-pill source-${lead.source}`}>
                                     {lead.source === "calculator" ? "🧮 Calculator" : "💬 Chat Inquiry"}
                                   </span>
                                 </td>
-                                <td className="col-date">{formattedDate}</td>
-                                <td className="col-status">
+                                <td className="col-date" data-label="Captured">{formattedDate}</td>
+                                <td className="col-status" data-label="Status">
                                   <select
                                     className={`status-select status-${lead.status}`}
                                     value={lead.status}
@@ -984,7 +995,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                                     <option value="do_not_contact">Do not contact</option>
                                   </select>
                                 </td>
-                                <td className="col-actions">
+                                <td className="col-actions" data-label="Actions">
                                   <div className="lead-actions-flex">
                                     <button
                                       className="admin-btn-action-view"
@@ -1129,7 +1140,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                 </div>
 
                 {/* Dual Pane Audit Workspace */}
-                <div className="chat-audit-layout">
+                <div className={`chat-audit-layout ${selectedConvId ? "has-selection" : ""}`}>
                   {/* Left Column: Conversation List */}
                   <div className="chat-audit-sidebar">
                     <div className="sidebar-head">
@@ -1244,6 +1255,9 @@ export default function AdminPage({ onBackToChat }: Props) {
                       </div>
                     ) : selectedConvDetail ? (
                       <div className="transcript-box">
+                            <button type="button" className="admin-mobile-back" onClick={() => setSelectedConvId(null)}>
+                              ← All chats
+                            </button>
                             {/* Header */}
                             <div className="transcript-top-header">
                               <div className="transcript-headline">
@@ -1718,16 +1732,16 @@ export default function AdminPage({ onBackToChat }: Props) {
                         <tbody>
                           {documents.map((doc) => (
                             <tr key={doc.id}>
-                              <td style={{ fontWeight: 600 }}>{doc.title}</td>
-                              <td>{doc.document_type}</td>
-                              <td>{doc.department || "—"}</td>
-                              <td>
+                              <td data-label="Title" style={{ fontWeight: 600 }}>{doc.title}</td>
+                              <td data-label="Type">{doc.document_type}</td>
+                              <td data-label="Department">{doc.department || "—"}</td>
+                              <td data-label="Status">
                                 <span className={`status-pill pill-${doc.status}`}>
                                   {doc.status}
                                 </span>
                               </td>
-                              <td className="cell-date">{new Date(doc.created_at).toLocaleDateString()}</td>
-                              <td>
+                              <td data-label="Date" className="cell-date">{new Date(doc.created_at).toLocaleDateString()}</td>
+                              <td data-label="Action">
                                 {doc.status === "active" && (
                                   <button
                                     className="admin-btn-danger"
@@ -1751,6 +1765,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                 TAB 5: STUDENT FEEDBACK
                 ========================================================================= */}
             {activeTab === "agent" && adminKey && <AgentControlTab adminKey={adminKey} />}
+            {activeTab === "media" && adminKey && <CampusMediaTab adminKey={adminKey} />}
 
             {activeTab === "feedback" && (
               <div className="tab-pane-container">
@@ -1775,25 +1790,25 @@ export default function AdminPage({ onBackToChat }: Props) {
                         <tbody>
                           {feedback.map((f) => (
                             <tr key={f.id}>
-                              <td>
+                              <td data-label="Rating">
                                 {f.rating === 1 ? (
                                   <span className="rating-tag rating-pos">👍 Helpful</span>
                                 ) : (
                                   <span className="rating-tag rating-neg">👎 Inaccurate</span>
                                 )}
                               </td>
-                              <td style={{ maxWidth: "260px", wordBreak: "break-word" }}>
+                              <td data-label="Question" style={{ maxWidth: "260px", wordBreak: "break-word" }}>
                                 {f.question || <span className="cell-muted">—</span>}
                               </td>
-                              <td style={{ maxWidth: "340px", wordBreak: "break-word", fontSize: "0.85rem" }}>
+                              <td data-label="AI answer" style={{ maxWidth: "340px", wordBreak: "break-word", fontSize: "0.85rem" }}>
                                 {f.answer ? (
                                   <span>{f.answer.length > 160 ? `${f.answer.slice(0, 160)}...` : f.answer}</span>
                                 ) : (
                                   <span className="cell-muted">—</span>
                                 )}
                               </td>
-                              <td>{f.comment || <span className="cell-muted">—</span>}</td>
-                              <td className="cell-date">{new Date(f.created_at).toLocaleString()}</td>
+                              <td data-label="Comment">{f.comment || <span className="cell-muted">—</span>}</td>
+                              <td data-label="Date" className="cell-date">{new Date(f.created_at).toLocaleString()}</td>
                             </tr>
                           ))}
                         </tbody>

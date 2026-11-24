@@ -3,7 +3,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from app.services.app_settings import WelcomeTile
+from app.services.app_settings import ChatAd, EventHighlight, VideoSettings, WelcomeTile
 
 
 class ChatSettingsResponse(BaseModel):
@@ -21,6 +21,10 @@ class ChatSettingsUpdate(BaseModel):
     suggestion_chips: Optional[Literal["questions_only", "always"]] = None
     fee_questions: Optional[Literal["evaluate_first", "fee_card"]] = None
     welcome_tiles: Optional[list[WelcomeTile]] = Field(None, max_length=8)
+    event_highlights: Optional[list[EventHighlight]] = Field(None, max_length=16)
+    videos: Optional[VideoSettings] = None
+    chat_ads: Optional[list[ChatAd]] = Field(None, max_length=6)
+    ads_rotate_seconds: Optional[int] = Field(None, ge=4, le=60)
     connect_wait_seconds: Optional[int] = Field(None, ge=10, le=120)
     office_hours_start: Optional[str] = Field(None, max_length=5)
     office_hours_end: Optional[str] = Field(None, max_length=5)

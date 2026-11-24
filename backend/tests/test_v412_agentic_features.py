@@ -203,8 +203,8 @@ def test_self_check_corrects_the_scholarship_and_flags_unknown_amounts():
 
 
 async def test_self_check_runs_on_model_answers(model):
-    model.reply = "Sure! The hostel costs ₹99,999 a year."
-    done, = await _chat(["tell me something about the hostel life please"])
+    model.reply = "Sure! The library membership costs ₹99,999 a year."
+    done, = await _chat(["tell me something about the library please"])
     assert "couldn't verify" in done["answer"]
 
 
