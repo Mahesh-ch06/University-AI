@@ -237,7 +237,8 @@ def rule_text(program_key: str) -> str:
         lines.append(f"- Minimum marks: {show_percent(t['floor'])}")
     if t.get("entrance_note"):
         lines.append(f"- Entrance: {t['entrance_note']}")
-    lines += ["", "Final admission depends on document verification and seat availability."]
+    lines += ["", "Final admission depends on document verification and seat availability.",
+              "", "Shall I check yours with your marks?"]
     return "\n".join(lines)
 
 

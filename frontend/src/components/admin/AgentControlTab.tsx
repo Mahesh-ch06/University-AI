@@ -10,6 +10,7 @@ import {
   type LiveRequest,
 } from "../../services/api";
 import { useLiveRequests } from "./useLiveRequests";
+import { WelcomeTilesEditor } from "./WelcomeTilesEditor";
 import "./AgentControlTab.css";
 
 /**
@@ -299,6 +300,33 @@ function SettingsPanel({ adminKey }: { adminKey: string }) {
           Save hours
         </button>
       </div>
+
+      <div className="agc-setting">
+        <div>
+          <div className="agc-setting-title">Quick-response buttons under answers</div>
+          <div className="agc-muted">
+            Only when asked (recommended): buttons appear when SRU Buddy asks the student something (Yes / No, room
+            types, boards...) and for the steps of a flow; not after plain answers. After every answer: as before.
+          </div>
+        </div>
+        <div className="agc-segment" role="radiogroup" aria-label="Quick-response buttons">
+          {(["questions_only", "always"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="radio"
+              aria-checked={settings.suggestion_chips === mode}
+              className={settings.suggestion_chips === mode ? "is-on" : ""}
+              disabled={busy}
+              onClick={() => settings.suggestion_chips !== mode && save({ suggestion_chips: mode })}
+            >
+              {mode === "questions_only" ? "Only when asked (recommended)" : "After every answer"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <WelcomeTilesEditor tiles={settings.welcome_tiles || []} busy={busy} onSave={(tiles) => save({ welcome_tiles: tiles })} />
 
       {status && <p className={status.kind === "ok" ? "agc-ok" : "agc-error"}>{status.text}</p>}
       {updatedAt && <p className="agc-muted">Last changed: {new Date(updatedAt).toLocaleString()}</p>}

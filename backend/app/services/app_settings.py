@@ -24,6 +24,48 @@ log = logging.getLogger(__name__)
 SYSTEM_SESSION = "system:app-settings"
 PREFIX = "setting."
 CACHE_SECONDS = 20
+# memory_value is VARCHAR(255): a longer value (the Quick Start tiles) is saved in numbered pieces
+# ("setting.welcome_tiles#0", "#1", ...) under a small index row, and put back together on load. No migration.
+CHUNK = 240
+
+WELCOME_ICONS = ("calculator", "graduation-cap", "briefcase", "heart", "award", "building", "home", "map-pin",
+                 "phone", "book", "wallet", "send")
+
+
+class WelcomeTile(BaseModel):
+    """One Quick Start tile under the opening welcome message (Admin -> Agent -> Quick Start tiles)."""
+
+    id: str = Field(..., pattern=r"^[a-z0-9_-]{1,24}$")
+    title: str = Field(..., min_length=1, max_length=32)
+    badge: str = Field("", max_length=16, description="Short highlight on the tile (verified facts only)")
+    icon: Literal[WELCOME_ICONS] = "building"  # type: ignore[valid-type]
+    prompt: str = Field(..., min_length=1, max_length=120, description="The message sent when the tile is tapped")
+    subtitle: str = Field("", max_length=48, description="Shown as the tile's tooltip")
+    enabled: bool = True
+
+    @field_validator("title", "badge", "prompt", "subtitle")
+    @classmethod
+    def _plain(cls, v: str) -> str:
+        v = re.sub(r"\s+", " ", v or "").strip()
+        if re.search(r"[<>]", v):
+            raise ValueError("no < or > characters")
+        return v
+
+
+# Verified badges only: fee card slabs (up to 40%), NIRF 2025 Engineering #91, THE Research Quality #6 in India,
+# placements page (highest 51 LPA), special concessions on the fee card (15,000 to 50,000 a year).
+DEFAULT_WELCOME_TILES = [
+    {"id": "calculate_scholarship", "title": "Calculate My Scholarship", "badge": "Up to 40% off", "icon": "calculator",
+     "prompt": "Calculate my scholarship", "subtitle": "Instant fee estimate in a few steps"},
+    {"id": "explore_programs", "title": "Explore Programmes", "badge": "NIRF #91", "icon": "graduation-cap",
+     "prompt": "Explore programs offered at SR University", "subtitle": "B.Tech, MBA, Agriculture & more"},
+    {"id": "placements", "title": "Placements & Careers", "badge": "₹51 LPA", "icon": "briefcase",
+     "prompt": "Tell me about placements at SRU", "subtitle": "150+ recruiters, 1,300+ offers"},
+    {"id": "special_consideration", "title": "Special Consideration", "badge": "₹15K–₹50K/yr", "icon": "heart",
+     "prompt": "Special consideration", "subtitle": "Concessions you may qualify for"},
+    {"id": "why_sru", "title": "Why Choose SRU?", "badge": "#6 Research", "icon": "award",
+     "prompt": "Why should I choose SR University?", "subtitle": "Rankings, research and campus life"},
+]
 
 
 class ChatSettings(BaseModel):
@@ -35,6 +77,13 @@ class ChatSettings(BaseModel):
                     "or 'table' (all 19 rows).")
     connect_enabled: bool = Field(
         True, description="'Talk to a counsellor' rings the admin panel and waits before arranging a callback.")
+    suggestion_chips: Literal["questions_only", "always"] = Field(
+        "questions_only",
+        description="Quick-response buttons under an answer: 'questions_only' (when SRU Buddy asks the student "
+                    "something, plus the answer options of a step) or 'always' (after every answer).")
+    welcome_tiles: list[WelcomeTile] = Field(
+        default_factory=lambda: [WelcomeTile(**t) for t in DEFAULT_WELCOME_TILES],
+        description="The Quick Start tiles under the opening welcome message, in order (at most 8).")
     ai_answers: bool = Field(
         False, description="Answers written by the AI from the verified facts (on), or the verified texts as they "
                           "are (off: no AI call for them, e.g. when the daily AI quota runs low). Cards, numbers and "
@@ -44,6 +93,16 @@ class ChatSettings(BaseModel):
     office_hours_end: str = Field("18:00", description="Counsellors available until (India time, HH:MM).")
     office_days: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4, 5],
                                    description="Working days, 0 = Monday ... 6 = Sunday.")
+
+    @field_validator("welcome_tiles")
+    @classmethod
+    def _tiles(cls, v: list) -> list:
+        if len(v) > 8:
+            raise ValueError("at most 8 Quick Start tiles")
+        ids = [t.id for t in v]
+        if len(set(ids)) != len(ids):
+            raise ValueError("each tile needs its own id")
+        return v
 
     @field_validator("office_hours_start", "office_hours_end")
     @classmethod
@@ -93,16 +152,29 @@ async def refresh(force: bool = False) -> dict:
 
         async with async_session_factory() as db:
             rows = (await db.execute(select(UserMemory).where(UserMemory.session_id == SYSTEM_SESSION))).scalars().all()
-        stored = {}
+        stored, pieces = {}, {}
         latest = None
         for row in rows:
-            if row.memory_key.startswith(PREFIX):
+            if not row.memory_key.startswith(PREFIX):
+                continue
+            name = row.memory_key[len(PREFIX):]
+            if "#" in name:
+                key, _, idx = name.partition("#")
+                pieces.setdefault(key, {})[int(idx)] = row.memory_value
+                continue
+            try:
+                stored[name] = json.loads(row.memory_value)
+            except (TypeError, ValueError):
+                continue
+            if row.updated_at and (latest is None or row.updated_at > latest):
+                latest = row.updated_at
+        for key, value in list(stored.items()):
+            if isinstance(value, dict) and set(value) == {"__pieces__"}:
                 try:
-                    stored[row.memory_key[len(PREFIX):]] = json.loads(row.memory_value)
-                except (TypeError, ValueError):
-                    continue
-                if row.updated_at and (latest is None or row.updated_at > latest):
-                    latest = row.updated_at
+                    parts = pieces.get(key) or {}
+                    stored[key] = json.loads("".join(parts[i] for i in range(int(value["__pieces__"]))))
+                except (KeyError, TypeError, ValueError):
+                    stored.pop(key, None)   # incomplete: the default is used
         merged = {**ChatSettings().model_dump(), **{k: v for k, v in stored.items() if k in ChatSettings.model_fields}}
         _cache.update(ChatSettings(**merged).model_dump())   # a bad stored value falls back to validation error
         _meta["updated_at"] = latest.isoformat() if latest else None
@@ -128,14 +200,24 @@ async def update(changes: dict) -> dict:
         async with async_session_factory() as db:
             rows = (await db.execute(select(UserMemory).where(UserMemory.session_id == SYSTEM_SESSION))).scalars().all()
             existing = {row.memory_key: row for row in rows}
-            for key, value in changed.items():
-                encoded = json.dumps(value)
-                row = existing.get(PREFIX + key)
+
+            def put(memory_key: str, text: str):
+                row = existing.get(memory_key)
                 if row is None:
-                    db.add(UserMemory(id=uuid.uuid4(), session_id=SYSTEM_SESSION, memory_key=PREFIX + key,
-                                      memory_value=encoded, consented=True))
+                    db.add(UserMemory(id=uuid.uuid4(), session_id=SYSTEM_SESSION, memory_key=memory_key,
+                                      memory_value=text, consented=True))
                 else:
-                    row.memory_value = encoded
+                    row.memory_value = text
+
+            for key, value in changed.items():
+                encoded = json.dumps(value, ensure_ascii=False)
+                parts = [encoded[i:i + CHUNK] for i in range(0, len(encoded), CHUNK)] if len(encoded) > CHUNK else []
+                put(PREFIX + key, json.dumps({"__pieces__": len(parts)}) if parts else encoded)
+                for i, part in enumerate(parts):
+                    put(f"{PREFIX}{key}#{i}", part)
+                for mkey, row in existing.items():   # pieces left over from a longer earlier value
+                    if mkey.startswith(f"{PREFIX}{key}#") and int(mkey.rsplit("#", 1)[1]) >= len(parts):
+                        await db.delete(row)
             await db.commit()
     except Exception as exc:
         raise RuntimeError("The settings could not be saved right now. Please try again.") from exc

@@ -237,6 +237,17 @@ async def forget_profile(session_id: str = Query(..., min_length=16, max_length=
     return {"status": "ok", "profile": {}}
 
 
+@router.get("/welcome-actions")
+async def welcome_actions():
+    """The Quick Start tiles under the opening welcome message, as set in Admin -> Agent (v4.13.0). Public: the
+    widget shows them before the student types anything. Only enabled tiles, in order."""
+    from app.services import app_settings
+    await app_settings.refresh()
+    tiles = [t for t in app_settings.get("welcome_tiles") or [] if t.get("enabled", True)]
+    return {"heading": "Quick start", "items": [{k: t.get(k, "") for k in ("id", "title", "badge", "icon", "prompt",
+                                                                         "subtitle")} for t in tiles]}
+
+
 @router.get("/fee-config")
 async def fee_config():
     """Everything the Fee & Scholarship Calculator needs to draw itself: programs, the exams each

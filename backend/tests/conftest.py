@@ -10,10 +10,12 @@ def _chat_settings_are_the_defaults():
     # Defaults, and no database reload during the test. "Answers written by the AI" is off here so the older
     # tests keep checking the verified texts themselves (they are the facts and the fallback since v4.13.0);
     # tests of the model-written replies turn it on (tests/test_v413_dynamic_replies.py).
-    app_settings.set_for_tests(ai_answers=False)
+    # Likewise "suggestion_chips" is 'always' here (the older tests check the chips themselves); the default
+    # 'questions_only' is covered by tests/test_v413_chips_and_tiles.py.
+    app_settings.set_for_tests(ai_answers=False, suggestion_chips="always")
     yield
     app_settings.reset_for_tests()
-    app_settings.set_for_tests(ai_answers=False)
+    app_settings.set_for_tests(ai_answers=False, suggestion_chips="always")
 
 
 @pytest.fixture(autouse=True)

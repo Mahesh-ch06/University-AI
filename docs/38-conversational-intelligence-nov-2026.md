@@ -117,3 +117,42 @@ The older tests run with the switch off, so they keep checking the verified text
   worded by the code, by design (exact numbers, the button contract).
 - **Old intake code:** the old form intake in `fee_intake._decide` still runs underneath for its logic; only its
   card is replaced. The `FeeScholarshipFormCard` component stays in the frontend for chats saved earlier.
+
+## 7. Quick-response buttons and Quick Start tiles (v4.13.0, admin-editable)
+
+**Quick-response buttons under answers:** Admin → 🤖 Agent → **Quick-response buttons under answers**.
+
+| Mode | Behaviour |
+|---|---|
+| **Only when asked** (default) | Buttons appear when SRU Buddy asks the student something: Yes / No, room types, boards, and the options of a flow step. After a plain answer that asks nothing, there are no buttons. The "Continue my fee estimate" button is always kept |
+| **After every answer** | As before |
+
+- **Where:** `agent._chips_for`, in `_done`, so every reply follows the same rule.
+- **Fix:** "Hello! What would you like to know?" no longer gets Yes / No buttons (`followups.needs_yes_no` now
+  checks the question itself, not the greeting before it).
+- **Eligibility rule answer:** it now ends with "Shall I check yours with your marks?", so its buttons answer a
+  question.
+
+**Quick Start tiles (under the opening welcome message):** Admin → 🤖 Agent → **Quick Start tiles**.
+
+- **Editing:** add (up to 8), edit, reorder (↑ ↓), hide ("Shown") or remove tiles, with a live preview. The
+  chat uses them from the next page load, with no code change or redeploy.
+- **Each tile:** title (32 characters), badge (16, verified facts only), icon (12 to choose from), the message
+  sent when tapped (120), and a tooltip (48).
+- **Default:** the four tiles as before, plus **Why Choose SRU?** ("#6 Research", Times Higher Education Research
+  Quality, 6th in India), as a full-width last row.
+- **Design:**
+  - compact: icon, a short title, the badge as a small blue highlight;
+  - two columns, an odd last tile across both, one column below 340 px;
+  - five tiles now take less height than the old four (199 px at 390 px wide).
+- **Served by:** `GET /api/v1/agent/welcome-actions` (public; enabled tiles in order). The built-in list in
+  `frontend/src/data/welcomeQuickActions.ts` is the fallback.
+- **Storage:** the settings column holds 255 characters, so a longer value (the tiles) is saved in numbered pieces
+  (`setting.welcome_tiles#0`, …). **No migration.**
+
+**Tests:**
+- `tests/test_v413_chips_and_tiles.py` (8): the button rule, both modes, step options kept, a plain answer without
+  buttons; the default tiles and their validation; the public endpoint; a database round trip of 8 long tiles and
+  back to 1 (the leftover pieces removed); the greeting yes / no fix.
+- Browser journeys: v410 32/32, v411 27/27, v412 19/19. Frontend build, fee calculator checks and lint pass (18
+  warnings, as before).

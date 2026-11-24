@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { WELCOME_QUICK_ACTIONS } from "../data/welcomeQuickActions";
+import { WelcomeTileIcon } from "./WelcomeTileIcon";
+import { fetchWelcomeActions } from "../services/api";
 import {
   ScaleIcon,
   TargetIcon,
@@ -2180,79 +2182,32 @@ export function CounsellorProgramCard({ card, onSelect }: { card: any; onSelect?
 
 export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
-
-  const items = card.items || WELCOME_QUICK_ACTIONS;
+  // The opening welcome message (card.live) shows the tiles set in the admin panel; the built-in list until they
+  // arrive, or if they can't be loaded. Saved chats keep the tiles they showed.
+  const [liveItems, setLiveItems] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (!card.live) return;
+    let alive = true;
+    fetchWelcomeActions()
+      .then((d) => {
+        if (alive && Array.isArray(d.items) && d.items.length) setLiveItems(d.items);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [card.live]);
+  const items = liveItems || card.items || WELCOME_QUICK_ACTIONS;
 
   const handleClick = (prompt: string) => {
     setSelectedPrompt(prompt);
     onSelect?.(prompt);
   };
 
-  const renderIcon = (iconName: string) => {
-    switch (iconName) {
-      case "graduation-cap":
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-            <path d="M6 12v5c3 3 9 3 12 0v-5" />
-          </svg>
-        );
-      case "calculator":
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="4" y="2" width="16" height="20" rx="2" />
-            <line x1="8" y1="6" x2="16" y2="6" />
-            <line x1="16" y1="14" x2="16" y2="18" />
-            <path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01" />
-          </svg>
-        );
-      case "wallet":
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="5" width="20" height="14" rx="2" />
-            <line x1="2" y1="10" x2="22" y2="10" />
-          </svg>
-        );
-      case "briefcase":
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="7" width="20" height="14" rx="2" />
-            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-            <line x1="2" y1="13" x2="22" y2="13" />
-          </svg>
-        );
-      case "heart":
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" />
-          </svg>
-        );
-      case "send":
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
-        );
-      case "building":
-      default:
-        return (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="3" y1="21" x2="21" y2="21" />
-            <line x1="6" y1="21" x2="6" y2="11" />
-            <line x1="10" y1="21" x2="10" y2="11" />
-            <line x1="14" y1="21" x2="14" y2="11" />
-            <line x1="18" y1="21" x2="18" y2="11" />
-            <polygon points="12 3 2 8 22 8 12 3" />
-          </svg>
-        );
-    }
-  };
-
   return (
     <div className="welcome-actions-card-wrapper">
       {card.heading && <div className="welcome-actions-heading">{card.heading}</div>}
-      <div className="welcome-actions-grid">
+      <div className={`welcome-actions-grid ${items.length % 2 ? "is-odd" : ""}`}>
         {items.map((item: any) => {
           const isSelected = selectedPrompt === item.prompt;
           const isDimmed = Boolean(selectedPrompt && !isSelected);
@@ -2261,18 +2216,16 @@ export function WelcomeActionsCard({ card, onSelect }: { card: any; onSelect?: (
               key={item.id || item.title}
               type="button"
               className={`welcome-action-tile tile-${item.color || "blue"} ${isSelected ? "selected" : ""} ${isDimmed ? "dimmed" : ""}`}
+              title={item.subtitle || undefined}
               onClick={() => handleClick(item.prompt)}
             >
-              <div className="welcome-action-top">
-                <div className={`welcome-action-icon-box icon-box-${item.color || "blue"}`}>
-                  {renderIcon(item.icon)}
-                </div>
-                {item.badge && <span className={`welcome-action-badge badge-${item.color || "blue"}`}>{item.badge}</span>}
-              </div>
-              <div className="welcome-action-info">
+              <span className={`welcome-action-icon-box icon-box-${item.color || "blue"}`}>
+                <WelcomeTileIcon name={item.icon} />
+              </span>
+              <span className="welcome-action-info">
                 <span className="welcome-action-title">{item.title}</span>
-                <span className="welcome-action-subtitle">{item.subtitle}</span>
-              </div>
+                {item.badge && <span className={`welcome-action-badge badge-${item.color || "blue"}`}>{item.badge}</span>}
+              </span>
             </button>
           );
         })}

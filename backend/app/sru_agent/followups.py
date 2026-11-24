@@ -176,6 +176,9 @@ def needs_yes_no(answer: str | None) -> bool:
     # "Would you like to explore courses or check the fees?" offers a choice, not a yes / no: a "Yes" chip
     # would be meaningless there.
     question = re.split(r"(?<=[.!])\s+", last_line)[-1].lower()
+    # The question itself may follow a greeting on the same line ("Hello! What would you like to know?").
+    if re.match(r"^\W*(?:what|which|who|where|how|why|when)\b", question):
+        return False
     if re.search(r"\bor\b", question):
         return False
         

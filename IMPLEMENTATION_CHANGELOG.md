@@ -367,3 +367,12 @@ See `docs/38-conversational-intelligence-nov-2026.md`.
   - the agentic flow runs without an AI call.
 - **e2e/student_simulation.py:** 60–100 students chatting, every reply checked.
 - **Tests:** 34 new; suite 1108 passed (1 needs a Gemini key).
+- **Quick-response buttons:**
+  - by default only when SRU Buddy asks something (step options and "continue" are always kept);
+  - an admin choice: "Only when asked" / "After every answer";
+  - fixed: "Hello! What would you like to know?" no longer gets Yes / No.
+- **Quick Start tiles:**
+  - compact redesign (5 tiles now take less height than 4 did);
+  - **Why Choose SRU?** added;
+  - fully editable in Admin → 🤖 Agent (add, edit, reorder, hide, remove, live preview; up to 8);
+  - no migration (long setting values are saved in pieces).
