@@ -613,7 +613,7 @@ async def tool_get_contact_and_apply_links(args, ctx):
 async def tool_get_university_videos(args, ctx):
     topic = (args.get("topic") or "").strip()
     try:
-        from app.services.video_service import get_keyword_videos, load_videos
+        from app.services.video_service import catalog as load_videos, get_keyword_videos
         search_text = topic or "campus tour"
         # Matched on each video's own title, category and keywords: relevant, and no AI call.
         videos = get_keyword_videos(search_text, limit=2, prefer_campus=not topic)

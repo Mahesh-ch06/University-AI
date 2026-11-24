@@ -462,10 +462,10 @@ async def test_fee_question_is_still_answered_when_the_model_is_unreachable(no_w
 @pytest.mark.asyncio
 async def test_empty_model_reply_is_retried_and_never_blank():
     client = ScriptedClient([_text(""), _text("Here is the answer.")])
-    _, done = await _run("what clubs can students join at sru?", "act-empty", client)
+    _, done = await _run("what is the library like at sru?", "act-empty", client)
     assert done["answer"] == "Here is the answer."
     client = ScriptedClient([_text(""), _text("")])
-    _, done = await _run("what clubs can students join at sru?", "act-empty-2", client)
+    _, done = await _run("what is the library like at sru?", "act-empty-2", client)
     assert done["answer"].strip() != ""
 
 

@@ -1,0 +1,79 @@
+/* v4.14.0: the admin dashboard on phones and tablets. Laptop layout is unchanged above 960px. */
+.admin-mobile-back { display: none; }
+
+@media (max-width: 960px) {
+  /* Student chats: the list, or the open conversation with a way back (not both, one under the other) */
+  .chat-audit-layout.has-selection .chat-audit-sidebar { display: none; }
+  .chat-audit-layout:not(.has-selection) .chat-audit-content { display: none; }
+  .chat-audit-sidebar { height: auto; max-height: none; }
+  .admin-mobile-back {
+    display: inline-flex; align-items: center; gap: 4px; margin: 0 0 10px; padding: 8px 12px; min-height: 40px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--primary);
+    font: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+  }
+}
+
+@media (max-width: 720px) {
+  /* header: brand and two small buttons on one line */
+  .admin-header { padding: 8px 12px; gap: 8px; flex-wrap: nowrap; }
+  .admin-brand { gap: 6px; min-width: 0; }
+  .admin-brand-name { font-size: 1rem; white-space: nowrap; }
+  .admin-badge { display: none; }
+  .admin-status-indicator { display: none; }
+  .admin-header-actions { gap: 6px; flex-shrink: 0; }
+  .admin-header-actions .admin-btn-secondary { padding: 6px 10px; font-size: 0.8rem; white-space: nowrap; min-height: 36px; }
+
+  /* tabs: one scrollable row, snapping */
+  .admin-nav-bar { overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .admin-nav-bar::-webkit-scrollbar { display: none; }
+  .admin-tabs-list { flex-wrap: nowrap; }
+  .admin-tab-btn { scroll-snap-align: center; white-space: nowrap; flex: 0 0 auto; min-height: 40px; }
+
+  .admin-main-scroll { padding: 12px; }
+  .admin-card-panel { padding: 14px; }
+
+  /* numbers: two per row, compact */
+  .admin-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .metric-box { padding: 12px !important; min-width: 0; }
+  .metric-title { font-size: 0.66rem !important; line-height: 1.3; }
+  .metric-num { font-size: 1.5rem !important; }
+  .metric-caption { font-size: 0.7rem !important; }
+
+  /* tables become one card per row, each value with its label */
+  .admin-table-wrapper { overflow: visible; }
+  .admin-clean-table, .admin-clean-table tbody { display: block; width: 100%; }
+  .admin-clean-table thead { display: none; }
+  .admin-clean-table tr {
+    display: block; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 0 0 10px;
+    background: var(--surface-1);
+  }
+  .admin-clean-table td {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 0 !important;
+    border: 0 !important; max-width: none !important; text-align: right; min-width: 0; font-size: 0.85rem;
+  }
+  .admin-clean-table td[data-label]::before {
+    content: attr(data-label); flex: 0 0 auto; font-size: 0.72rem; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.3px; text-align: left;
+  }
+  .admin-clean-table td.col-name { justify-content: flex-start; text-align: left; font-size: 1rem; }
+  .admin-clean-table td.col-name::before { display: none; }
+  .admin-clean-table td > * { min-width: 0; overflow-wrap: anywhere; }
+  .admin-clean-table .status-select { min-height: 36px; }
+  .lead-actions-flex { flex-wrap: wrap; justify-content: flex-end; }
+  .lead-actions-flex button { min-height: 36px; }
+  .admin-table-card { border: 0; background: transparent; box-shadow: none; }
+  .admin-pagination-footer { flex-direction: column; gap: 8px; align-items: stretch; text-align: center; }
+  .pagination-ctrls { justify-content: space-between; }
+
+  /* forms and filters: full width controls, big enough to tap */
+  .admin-card-panel input, .admin-card-panel select, .admin-card-panel textarea { max-width: 100%; }
+  .form-responsive-grid { grid-template-columns: minmax(0, 1fr) !important; }
+
+  /* conversation transcript */
+  .transcript-top-header { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px !important; }
+  .transcript-toolbar-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .transcript-toolbar-btns > * { flex: 1 1 calc(50% - 6px); min-height: 38px; white-space: nowrap; font-size: 0.8rem; }
+  .transcript-meta-row { flex-wrap: wrap; row-gap: 2px; }
+  .transcript-title-row { flex-wrap: wrap; gap: 6px; }
+  .transcript-title-row h3 { font-size: 1rem; }
+}

@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
+import { ChatAdStrip } from "../components/CampusCards";
 import MessageBubble from "../components/MessageBubble";
 import ChatLeadForm from "../components/ChatLeadForm";
 import WelcomeBackPanel, { type WelcomeBackStatus } from "../components/WelcomeBackPanel";
@@ -1119,6 +1120,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
           {/* Footer / Input Bar */}
           <div className="sru-widget-footer">
+            {!showInlineLeadForm && <ChatAdStrip />}
             <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
               <textarea
                 ref={widgetTextareaRef}
@@ -1625,6 +1627,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
 
               {/* Footer / Input Bar */}
               <div className="sru-widget-footer">
+                {!showInlineLeadForm && <ChatAdStrip />}
                 <form className="sru-widget-input-row" onSubmit={handleWidgetSubmit}>
                   <textarea
                     ref={portalTextareaRef}

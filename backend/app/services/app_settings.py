@@ -68,6 +68,198 @@ DEFAULT_WELCOME_TILES = [
 ]
 
 
+# ---- v4.14.0: event highlights and the official YouTube videos, both edited in Admin -> Campus media ---------
+VIDEO_TOPICS = ("Campus Life & Fests", "Hostels & Living", "Sports & Activities", "Campus Tour & Infrastructure",
+                "Placements & Careers", "CS, AI & Technology", "MBA & Business", "School of Agriculture",
+                "Startups & Innovation (SRiX)", "International Programs", "International Student Experience",
+                "Testimonials & Reviews")
+_YOUTUBE_ID = r"^[A-Za-z0-9_-]{11}$"
+
+
+def _plain_text(v: str) -> str:
+    v = re.sub(r"\s+", " ", v or "").strip()
+    if re.search(r"[<>]", v):
+        raise ValueError("no < or > characters")
+    return v
+
+
+class EventHighlight(BaseModel):
+    """One event in the chat's event highlights (a photo card). Verified facts only."""
+
+    id: str = Field(..., pattern=r"^[a-z0-9_-]{1,32}$")
+    title: str = Field(..., min_length=1, max_length=60)
+    when: str = Field("", max_length=60, description="e.g. '26 January 2027' or 'Every year'")
+    summary: str = Field("", max_length=220, description="One or two sentences, shown on the card and in answers")
+    image_url: str = Field("", max_length=400, description="An https:// image link, e.g. from sru.edu.in")
+    video_id: str = Field("", description="Optional: the YouTube video id of this event (11 characters)")
+    keywords: str = Field("", max_length=200, description="Other names students use, comma separated")
+    enabled: bool = True
+
+    @field_validator("title", "when", "summary", "keywords")
+    @classmethod
+    def _plain(cls, v: str) -> str:
+        return _plain_text(v)
+
+    @field_validator("image_url")
+    @classmethod
+    def _https(cls, v: str) -> str:
+        v = (v or "").strip()
+        if v and not re.fullmatch(r"https://[^\s\"'<>]+", v):
+            raise ValueError("the image link must start with https://")
+        return v
+
+    @field_validator("video_id")
+    @classmethod
+    def _video(cls, v: str) -> str:
+        v = youtube_id(v) if v else ""
+        if v and not re.fullmatch(_YOUTUBE_ID, v):
+            raise ValueError("use a YouTube link or its 11-character video id")
+        return v
+
+
+def youtube_id(value: str) -> str:
+    """The 11-character id from a YouTube link (watch, youtu.be, shorts, embed) or the id itself."""
+    value = (value or "").strip()
+    m = re.search(r"(?:v=|youtu\.be/|/shorts/|/embed/|/live/)([A-Za-z0-9_-]{11})", value)
+    return m.group(1) if m else value
+
+
+class AddedVideo(BaseModel):
+    """An official SRU YouTube video added in the admin panel (the built-in list is in app/data)."""
+
+    id: str = Field(..., description="YouTube link or video id")
+    title: str = Field(..., min_length=1, max_length=140)
+    category: Literal[VIDEO_TOPICS] = "Campus Life & Fests"  # type: ignore[valid-type]
+    type: Literal["video", "short"] = "video"
+    keywords: str = Field("", max_length=200)
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def _id(cls, v: str) -> str:
+        v = youtube_id(str(v or ""))
+        if not re.fullmatch(_YOUTUBE_ID, v):
+            raise ValueError("use a YouTube link or its 11-character video id")
+        return v
+
+    @field_validator("title", "keywords")
+    @classmethod
+    def _plain(cls, v: str) -> str:
+        return _plain_text(v)
+
+
+class VideoSettings(BaseModel):
+    """Changes to the official video list: videos hidden, the topic a video is shown for, videos added."""
+
+    hidden: list[str] = Field(default_factory=list, max_length=300)
+    topics: dict[str, Literal[VIDEO_TOPICS]] = Field(default_factory=dict)  # type: ignore[valid-type]
+    added: list[AddedVideo] = Field(default_factory=list, max_length=60)
+
+    @field_validator("hidden")
+    @classmethod
+    def _ids(cls, v: list[str]) -> list[str]:
+        ids = list(dict.fromkeys(youtube_id(x) for x in v))
+        if any(not re.fullmatch(_YOUTUBE_ID, x) for x in ids):
+            raise ValueError("hidden videos are YouTube ids")
+        return ids
+
+    @field_validator("topics")
+    @classmethod
+    def _topic_ids(cls, v: dict) -> dict:
+        if len(v) > 300 or any(not re.fullmatch(_YOUTUBE_ID, k) for k in v):
+            raise ValueError("topics are keyed by YouTube id")
+        return v
+
+    @field_validator("added")
+    @classmethod
+    def _unique(cls, v: list) -> list:
+        ids = [x.id for x in v]
+        if len(set(ids)) != len(ids):
+            raise ValueError("each added video only once")
+        return v
+
+
+_IMG = "https://sru.edu.in/wp-content/uploads"
+_THUMB = "https://i.ytimg.com/vi/{}/hqdefault.jpg"
+# From SR University's official sources only (sru.edu.in Events / Campus Life pages, the admissions presentation
+# of 30 Oct 2026, the official YouTube channel), as approved by the admissions team on 24 Nov 2026.
+DEFAULT_EVENT_HIGHLIGHTS = [
+    {"id": "sparkrill", "title": "Sparkrill – Annual Cultural Fest", "when": "26 January 2027 (Sparkill '27)",
+     "summary": "SRU's annual day and biggest cultural festival: performances, live music by guest artists and the "
+                "fashion ramp walk.",
+     "image_url": f"{_IMG}/2026/09/Upcoming_Events_7.webp", "video_id": "kFkaSToBX-A",
+     "keywords": "sparkrill, sparkill, spark rill, spark ill, annual day, annual fest, cultural fest"},
+    {"id": "lumina", "title": "Lumina – Hostel Night", "when": "Every year · Girls' and Boys' nights",
+     "summary": "The hostellers' own annual celebration (Hostel Night, also called Hostel Hawa): music, dance and "
+                "memories with friends.",
+     "image_url": _THUMB.format("ITwoDHleH8g"), "video_id": "ITwoDHleH8g",
+     "keywords": "lumina, hostel night, hostel nights, hostel hawa, hostel event, hostel fest, hostel party"},
+    {"id": "navadhara", "title": "Navadhara – Talent & Culture", "when": "6 November 2026",
+     "summary": "A celebration of talent and culture held with Bathukamma, Telangana's festival of flowers.",
+     "image_url": f"{_IMG}/2025/06/Upcoming_Events_3.webp", "video_id": "mF_4tWXedd4",
+     "keywords": "navadhara, nava dhara, navadara, bathukamma, batukamma"},
+    {"id": "pragathi", "title": "PRAGATHI – Project Expo", "when": "9 October 2026 (PRAGATHI 2.0)",
+     "summary": "The national project exhibition where students show what they have built; featured on ETV News.",
+     "image_url": f"{_IMG}/2026/09/Upcoming_Events_1.webp", "video_id": "-9F-OFTDtuA",
+     "keywords": "pragathi, pragati, project expo, projects expo, yantra, project exhibition, innovation fest"},
+    {"id": "swagatham", "title": "Swagatham – Freshers' Welcome", "when": "16 October 2026",
+     "summary": "The welcome festival for new students, with celebrations that start campus life.",
+     "image_url": f"{_IMG}/2026/09/Upcoming_Events_6.webp", "video_id": "MWekBu0VLas",
+     "keywords": "swagatham, swagatam, swagath, freshers, fresher, freshers party, welcome party"},
+    {"id": "sports_day", "title": "Annual Sports Day", "when": "Every year (24th edition in 2026)",
+     "summary": "A day of sports across the campus, alongside the annual inter-university tournaments.",
+     "image_url": f"{_IMG}/2026/09/sportandfitness.webp", "video_id": "sf2jDM21EN4",
+     "keywords": "sports day, sports meet, annual sports, tournament, tournaments"},
+    {"id": "hackathon", "title": "Hackathons", "when": "Through the year",
+     "summary": "Overnight programming hackathons (8 PM to 8 AM) by the School of CS & AI and the Hackathon Club.",
+     "image_url": _THUMB.format("oFx9HUKmMc0"), "video_id": "oFx9HUKmMc0",
+     "keywords": "hackathon, hackathons, coding contest, coding competition, technical fest, tech fest"},
+    {"id": "campus_celebrations", "title": "Auto Expo, Campus Joy & Traditional Days", "when": "Through the year",
+     "summary": "Auto Expo, cultural evenings and traditional celebrations from the Campus Life gallery.",
+     "image_url": f"{_IMG}/2026/10/Campus_Life_auto_Expo-scaled.webp", "video_id": "",
+     "keywords": "auto expo, traditional day, traditional activities, campus joy"},
+    {"id": "more_events", "title": "Orientation, SRU-MUN, Alumni Meet & Convocation", "when": "Every year",
+     "summary": "Orientation Day for new students, SRU-MUN (Model United Nations), the Alumni Meet and Convocation "
+                "Day: part of 50+ events a year.",
+     "image_url": f"{_IMG}/2026/10/campus-auditorium4-scaled.webp", "video_id": "",
+     "keywords": "orientation day, orientation, induction, sru-mun, sru mun, model united nations, alumni meet, convocation, graduation day"},
+]
+
+
+class ChatAd(BaseModel):
+    """A small ad at the bottom of the chat (Admin -> Campus media -> Ads): a cover image, a highlight line, a tag
+    and a button. Verified offers only; links open in a new tab."""
+
+    id: str = Field(..., pattern=r"^[a-z0-9_-]{1,32}$")
+    title: str = Field(..., min_length=1, max_length=70, description="The highlight, e.g. 'Admissions open 2027-28'")
+    subtitle: str = Field("", max_length=90, description="One short line under the highlight")
+    tag: str = Field("", max_length=18, description="A small label, e.g. 'New' or 'Apply now'")
+    image_url: str = Field("", max_length=400, description="Cover image: an https:// link")
+    cta_text: str = Field("Know more", max_length=24, description="The button")
+    link_url: str = Field("", max_length=400, description="Where the button goes: an https:// link")
+    enabled: bool = True
+
+    @field_validator("title", "subtitle", "tag", "cta_text")
+    @classmethod
+    def _plain(cls, v: str) -> str:
+        return _plain_text(v)
+
+    @field_validator("image_url", "link_url")
+    @classmethod
+    def _https(cls, v: str) -> str:
+        v = (v or "").strip()
+        if v and not re.fullmatch(r"https://[^\s\"'<>]+", v):
+            raise ValueError("links must start with https://")
+        return v
+
+
+# One example, switched off: the admissions team writes and switches on its own ads.
+DEFAULT_CHAT_ADS = [
+    {"id": "admissions-2027", "title": "Admissions open for 2027-28", "subtitle": "Merit scholarships up to 40%",
+     "tag": "Apply now", "image_url": f"{_IMG}/2026/10/campus-auditorium5-scaled.webp", "cta_text": "Apply",
+     "link_url": "https://apply.sru.edu.in", "enabled": False},
+]
+
+
 class ChatSettings(BaseModel):
     """Every switch, with its default. Field descriptions are shown in the admin panel."""
 
@@ -89,6 +281,16 @@ class ChatSettings(BaseModel):
     welcome_tiles: list[WelcomeTile] = Field(
         default_factory=lambda: [WelcomeTile(**t) for t in DEFAULT_WELCOME_TILES],
         description="The Quick Start tiles under the opening welcome message, in order (at most 8).")
+    event_highlights: list[EventHighlight] = Field(
+        default_factory=lambda: [EventHighlight(**e) for e in DEFAULT_EVENT_HIGHLIGHTS],
+        description="The events shown as photo cards when students ask about events, fests or campus life (at most 16).")
+    chat_ads: list[ChatAd] = Field(
+        default_factory=lambda: [ChatAd(**a) for a in DEFAULT_CHAT_ADS],
+        description="Small ads at the bottom of the chat, shown in turn (at most 6; only the ones switched on).")
+    ads_rotate_seconds: int = Field(8, ge=4, le=60, description="How long each ad is shown before the next one.")
+    videos: VideoSettings = Field(
+        default_factory=VideoSettings,
+        description="Changes to the official YouTube videos the chat shows: hidden, topic changed, added.")
     ai_answers: bool = Field(
         False, description="Answers written by the AI from the verified facts (on), or the verified texts as they "
                           "are (off: no AI call for them, e.g. when the daily AI quota runs low). Cards, numbers and "
@@ -107,6 +309,29 @@ class ChatSettings(BaseModel):
         ids = [t.id for t in v]
         if len(set(ids)) != len(ids):
             raise ValueError("each tile needs its own id")
+        return v
+
+    @field_validator("chat_ads")
+    @classmethod
+    def _ads(cls, v: list) -> list:
+        if len(v) > 6:
+            raise ValueError("at most 6 ads")
+        ids = [a.id for a in v]
+        if len(set(ids)) != len(ids):
+            raise ValueError("each ad needs its own id")
+        for a in v:
+            if a.enabled and not a.link_url:
+                raise ValueError(f"the ad '{a.title}' needs a link before it is switched on")
+        return v
+
+    @field_validator("event_highlights")
+    @classmethod
+    def _events(cls, v: list) -> list:
+        if len(v) > 16:
+            raise ValueError("at most 16 events")
+        ids = [e.id for e in v]
+        if len(set(ids)) != len(ids):
+            raise ValueError("each event needs its own id")
         return v
 
     @field_validator("office_hours_start", "office_hours_end")

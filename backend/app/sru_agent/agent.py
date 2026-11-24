@@ -32,7 +32,7 @@ except ImportError:
 
 from . import affordability, ai_guard, config, dialogue, eligibility, journey, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
 from app.services import card_service
-from . import compound, fact_service, fee_journey, fee_plan, policy_engine, policy_models, policy_service, semantic_router, observability
+from . import campus_life, compound, fact_service, fee_journey, fee_plan, policy_engine, policy_models, policy_service, semantic_router, observability
 from .prompt import build_system_prompt
 
 log = logging.getLogger("sru_agent")
@@ -1895,6 +1895,42 @@ async def run_agent(
         or ((conv_state.get("pending_concession") or conv_state.get("offer") == "fee_chart_program")
             and fees.find_program(message))
         or (conv_state.get("offer") == "fee_chart" and (_AFFIRM.match(message or "") or _DECLINE.match(message or ""))))
+    # ---- Events, campus life, clubs, sports, hostel life and food (v4.14.0): answered from the approved facts and
+    # the admin panel's events (campus_life.py), with the events' photo cards and the official videos. A word that
+    # answers a pending step ("sports" for a concession) is left to that step; several questions go to compound.
+    if not fee_plan_turn and not tools.find_phone(message) and not intents.is_callback_request(message):
+        step_waiting = bool(dlg_busy or (conv_state.get("dialogue") or {}).get("step")
+                            or conv_state.get("pending_concession") or conv_state.get("offer")
+                            or (conv_state.get(fee_journey.KEY) or {}).get("awaiting"))
+        campus_key = campus_life.topic(message, waiting=step_waiting)
+        if campus_key is None and conv_state.get("campus_offer") and _AFFIRM.match(message or "") \
+                and len((message or "").split()) <= 4:
+            campus_key = conv_state.get("campus_offer")      # "yes" to "Would you like to see the other events?"
+        if campus_key and compound.plan(message, profile) is None:
+            ans = campus_life.answer(campus_key, message)
+            campus_cards = []
+            carousel = campus_life.event_cards(ans.event_ids)
+            if carousel:
+                campus_cards.append(carousel)
+            from app.services.video_service import create_video_card, get_keyword_videos, video_by_id
+            vids = [v for v in (video_by_id(i) for i in ans.video_ids) if v]
+            if not vids and ans.video_query:
+                shown = {v.get("id") for h in history or [] for c in (h.get("cards") or [])
+                         if isinstance(c, dict) for v in (c.get("videos") or []) if isinstance(v, dict)}
+                vids = get_keyword_videos(ans.video_query, limit=2, exclude=shown)
+            if vids:
+                campus_cards.append(create_video_card(vids[:2]))
+            offer = "events" if campus_key.startswith("event:") else (
+                "clubs" if ans.text.rstrip().endswith("all 39 clubs?") else None)
+            await memory.update_conversation_state(session_id, conversation_id, campus_offer=offer,
+                                                   active_topic="campus_life")
+            async for ev in _reply(ans.text, message, session_id, conversation_id, client=client, history=history,
+                                   profile=profile, conv_state=conv_state, cards=campus_cards, suggestions=ans.chips,
+                                   exact_chips=ans.options,
+                                   note="Answer only from these facts; do not add links or sources."):
+                yield ev
+            return
+
     if not dlg_busy and not fee_plan_turn and not tools.find_phone(message) and not intents.is_callback_request(message) \
             and not intents.is_cancel_contact(message, bool(profile.get("last_lead_id"))):
         dlg = dialogue.decide(message, conv_state, profile, name=natural_name)

@@ -126,17 +126,18 @@ async def test_agent_hostel_deterministic_replies():
     assert "Kalpana Chawla" not in tokens_info
     assert "hostel_facilities" in cards_info
 
-    # Test HOSTEL_MESS_QUERY
+    # Food questions (v4.14.0): the approved food facts (campus_life.py), timings included
     events_mess = [ev async for ev in agent.run_agent("how is the mess food?", "test_hostel_sess_2")]
     tokens_mess = "".join(ev.get("delta", "") for ev in events_mess if ev.get("type") == "token")
-    assert "4,000-seat Mega Dining Hall" in tokens_mess
-    assert "Breakfast" in tokens_mess
+    assert "4,000-seat dining hall" in tokens_mess
+    assert "Breakfast 7:30–8:30 AM" in tokens_mess
     assert "Lunch" in tokens_mess
-    assert "Unlimited Self-Service" in tokens_mess
+    assert "vegetarian and non-vegetarian" in tokens_mess
 
     # Test HOSTEL_CURFEW_RULES_QUERY
     events_curfew = [ev async for ev in agent.run_agent("what is the in time curfew?", "test_hostel_sess_3")]
     tokens_curfew = "".join(ev.get("delta", "") for ev in events_curfew if ev.get("type") == "token")
+    assert "8:30 PM" in tokens_curfew                 # first-year students (the hostel rules)
     assert "9:00 PM" in tokens_curfew
     assert "9:30 PM" in tokens_curfew
     assert "biometric roll call" in tokens_curfew.lower()

@@ -343,6 +343,23 @@ See `docs/37-official-widget-look-and-multi-questions-nov-2026.md`.
     a pending dialogue answer being skipped.
 - **Tests:** `tests/test_v413_compound_safety.py` (25); the 7 tests the commits had broken pass again.
 
+## v4.14.0 (24 Nov 2026): events and campus life, campus media manager, ads, admin dashboard on phones
+
+See `docs/39-campus-life-media-and-admin-mobile-nov-2026.md`.
+
+- **Events, campus life, clubs, sports, hostel life and food** answered from the facts the admissions team approved
+  (checklist, 24 Nov 2026), with event photo cards and official videos (`sru_agent/campus_life.py`). Lumina = the
+  Hostel Night / Hostel Hawa. 39 clubs. No source links shown.
+- **Videos:** 2 at a time, picked at random among the relevant ones; not repeated in a conversation when others
+  are left; hidden videos never shown.
+- **Admin -> Campus media:** Events, YouTube videos (all 53 + add / hide / topic) and Ads (small ad above the
+  message box: cover image, highlight, tag, button). No migration.
+- **Admin dashboard on phones:** compact header, scrollable tabs, numbers two per row, tables as cards, chat list or
+  conversation with a back button.
+- **Fixed:** curfew text (first-years 8:30 PM); "Who won the cricket world cup?" is not a sports question about SRU.
+- **Tests:** `tests/test_v414_campus_life.py` (55); backend 1,207 passed; browser journeys v410 32/32, v411 27/27,
+  v412 19/19.
+
 ### v4.13.0 (continued, 24 Nov 2026): "connect me to customer care / a human"
 
 - More ways of asking for a person now open the 30-second counsellor connect: "connect me to customer care",

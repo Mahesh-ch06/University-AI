@@ -70,6 +70,19 @@ async def get_chat_settings(_admin: str = Depends(verify_admin_key)) -> ChatSett
     return _settings_response()
 
 
+@router.get("/videos")
+async def admin_video_list(_admin: str = Depends(verify_admin_key)) -> dict:
+    """Admin -> Campus media -> Videos (v4.14.0): every built-in official video (hidden ones too), the topics a
+    video can be shown for, and the changes saved in the settings ("videos")."""
+    from app.services import app_settings
+    from app.services.video_service import load_videos
+
+    await app_settings.refresh(force=True)
+    keys = ("id", "title", "category", "type", "url", "thumbnail_url")
+    return {"builtin": [{k: v.get(k) for k in keys} for v in load_videos()],
+            "topics": list(app_settings.VIDEO_TOPICS), "changes": app_settings.get("videos")}
+
+
 @router.put("/settings", response_model=ChatSettingsResponse)
 async def update_chat_settings(
     body: ChatSettingsUpdate,
