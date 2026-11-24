@@ -3583,6 +3583,9 @@ async def run_agent(
 
     # ---- 4b. Course Selection & Fee Enquiry Flow ----------------
     intake_decision = None
+    # Read again in the fallback below when the model fails: it must exist even when this block is skipped
+    # (a pending callback / campus visit), or that fallback crashes (v4.15.1).
+    is_other_fee_inquiry = False
     if not action_note and not action and conv_state.get("pending_action") not in ("callback", "campus_visit") \
             and intent not in ("CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_BOOKING_WITH_DATE", "DATE_CONFIRMATION_YES",
                                "DATE_CONFIRMATION_NO"):
