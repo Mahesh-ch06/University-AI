@@ -2,6 +2,6 @@
  * Application Versioning
  * SR University AI Companion (SRU Buddy)
  */
-export const APP_VERSION = "4.12.1";
-export const APP_BUILD_TITLE = "SRU Buddy v4.12.1";
+export const APP_VERSION = "4.13.0";
+export const APP_BUILD_TITLE = "SRU Buddy v4.13.0";
 

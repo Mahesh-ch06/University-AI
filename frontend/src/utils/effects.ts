@@ -68,7 +68,10 @@ export function triggerConfetti() {
   canvas.height = window.innerHeight * dpr;
   ctx.scale(dpr, dpr);
 
-  const colors = ["#10b981", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ec4899", "#3b82f6", "#eab308"];
+  // Inside the widget on sru.edu.in: the official blues and black only.
+  const colors = document.documentElement.dataset.surface === "widget"
+    ? ["#194F90", "#297DE5", "#8DBBF0", "#C1E3FC", "#0F0F11", "#123C6E"]
+    : ["#10b981", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ec4899", "#3b82f6", "#eab308"];
   const particleCount = 85;
   const particles: Array<{
     x: number;

@@ -1,0 +1,524 @@
+/* ==========================================================================
+   SRU Buddy widget: the official sru.edu.in look (v4.13.0)
+
+   Applies only inside the embeddable widget (public/widget.js opens /?mode=widget; main.tsx then sets
+   html[data-surface="widget"]). The full website keeps its own look.
+
+   Taken from sru.edu.in:
+   * colours: logo blue #194F90, button blue #297DE5, black text, grey #5D5E6C, light blue tints
+     (#EFF8FF / #C1E3FC), white pages;
+   * Inter, semi-bold headings;
+   * flat: no gradients, almost no shadows, thin grey lines;
+   * small corner radius (buttons 4-6 px, boxes 8-10 px).
+
+   How it reaches every card: the chat's stylesheets use `var(--o-<token>, <old colour>)` for their colours
+   (frontend/scripts/official_tokens.py). The tokens are defined here, for the widget only.
+   Only colours, type, corners, borders and shadows change here: no layout, spacing or behaviour.
+   ========================================================================== */
+
+html[data-surface="widget"] {
+  /* ---- the official palette, for every card and form inside the widget ---- */
+  --o-brand: #194F90;
+  --o-brand-dark: #123C6E;
+  --o-action: #297DE5;
+  --o-action-dark: #1F6BCB;
+  --o-action-light: #8DBBF0;
+  --o-tint: #EFF8FF;
+  --o-tint-border: #C1E3FC;
+  --o-ok: #194F90;
+  --o-ok-light: #8DBBF0;
+  --o-ok-tint: #EFF8FF;
+  --o-ok-border: #C1E3FC;
+  --o-text: #0F0F11;
+  --o-text-2: #3A3B45;
+  --o-muted: #5D5E6C;
+  --o-faint: #8B8C97;
+  --o-line-strong: #CFD3DA;
+  --o-line: #E4E6EB;
+  --o-surface-2: #F2F3F6;
+  --o-surface: #F7F8FA;
+
+  /* ---- the app's own theme tokens (index.css) ---- */
+  --sru-blue: #194F90;
+  --sru-blue-dark: #123C6E;
+  --sru-blue-light: #EFF8FF;
+  --sru-sky: #297DE5;
+  --primary: #194F90;
+  --primary-hover: #123C6E;
+  --primary-light: #EFF8FF;
+  --primary-glow: rgba(25, 79, 144, 0.14);
+  --accent: #297DE5;
+  --accent-hover: #1F6BCB;
+  --accent-light: rgba(41, 125, 229, 0.1);
+  --accent-glow: rgba(41, 125, 229, 0.2);
+  --accent-bg: rgba(25, 79, 144, 0.06);
+  --success: #194F90;
+  --success-bg: #EFF8FF;
+  --bg: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #F7F8FA;
+  --surface-3: #F2F3F6;
+  --border: #E4E6EB;
+  --border-subtle: #EEF0F3;
+  --border-focus: #297DE5;
+  --text: #0F0F11;
+  --text-1: #0F0F11;
+  --text-2: #3A3B45;
+  --text-3: #5D5E6C;
+  --text-muted: #5D5E6C;
+  --shadow-sm: none;
+  --shadow-md: 0 2px 8px rgba(15, 15, 17, 0.06);
+  --shadow-lg: 0 6px 20px rgba(15, 15, 17, 0.08);
+  --shadow-card: none;
+
+  /* ---- chat cards (ChatCards.css) ---- */
+  --chat-card-radius: 10px;
+  --chat-card-inner-radius: 8px;
+  --chat-card-bg: #ffffff;
+  --chat-card-inner-bg: #F7F8FA;
+  --chat-card-border: #E4E6EB;
+  --chat-card-shadow: none;
+  --chat-card-text-color: #0F0F11;
+  --chat-card-muted: #5D5E6C;
+
+  --o-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+html[data-surface="widget"],
+html[data-surface="widget"] body {
+  font-family: var(--o-font);
+  color: #0F0F11;
+  font-feature-settings: "cv11", "ss01";
+}
+
+html[data-surface="widget"] :is(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+html[data-surface="widget"] ::selection {
+  background: #194F90;
+  color: #ffffff;
+}
+
+html[data-surface="widget"] :focus-visible {
+  outline-color: #297DE5;
+}
+
+/* --------------------------------------------------------------------------
+   Header: flat logo blue, white logo badge, no version pill (it stays in the footer)
+   -------------------------------------------------------------------------- */
+html[data-surface="widget"] .sru-widget-header {
+  background: #194F90;
+  box-shadow: none;
+  border-bottom: 1px solid #123C6E;
+  padding: 11px 14px 11px 16px;
+}
+
+html[data-surface="widget"] .sru-widget-avatar-wrap {
+  border: 0;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .sru-widget-title {
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: -0.005em;
+}
+
+html[data-surface="widget"] .sru-widget-header .sru-version-pill {
+  display: none;
+}
+
+html[data-surface="widget"] .sru-widget-status {
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 400;
+}
+
+html[data-surface="widget"] .sru-widget-status-dot,
+html[data-surface="widget"] .sru-widget-status-dot.connected {
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .sru-widget-hdr-btn {
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+html[data-surface="widget"] .sru-widget-hdr-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* --------------------------------------------------------------------------
+   Conversation: plain white page, flat bubbles
+   -------------------------------------------------------------------------- */
+html[data-surface="widget"] .sru-widget-body {
+  background-color: #ffffff;
+  background-image: none;
+  color: #0F0F11;
+}
+
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .assistant-avatar-badge {
+  border: 1px solid #C1E3FC !important;
+  box-shadow: none !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant,
+html[data-surface="widget"] .sru-widget-body .sru-typing-bubble {
+  background: #F4F6F9 !important;
+  border: 1px solid #E9ECF0 !important;
+  border-radius: 12px !important;
+  border-top-left-radius: 4px !important;
+  border-bottom-left-radius: 12px !important;
+  box-shadow: none !important;
+  color: #0F0F11 !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant :is(p, span, li, td, th) {
+  color: #0F0F11 !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant strong {
+  color: #0F0F11 !important;
+  font-weight: 600 !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant a {
+  color: #297DE5 !important;
+  font-weight: 500 !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.user .message-text-bubble.user {
+  background: #194F90 !important;
+  border-radius: 12px !important;
+  border-top-right-radius: 4px !important;
+  border-bottom-right-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .sru-typing-dots span {
+  background-color: #194F90 !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .sru-typing-tool-label {
+  color: #5D5E6C !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .action-icon-btn {
+  color: #8B8C97 !important;
+  border-radius: 4px !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .action-icon-btn:hover {
+  color: #194F90 !important;
+  background: #EFF8FF !important;
+}
+
+/* "Load older messages" and the welcome-back divider */
+html[data-surface="widget"] .sru-widget-body > button[type="button"]:first-child {
+  border-radius: 4px !important;
+  color: #194F90 !important;
+}
+
+/* --------------------------------------------------------------------------
+   Suggestion chips: outlined, square-ish, official blue text
+   -------------------------------------------------------------------------- */
+html[data-surface="widget"] .suggestion-chip {
+  border-radius: 6px;
+  border: 1px solid #C9D2DE;
+  background: #ffffff;
+  color: #194F90;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .suggestion-chip:hover {
+  background: #EFF8FF;
+  border-color: #297DE5;
+  color: #194F90;
+  transform: none;
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+   Welcome: "Quick start" tiles in one official style (white, thin line, blue icon), no rainbow
+   -------------------------------------------------------------------------- */
+html[data-surface="widget"] .welcome-actions-heading {
+  color: #0F0F11;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+html[data-surface="widget"] .welcome-action-tile,
+html[data-surface="widget"] .welcome-action-tile:is(.tile-blue, .tile-green, .tile-purple, .tile-amber) {
+  background: #ffffff;
+  border: 1px solid #E4E6EB;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .welcome-action-tile:hover:not(:disabled),
+html[data-surface="widget"] .welcome-action-tile:is(.tile-blue, .tile-green, .tile-purple, .tile-amber):hover:not(:disabled) {
+  border-color: #297DE5;
+  background: #F7FBFF;
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-surface="widget"] .welcome-action-tile.selected {
+  outline: 2px solid #297DE5;
+}
+
+html[data-surface="widget"] .welcome-action-icon-box,
+html[data-surface="widget"] .welcome-action-icon-box:is(.icon-box-blue, .icon-box-green, .icon-box-purple, .icon-box-amber) {
+  background: #EFF8FF;
+  color: #194F90;
+  border-radius: 6px;
+}
+
+html[data-surface="widget"] .welcome-action-badge,
+html[data-surface="widget"] .welcome-action-badge:is(.badge-blue, .badge-green, .badge-purple, .badge-amber) {
+  background: #194F90;
+  color: #ffffff;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+html[data-surface="widget"] .welcome-action-title {
+  color: #0F0F11;
+  font-weight: 600;
+}
+
+html[data-surface="widget"] .welcome-action-subtitle {
+  color: #5D5E6C;
+}
+
+/* --------------------------------------------------------------------------
+   Input bar: rectangular field, solid action-blue send button
+   -------------------------------------------------------------------------- */
+html[data-surface="widget"] .sru-widget-footer {
+  border-top: 1px solid #E4E6EB;
+}
+
+html[data-surface="widget"] .sru-widget-input-row {
+  border: 1px solid #CFD3DA;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .sru-widget-input-row:hover:not(:focus-within) {
+  border-color: #8B8C97;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .sru-widget-input-row:focus-within {
+  border-color: #297DE5;
+  box-shadow: 0 0 0 3px rgba(41, 125, 229, 0.14);
+}
+
+html[data-surface="widget"] .sru-widget-textarea {
+  color: #0F0F11;
+}
+
+html[data-surface="widget"] .sru-widget-textarea::placeholder {
+  color: #8B8C97;
+}
+
+html[data-surface="widget"] .sru-widget-voice-btn {
+  border-radius: 6px;
+  color: #5D5E6C;
+}
+
+html[data-surface="widget"] .sru-widget-voice-btn:hover:not(:disabled) {
+  background-color: #EFF8FF;
+  color: #194F90;
+}
+
+html[data-surface="widget"] .sru-widget-send-btn {
+  border-radius: 6px;
+}
+
+html[data-surface="widget"] .sru-widget-send-btn:not(:disabled) {
+  background: #297DE5;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .sru-widget-send-btn:not(:disabled):hover {
+  background: #1F6BCB;
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-surface="widget"] .sru-widget-send-btn:disabled {
+  background: #F2F3F6;
+  border-color: #E4E6EB;
+}
+
+html[data-surface="widget"] .sru-watermark-badge {
+  box-shadow: none;
+  border-radius: 4px;
+}
+
+/* Recovery dock (continue / start fresh) */
+html[data-surface="widget"] .sru-recovery-dock {
+  background: #EFF8FF;
+  border: 1px solid #C1E3FC;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .sru-recovery-dock-btn {
+  border-radius: 4px;
+}
+
+html[data-surface="widget"] .sru-recovery-dock-btn--continue {
+  background: #297DE5;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .sru-recovery-dock-btn--continue:hover:not(:disabled) {
+  background: #1F6BCB;
+  box-shadow: none;
+  transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   Cards: flat white boxes with a thin grey line; badges as small blue labels; buttons 6 px
+   -------------------------------------------------------------------------- */
+html[data-surface="widget"] .message-cards-container .rich-card .card-badge {
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+html[data-surface="widget"] .message-cards-container .rich-card .card-title {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+html[data-surface="widget"] .message-cards-container .rich-card :is(
+  .agent-card-wa-btn, .agent-card-map-btn, .agent-card-call-btn, .agent-contact-pill, .hostel-action-btn, .card-more-btn
+) {
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+}
+
+/* WhatsApp: like the official site's top bar, a plain button (no green block) */
+html[data-surface="widget"] .message-cards-container .rich-card :is(.agent-card-wa-btn, .agent-contact-pill.wa) {
+  background: #ffffff !important;
+  color: #0F0F11 !important;
+  border: 1px solid #CFD3DA !important;
+}
+
+html[data-surface="widget"] .message-cards-container .rich-card :is(.agent-card-wa-btn, .agent-contact-pill.wa):hover {
+  background: #F7F8FA !important;
+  border-color: #194F90 !important;
+}
+
+/* every remaining pill-shaped control inside a card gets the official small radius */
+html[data-surface="widget"] .message-cards-container :is(button, a[role="button"], .fp-apply) {
+  border-radius: 6px;
+}
+
+/* Fee summary: approved lines in brand blue, pending lines in plain text with an amber "pending" label */
+html[data-surface="widget"] .fp-table tr.is-pending td {
+  color: #0F0F11;
+}
+
+html[data-surface="widget"] .fp-pill {
+  border-radius: 4px;
+}
+
+html[data-surface="widget"] .fp-pill--pending {
+  background: #FFF7E8;
+  color: #7A4B00;
+  border-color: #F3D9A4;
+}
+
+/* Contact form (name, mobile number) */
+html[data-surface="widget"] .chat-lead-form {
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] .chat-lead-form input {
+  border-radius: 6px;
+}
+
+html[data-surface="widget"] .chat-lead-submit-btn {
+  background: #297DE5 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
+html[data-surface="widget"] .chat-lead-submit-btn:hover:not(:disabled) {
+  background: #1F6BCB !important;
+  transform: none !important;
+}
+
+/* Step-by-step questions (Step 2 of 4 ...) */
+html[data-surface="widget"] .flow-badge,
+html[data-surface="widget"] .counsellor-step-badge {
+  border-radius: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Built-in icons drawn in amber, emerald or sky become the two official blues
+   -------------------------------------------------------------------------- */
+html[data-surface="widget"] svg [stroke="#0055a4" i] { stroke: #194F90; }
+html[data-surface="widget"] svg [fill="#0055a4" i] { fill: #194F90; }
+html[data-surface="widget"] svg [stroke="#2979e2" i],
+html[data-surface="widget"] svg [stroke="#f59e0b" i] { stroke: #297DE5; }
+html[data-surface="widget"] svg [fill="#2979e2" i],
+html[data-surface="widget"] svg [fill="#f59e0b" i] { fill: #297DE5; }
+html[data-surface="widget"] svg[stroke="#10b981" i],
+html[data-surface="widget"] svg [stroke="#10b981" i] { stroke: #194F90; }
+html[data-surface="widget"] svg [fill="#10b981" i] { fill: #194F90; }
+html[data-surface="widget"] svg [stroke="#64748b" i] { stroke: #5D5E6C; }
+
+/* "Still open" / proof notes in the fee cards: an official blue information box (the amber label on a
+   pending row still says "Pending verification") */
+html[data-surface="widget"] .fp-proof {
+  background: #EFF8FF;
+  border: 1px solid #C1E3FC;
+  border-left: 3px solid #194F90;
+  color: #0F0F11;
+}
+
+html[data-surface="widget"] .fp-proof svg {
+  color: #194F90;
+}
+
+/* --------------------------------------------------------------------------
+   Pop-ups (fee calculator, profile, share) above the chat.
+   On narrow screens the chat container takes the top z-index (2147483647) so it covers the host page; inside
+   the widget's own iframe there is no host page, and that layer hid every pop-up: the header's Fee Calculator
+   button opened the calculator behind the chat. Inside the widget the chat is the base layer.
+   -------------------------------------------------------------------------- */
+html[data-surface="widget"] .sru-widget-container.sru-widget-iframe-container {
+  z-index: 1 !important;
+}
+
+/* Fee & Scholarship Calculator (opened from the header): flat official buttons and boxes */
+html[data-surface="widget"] :is(.calc-submit-btn, .btn-ask-buddy) {
+  background: #297DE5;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+html[data-surface="widget"] :is(.calc-submit-btn, .btn-ask-buddy):hover {
+  background: #1F6BCB;
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-surface="widget"] .calc-input-box,
+html[data-surface="widget"] .calc-metric-card.primary-card {
+  background: #F7F8FA;
+}
+
+html[data-surface="widget"] .calc-metric-card.savings-card {
+  background: #EFF8FF;
+}
+
+html[data-surface="widget"] :is(.scholarship-modal-card, .lead-modal-card, .share-modal-card) {
+  border-radius: 10px;
+}

@@ -32,7 +32,7 @@ except ImportError:
 
 from . import affordability, ai_guard, config, dialogue, eligibility, journey, faculty, fee_flow, fee_intake, fees, followups, intents, knowledge, memory, responses, tools
 from app.services import card_service
-from . import fact_service, fee_journey, fee_plan, policy_engine, policy_models, policy_service, semantic_router, observability
+from . import compound, fact_service, fee_journey, fee_plan, policy_engine, policy_models, policy_service, semantic_router, observability
 from .prompt import build_system_prompt
 
 log = logging.getLogger("sru_agent")
@@ -1409,105 +1409,41 @@ def _is_mock_or_test_client(cl) -> bool:
     )
 
 
-async def _resolve_sub_query(
-    sub_q: str,
-    session_id: str,
-    conversation_id: str,
-    profile: dict,
-    conv_state: dict,
-    client=None,
-) -> tuple[str, list, list]:
-    """Resolve a single sub-query to (text, cards, suggestions)."""
-    q_low = sub_q.lower().strip()
-    intent = intents.classify_agent_intent(sub_q, conv_state)
-    cards = []
-    suggestions = []
-
-    # 1. Course comparison (e.g. cse vs aiml)
-    if re.search(r"\b(?:vs|versus|compare|comparison|difference\s+between)\b", q_low) and any(
-        k in q_low for k in ("cse", "aiml", "ai", "machine learning", "ece", "mech", "civil", "ds", "data science")
-    ):
-        text = responses._CSE_VS_AIML_TEXT
-        suggestions = responses._CSE_VS_AIML_CHIPS
-        return text, cards, suggestions
-
-    # 2. Why Choose SRU
-    if intent == "WHY_CHOOSE_SRU_QUERY" or re.search(r"\bwhy\s+(?:choose\s+)?(?:sru|sr\s*university)\b", q_low):
-        text = _WHY_CHOOSE_SRU_TEXT
-        suggestions = _ABOUT_SRU_CHIPS
-        return text, cards, suggestions
-
-    # 3. About SRU
-    if intent == "ABOUT_SRU_QUERY" or re.search(r"\b(?:about|overview\s+of|describe)\s+(?:sru|sr\s*university|the\s+university)\b", q_low):
-        text = _ABOUT_SRU_TEXT
-        suggestions = _ABOUT_SRU_CHIPS
-        return text, cards, suggestions
-
-    # 4. Hostel subtopics (specific checks before broad hostel overview)
-    if intent == "HOSTEL_CURFEW_RULES_QUERY" or re.search(r"\b(?:curfew|timings?|in-?time|out-?pass|rules?)\b", q_low):
-        text = responses._HOSTEL_CURFEW_RULES_TEXT
-        suggestions = _HOSTEL_CURFEW_CHIPS
-        return text, cards, suggestions
-
-    if intent == "HOSTEL_MESS_QUERY" or re.search(r"\b(?:mess|food|dining|meal)\b", q_low):
-        text = responses._HOSTEL_MESS_TEXT
-        suggestions = _HOSTEL_MESS_CHIPS
-        return text, cards, suggestions
-
-    if intent == "HOSTEL_FEE_QUERY" or (re.search(r"\bhostels?\b", q_low) and re.search(r"\b(?:fees?|cost|price|charges?)\b", q_low)):
+async def _resolve_sub_query(sub_q: str, topic: str, session_id: str) -> tuple[str, list, list]:
+    """One part of a multi-question message, answered from verified content: (text, cards, chips).
+    `topic` comes from compound.plan, which only plans topics this function can answer."""
+    cards: list = []
+    if topic == "cse_vs_aiml":
+        return responses._CSE_VS_AIML_TEXT, cards, list(responses._CSE_VS_AIML_CHIPS)
+    if topic == "why_sru":
+        return _WHY_CHOOSE_SRU_TEXT, cards, list(_ABOUT_SRU_CHIPS)
+    if topic == "about_sru":
+        return _ABOUT_SRU_TEXT, cards, list(_ABOUT_SRU_CHIPS)
+    if topic == "hostel_curfew":
+        return responses._HOSTEL_CURFEW_RULES_TEXT, cards, list(_HOSTEL_CURFEW_CHIPS)
+    if topic == "hostel_mess":
+        return responses._HOSTEL_MESS_TEXT, cards, list(_HOSTEL_MESS_CHIPS)
+    if topic == "hostel_fee":
         from app.services.card_service import HOSTEL_FEE_CARD
-        text = responses._HOSTEL_FEE_TEXT
-        cards.append(HOSTEL_FEE_CARD)
-        suggestions = _HOSTEL_FEE_CHIPS
-        return text, cards, suggestions
-
-    if intent == "HOSTEL_SAFETY_QUERY" or re.search(r"\b(?:safe|security|warden|cctv)\b", q_low):
-        text = responses._HOSTEL_SAFETY_TEXT
-        suggestions = _HOSTEL_SAFETY_CHIPS
-        return text, cards, suggestions
-
-    if intent == "HOSTEL_INFO_QUERY" or re.search(r"\b(?:hostel|hostels|accommodation|residential)\b", q_low):
+        return responses._HOSTEL_FEE_TEXT, [HOSTEL_FEE_CARD], list(_HOSTEL_FEE_CHIPS)
+    if topic == "hostel_safety":
+        return responses._HOSTEL_SAFETY_TEXT, cards, list(_HOSTEL_SAFETY_CHIPS)
+    if topic == "hostel_info":
         from app.services.card_service import HOSTEL_FACILITIES_CARD
-        text = responses.get_hostel_info_text(session_id, sub_q)
-        cards.append(HOSTEL_FACILITIES_CARD)
-        suggestions = _HOSTEL_INFO_CHIPS
-        return text, cards, suggestions
-
-    # 5. Program / College Fees
-    if any(k in q_low for k in ("fee", "fees", "cost", "tuition")):
+        return responses.get_hostel_info_text(session_id, sub_q), [HOSTEL_FACILITIES_CARD], list(_HOSTEL_INFO_CHIPS)
+    if topic == "fees":  # B.Tech CSE (named or already chosen): compound.plan never plans another programme here
         cse_prog = fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0]
         spec = fee_flow.detect_specialization(sub_q, cse_prog)
         fee_card = fee_flow.build_detailed_fee_card(cse_prog, fee_flow.SCHOOLS_DATA[0], "2027-28", spec=spec, user_text=sub_q)
         text = get_btech_cse_fee_text(specialization=spec, user_msg=sub_q)
-        cards.append(fee_card)
-        suggestions = ["Calculate my scholarship", "Hostel details", "How do I apply?"]
-        return text, cards, suggestions
-
-    # 6. Placements
-    if any(k in q_low for k in ("placement", "placements", "packages", "salary", "recruiter", "highest package")):
-        text = responses._PLACEMENT_ASSISTANCE_RESPONSES[0]
-        suggestions = responses._PLACEMENT_ASSISTANCE_CHIPS
-        return text, cards, suggestions
-
-    # 7. Scholarships
-    if any(k in q_low for k in ("scholarship", "scholarships", "concession", "waiver")):
-        text = responses._SCHOLARSHIP_CRITERIA_TEXT
-        suggestions = responses._SCHOLARSHIP_CRITERIA_CHIPS
-        return text, cards, suggestions
-
-    # 8. Knowledge fallback
-    found = knowledge.search(sub_q, k=3, min_score=2.0)
-    if found:
-        best = found[0]
-        heading = best.get("heading") or best.get("title", "SR University Information")
-        text = f"### 📚 {heading}\n\n{best.get('text', '')}"
-        suggestions = ["B.Tech CSE fees", "Hostel details", "Placements"]
-        return text, cards, suggestions
-
-    # 9. Generic fallback
-    text = _ABOUT_SRU_TEXT
-    suggestions = _ABOUT_SRU_CHIPS
-    return text, cards, suggestions
+        return text, [fee_card], ["Calculate my scholarship", "Hostel details", "How do I apply?"]
+    if topic == "fees_ask":
+        return compound.FEES_ASK_TEXT, cards, list(compound.FEES_ASK_CHIPS)
+    if topic == "placements":
+        return responses._PLACEMENT_ASSISTANCE_RESPONSES[0], cards, list(responses._PLACEMENT_ASSISTANCE_CHIPS)
+    if topic == "scholarships":
+        return compound.scholarship_overview_text(), cards, list(responses._SCHOLARSHIP_CRITERIA_CHIPS)
+    return "", cards, []
 
 
 async def run_agent(
@@ -1802,45 +1738,40 @@ async def run_agent(
             yield ev
         return
 
-    # ---- Compound inquiry decomposition: split and answer all questions together ----
-    from app.services.decomposition_service import _is_compound_query, _fast_split
-    if not form and not dlg_busy and not fee_plan_turn and not _concession_requested(message) and not conv_state.get("offer") and _is_compound_query(message):
-        sub_queries = _fast_split(message)
-        if len(sub_queries) >= 2:
-            log.info("Agent compound query decomposition: %d sub-queries for '%s'", len(sub_queries), message[:60])
-            resolved_parts = []
-            combined_cards = []
-            combined_chips = []
-            seen_card_types = set()
-
-            for sq in sub_queries:
-                part_text, part_cards, part_chips = await _resolve_sub_query(
-                    sq, session_id, conversation_id, profile, conv_state, client=client
-                )
-                if part_text:
-                    resolved_parts.append(part_text.strip())
-                for c in part_cards:
-                    ctype = c.get("type") if isinstance(c, dict) else str(c)
-                    if ctype not in seen_card_types:
-                        seen_card_types.add(ctype)
-                        combined_cards.append(c)
-                for chip in part_chips:
-                    if chip not in combined_chips:
-                        combined_chips.append(chip)
-
-            if resolved_parts:
-                combined_answer = "\n\n---\n\n".join(resolved_parts)
-                async for ev in _say(
-                    combined_answer,
-                    message,
-                    session_id,
-                    conversation_id,
-                    cards=combined_cards,
-                    suggestions=combined_chips[:4],
-                    exact_chips=True,
-                ):
-                    yield ev
-                return
+    # ---- One message, several questions: answer each part (compound.plan has the safety rules) ----
+    compound_plan = None
+    if not form and not dlg_busy and not fee_plan_turn and not _concession_requested(message) \
+            and not conv_state.get("offer"):
+        compound_plan = compound.plan(message, profile)
+    if compound_plan:
+        log.info("Agent compound query: %d parts for '%s'", len(compound_plan), message[:60])
+        resolved_parts, combined_cards, combined_chips, seen_card_types = [], [], [], set()
+        for sq, sq_topic in compound_plan:
+            part_text, part_cards, part_chips = await _resolve_sub_query(sq, sq_topic, session_id)
+            if part_text:
+                resolved_parts.append(part_text.strip())
+            for c in part_cards:
+                ctype = c.get("type") if isinstance(c, dict) else str(c)
+                if ctype not in seen_card_types:
+                    seen_card_types.add(ctype)
+                    combined_cards.append(c)
+            for chip in part_chips:
+                if chip not in combined_chips:
+                    combined_chips.append(chip)
+        if resolved_parts:
+            # A side question during an unfinished fee evaluation keeps the "continue" button (docs/36 rule 2).
+            chips = await _with_resume_chip(session_id, conversation_id, combined_chips[:4])
+            async for ev in _say(
+                "\n\n---\n\n".join(resolved_parts),
+                message,
+                session_id,
+                conversation_id,
+                cards=combined_cards,
+                suggestions=chips,
+                exact_chips=True,
+            ):
+                yield ev
+            return
 
     # Persist preserved state variables
     await set_state(
@@ -2268,10 +2199,17 @@ async def run_agent(
         "scholarship", "eligibility", "hostel", "cutoff", "sports",
         "library", "canteen", "mess", "curfew", "timing", "bus", "transport", "syllabus",
         "curriculum", "available", "offered", "how to apply",
-        "vs", "versus", "compare", "comparison", "difference", "better", "easier",
-        "cse", "cs", "aiml", "ai", "artificial intelligence", "machine learning",
     )
-    if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") and any(k in (message or "").lower() for k in _SPECIFIC_SUBTOPIC_KEYWORDS):
+    # Short words are matched as whole words: "ai" must not match "detail", nor "cs" "physics".
+    _SPECIFIC_SUBTOPIC_WORDS = re.compile(
+        r"\b(?:vs|versus|compare|comparison|difference|better|easier|cse|cs|aiml|ai|artificial\s+intelligence|"
+        r"machine\s+learning)\b",
+        re.IGNORECASE,
+    )
+    if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") and (
+        any(k in (message or "").lower() for k in _SPECIFIC_SUBTOPIC_KEYWORDS)
+        or _SPECIFIC_SUBTOPIC_WORDS.search(message or "")
+    ):
         intent = "GENERAL"
 
     # ---- Questions about the university itself: why SRU, about SRU, rankings, accreditation, research,

@@ -617,7 +617,9 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
     Otherwise a dict with kind 'reply' (send text + chips), 'rewrite' (continue with a more specific
     message) or 'pass' (continue as is), plus the new dialogue state."""
     from app.services.decomposition_service import _is_compound_query
-    if _is_compound_query(message):
+    # A multi-question message is not taken over by a topic menu, but an answer to our own pending question
+    # ("Which branch?" -> "CSE and AIML") is still read as that answer.
+    if _is_compound_query(message) and not (conv_state.get("dialogue") or {}).get("step"):
         return None
     original = dict(conv_state.get("dialogue") or {})
     state = dict(original)
