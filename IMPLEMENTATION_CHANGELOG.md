@@ -343,6 +343,14 @@ See `docs/37-official-widget-look-and-multi-questions-nov-2026.md`.
     a pending dialogue answer being skipped.
 - **Tests:** `tests/test_v413_compound_safety.py` (25); the 7 tests the commits had broken pass again.
 
+### v4.13.0 (continued, 24 Nov 2026): "connect me to customer care / a human"
+
+- More ways of asking for a person now open the 30-second counsellor connect: "connect me to customer care",
+  "I want to talk to a human", "human please", "transfer me to support", "need a real person", "call centre",
+  "help desk". Questions about the service itself ("what is the customer care of the hostel like") still get an
+  answer.
+- **Tests:** `tests/test_v413_connect_phrases.py`.
+
 ### v4.13.0 (continued, 24 Nov 2026): conversational intelligence; the fee flow from a production chat
 
 See `docs/38-conversational-intelligence-nov-2026.md`.
