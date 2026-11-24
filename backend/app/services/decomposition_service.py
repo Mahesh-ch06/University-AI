@@ -38,6 +38,10 @@ NON_SPLITTABLE_PHRASES: tuple[str, ...] = (
     "fee and scholarships", "living and learning", "boys and girls",
     "men and women", "sports and games", "food and mess", "mess and food",
     "ac and non-ac", "ac and non ac", "non-ac and ac",
+    # the same pairs written with "&" (button labels such as "Fee & scholarships", "Placements & Careers")
+    "fee & scholarship", "fees & scholarship", "fee & scholarships", "fees & scholarships",
+    "rules & regulations", "rules & timings", "terms & conditions", "food & mess", "mess & food",
+    "placements & careers", "placement & careers", "ac & non-ac", "ac & non ac",
 )
 
 # "also", "along with", "as well as", "besides", etc. are strong compound signals
