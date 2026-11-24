@@ -81,6 +81,28 @@ def infer_concession(text: str) -> dict | None:
     return None
 
 
+# v4.15.0: a group the student names that has several official categories ("any concession for girls?",
+# "sports quota?"): every matching category, from the official list (word -> label words).
+_GROUPS = [(r"\bgirls?\b|\bdaughter\b|\bfemale\b|\bwomen\b", ("girl",)),
+           (r"\bsports?\b|\bathlete|\bplayer\b|\bquota\b.*\bsports?\b", ("sports",)),
+           (r"^(?!.*\b(?:single|divorced|lost\s+both|orphan)\b).*\bparents?\b", ("lost both parents",
+                                                                              "single living parent")),
+           (r"\b(?:police|defen[cs]e|army|crpf|martyr|military)\b", ("defence", "police"))]
+
+
+def concessions_for_group(text: str) -> list[dict]:
+    """All official categories for a group the student names, when there are several (else [])."""
+    low = (text or "").lower()
+    for pattern, keys in _GROUPS:
+        if re.search(pattern, low):
+            hits = [{"label": c["label"], "amount": int(c["amount"])}
+                    for c in fees.load_data().get("special_concessions", [])
+                    if any(k in c["label"].lower() for k in keys)]
+            if len(hits) > 1:
+                return hits
+    return []
+
+
 def concession_fee(program: str, concession: dict, profile: dict | None = None) -> dict | None:
     """Tuition for the first year with a special concession. None if the programme is unknown."""
     merit = _merit_args(profile or {})

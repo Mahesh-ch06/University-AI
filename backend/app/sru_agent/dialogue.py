@@ -197,7 +197,9 @@ _INTEREST_ONLY = re.compile(
 _ELIGIBILITY_Q = re.compile(r"\b(?:am\s+i\s+eligible|eligib\w*|can\s+i\s+get\s+(?:a\s+)?seat|minimum\s+marks|"
                             r"cut-?off|qualify\s+for\s+admission)\b", re.IGNORECASE)
 _PROCESS_Q = re.compile(r"\b(?:how\s+(?:do|can)\s+i\s+apply|how\s+to\s+apply|application\s+process|"
-                        r"admission\s+process|admission\s+procedure|steps\s+to\s+apply|apply\s+online)\b", re.IGNORECASE)
+                        r"admission\s+process|admission\s+procedure|steps\s+to\s+apply|apply\s+online|"
+                        r"how\s+(?:to|do\s+i|can\s+i|should\s+i)\s+(?:get\s+(?:an\s+)?admission|join)\b(?!\s+(?:a\s+)?club))",
+                        re.IGNORECASE)
 _GOALS = [
     ("eligibility", r"eligib|qualif|check|marks|criteria|can\s+i\s+(?:join|get)"),
     ("process", r"process|apply|application|procedure|steps|how\s+to\s+join"),

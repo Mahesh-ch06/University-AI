@@ -96,9 +96,10 @@ async def test_thanks_and_who_are_you_use_their_own_brief(model):
 async def test_model_down_gives_one_plain_line_not_a_bank(model):
     model.fail = True
     first, second = await _chat(["Hi", "Hello"])
-    assert first["answer"].startswith("Hello! What would you like to know about SR University?")
+    # v4.15.0: the plain line uses the student's first name when it is on file
+    assert first["answer"].startswith("Hi Ravi! What would you like to know about SR University?")
     # greeted already: not welcomed again
-    assert second["answer"].startswith("What would you like to know next?")
+    assert second["answer"].startswith("Hi again, Ravi! What would you like to know next?")
 
 
 # ------------------------------------------------------------------ topics from verified facts

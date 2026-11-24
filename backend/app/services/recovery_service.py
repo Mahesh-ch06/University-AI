@@ -25,8 +25,9 @@ def generate_welcome_message(
 ) -> str:
     """Generate context-aware personalized welcome messages adhering strictly to Section 4 specifications."""
     clean_name = (student_name or "").strip().strip(",").strip()
-    if clean_name:
-        clean_name = clean_name.capitalize()
+    if clean_name:   # the first name, as the student wrote it ("Mahesh", not "Mahesh kumar")
+        clean_name = clean_name.split()[0]
+        clean_name = clean_name[:1].upper() + clean_name[1:]
     name_part = f", {clean_name}" if clean_name else ""
 
     if assessment_status == 'completed':
@@ -224,9 +225,16 @@ async def get_recovery_context(
     eapcet_rank = profile.get('eapcet_rank') or fee_known.get('eapcet_rank')
     jee_percentile = profile.get('jee_percentile') or fee_known.get('jee_percentile')
 
+    def _n(v):
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return str(v)
+        return str(int(f)) if f == int(f) else f'{f:g}'
+
     if raw_marks and max_marks:
-        pct_display = f'{percent:.1f}%' if percent else ''
-        score_text = f'{raw_marks} / {max_marks} ({pct_display})' if pct_display else f'{raw_marks} / {max_marks}'
+        pct_display = f'{_n(round(float(percent), 1))}%' if percent else ''
+        score_text = f'{_n(raw_marks)} / {_n(max_marks)} ({pct_display})' if pct_display else f'{_n(raw_marks)} / {_n(max_marks)}'
     elif percent:
         score_text = f'{percent:.1f}%' if isinstance(percent, float) else f'{percent}%'
     elif eapcet_rank:

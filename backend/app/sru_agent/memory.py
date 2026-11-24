@@ -347,8 +347,33 @@ async def update_conversation_state(session_id: str, conversation_id: str | None
         encoded = json.dumps(state, sort_keys=True, ensure_ascii=False, default=str)
         if _state_saved.get(key) != encoded:
             _state_saved[key] = encoded
-            in_background(_state_saver(session_id, str(conversation_id), dict(state)), "conversation state")
+            # v4.15.0: one writer per conversation, always writing the LATEST state. (Several saves started
+            # together could finish out of order and leave an older state in the database.)
+            _state_pending[key] = (session_id, str(conversation_id), json.loads(encoded))
+            if key not in _state_writing:
+                _state_writing.add(key)
+                in_background(_flush_state(key), "conversation state")
     return state
+
+
+_state_pending: dict = {}   # key -> (session_id, conversation_id, state) waiting to be written
+_state_writing: set = set()  # keys with a writer running
+
+
+async def _flush_state(key: str) -> None:
+    try:
+        while key in _state_pending:
+            session_id, conversation_id, state = _state_pending.pop(key)
+            await _state_saver(session_id, conversation_id, state)
+    finally:
+        _state_writing.discard(key)
+
+
+async def flush_state_writes(timeout: float = 5.0) -> None:
+    """Wait (briefly) until the conversation states waiting to be written are in the database (tests, shutdown)."""
+    end = time.monotonic() + timeout
+    while (_state_pending or _state_writing) and time.monotonic() < end:
+        await asyncio.sleep(0.02)
 
 
 async def clear_conversation_state(session_id: str, conversation_id: str | None = None):

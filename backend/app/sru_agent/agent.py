@@ -510,6 +510,38 @@ async def _counsellor_connect(message, session_id, conversation_id, profile, ctx
         yield ev
 
 
+def _other_program_named(message: str, conv_state: dict) -> bool:
+    """'Can I join Civil with 88%?' during a CSE estimate: a question about another programme (an eligibility
+    check), not a correction of the marks for the one being evaluated (v4.15.0)."""
+    named = fees.find_program(message or "")
+    current = fees.find_program(str((conv_state.get(fee_journey.KEY) or {}).get("program") or ""))
+    return bool(named and current and named != current and not fee_journey._SWITCH.search(message or ""))
+
+
+def _open_step(profile: dict, conv_state: dict) -> dict | None:
+    """The question the fee steps are waiting on, asked again exactly (text, its card, its chips), or None.
+    v4.15.0: a "hi" or "how are you" in the middle of the steps keeps the student where they were."""
+    intake = conv_state.get("fee_intake") or {}
+    if intake.get("counsellor_mode") and intake.get("waiting_for") not in (None, "done"):
+        try:
+            r = fee_intake.decide("Calculate my scholarship", profile, dict(intake))
+        except Exception:
+            r = None
+        if r and r.get("action") == "ask":
+            return {"text": _FEE_STEP_OPENER.sub("", r.get("text") or "").strip(), "cards": r.get("cards") or [],
+                    "chips": r.get("chips") or []}
+    st = conv_state.get(fee_journey.KEY)
+    if st and st.get("active") and st.get("awaiting") not in (None, "scholarship_steps"):
+        try:
+            r = fee_journey.next_step(dict(st), profile)
+        except Exception:
+            r = None
+        if r and r.get("kind") == "reply" and r.get("text"):
+            return {"text": r["text"], "cards": r.get("cards") or [], "chips": r.get("chips") or [],
+                    "fee_state": r.get("state")}
+    return None
+
+
 async def _with_resume_chip(session_id, conversation_id, chips, text: str = "") -> list:
     """A side question answered while a fee evaluation is unfinished: offer to continue it (one tap)."""
     try:
@@ -658,15 +690,41 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     try:   # the same step question as the last reply (the student asked something else): say why it is asked again
         hist = await memory.get_history(session_id, conversation_id)
         last = next((h.get("text", "") for h in reversed(hist or []) if h.get("role") in ("model", "assistant")), "")
+        # v4.15.0: a long answer already given word for word in the last few replies is not repeated in full: the
+        # key point, and a pointer to the full answer above (the cards are shown again as they are).
+        recent = [h.get("text", "") for h in (hist or []) if h.get("role") in ("model", "assistant")][-4:]
+        if len(text) > 220 and text.strip() in [r.strip() for r in recent] and not re.match(r"\s*Step\s+\d", text):
+            paras = [re.sub(r"^#+\s*", "", p.strip()) for p in re.split(r"\n\s*\n", text.strip()) if p.strip()]
+            first = paras[0] if paras else ""
+            if first.endswith(":") and len(paras) > 1:      # an intro line: its first few points too
+                points = [ln for ln in paras[1].splitlines() if ln.strip()]
+                first = first + "\n" + "\n".join(points[:3]) + ("\n…" if len(points) > 3 else "")
+            elif len(first) < 140 and len(paras) > 1:        # a short lead: the line after it too (e.g. the fee)
+                first = first + "\n\n" + paras[1]
+            text = (f"As I shared just above:\n\n{first}" if len(first) <= 600
+                    else "That's the same as my answer just above.")
+            text += "\n\nScroll up for the full details, or ask me anything about it."
         if last and last.strip().endswith(text.strip()) and text.rstrip().endswith("?") and len(text) < 400 \
                 and re.match(r"\s*Step\s+\d", text):
-            text = "To work out your exact fee I still need this one detail.\n\n" + text
             st_prog = fees.find_program(str(((await memory.get_conversation_state(session_id, conversation_id))
                                              .get("fee_intake") or {}).get("program") or ""))
+            said_prog = fee_intake.parse_details(message or "").get("program")
+            if st_prog and said_prog and fees.find_program(str(said_prog)) == st_prog \
+                    and fee_journey._SWITCH.search(message or ""):
+                text = f"Sure, switching to **{fees.short_name(st_prog)}**.\n\n" + text   # a change of programme
+            elif st_prog and said_prog and fees.find_program(str(said_prog)) == st_prog \
+                    and not fee_intake.is_fee_enquiry(message or ""):
+                lead_p = ("Yes, SR University offers" if _DO_YOU_HAVE.search(message or "") else "Got it,")
+                text = f"{lead_p} **{fees.short_name(st_prog)}**.\n\n" + text              # the programme named
+            else:
+                text = "To work out your exact fee I still need this one detail.\n\n" + text
             if st_prog:
                 suggestions, exact_chips = list(suggestions or []) + [f"Just show the {fees.short_name(st_prog)} fee"], True
     except Exception:
         pass
+    if re.match(r"\s*Step\s+\d", text) and _DO_YOU_HAVE.search(message or "") and fees.find_program(message or "") \
+            and "SR University offers" not in text:
+        text = f"Yes, SR University offers **{fees.short_name(fees.find_program(message))}**.\n\n" + text
     if await _offer_fee_chart(session_id, conversation_id, cards):
         text = text.rstrip() + "\n\n" + _FEE_CHART_OFFER
         suggestions, exact_chips = ["Yes, prepare my fee chart", "No, thanks"], True
@@ -897,6 +955,10 @@ async def _small_talk_reply(kind: str, message, session_id, conversation_id, *, 
         greeted = any(h.get("role") in ("model", "assistant") for h in (history or []))
         key = "greeting_again" if (kind == "greeting" and greeted) else kind
         text = _SMALL_TALK_FALLBACK.get(key, _SMALL_TALK_FALLBACK["greeting"]).format(name=name or "")
+        first = _first_name((profile or {}).get("name")) if (profile or {}).get("address_by_name") is not False else ""
+        if key in ("greeting", "greeting_again") and first and not tools.is_placeholder_name(first):
+            text = (f"Hi again, {first}! What would you like to know next?" if key == "greeting_again"
+                    else f"Hi {first}! What would you like to know about SR University?")
     async for ev in _say(text, message, session_id, conversation_id, suggestions=suggestions, profile=profile):
         yield ev
 
@@ -1557,6 +1619,10 @@ _GENERAL_SCHOLARSHIP = re.compile(
     r"\b(?:merit\s+)?scholarships?\s+(?:details|available|options|structure|policy|criteria|slabs?)\b|"
     r"\bscholarships?\s+for\s+toppers\b|\bdoes\s+(?:sru|sr\s+university)\s+(?:give|offer|provide)\s+scholarships?\b|"
     r"\btell\s+me\s+about\s+(?:the\s+)?scholarships?\b", re.I)
+# "How much fee would I need to pay, and do I get any scholarship?": the student's OWN fee (the evaluation), not
+# the general scholarship table (v4.15.0, 2,000-student test).
+_OWN_FEE = re.compile(r"\bhow\s+much\b.{0,40}\b(?:i|me|my)\b|\b(?:i|me|my)\b.{0,30}\b(?:pay|payable)\b|"
+                      r"\bmy\s+(?:fee|fees|total)\b|\b(?:will|would|do|can)\s+i\s+get\b.{0,20}\bscholarship", re.I)
 _SIDE_TURN: contextvars.ContextVar[bool] = contextvars.ContextVar("sru_side_turn", default=False)
 _PLACEMENT_Q = re.compile(
     r"\b(?:placements?|placments?|placemnts?|packages?|recruiters?|recruitment|hiring|"
@@ -1573,7 +1639,12 @@ def _side_question(message: str, conv_state: dict) -> bool:
         return False
     if fee_intake.is_fee_enquiry(text) and not re.search(r"\b(?:hostel|room|mess|bus|transport)\b", text, re.I):
         return False                                     # a fee question continues the fee steps
-    if intake.get("waiting_for") == "program" and fees.find_program(text) and not _SIDE_TOPIC.search(text):
+    # A programme's own label is an answer, even when it has words like "ICAR Accredited" in brackets (v4.15.0)
+    if intake.get("waiting_for") == "program" and fees.find_program(text) \
+            and re.search(r"\b(?:details?|about|tell\s+me|info(?:rmation)?|explain|overview)\b", text, re.I):
+        return True     # "B.Sc Agriculture details": a question about the programme, answered first (v4.15.0)
+    if intake.get("waiting_for") == "program" and fees.find_program(text) \
+            and not _SIDE_TOPIC.search(re.sub(r"\([^)]*\)", " ", text)):
         return False
     return bool(_SIDE_TOPIC.search(text))
 
@@ -1584,12 +1655,15 @@ def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
     if app_settings.get("fee_questions") != "evaluate_first":
         return False
     text = message or ""
-    if not fee_intake.is_fee_enquiry(text) or _FEE_STANDARD_ONLY.search(text) or _FEE_OTHER_TOPIC.search(text) \
-            or _GENERAL_SCHOLARSHIP.search(text):
+    if not fee_intake.is_fee_enquiry(text) or _FEE_STANDARD_ONLY.search(fee_intake._PAY_HOW_MUCH.sub(" fee ", text)) \
+            or _FEE_OTHER_TOPIC.search(text) \
+            or (_GENERAL_SCHOLARSHIP.search(text) and not _OWN_FEE.search(text)):
         return False
     if _FEE_CHART_REQUEST.search(text) or _concession_requested(text) or tools.find_phone(text) \
             or intents.is_callback_request(text):
         return False
+    if _DISCOUNT_ASK.search(text) and (fee_plan.infer_concession(text) or fee_plan.concessions_for_group(text)):
+        return False   # "my brother studies at SRU, any discount?": that concession is the answer (v4.15.0)
     intake = conv_state.get("fee_intake") or {}
     evaluation = conv_state.get(fee_journey.KEY) or {}
     if intake.get("waiting_for") not in (None, "done") or (evaluation.get("active") and not evaluation.get("final_shown")):
@@ -1598,7 +1672,7 @@ def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
 
 
 _DISCOUNT_ASK = re.compile(r"\b(?:discounts?|concessions?|reductions?|waivers?|fee\s+relief|less\s+fee|benefits?|"
-                           r"offers?|rebate)\b", re.IGNORECASE)
+                           r"offers?|rebate|quota)\b", re.IGNORECASE)
 _CUTOFF_FACT = re.compile(
     r"\bclosing\s+(?:rank|cut[- ]?off|marks?)|\bcut[- ]?off\s+(?:rank|ranks)\b|\brank\s+cut[- ]?off|"
     r"\blast\s+year'?s?\s+(?:closing|cut[- ]?off|ranks?)\b|\b(?:cut[- ]?off|closing)\b.{0,40}\blast\s+year\b",
@@ -1608,6 +1682,15 @@ _CUTOFF_TEXT = (
     f"Office can confirm ({config.ADMISSIONS_PHONE}). Admission depends on meeting the programme's eligibility and on "
     "seat availability. Your EAPCET rank or JEE Main percentile also counts for the merit scholarship, and the best "
     "of your scores applies.")
+
+
+# v4.15.0: the number of seats is not on the official pages: said plainly, never guessed (2,000-student test).
+_SEATS_Q = re.compile(r"\bhow\s+many\s+seats\b|\b(?:number|no\.?)\s+of\s+seats\b|\bseat\s+(?:intake|matrix|count|capacity)\b|"
+                      r"\btotal\s+seats\b|\bseats\s+(?:available|are\s+there)\b|\bintake\s+(?:for|in|of)\b", re.IGNORECASE)
+_SEATS_TEXT = (
+    "The number of seats in each programme isn't published on the official SR University pages I use, so I can't "
+    f"give a verified figure: the Admissions Office can confirm it ({config.ADMISSIONS_PHONE}, info@sru.edu.in). "
+    "Seats are filled on eligibility and merit, so applying early helps.")
 
 
 def _concession_requested(message: str):
@@ -1775,6 +1858,11 @@ async def _resolve_sub_query(sub_q: str, topic: str, session_id: str) -> tuple[s
 # calculation after. Done once, at the start of the turn, before any workflow reads the marks; a stale value
 # (old raw marks next to a new percentage) is removed, not left beside it. The reply then confirms the update.
 _MARKS_NOTE: contextvars.ContextVar[str] = contextvars.ContextVar("sru_marks_note", default="")
+_DO_YOU_HAVE = re.compile(r"^\W*(?:do\s+you\s+(?:have|offer)|is\s+there|does\s+(?:sru|sr\s+university)\s+(?:have|offer)|"
+                          r"is\s+\S+(?:\s+\S+)?\s+(?:available|offered))\b", re.IGNORECASE)
+_CORRECTION_LEAD = re.compile(r"^\W*(?:no|nope|nah|nahi|nahin|kaadu|ledu|not|wrong|sorry|actually|wait|oops|galti)\b|"
+                              r"\b(?:wrong|mistake|correct\s+marks|actual\s+marks|real\s+marks|galti|sorry)\b",
+                              re.IGNORECASE)
 _MARKS_WORDS = re.compile(r"\b(?:marks?|percent(?:age)?|scored?|got|out\s+of|cgpa|gpa|aggregate)\b|%|\d\s*/\s*\d", re.I)
 
 
@@ -1803,6 +1891,8 @@ async def _sync_marks(message: str, session_id: str, conversation_id, profile: d
     waiting_marks = intake.get("waiting_for") in ("marks", "marks_max", "percent")
     if not (_MARKS_WORDS.search(message or "") or waiting_marks):
         return profile
+    if fee_intake._marks_problem(message, d, None, {**profile, **intake}, intake.get("waiting_for") or "marks"):
+        return profile                                    # marks that can't be right are never saved
     old_raw = intake.get("raw_marks", profile.get("raw_marks"))
     old_pct = intake.get("percent", profile.get("percent"))
     old_max = intake.get("max_marks") or profile.get("max_marks")
@@ -1828,6 +1918,11 @@ async def _sync_marks(message: str, session_id: str, conversation_id, profile: d
         else:
             clear = ["percent", "max_marks"]               # unknown total: the old percentage must not stay
     if fields.get("raw_marks") == old_raw and fields.get("percent", old_pct) == old_pct:
+        if _CORRECTION_LEAD.match(message or "") and (old_raw is not None or old_pct is not None):
+            # "No, my marks are 50%" with the same marks: confirmed (and the "No" is not an answer to the step)
+            _MARKS_NOTE.set(_marks_text(old_raw if fields.get("raw_marks") is not None else None,
+                                        intake.get("max_marks") or profile.get("max_marks"),
+                                        fields.get("percent", old_pct)))
         return profile                                    # the same marks again: nothing changes
     profile = await memory.update_profile(session_id, **fields)
     if clear:
@@ -1844,6 +1939,23 @@ async def _sync_marks(message: str, session_id: str, conversation_id, profile: d
     return profile
 
 
+# v4.15.0 (2,000-student test): the misspellings students type most, read as the word they meant, so "hostal fees?"
+# is about the hostel (it started a programme fee evaluation) and "eligiblity" finds the eligibility rule.
+_TYPOS = [(re.compile(p, re.IGNORECASE), w) for p, w in (
+    (r"\bhost(?:a|e)?ls?\b(?<!\bhostels)(?<!\bhostel)", "hostel"), (r"\bhostle?s?\b", "hostel"),
+    (r"\bfe(?:es?s|ez|ss)\b", "fees"), (r"\bplac(?:e)?m(?:e|a)?nt(s)?\b", r"placement\1"),
+    (r"\beligi?bi?li?ty\b", "eligibility"),
+    (r"\bcampas\b", "campus"), (r"\bevnts\b", "events"), (r"\badmi?s+ion\b", "admission"),
+    (r"\bcolle?a?ge\b", "college"), (r"\bcoures?\b|\bcorse\b", "course"))]
+
+
+def _fix_typos(message: str) -> str:
+    out = message
+    for rx, word in _TYPOS:
+        out = rx.sub(word, out)
+    return out
+
+
 async def run_agent(
     message: str,
     session_id: str,
@@ -1855,7 +1967,7 @@ async def run_agent(
     """Async generator of events for one student message.
     form: a submitted academic details form (structured; see _read_academic_form)."""
     started = time.perf_counter()
-    message = (message or "").strip()[:config.AGENT_MAX_MESSAGE_CHARS]
+    message = _fix_typos((message or "").strip()[:config.AGENT_MAX_MESSAGE_CHARS])
     yield {"type": "start", "conversation_id": conversation_id}
     if not message:
         yield {"type": "error", "detail": "Please type a question."}
@@ -1899,14 +2011,30 @@ async def run_agent(
             profile = await memory.update_profile(session_id, phone=extracted_phone)
         existing_name = str(profile.get("name") or "").strip()
         existing_phone = tools.clean_phone(profile.get("phone") or "")
+        gate_pending = conv_state.get("gate_pending")
+        only_details = bool(extracted_name or extracted_phone) and not re.search(r"\?|\b(?:fee|fees|call|counsell?or|"
+                                                                                 r"scholarship|hostel|admission)\b",
+                                                                                 message, re.I)
 
-        if not (existing_name and existing_phone):
+        if existing_name and existing_phone and gate_pending and only_details:
+            # v4.15.0: the student was asked for their name (or number) before a request, and gave it: carry out
+            # the request they made ("call me back"), instead of leaving it behind.
+            conv_state["gate_pending"] = None
+            await memory.update_conversation_state(session_id, conversation_id, gate_pending=None)
+            ctx["profile"] = profile
+            natural_name = _natural_first_name(profile, history)
+            message = gate_pending
+        elif not (existing_name and existing_phone):
+            if not only_details:
+                conv_state["gate_pending"] = message
+                await memory.update_conversation_state(session_id, conversation_id, gate_pending=message)
             if not existing_name and not existing_phone:
-                reply = "Before I can help, please provide your full name and 10-digit mobile number."
+                reply = ("Before I can help, please share your full name and 10-digit mobile number, and I'll take it "
+                         "from there.")
             elif not existing_name:
-                reply = "Please provide your full name before I answer your question."
+                reply = "May I have your full name first? Then I'll take care of that right away."
             else:
-                reply = "Please provide your 10-digit mobile number before I answer your question."
+                reply = "May I have your 10-digit mobile number first? Then I'll take care of that right away."
             async for ev in _say(reply, message, session_id, conversation_id):
                 yield ev
             return
@@ -1990,6 +2118,15 @@ async def run_agent(
             dlg_busy = fee_intake.decide(message, profile, dict(intake_now)) is not None
         except Exception:
             dlg_busy = False
+    # v4.15.0: this message answers the open fee step ("AI and Robotics" to "which programme?"): no topic answer
+    # (labs, programmes...) may take it; the steps continue.
+    step_answer = bool(dlg_busy and not side_q and intake_now.get("waiting_for") not in (None, "done"))
+    if _SEATS_Q.search(message or "") and not step_answer:   # a figure SRU doesn't publish: said plainly
+        async for ev in _reply(_SEATS_TEXT, message, session_id, conversation_id,
+                               suggestions=["How do I apply?", "Check my eligibility", "Talk to a counsellor"],
+                               client=client, history=history, profile=profile, conv_state=conv_state):
+            yield ev
+        return
     # ---- "What is the eligibility (for it)?": the RULE for the programme named or already being discussed, then
     # the offer to check the student's own marks (v4.13.0: information asked, information given; "am I eligible?"
     # is the action and still goes to the check).
@@ -2030,6 +2167,8 @@ async def run_agent(
             "last_reply": last_reply,
             "selected_concession": conv_state.get("selected_concession"),
             "fuzzy_concession": _concession_requested(message),
+            "marks_corrected": bool(_MARKS_NOTE.get()) and not _other_program_named(message, conv_state),
+            "evaluate_first": app_settings.get("fee_questions") == "evaluate_first",
             "offer": conv_state.get("offer"),
             "seed": f"{session_id}{len(history)}",
         })
@@ -2089,6 +2228,7 @@ async def run_agent(
     # ---- "What scholarships does SRU give?" (v4.14.0, 1,000-student test): the merit scholarship slabs from the
     # official fee data, then the offer to work out the student's own. (It used to start the step questions at once.)
     if not fee_plan_turn and _GENERAL_SCHOLARSHIP.search(message or "") and not re.search(r"\d", message or "") \
+            and not _OWN_FEE.search(message or "") \
             and compound.plan(message, profile) is None:
         sch_prog = fees.find_program(message or "") or conv_state.get("active_program") \
             or profile.get("program_interest") or "btech_cse"
@@ -2236,7 +2376,9 @@ async def run_agent(
         "HOSTEL_FEE_QUERY", "HOSTEL_MESS_QUERY", "HOSTEL_SAFETY_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
         "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ABOUT_SRU_QUERY",
     }
-    if legacy_intent in _SPECIFIC_FLOW_INTENTS:
+    if step_answer and not intents.is_callback_request(message):
+        intent = "GENERAL"            # the open fee step answers it (below)
+    elif legacy_intent in _SPECIFIC_FLOW_INTENTS:
         intent = legacy_intent
     elif routing_decision.policy_id and not routing_decision.is_fallback:
         mapped_intent = _SEMANTIC_TO_AGENT_INTENT.get(routing_decision.intent_id)
@@ -2565,6 +2707,29 @@ async def run_agent(
         kind = chat if chat in _SMALL_TALK_BRIEFS else "greeting"
         if chat == "greeting" and not profile.get("name"):
             kind = "greeting_ask_name"
+        step = _open_step(profile, conv_state) if chat in ("greeting", "how_are_you") and profile.get("name") else None
+        if step:
+            # A greeting in the middle of the fee steps: say hello, then the same question again (nothing reset).
+            first = _first_name(profile.get("name")) if profile.get("address_by_name") is not False else ""
+            hello = ("I'm doing well, thanks for asking!" if chat == "how_are_you"
+                     else f"Hi{', ' + first if first else ''}!")
+            if _use_model(client):   # the hello is written for this conversation; the step itself stays exact
+                words = await _model_words(
+                    "REPLY BRIEF: The student said hello (or asked how you are) in the middle of their fee estimate. "
+                    "Reply warmly in ONE short sentence (use their first name if known) and say you'll carry on with "
+                    "the estimate. Do not ask any question and do not mention amounts.", message, session_id,
+                    history=history, profile=profile, conv_state=conv_state, client=client)
+                if words and "?" not in words and len(words) < 200:
+                    hello = words.strip()
+            if step.get("fee_state"):
+                await set_state(**{fee_journey.KEY: step["fee_state"]})
+            joined = hello if re.search(r"carry on|continue|pick up", hello, re.I) else \
+                f"{hello} Let's carry on with your fee estimate."
+            async for ev in _say(f"{joined}\n\n{step['text']}", message,
+                                 session_id, conversation_id, cards=step["cards"], suggestions=step["chips"],
+                                 exact_chips=True, profile=profile, resume=False):
+                yield ev
+            return
         # Starting points after a greeting; nothing after "thanks" / "bye" (the student is wrapping up).
         chips = [] if chat in ("thanks", "bye") else _SMALL_TALK_CHIPS
         async for ev in _small_talk_reply(kind, message, session_id, conversation_id, client=client, history=history,
@@ -2574,7 +2739,8 @@ async def run_agent(
 
     # ---- 1b. Deterministic quick responses (placement assistance, special concessions, next-gen tech, fee tree, all programs) ----
     # "Change my academic details / marks": forget them for this chat and ask again, one step at a time.
-    if _CHANGE_ACADEMIC.search(message) and not tools.find_phone(message):
+    _has_marks = any(fee_intake.parse_details(message).get(k) is not None for k in ("raw_marks", "percent"))
+    if _CHANGE_ACADEMIC.search(message) and not tools.find_phone(message) and not _has_marks:
         keys = [k for k in fee_intake._ACADEMIC_FIELDS if profile.get(k) not in (None, "")]
         if keys or (conv_state.get("fee_intake") or {}).get("ineligible"):
             profile = await memory.remove_profile_keys(session_id, *keys) if keys else profile
@@ -2688,22 +2854,30 @@ async def run_agent(
 
     # A student describing a special category ("my brother studies at SRU, any discount?"): the concessions, with
     # that category named, not the scholarship steps (v4.13.0, docs/36 rule 1: the meaning before the keyword).
-    described = fee_plan.infer_concession(message) if _DISCOUNT_ASK.search(message or "") else None
-    if intent == "SPECIAL_CONCESSIONS_QUERY" or described:
+    asks_discount = bool(_DISCOUNT_ASK.search(message or ""))
+    group = fee_plan.concessions_for_group(message) if asks_discount and not fee_plan.find_concession(message) else []
+    described = fee_plan.infer_concession(message) if asks_discount and not group else None
+    if intent == "SPECIAL_CONCESSIONS_QUERY" or described or group:
         # The answer IS the table (pick a row to apply it to your fee), so it is shown every time it is asked,
         # with a one-line lead instead of the list in text.
         data = fees.special_concessions()
         lead = responses.special_concessions_lead(data, active_program)
-        if described:
+        if group:
+            lead = ("These official concessions may fit:\n\n"
+                    + "\n".join(f"• **{g['label']}**: {fees.inr(g['amount'])} a year" for g in group)
+                    + "\n\nEach is applied only after the Admissions Office verifies the proof: pick the one that "
+                      "applies below to see what it would mean for your fee.")
+        elif described:
             lead = (f"The **{described['label']}** concession (**{fees.inr(described['amount'])} a year**) looks like "
                     "it fits. It is applied only after the Admissions Office verifies the proof: pick it below to see "
                     "what it would mean for your fee.")
-        async for ev in _say(lead, message,
-                             session_id, conversation_id,
-                             used=[{"name": "get_special_concessions", "status": "ok", "is_action": False}],
-                             cards=[fee_plan.concession_card(active_program, in_evaluation=False)],
-                             suggestions=["Calculate my scholarship", "Documents needed for the concession"],
-                             exact_chips=True):
+        async for ev in _reply(lead, message,
+                               session_id, conversation_id,
+                               used=[{"name": "get_special_concessions", "status": "ok", "is_action": False}],
+                               cards=[fee_plan.concession_card(active_program, in_evaluation=False)],
+                               suggestions=["Calculate my scholarship", "Documents needed for the concession"],
+                               exact_chips=True, client=client, history=history, profile=profile,
+                               conv_state=conv_state):
             yield ev
         return
 
@@ -2783,10 +2957,10 @@ async def run_agent(
     fact_aspects = fact_service.detect_aspects(message)
     # (A step that is waiting for marks or a board does not stop this: "is SRU NBA accredited?" in the middle
     # of the scholarship steps is a new question; the transactional check keeps answers like "85%" out.)
-    about_university = intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") or (
+    about_university = not step_answer and (intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") or (
         intent == "GENERAL" and not _TRANSACTIONAL_WORDS.search(message or "")
         and (set(fact_aspects) & _UNIVERSITY_FACT_ASPECTS
-             or (responses._CHALLENGE.search(message or "") and _NAMES_SRU.search(message or ""))))
+             or (responses._CHALLENGE.search(message or "") and _NAMES_SRU.search(message or "")))))
     facts_note = None
     if about_university:
         shown_facts = list(conv_state.get("facts_shown") or [])
@@ -3390,6 +3564,13 @@ async def run_agent(
             if intake_decision and intake_decision["action"] == "ineligible":
                 await set_state(fee_intake={k: v for k, v in intake_decision["state"].items()
                                             if k in ("program", "ineligible", "counsellor_mode")})
+                # v4.15.0: the marks given are still the student's marks (other programmes, a later question)
+                kept = {k: intake_decision["state"].get(k) for k in ("percent", "raw_marks", "max_marks", "board",
+                                                                     "board_key", "board_label", "academic_stage")
+                        if intake_decision["state"].get(k) not in (None, "")}
+                if kept.get("percent") is not None:
+                    profile = await memory.update_profile(session_id, **kept)
+                    ctx["profile"] = profile
                 async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
                                      cards=[],
                                      suggestions=intake_decision.get("chips", []),

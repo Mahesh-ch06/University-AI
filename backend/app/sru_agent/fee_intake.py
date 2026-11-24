@@ -25,6 +25,8 @@ from . import config, fees
 
 FEE_PORTAL_URL = config.FEE_PORTAL_URL
 
+_PAY_HOW_MUCH = re.compile(r"\bhow\s+much\b.{0,30}?\b(?:will|would|do|should|must|have\s+to)\s+(?:i\s+)?(?:have\s+to\s+)?pay\b|"
+                           r"\bwhat\s+(?:will|would)\s+i\s+pay\b", re.IGNORECASE)
 _FEE_WORDS = re.compile(
     r"\b(?:fee|fees|fess|feez|tuition|cost|costs|(?:schol\w*|s[ck]?h?o[lr]+[ae]?r?s+h?i*p+\w*)|how\s+much|per\s+sem\w*|payable|"
     r"calculate|calculation|estimate)\b",
@@ -60,7 +62,9 @@ _STAGE_2ND = re.compile(
     re.IGNORECASE,
 )
 _STAGE_COMPLETED = re.compile(
-    r"\b(?:completed|passed(?:\s*out)?|finished|dropper|passed|already\s*passed|passout|10\+2\s*completed)\b",
+    r"\b(?:completed|passed(?:\s*out)?|finished|dropper|passed|already\s*passed|passout|10\+2\s*completed|"
+    r"a(?:y)?ipo(?:y)?indi|complete\s*a(?:y)?indi|pass\s*a(?:y)?(?:y|i)(?:a|anu|indi)?|"
+    r"(?:pass|complete|khatam|khatm|finish)\s*(?:ho\s*)?(?:gaya|gayi|hogaya|ho\s+chuka)|done\s+with\s+(?:inter|12th))\b",
     re.IGNORECASE,
 )
 
@@ -84,6 +88,13 @@ _STATE_BOARD = re.compile(
     r"other\s*state\s*board)\s*(?:state\s*)?(?:board|inter(?:mediate)?|hsc|puc?|12th)?)\b",
     re.IGNORECASE,
 )
+# v4.15.0: the short answers students type to "which board?": "telangana", "ts", "AP", "andhra", "state".
+_BARE_STATE = re.compile(
+    r"\s*(?:i\s+(?:studied|am|was)\s+(?:in|from)\s+|from\s+|in\s+)?(?:ts|tg|ap|telangana|telengana|telagana|andhra(?:\s*pradesh)?"
+    r"|state|ts\s*inter|ap\s*inter)(?:\s+(?:state|board|borad|bord|baord|state\s+(?:board|borad|bord)|inter))?"
+    r"(?:\s+(?:pls|plz|please|bro|sir|madam|anna|ji))?\s*[.!?]*\s*",
+    re.IGNORECASE,
+)
 _CBSE = re.compile(r"\bcbse\b", re.IGNORECASE)
 _ICSE = re.compile(r"\b(?:icse|isc)\b", re.IGNORECASE)
 _NIOS = re.compile(r"\b(?:nios|national\s+institute\s+of\s+open\s+schooling)\b", re.IGNORECASE)
@@ -101,6 +112,16 @@ _STANDARD_ONLY = re.compile(
     r"\bjust\s+(?:show\s+)?(?:the\s+)?(?:fee|fees|standard)\b|\bskip\b(?!\s*,?\s*use\s+my)",
     re.IGNORECASE,
 )
+
+_QUALIFYING_DEGREE = re.compile(
+    r"\b(?:i\s+(?:did|have\s+done|completed|finished|studied|passed|am\s+doing|'?m\s+doing|am\s+in\s+final\s+year\s+of)"
+    r"|(?:my\s+)?(?:degree|graduation|ug|qualification)\s*(?:is|was|:|in)?|graduated\s+(?:in|with)|done\s+(?:my\s+)?)"
+    r"\s+(?:my\s+|a\s+|an\s+|the\s+)?(?P<deg>b\.?\s?(?:com|sc|tech|e|ba|ca|a|pharm|des)\b\.?(?:\s*\(?[a-z&]{2,10}\)?)?|bba|bca|"
+    r"b\.?\s?com|engineering|commerce|science|arts)",
+    re.IGNORECASE,
+)
+_WANTS_PROGRAM = re.compile(r"\b(?:want|wanna|interested|join|apply|admission|fees?\s+for|looking\s+for|planning|"
+                            r"prefer|choose|opt)\b", re.IGNORECASE)
 
 _BOARD_LABEL = {
     "state_board": "Telangana / AP / State Board (All India)",
@@ -371,9 +392,10 @@ def parse_details(message: str) -> dict:
         else:
             out["board_label"] = "CBSE"
             out["board_key"] = "cbse"
-    elif _STATE_BOARD.search(message or ""):
+    elif _STATE_BOARD.search(re.sub(r"\b(?:borad|bord|baord)\b", "board", message or "", flags=re.I)) \
+            or _BARE_STATE.fullmatch(message or ""):
         out["board"] = "state_board"
-        if re.search(r"\b(?:ts|tg|telangana|tsbie|biets)\b", low):
+        if re.search(r"\b(?:ts|tg|telangana|telengana|telagana|tsbie|biets)\b", low):
             out["board_label"] = "Telangana Intermediate (TSBIE)"
             out["board_key"] = "ts_state_board"
         elif re.search(r"\b(?:ap|andhra|bieap)\b", low):
@@ -386,8 +408,13 @@ def parse_details(message: str) -> dict:
             out["board_label"] = "Telangana / AP State Board"
             out["board_key"] = "ts_state_board"
 
-    # Stage detection
-    if _STAGE_2ND.search(message or "") and not (re.search(r"\b(?:completed|passed)\s+1st\s+year\b", low) and not re.search(r"\b(?:in|studying|currently|in\s+the)\s*2nd\b", low)):
+    # Stage detection. "Completed Intermediate / Class 12 (passed out)" is completed, not 2nd year (v4.15.0).
+    if _STAGE_COMPLETED.search(message or "") and not re.search(
+            r"\b(?:studying|currently|now\s+in|appearing|writing|not\s+(?:yet\s+)?(?:completed|finished|passed))\b", low):
+        out["academic_stage"] = "completed"
+        out["stage_label"] = "Completed Intermediate (Passed out)"
+        out["is_projected"] = False
+    elif _STAGE_2ND.search(message or "") and not (re.search(r"\b(?:completed|passed)\s+1st\s+year\b", low) and not re.search(r"\b(?:in|studying|currently|in\s+the)\s*2nd\b", low)):
         out["academic_stage"] = "2nd_year"
         out["stage_label"] = "Intermediate 2nd Year (12th)"
         out["is_projected"] = True
@@ -489,6 +516,14 @@ def parse_details(message: str) -> dict:
         out["board_label"] = "International Baccalaureate (IB)"
         out["board_key"] = "ib"
 
+    # v4.15.0: "I did BCom" / "I completed B.Tech" / "my degree is BSc" is the student's own qualifying degree (an
+    # answer to the MBA / M.Tech degree question), not a change of the programme they want to join.
+    qual = _QUALIFYING_DEGREE.search(message or "")
+    if qual and not _WANTS_PROGRAM.search(message or ""):
+        out["qualifying_degree"] = re.sub(r"\s+", " ", qual.group("deg")).strip()
+        for k_q in ("program", "program_raw", "specialization", "generic_btech"):
+            out.pop(k_q, None)
+
     if _NO_ENTRANCE.search(message or ""):
         out["no_entrance"] = True
     if _STANDARD_ONLY.search(message or ""):
@@ -512,6 +547,62 @@ def parse_details(message: str) -> dict:
     return out
 
 
+_NOT_KNOWN = re.compile(r"\b(?:don'?t\s+know|dont\s+know|not\s+sure|no\s+idea|forgot|don'?t\s+remember|idk|dunno|"
+                        r"theliyadu|pata\s+nahi?)\b", re.IGNORECASE)
+_NONSENSE = re.compile(r"^\s*(?:abc|xyz|asdf|qwerty|nil|test|[^\w\s]+|(\w)\1{2,})\s*$", re.IGNORECASE)
+
+
+def _num_text(v: float) -> str:
+    return str(int(v)) if float(v) == int(v) else f"{v:g}"
+
+
+def _marks_problem(message: str, said: dict, number, known: dict, waiting: str | None) -> str | None:
+    """Why the marks in this answer can't be used, or None (fine, or not a marks answer at all)."""
+    low = (message or "").lower().strip()
+    b_key, s_key = known.get("board_key"), known.get("academic_stage") or "completed"
+    # Only boards with a known total are checked against it (another state's board has none: the student is
+    # asked "out of how many?"); CBSE / ICSE final marks are a percentage.
+    fixed_total = b_key in ("ts_state_board", "ap_state_board", "cbse", "icse", "ib")
+    percent_only = waiting == "degree_percent" or (fixed_total and get_max_marks(b_key, s_key) <= 100)
+    max_m = 100 if percent_only else (get_max_marks(b_key, s_key) if fixed_total else None)
+    frac = re.search(r"(-?\d+(?:\.\d+)?)\s*(?:marks\s+)?(?:/|out\s+of)\s*(\d+(?:\.\d+)?)", low)
+    if frac:
+        obt, tot = float(frac.group(1)), float(frac.group(2))
+        if obt > tot:
+            return f"**{_num_text(obt)}** is more than the maximum of {_num_text(tot)}, so it can't be right."
+        if obt <= 0 or tot <= 0:
+            return "Marks can't be zero or negative."
+        return None
+    if re.search(r"(?:^|\s)-\s*\d", low):
+        return "Marks can't be negative."
+    pct = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|percent|per\s*cent|percentage)", low)
+    if pct:
+        value = float(pct.group(1))
+        if value > 100 and not (max_m and max_m > 100 and value <= max_m):   # "866%" with a 1000 total: marks
+            return "A percentage can't be more than 100."
+        return None
+    raw = said.get("raw_marks") if said.get("raw_marks") is not None else number
+    if raw is not None and max_m:
+        raw = float(raw)
+        if raw <= 0:
+            return "Marks can't be zero or negative."
+        if max_m > 100 and raw < 35:
+            return (f"**{_num_text(raw)}** looks too low. Please enter your marks out of {max_m} (for example "
+                    f"{int(max_m * 0.87)}) or your percentage (for example 87%).")
+        if max_m > 100 and raw > max_m and not (35 <= raw <= 100):
+            return f"**{_num_text(raw)}** is more than the maximum of {max_m} marks, so it can't be right."
+        if max_m <= 100 and raw > 100:
+            return ("That looks like marks, not a percentage. Please enter your percentage (for example 87.5), or "
+                    "your marks with the total (for example 435 out of 500).")
+        return None
+    if _NOT_KNOWN.search(low):
+        return ("No problem. An approximate figure is fine for an estimate (you can correct it any time), or tap "
+                "**Just show the fee** for the standard fee.")
+    if _NONSENSE.match(low):
+        return "I need your marks as a number."
+    return None
+
+
 def _bare_number(message: str):
     m = re.fullmatch(r"\s*(\d{1,6}(?:\.\d+)?)\s*%?\s*", message or "")
     return float(m.group(1)) if m else None
@@ -531,9 +622,11 @@ def is_fee_enquiry(message: str) -> bool:
         return False
     if intents._FUTURE_YEAR_FEE_PATTERN.search(message or ""):
         return False
-    if _OTHER_FEE_TOPIC.search(message or ""):
+    # "How much do I pay for AI & Robotics?" is the programme fee (v4.15.0), not a payment-method question.
+    msg_core = _PAY_HOW_MUCH.sub(" fee ", message or "")
+    if _OTHER_FEE_TOPIC.search(msg_core):
         return False
-    if bool(_FEE_WORDS.search(message or "")):
+    if bool(_FEE_WORDS.search(msg_core)):
         return True
     if _COUNSELLOR_TRIGGER.search(message or ""):
         return True
@@ -553,6 +646,19 @@ def _counsellor_pg(prog_key: str, known: dict, said: dict, state: dict, intake: 
         prog_key, specialization=known.get("specialization"), user_text=known.get("program_raw"),
     )
     wants_standard = bool(said.get("standard_only") or said.get("skip"))
+    if degree_pct is None and not wants_standard and said.get("qualifying_degree") \
+            and intake.get("waiting_for") == "degree_percent":
+        state["waiting_for"] = "degree_percent"
+        deg = said["qualifying_degree"]
+        text = (f"Noted, your degree is **{deg}**. What percentage did you score (or expect to score) in it?")
+        card = build_counsellor_marks_card(
+            board_key=None, stage_key="completed", max_marks=100, board_label="your qualifying degree",
+            title="What percentage did you score in your degree?",
+            subtitle="Enter your aggregate percentage in the qualifying degree (final or expected).",
+            step_label="Step 1: Degree Percentage",
+        )
+        return {"action": "ask", "text": text, "chips": ["70%", "80%", "90%", "Just the standard fee"],
+                "cards": [card], "state": state}
     if degree_pct is None and not wants_standard:
         state["waiting_for"] = "degree_percent"
         text = (
@@ -662,12 +768,28 @@ def _decide(message: str, profile: dict, intake: dict | None, first_name: str | 
     # The 10+2 subject group (MPC / BiPC / other). Acronyms are read anywhere; words like "commerce" or
     # "arts" only as the answer to our own subjects question.
     stream = eligibility.parse_stream(message)
-    if stream and (stream in ("MPC", "BiPC") and re.search(r"\b(?:mpc|pcm|bipc|pcb)\b", (message or "").lower())
+    if stream and (stream in ("MPC", "BiPC") and re.search(r"\b(?:mpc|pcm|bipc|pcb)\b|maths?\W{0,3}(?:and\s+)?physics|"
+                                                           r"physics\W{0,3}(?:and\s+)?(?:chemistry|biology)|biology\W{0,3}"
+                                                           r"(?:and\s+)?physics", (message or "").lower())
                    or (intake or {}).get("waiting_for") == "stream"):
         said["stream"] = stream
     active = bool(intake) and int(intake.get("turns", 0)) < 10
     number = _bare_number(message)
 
+    # v4.15.0: marks that can't be right ("1200 out of 1000", "-5", "985" when the total is 470, "150%", "abc")
+    # are not used: the same marks question again, with what was wrong. Nothing is saved from them.
+    if active and intake.get("waiting_for") in ("marks", "marks_max", "percent", "degree_percent"):
+        problem = _marks_problem(message, said, number, {**{k: profile.get(k) for k in ("board_key", "academic_stage")}, **intake}, intake.get("waiting_for"))
+        if problem:
+            again = _decide("Calculate my scholarship", profile, dict(intake), first_name)
+            if again and again.get("action") == "ask":
+                return {**again, "text": f"{problem}\n\n{again.get('text') or ''}".strip(), "state": dict(intake)}
+
+    if number is None and active and intake.get("waiting_for") in ("marks", "percent", "degree_percent") \
+            and said.get("percent") is None and said.get("max_marks") is None:
+        nums = re.findall(r"(?<![\d.])\d{2,4}(?:\.\d+)?(?![\d.])", message or "")
+        if len(nums) == 1 and not (said.keys() - {"raw_marks", "needs_marks_confirmation", "generic_btech"}):
+            number = float(nums[0])
     if not is_fee_enquiry(message):
         # Only a reply to our own question continues the intake (a number, a board, "no JEE"...).
         reply_like = (bool(said.keys() - {"generic_btech"}) or number is not None
@@ -678,6 +800,8 @@ def _decide(message: str, profile: dict, intake: dict | None, first_name: str | 
             reply_like = True
         if not (active and reply_like):
             return None
+        if intake.get("waiting_for") == "done" and not (set(said) & set(_ACADEMIC_FIELDS)):
+            return None   # the steps are finished: a programme named in another question is not an answer (v4.15.0)
 
     # Determine whether counsellor mode is active or newly requested
     counsellor_mode = bool(intake.get("counsellor_mode")) or bool(said.get("counsellor_triggered"))
@@ -750,8 +874,19 @@ def _decide(message: str, profile: dict, intake: dict | None, first_name: str | 
             b_key = known.get("board_key")
             s_key = known.get("academic_stage")
             max_m = get_max_marks(b_key, s_key)
+            if said.get("percent") is not None and said.get("raw_marks") is None:
+                # "92%" when asked for marks out of 1000: a percentage, never 92 marks (v4.15.0)
+                known["percent"] = float(said["percent"])
+                for k_p in ("raw_marks", "max_marks", "pending_raw_marks", "needs_marks_confirmation"):
+                    known.pop(k_p, None)
+                number = None
             if number is not None:
-                if max_m > 100:
+                if max_m > 100 and 35 <= number <= 100:
+                    # "87" when asked for marks out of 1000: a percentage (87 marks would be 8.7%) (v4.15.0)
+                    known["percent"] = number
+                    for k_p in ("raw_marks", "max_marks", "pending_raw_marks", "needs_marks_confirmation"):
+                        known.pop(k_p, None)
+                elif max_m > 100:
                     if number <= max_m:
                         known["raw_marks"] = number
                         known["max_marks"] = max_m
