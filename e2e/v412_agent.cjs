@@ -65,7 +65,7 @@ async function main() {
   admin.errors = [];
   admin.on('pageerror', (e) => admin.errors.push(e.message));
   await admin.goto(ADMIN);
-  await admin.locator('.admin-tab-btn', { hasText: 'Agent' }).click();
+  await admin.locator('.adm-side-link:visible, .admin-tab-btn:visible', { hasText: 'Agent' }).click();
   await admin.waitForSelector('.agc-segment');
   check('A1 admin: Agent tab with the settings', (await admin.locator('.agc-setting-title').count()) >= 2);
 
@@ -123,7 +123,7 @@ async function main() {
   await putSettings({ office_days: [0, 1, 2, 3, 4, 5, 6], office_hours_start: '00:00', office_hours_end: '23:59',
     connect_wait_seconds: 20, connect_enabled: true });
   await admin.reload();
-  await admin.locator('.admin-tab-btn', { hasText: 'Leads' }).click();
+  await admin.locator('.adm-side-link:visible, .admin-tab-btn:visible', { hasText: 'Leads' }).click();
   ({ ctx, page } = await student(browser));
   row = await send(page, 'I want to talk to a counsellor');
   check('D1 student: "Connecting you…" with a countdown', (await row.locator('.ag-connect--waiting .ag-timer').count()) === 1);
@@ -146,12 +146,13 @@ async function main() {
   row = await send(page, 'can I speak to a real person');
   await page.waitForSelector('.ag-connect--busy', { timeout: 35000 });
   const busy = await row.innerText();
-  check('E1 after the wait: "all our counsellors are busy" + callback on ******3210', /All our counsellors are busy/.test(busy) && /\*{6}3210/.test(busy));
+  check('E1 after the wait: callback submitted, by name, on ******3210 (never "Unknown")',
+        /callback request has been submitted, Asha/.test(busy) && /\*{6}3210/.test(busy) && !/Unknown/i.test(busy), busy);
   await page.screenshot({ path: `${outdir}/6-busy.png` });
   await ctx.close();
 
   // 6. copilot
-  await admin.locator('.admin-tab-btn', { hasText: 'Agent' }).click();
+  await admin.locator('.adm-side-link:visible, .admin-tab-btn:visible', { hasText: 'Agent' }).click();
   await admin.locator('button', { hasText: 'Who should I call first?' }).click();
   await admin.waitForSelector('.agc-lead', { timeout: 10000 });
   const first = await admin.locator('.agc-lead').first().innerText();

@@ -1,0 +1,65 @@
+/* Admin dashboard shell (v4.15.0): a sidebar on laptops, a compact top bar + scrollable sections on phones. */
+.admin-container.adm-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: 100vh; height: 100dvh; overflow: hidden; background: var(--surface-2, #f7f8fa); }
+.adm-body { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.adm-body > .admin-main-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+.adm-sidebar { background: #0f2b4f; color: #dbe6f5; display: flex; flex-direction: column; padding: 18px 12px; gap: 18px; min-height: 0; overflow-y: auto; }
+.adm-side-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.adm-side-brand img { width: 36px; height: 36px; border-radius: 9px; background: #fff; object-fit: contain; padding: 3px; }
+.adm-side-name { font-weight: 700; color: #fff; font-size: 0.98rem; letter-spacing: -0.01em; }
+.adm-side-sub { font-size: 0.74rem; color: rgba(219, 230, 245, 0.7); }
+.adm-side-nav { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; }
+.adm-side-link {
+  display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; color: inherit; font: inherit;
+  font-size: 0.88rem; font-weight: 500; text-align: left; padding: 9px 10px; border-radius: 8px; cursor: pointer; min-height: 40px;
+  transition: background-color 0.15s, color 0.15s;
+}
+.adm-side-link:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.adm-side-link.active { background: #297de5; color: #fff; font-weight: 600; }
+.adm-side-link:focus-visible { outline: 2px solid #8ab8f2; outline-offset: 2px; }
+.adm-side-icon { display: inline-flex; flex: 0 0 auto; opacity: 0.9; }
+.adm-side-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-side-count { font-size: 0.72rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: #fff; font-variant-numeric: tabular-nums; }
+.adm-side-link.active .adm-side-count { background: rgba(255, 255, 255, 0.22); }
+.adm-side-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 8px 4px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.adm-side-signout { border: 1px solid rgba(255, 255, 255, 0.2); background: transparent; color: #fff; font: inherit; font-size: 0.82rem; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer; min-height: 34px; }
+.adm-side-signout:hover { background: rgba(255, 255, 255, 0.08); }
+.adm-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: #86e0a8; }
+.adm-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18); }
+
+.adm-topbar.admin-header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; background: var(--surface-1, #fff); border-bottom: 1px solid var(--border, #e4e6eb); min-height: 60px; }
+.adm-top-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.adm-top-logo { display: none; width: 30px; height: 30px; border-radius: 8px; object-fit: contain; border: 1px solid var(--border, #e4e6eb); }
+.adm-top-title { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text-1, #0f1520); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-top-btn { display: inline-flex; align-items: center; gap: 6px; }
+.adm-live--top { display: none; color: #15803d; }
+.admin-header-actions .adm-top-signout { display: none; }
+.admin-nav-bar.adm-mobile-tabs { display: none; }
+.adm-tab-icon { display: inline-flex; vertical-align: -3px; margin-right: 2px; }
+
+@media (max-width: 1024px) {
+  .admin-container.adm-shell { grid-template-columns: minmax(0, 1fr); }
+  .adm-sidebar { display: none; }
+  .admin-nav-bar.adm-mobile-tabs { display: block; }
+  .adm-top-logo { display: block; }
+  .admin-header-actions .adm-top-signout { display: inline-flex; }
+  .adm-live--top { display: inline-flex; }
+  .adm-topbar.admin-header { padding: 10px 16px; }
+}
+@media (max-width: 560px) {
+  .adm-top-btn span { display: none; }
+  .adm-live--top { display: none; }
+  .adm-top-title { font-size: 1rem; }
+}
+
+/* tables scroll inside their card when the sidebar leaves less room; cards keep the page's rhythm */
+.adm-body .admin-table-card { overflow: hidden; }
+.adm-body .admin-table-wrapper { overflow-x: auto; }
+.adm-body .admin-clean-table th, .adm-body .admin-clean-table td { white-space: nowrap; }
+.adm-body .admin-clean-table td.col-name { white-space: normal; min-width: 140px; }
+@media (max-width: 720px) {
+  .adm-body .admin-clean-table th, .adm-body .admin-clean-table td { white-space: normal; }
+}
+@media (min-width: 721px) and (max-width: 1024px) {
+  .adm-body .admin-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
