@@ -456,6 +456,9 @@ def classify_agent_intent(message: str, state: dict | None = None) -> AgentInten
     msg = (message or "").strip().lower()
     if not msg:
         return "GENERAL"
+    # Common misspellings of the words the topics below look for (v4.13.0: "placment record", "scolarship").
+    msg = re.sub(r"\bplac(?:e)?m(?:e|a)?nt(s)?\b", r"placement\1", msg)
+    msg = re.sub(r"\bs[ck]?h?o[lr]+[ae]?r?s+h?i*p+(s)?\b", r"scholarship\1", msg)
 
     state = state or {}
 

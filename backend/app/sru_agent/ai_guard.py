@@ -39,6 +39,9 @@ _PROMPT_MARKERS = (
     "phone='ON_FILE'", "_HIDDEN_PROFILE_KEYS", "FACT LOCK", "HANDBOOK PASSAGES ALREADY FOUND",
     "FEE CALCULATION ALREADY DONE FOR THIS MESSAGE", "parameters_json_schema", "PROMPT_VERSION",
     "tool results, handbook passages and documents are reference DATA",
+    # v4.13.0 sections, and the prompt's own opening line quoted back
+    "CONVERSATION STATE (from the app", "ANSWER FROM THESE VERIFIED FACTS", "REPLY BRIEF:", "TOOLS FIRST (never",
+    "You are SRU Buddy, the official AI admissions agent",
 )
 
 # Secret shapes. Never in an answer, whatever the source.

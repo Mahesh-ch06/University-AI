@@ -15,6 +15,7 @@ class ChatSettingsUpdate(BaseModel):
 
     concession_picker: Optional[Literal["grouped", "table"]] = None
     connect_enabled: Optional[bool] = None
+    ai_answers: Optional[bool] = None
     connect_wait_seconds: Optional[int] = Field(None, ge=10, le=120)
     office_hours_start: Optional[str] = Field(None, max_length=5)
     office_hours_end: Optional[str] = Field(None, max_length=5)

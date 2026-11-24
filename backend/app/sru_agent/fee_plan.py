@@ -46,6 +46,41 @@ def find_concession(text: str) -> dict | None:
     return {"label": best["label"], "amount": int(best["amount"])} if best else None
 
 
+# How students describe themselves -> the official category (label as in the fee data). v4.13.0.
+_DESCRIBED = (
+    (r"\b(?:brother|sister|sibling|cousin\s+(?:brother|sister))\b.{0,50}\b(?:stud(?:y|ies|ying)|enrol\w*|"
+     r"(?:at|in)\s+(?:sru|sr\s+university))", "Sibling (brother or sister) currently enrolled at SR University"),
+    (r"\b(?:alumni|alumnus|alumna|passed\s+out\s+(?:of|from)\s+(?:sru|sr\s+university))\b", "SRU alumni"),
+    (r"\b(?:father|mother|dad|daddy|mom|mum|amma|nanna|parent)\b.{0,30}\b(?:works?|working|employee|staff|faculty|"
+     r"professor)\b.{0,25}\b(?:sru|sr\s+university|here|your\s+university)\b", "Children of regular SR University employees"),
+    (r"\bsr\s+junior\s+college\b", "Students of SR Junior College"),
+    (r"\b(?:army|navy|air\s*force|defen[cs]e|crpf|military|soldier|jawan|martyr)\b", "Children of Defence personnel"),
+    (r"\b(?:police|constable)\b", "Children of State Police personnel"),
+    (r"\b(?:single\s+(?:parent|mother|father|mom|dad)|divorced)\b", "Students with a single living parent"),
+    (r"\b(?:orphan|lost\s+both\s+(?:my\s+)?parents)\b", "Students who have lost both parents"),
+    (r"\bncc\b", "NCC 'C' certificate holders"),
+    (r"\binternational[- ]level\s+(?:sports|player|athlete|champion)", "International-level sports achievers"),
+    (r"\bnational[- ]level\s+(?:sports|player|athlete|champion)|\bsports\s+quota\b", "National-level sports achievers"),
+    (r"\b(?:disab\w+|handicap\w*|pwd)\b", "Students with 50% or above disability"),
+    (r"\bonly\s+girl\s+child\b", "Only girl child from Telangana"),
+)
+
+
+def infer_concession(text: str) -> dict | None:
+    """The concession category a student describes ("my elder brother is studying at SRU" -> the sibling
+    concession), from the official list; None if nothing fits. The exact label in the text wins."""
+    exact = find_concession(text)
+    if exact:
+        return exact
+    low = (text or "").lower()
+    for pattern, label_start in _DESCRIBED:
+        if re.search(pattern, low):
+            for c in fees.load_data().get("special_concessions", []):
+                if c["label"].lower().startswith(label_start.lower()):
+                    return {"label": c["label"], "amount": int(c["amount"])}
+    return None
+
+
 def concession_fee(program: str, concession: dict, profile: dict | None = None) -> dict | None:
     """Tuition for the first year with a special concession. None if the programme is unknown."""
     merit = _merit_args(profile or {})

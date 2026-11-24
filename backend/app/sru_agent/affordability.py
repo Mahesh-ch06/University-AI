@@ -17,9 +17,9 @@ When a student mentions financial difficulty or high fees (e.g. "i can't afford 
 from __future__ import annotations
 
 import re
+from app.services.card_service import build_counsellor_program_card
 from typing import Any
 
-from app.services.card_service import build_fee_scholarship_form_card
 from . import fees
 
 
@@ -317,7 +317,6 @@ def process_affordability_flow(
             f"2. What are your **10+2 marks (%)** or entrance rank (JEE / EAPCET)?"
         )
         chips = ["B.Tech CSE", "B.Tech AI & Robotics", "B.Tech ECE", "BBA", "B.Sc Agriculture"] if level != "pg" else ["MBA", "MCA", "M.Tech CSE"]
-        form_card = build_fee_scholarship_form_card(selected_program=prog_key, level=level, only_selected=bool(prog_key))
 
         new_affordability = {
             "step": "awaiting_academics",
@@ -326,7 +325,8 @@ def process_affordability_flow(
         }
         return {
             "text": reply_text,
-            "cards": [form_card],
+            # v4.13.0: the programme's step card (the older consolidated form is no longer shown)
+            "cards": [] if prog_key else [build_counsellor_program_card(step_label="Preferred Programme")],
             "suggestions": chips,
             "new_state": {**conv_state, "affordability_flow": new_affordability},
         }
@@ -350,7 +350,6 @@ def process_affordability_flow(
                 f"This will allow me to apply your merit scholarship (up to 40% waiver) before we check special concessions."
             )
             chips = ["90% marks", "85% marks", "80% marks", "75% marks", "EAPCET rank 15000"]
-            form_card = build_fee_scholarship_form_card(selected_program=detected_prog, level=level, only_selected=True)
             new_affordability = {
                 "step": "awaiting_academics",
                 "program": detected_prog,
@@ -358,7 +357,7 @@ def process_affordability_flow(
             }
             return {
                 "text": text,
-                "cards": [form_card],
+                "cards": [],
                 "suggestions": chips,
                 "new_state": {**conv_state, "affordability_flow": new_affordability},
             }

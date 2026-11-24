@@ -26,7 +26,7 @@ from . import config, fees
 FEE_PORTAL_URL = config.FEE_PORTAL_URL
 
 _FEE_WORDS = re.compile(
-    r"\b(?:fee|fees|fess|feez|tuition|cost|costs|schol\w*|how\s+much|per\s+sem\w*|payable|"
+    r"\b(?:fee|fees|fess|feez|tuition|cost|costs|(?:schol\w*|s[ck]?h?o[lr]+[ae]?r?s+h?i*p+\w*)|how\s+much|per\s+sem\w*|payable|"
     r"calculate|calculation|estimate)\b",
     re.IGNORECASE,
 )
@@ -45,7 +45,7 @@ _OTHER_FEE_TOPIC = re.compile(
 )
 
 _COUNSELLOR_TRIGGER = re.compile(
-    r"\b(?:schol\w*|waiver|concession|discount|scholarship\s+counsell?or|fee\s+counsell?or|fee\s+assessment|"
+    r"\b(?:(?:schol\w*|s[ck]?h?o[lr]+[ae]?r?s+h?i*p+\w*)|waiver|concession|discount|scholarship\s+counsell?or|fee\s+counsell?or|fee\s+assessment|"
     r"scholarship\s+assessment|guided\s+assessment|potential\s+scholarship|calculate\s+(?:my\s+)?scholarship|"
     r"fee\s+after\s+scholarship|expected\s+scholarship)\b",
     re.IGNORECASE,
@@ -599,6 +599,45 @@ _ACADEMIC_FIELDS = ("board", "board_label", "board_key", "academic_stage", "stag
 
 
 def decide(message: str, profile: dict, intake: dict | None, first_name: str | None = None) -> dict | None:
+    """What to do with a fee enquiry (see _decide). v4.13.0: the older consolidated "Fee & Merit Scholarship
+    Assessment Form" card is never shown in the chat (its marks field was a percentage, so "867" became "867%").
+    The intake itself is unchanged (it calculates as soon as enough is known, asks only what changes the result);
+    where it asked with that form, the small step card for the detail being asked is shown instead. Marks typed
+    before the board are kept and read once the board gives the total (Telangana / AP Intermediate: out of 1000)."""
+    result = _decide(message, profile, intake, first_name)
+    if not result or not any((c or {}).get("type") == "fee_scholarship_form" for c in result.get("cards") or []):
+        return result
+    state = dict(result.get("state") or {})
+    waiting = state.get("waiting_for")
+    if waiting == "marks_max" and not state.get("board_key") and not state.get("board"):
+        # "867" with no board yet: the board says out of what, so ask the board (marks kept), step by step.
+        # (A board without a fixed total, e.g. another state's, keeps the "out of how many marks?" question.)
+        st = {k: v for k, v in state.items() if k not in ("waiting_for", "needs_marks_confirmation")}
+        st["counsellor_mode"] = True
+        stepwise = _decide(message, profile, st, first_name)
+        if stepwise and not any((c or {}).get("type") == "fee_scholarship_form" for c in stepwise.get("cards") or []):
+            return stepwise
+    cards = [c for c in result.get("cards") or [] if (c or {}).get("type") != "fee_scholarship_form"]
+    step_card = None
+    if waiting == "program":
+        step_card = build_counsellor_program_card(selected_program=state.get("program"), step_label="Preferred Programme")
+    elif waiting in ("board", None) and not state.get("board_key") and not state.get("board") \
+            and _program_level(fees.find_program(str(state.get("program") or ""))) != "pg":
+        step_card = build_counsellor_board_card(selected_board=state.get("board_key"))
+    elif waiting in ("marks", "marks_max", "percent") and state.get("board_key"):
+        b_key, s_key = state.get("board_key"), state.get("academic_stage") or "completed"
+        step_card = build_counsellor_marks_card(board_key=b_key, stage_key=s_key, max_marks=get_max_marks(b_key, s_key),
+                                                board_label=state.get("board_label") or "your board",
+                                                default_val=state.get("raw_marks"))
+    if step_card:
+        program = fees.find_program(str(state.get("program") or ""))
+        if program:
+            step_card["program"] = program
+        cards.append(step_card)
+    return {**result, "cards": cards}
+
+
+def _decide(message: str, profile: dict, intake: dict | None, first_name: str | None = None) -> dict | None:
     """What to do with a fee enquiry. Multi-step intake with counsellor workflow and anti-repetition.
     first_name: given only when using it now would read naturally (the agent leaves it out when the
     previous reply already used the name)."""
@@ -747,6 +786,11 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
                     known["percent"] = float(number)
             elif re.search(r"\b(?:1000|thousand|inter|intermediate)\b", (message or "").lower()):
                 total = 1000.0
+            elif re.match(r"^\W*(?:yes|yeah|yep|yup|correct|right|ha+|haan|avunu|ok(?:ay)?)\b", (message or "").lower()):
+                # "Yes" to "Did you mean 866 out of 1000?": the total offered (the board's, else 1000).
+                board_total = get_max_marks(known.get("board_key"), known.get("academic_stage") or "completed") \
+                    if known.get("board_key") else 1000
+                total = float(board_total if board_total >= (raw or 0) else 1000)
             elif re.search(r"\b600\b", (message or "").lower()):
                 total = 600.0
             elif re.search(r"\b500\b", (message or "").lower()):
@@ -761,7 +805,10 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
             if 35 <= number <= 100:
                 known.setdefault("percent", number)
             elif 100 < number <= 1000:
-                if counsellor_mode:
+                if counsellor_mode and not known.get("board_key"):
+                    # Marks given before the board: kept, and read once the board says out of what (v4.13.0).
+                    known["pending_raw_marks"] = number
+                elif counsellor_mode:
                     b_key = known.get("board_key")
                     s_key = known.get("academic_stage")
                     max_m = get_max_marks(b_key, s_key)
@@ -774,6 +821,15 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
                     known["needs_marks_confirmation"] = int(number)
             elif number > 1000:
                 known.setdefault("eapcet_rank", int(number))
+
+    # Marks given before the board (v4.13.0): read them once the board and status give the total.
+    if known.get("pending_raw_marks") and known.get("percent") is None and known.get("board_key") \
+            and known.get("academic_stage") and intake.get("waiting_for") != "marks_max":
+        max_m = get_max_marks(known["board_key"], known["academic_stage"])
+        raw = float(known["pending_raw_marks"])
+        if max_m > 100 and 0 < raw <= max_m:
+            known.update(raw_marks=raw, max_marks=float(max_m), percent=round(raw / max_m * 100, 2))
+        known.pop("pending_raw_marks", None)
 
     # Update is_projected
     if known.get("academic_stage") in ("1st_year", "2nd_year"):
@@ -796,11 +852,24 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
 
     # A percentage above 100 ("656% marks") is a typo, usually marks out of 1000: ask, never calculate with it.
     bad_pct = re.search(r"(?<![\d.])(\d{3,4}(?:\.\d+)?)\s*(?:%|percent)", message or "")
+    board_total = get_max_marks(known.get("board_key"), known.get("academic_stage") or "completed") \
+        if known.get("board_key") else None
+    if bad_pct and float(bad_pct.group(1)) > 100 and board_total and board_total > 100 \
+            and float(bad_pct.group(1)) <= board_total:
+        # The board is known (e.g. Telangana Intermediate, out of 1000): "867% marks" means 867 out of 1000.
+        raw_v = float(bad_pct.group(1))
+        pct_v = round(raw_v / board_total * 100, 2)
+        known.update(raw_marks=raw_v, max_marks=float(board_total), percent=pct_v)
+        state.update(raw_marks=raw_v, max_marks=float(board_total), percent=pct_v)
+        known.pop("pending_raw_marks", None)
+        state.pop("pending_raw_marks", None)
+        bad_pct = None
     if bad_pct and float(bad_pct.group(1)) > 100:
         n = _num(float(bad_pct.group(1)))
         for k_bad in ("percent", "raw_marks", "max_marks"):
             state.pop(k_bad, None)
-        state["waiting_for"] = "marks"
+        state["pending_raw_marks"] = float(bad_pct.group(1))
+        state["waiting_for"] = "marks_max"
         return {"action": "ask", "profile_clear": ["percent", "raw_marks", "max_marks"],
                 "text": f"{n}% isn't possible (percentages go up to 100). Did you mean **{n} out of 1000**?",
                 "chips": [f"{n} out of 1000", f"{n} out of 600"], "cards": [], "state": state}
@@ -953,6 +1022,8 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
             chips_saved = [f"Use my saved details ({saved})"] if saved else []
             if step == "board":
                 state["waiting_for"] = "board"
+                if known.get("pending_raw_marks"):
+                    opener = f"Noted: **{_num(float(known['pending_raw_marks']))}** marks. " + opener
                 card = build_counsellor_board_card(selected_board=known.get("board_key"))
                 card.update(title="Which board did you study under?", subtitle=None, step_label=step_label,
                             program=prog_key)
@@ -1109,6 +1180,8 @@ def decide(message: str, profile: dict, intake: dict | None, first_name: str | N
 
     # =========================================================================
     # STANDARD FEE FORM INTAKE (for generic university fee structure queries)
+    # Since v4.13.0 a question for missing details here is asked step by step instead (see decide()): the old
+    # consolidated form card is never shown in the chat.
     # =========================================================================
     if not prog_key:
         answered_total = intake.get("waiting_for") == "marks_max" and known.get("percent") is not None

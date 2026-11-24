@@ -7,7 +7,7 @@ All figures are grounded in fees_2027_28.json and the verified admissions handbo
 import re
 from typing import Any
 
-from app.services.card_service import build_fee_scholarship_form_card
+from app.services.card_service import build_counsellor_board_card
 from . import config, fees
 
 FEE_PORTAL_URL = config.FEE_PORTAL_URL
@@ -847,7 +847,7 @@ def process_fee_flow(
 
             return {
                 "text": reply_text,
-                "cards": [fee_card, build_fee_scholarship_form_card(selected_program=matched_prog["key"], only_selected=True)],
+                "cards": [fee_card],
                 "suggestions": follow_up_chips,
                 "new_state": {
                     "fee_flow_state": "completed",
@@ -948,7 +948,7 @@ def process_fee_flow(
             )
             return {
                 "text": reply_text,
-                "cards": [fee_card, build_fee_scholarship_form_card(selected_program=matched_prog["key"], only_selected=True)],
+                "cards": [fee_card],
                 "suggestions": ["Calculate scholarship for my marks", "Hostel room options", "Change school / programme"],
                 "new_state": {
                     "fee_flow_state": "completed",
@@ -1040,7 +1040,7 @@ def process_fee_flow(
 
             return {
                 "text": reply_text,
-                "cards": [fee_card, build_fee_scholarship_form_card(selected_program=matched_prog["key"], only_selected=True)],
+                "cards": [fee_card],
                 "suggestions": follow_up_chips,
                 "new_state": {
                     "fee_flow_state": "completed",
@@ -1124,10 +1124,9 @@ def process_fee_flow(
                     f"• **CBSE / ICSE / NIOS**\n"
                     f"• **Other State Boards across India** (Maharashtra, Karnataka, Tamil Nadu, UP, Bihar, etc.)\n"
                     f"• **IB (International Baccalaureate)**\n\n"
-                    f"In the next step, I'll ask for your marks or entrance rank to determine your exact fee. "
-                    f"You can also use the assessment form below."
+                    f"In the next step, I'll ask for your marks or entrance rank to determine your exact fee."
                 ),
-                "cards": [build_fee_scholarship_form_card(selected_program=prog_key, only_selected=True)],
+                "cards": [{**build_counsellor_board_card(), "program": prog_key}],
                 "suggestions": [
                     "Telangana State Board",
                     "AP State Board",

@@ -971,6 +971,7 @@ export async function fetchConnectStatus(requestId: string, sessionId: string): 
 export interface ChatSettings {
   concession_picker: "grouped" | "table";
   connect_enabled: boolean;
+  ai_answers: boolean;
   connect_wait_seconds: number;
   office_hours_start: string;
   office_hours_end: string;

@@ -342,3 +342,28 @@ See `docs/37-official-widget-look-and-multi-questions-nov-2026.md`.
   - **Fixed:** the wrong hand-written scholarship slabs, now written from the fee data; the "ai" in "detail" match;
     a pending dialogue answer being skipped.
 - **Tests:** `tests/test_v413_compound_safety.py` (25); the 7 tests the commits had broken pass again.
+
+### v4.13.0 (continued, 24 Nov 2026): conversational intelligence; the fee flow from a production chat
+
+See `docs/38-conversational-intelligence-nov-2026.md`.
+
+- **Root cause of the scripted feel:** production calls the agent without a client, so ~30 branches gated on
+  `client is None` always sent their fixed text; greetings came from variation lists.
+- **Now:**
+  - the model writes the answer for this message and conversation from the same verified text, now its facts;
+  - cards, numbers and workflows stay with the code;
+  - fallback: the verified text when the model can't be used, or when its words fail a check;
+  - the greeting banks are deleted;
+  - the conversation state (programme, details, open step, concession) is given to the model;
+  - admin switch **Answers written by the AI** (off when first deployed; turn it on in Admin → 🤖 Agent).
+- **Understanding:**
+  - a family-link discount question → the named concession;
+  - cut-off / closing-rank questions → not published;
+  - "what is the eligibility?" → the programme's rule from the data;
+  - scholarship and placement typos are recognised.
+- **Fee flow (production chat):**
+  - the old consolidated form is no longer shown; the step cards are shown instead;
+  - marks are read with the board's total (867 → 867/1000), and "yes" is handled by the code;
+  - the agentic flow runs without an AI call.
+- **e2e/student_simulation.py:** 60–100 students chatting, every reply checked.
+- **Tests:** 34 new; suite 1108 passed (1 needs a Gemini key).
