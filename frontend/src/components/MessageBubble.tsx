@@ -23,6 +23,9 @@ function parseSuggestionChip(text: string): { icon: React.ReactNode; label: stri
   return { icon: null, label: text };
 }
 
+/** Cards that show a fee result; only the newest one in the chat is current. */
+export const FEE_CARD_TYPES = new Set(["fee_summary", "calculate_fee", "concession_fee", "fee_plan"]);
+
 interface Props {
   role: "user" | "assistant";
   content: string;
@@ -35,6 +38,8 @@ interface Props {
   sessionId?: string;
   createdAt?: string;
   isStreaming?: boolean;
+  /** A later message has a newer fee estimate (details changed): this one's fee cards are marked outdated. */
+  feeOutdated?: boolean;
   onSuggestionClick?: (text: string, form?: AcademicFormPayload) => void;
 }
 
@@ -49,6 +54,7 @@ function MessageBubble({
   conversationId,
   sessionId,
   isStreaming,
+  feeOutdated,
   onSuggestionClick,
 }: Props) {
   const [copied, setCopied] = useState(false);
@@ -170,7 +176,16 @@ function MessageBubble({
         {!isStreaming && role === "assistant" && cards && cards.length > 0 && (
           <div className="message-cards-container">
             {deduplicateCards(cards).map((card, idx) => (
-              <RenderCard key={idx} card={card} onSelect={onSuggestionClick} />
+              feeOutdated && FEE_CARD_TYPES.has(card?.type) ? (
+                <div key={idx} className="fee-card-outdated">
+                  <div className="fee-card-outdated-note" role="note">
+                    Outdated estimate: your details changed. The latest estimate is further down.
+                  </div>
+                  <RenderCard card={card} onSelect={onSuggestionClick} />
+                </div>
+              ) : (
+                <RenderCard key={idx} card={card} onSelect={onSuggestionClick} />
+              )
             ))}
           </div>
         )}

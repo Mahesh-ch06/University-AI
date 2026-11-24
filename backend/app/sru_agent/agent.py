@@ -483,16 +483,21 @@ async def _counsellor_connect(message, session_id, conversation_id, profile, ctx
             yield ev
         return
     used = [{"name": "request_counsellor_callback", "status": "saved", "is_action": True}]
+    first = _first_name(name)
+    first = (first[:1].upper() + first[1:]) if first and not tools.is_placeholder_name(first) else ""
+    who = f", {first}" if first else ""
     if existing and existing["status"] == "busy" and result.get("already_saved"):
-        async for ev in _say(f"Our admissions team already has your request and will call you back on {masked}.",
+        async for ev in _say(f"Your callback request is already with our admissions team{who}. Our admissions "
+                             f"counsellor will call you back on {masked}.",
                              message, session_id, conversation_id, used=used, resume=False):
             yield ev
         return
     if not app_settings.get("connect_enabled") or not live_connect.in_office_hours():
         when = (f"{live_connect.next_opening()} or soon after" if not live_connect.in_office_hours()
                 else "as soon as possible")
-        text = (f"Our counsellors are available {live_connect.hours_text()} (India time). I've passed your request "
-                f"to the admissions team: they'll call you back on {masked} {when}.")
+        text = (f"Your callback request has been successfully submitted{who}. Our counsellors are available "
+                f"{live_connect.hours_text()} (India time), and our admissions counsellor will call you back on "
+                f"{masked} {when}.")
         async for ev in _say(text, message, session_id, conversation_id, used=used, resume=False):
             yield ev
         return

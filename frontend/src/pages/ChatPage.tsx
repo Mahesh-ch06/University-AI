@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { ChatAdStrip } from "../components/CampusCards";
-import MessageBubble from "../components/MessageBubble";
+import MessageBubble, { FEE_CARD_TYPES } from "../components/MessageBubble";
 import ChatLeadForm from "../components/ChatLeadForm";
 import WelcomeBackPanel, { type WelcomeBackStatus } from "../components/WelcomeBackPanel";
 import { describeGap } from "../utils/timeAgo";
@@ -597,6 +597,14 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     ? shownMessages.slice(-visibleMessageCount)
     : shownMessages;
 
+  // The newest message with a fee result: fee cards in earlier messages are marked outdated (v4.15.0).
+  const latestFeeMsgId = (() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if ((messages[i].cards || []).some((c: any) => FEE_CARD_TYPES.has(c?.type))) return messages[i].id;
+    }
+    return null;
+  })();
+
   const lastSentUserMsgIdRef = useRef<string | null>(null);
 
   // Position newly sent user message at comfortable top reading view without jumping to bottom
@@ -1088,6 +1096,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   suggestions={msg.suggestions}
                   flow={msg.flow}
                   messageId={msg.id}
+                  feeOutdated={!!latestFeeMsgId && msg.id !== latestFeeMsgId}
                   conversationId={activeConvId}
                   sessionId={sessionId}
                   isStreaming={msg.id === streamingMsgId}
@@ -1595,6 +1604,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                       suggestions={msg.suggestions}
                       flow={msg.flow}
                       messageId={msg.id}
+                      feeOutdated={!!latestFeeMsgId && msg.id !== latestFeeMsgId}
                       conversationId={activeConvId}
                       sessionId={sessionId}
                       isStreaming={msg.id === streamingMsgId}
