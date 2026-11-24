@@ -305,3 +305,13 @@ New cards in `done.cards`:
 Callback / visit leads carry `metadata.case`: `program`, `marks`, `scholarship`, `concession`, `hostel`, `fee`,
 `asked` (numbers masked) and `signals`.
 
+
+
+### v4.15.0 notes (no breaking change)
+
+* `GET /api/v1/agent/connect/{request_id}` also returns `first_name` (the name shown on the student's callback card).
+* `GET /api/v1/agent/recovery-context`: `welcome_message` uses the first name ("Welcome back, Mahesh!") and
+  `score_text` has no trailing ".0" ("764 / 1000 (76.4%)").
+* `POST /api/v1/leads`: a repeat callback / visit request from the same mobile number within 7 days (lead still
+  `new`) returns the existing lead, updated, instead of a new one.
+* `PUT /api/v1/agent/profile` with `fresh_start` keeps the student's name usable in the new chat.

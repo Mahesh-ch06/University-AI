@@ -578,7 +578,8 @@ def _marks_problem(message: str, said: dict, number, known: dict, waiting: str |
     pct = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|percent|per\s*cent|percentage)", low)
     if pct:
         value = float(pct.group(1))
-        if value > 100 and not (max_m and max_m > 100 and value <= max_m):   # "866%" with a 1000 total: marks
+        # "866%" with a 1000 total: marks typed with a % by mistake; "150%" is not (it can't be passing marks)
+        if value > 100 and not (max_m and max_m > 100 and max_m * 0.35 <= value <= max_m):
             return "A percentage can't be more than 100."
         return None
     raw = said.get("raw_marks") if said.get("raw_marks") is not None else number

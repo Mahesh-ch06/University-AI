@@ -69,3 +69,19 @@ The conversation history paths use these composite indexes:
 - `messages(conversation_id, role, created_at)` for bounded user-message profile extraction.
 
 They are created by the Alembic migration `g7h8i9j0k123_add_conversation_query_indexes`.
+
+
+### v4.15.0: durable conversation state (no schema change)
+
+The structured state of each conversation (open fee step, marks, programme, selections) is also kept in the existing
+`user_memories` table, so a student who returns after Redis has expired continues at the same step:
+
+| `memory_key` | `memory_value` |
+| --- | --- |
+| `cstate.<conversation id>` | `{"__pieces__": n}` (index row) |
+| `cstate.<conversation id>#0` … `#n-1` | the state as JSON, in pieces of 240 characters |
+
+Written in the background, one writer per conversation, the latest state always last (`memory._flush_state`);
+read on a cache miss (`agent_profile_store.load_conversation_state`). Lead merging: a repeat callback / visit request
+from the same mobile number (status `new`, < 7 days, same `metadata.request_type`) updates that `prospective_leads`
+row and counts `metadata.repeat_requests` instead of inserting a second row.
