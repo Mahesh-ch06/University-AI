@@ -16,7 +16,6 @@ import {
   BuildingIcon,
   FileTextIcon,
   BoltIcon,
-  VideoIcon,
   BedIcon,
   ClockIcon,
   SruHostelIcon,
@@ -236,19 +235,12 @@ export function ProfileCard({ card }: CardProps) {
   );
 }
 
-const CATEGORY_COLOR_MAP: Record<string, string> = {
-  "Campus Tour": "blue",
-  "Hostels & Living": "purple",
-  "Placements & Careers": "green",
-  "Startups & Innovation (SRiX)": "orange",
-  "CS, AI & Technology": "teal",
-  "Sports & Activities": "red",
-  "Testimonials & Reviews": "yellow",
-};
-
-function getCategoryColor(category: string | undefined): string {
-  if (!category) return "grey";
-  return CATEGORY_COLOR_MAP[category] ?? "grey";
+// v4.15.1: the channel's repeated "| SR University | Best Private University…" tail is left out of the title.
+function cleanVideoTitle(title: string): string {
+  const parts = (title || "").split("|").map((p) => p.trim()).filter(Boolean);
+  const boiler = /(sr\s*university|\bsru\b|private\s+university|best\s+university|university\s+in|top\s+private|no\.?\s*1)/i;
+  const keep = parts.filter((p, i) => i === 0 || !boiler.test(p));
+  return (keep.slice(0, 2).join(" · ") || title || "").replace(/\s{2,}/g, " ");
 }
 
 export function VideoRecommendationsCard({ card }: { card: any }) {
@@ -266,9 +258,7 @@ export function VideoRecommendationsCard({ card }: { card: any }) {
           <div>
             <div className="yt-header-title-row">
               <h4 className="video-card-title">{card.title || "Related University Videos"}</h4>
-              {videoCount > 0 && (
-                <span className="yt-count-pill">{videoCount} {videoCount === 1 ? "video" : "videos"}</span>
-              )}
+
             </div>
             <span className="video-card-subtitle">Official videos from {channelName}</span>
           </div>
@@ -292,8 +282,6 @@ export function VideoRecommendationsCard({ card }: { card: any }) {
       <div className="yt-carousel-row">
         {videos.map((vid: any, idx: number) => {
           const isShort = vid.type === "short" || (typeof vid.url === "string" && vid.url.includes("/shorts/"));
-          const categoryColor = getCategoryColor(vid.category);
-          const isFirst = idx === 0;
           return (
             <a
               key={vid.id || idx}
@@ -306,7 +294,7 @@ export function VideoRecommendationsCard({ card }: { card: any }) {
               <div className="yt-thumb-wrapper">
                 <img
                   src={vid.thumbnail_url || `https://i.ytimg.com/vi/${vid.id}/hqdefault.jpg`}
-                  alt={vid.title}
+                  alt=""
                   className="yt-thumb-img"
                   loading="eager"
                   decoding="async"
@@ -315,24 +303,25 @@ export function VideoRecommendationsCard({ card }: { card: any }) {
                     const img = e.currentTarget as HTMLImageElement;
                     if (!img.src.includes("mqdefault")) {
                       img.src = `https://i.ytimg.com/vi/${vid.id}/mqdefault.jpg`;
+                    } else {
+                      img.style.display = "none";   // the thumbnail can't load: the titled fallback underneath shows
                     }
                   }}
                 />
 
-                {/* Central play button overlay — appears on hover */}
-                <div className="yt-play-overlay" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="28" height="28" fill="#ef4444">
-                    <path d="M8 5v14l11-7z"/>
-                  </svg>
+                {/* Shown only if the thumbnail can't load (it sits under the image) */}
+                <div className="yt-thumb-fallback" aria-hidden="true">
+                  <span>{cleanVideoTitle(vid.title)}</span>
                 </div>
 
-                {/* "Watch" pill — slides up on hover, bottom-left */}
-                <span className="yt-watch-pill">
-                  <VideoIcon size={12} /> Watch
+                {/* A small YouTube mark in the corner: the preview itself stays clean */}
+                <span className="yt-mark" aria-hidden="true">
+                  <svg viewBox="0 0 28 20" width="22" height="16">
+                    <rect width="28" height="20" rx="5" fill="#ff0000" />
+                    <path d="M11 6v8l7-4z" fill="#fff" />
+                  </svg>
                 </span>
 
-                {/* "New" pill on first video, top-left */}
-                {isFirst && <span className="yt-new-pill">New</span>}
 
                 {isShort ? (
                   <span className="yt-duration-badge yt-short-badge">
@@ -340,32 +329,15 @@ export function VideoRecommendationsCard({ card }: { card: any }) {
                   </span>
                 ) : vid.duration ? (
                   <span className="yt-duration-badge">{vid.duration}</span>
-                ) : (
-                  <span className="yt-duration-badge">
-                    <VideoIcon size={12} /> Video
-                  </span>
-                )}
+                ) : null}
               </div>
 
               <div className="yt-card-details">
-                <div className="yt-channel-avatar" title={vid.channel_name || "SR University"}>
-                  <span>SRU</span>
-                </div>
-
                 <div className="yt-text-meta">
-                  <h5 className="yt-video-title">{vid.title}</h5>
+                  <h5 className="yt-video-title" title={vid.title}>{cleanVideoTitle(vid.title)}</h5>
                   <div className="yt-submeta">
-                    <span className="yt-channel-name">{vid.channel_name || "SR University"}</span>
-                    {vid.category && (
-                      <span className={`yt-category-tag yt-cat-${categoryColor}`}>{vid.category}</span>
-                    )}
+                    <span className="yt-channel-name">SR University · YouTube</span>
                   </div>
-                </div>
-
-                <div className="yt-card-action" title="Open media" onClick={(e) => e.preventDefault()}>
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                    <path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/>
-                  </svg>
                 </div>
               </div>
             </a>
@@ -380,7 +352,7 @@ export function VideoRecommendationsCard({ card }: { card: any }) {
           rel="noopener noreferrer"
           className="more-videos-link yt-footer-link"
         >
-          Watch more on @SRUniversity YouTube ↗
+          More on the official YouTube channel ↗
         </a>
       </div>
     </div>

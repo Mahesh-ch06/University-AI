@@ -101,3 +101,38 @@ def test_programme_details_at_any_step_are_answered_first():
     assert agent._side_question("b.des details", waiting_board)
     assert not agent._side_question("BBA fees", waiting_board)          # a fee question continues the steps
     assert not agent._side_question("cbse", waiting_board)
+
+
+# ------------------------------------------------------------------ official videos (v4.15.1)
+from app.services import video_service  # noqa: E402
+
+
+@pytest.mark.parametrize("question,topic", [
+    ("how is hostel life", "Hostels & Living"), ("what is lumina", "Campus Life & Fests"),
+    ("placements at sru", "Placements & Careers"), ("is there a MUN", "Campus Life & Fests"),
+    ("tell me about AI and ML at SRU", "CS, AI & Technology"), ("how is the classroom", "Campus Tour & Infrastructure"),
+])
+def test_each_question_gets_videos_of_its_own_topic(question, topic):
+    got_topic, vids = video_service.topic_videos(question)
+    assert got_topic == topic and vids
+    for v in vids:
+        assert video_service._same_category(v["category"], topic) or "lumina" in (v["title"] + str(v.get("keywords"))).lower()
+
+
+@pytest.mark.parametrize("question", ["airport near campus", "label printing", "fees for cse", "is campus safe",
+                                      "how to apply", "my marks are 870", "roommate policy"])
+def test_no_videos_for_requests_locations_or_unclear_topics(question):
+    assert video_service.topic_videos(question)[1] == []
+
+
+def test_named_events_get_their_own_videos_and_hostel_life_no_party_video():
+    assert all("lumina" in v["title"].lower() for v in video_service.topic_videos("what is lumina")[1])
+    assert all("junoon" in v["title"].lower() for v in video_service.topic_videos("junoon")[1])
+    assert not any(video_service.is_event_or_fest_video(v) for v in video_service.topic_videos("how is hostel life")[1])
+
+
+def test_new_official_videos_are_in_the_catalog():
+    ids = {v["id"] for v in video_service.load_videos(force_reload=True)}
+    assert {"TZ7aALkVBVA", "MZHMSjZO9s8", "A0-ohUHLJc8", "tjmXy-GDXL0", "IDN6gFebBNY"} <= ids
+    assert video_service.create_video_card(video_service.topic_videos("placements at sru")[1],
+                                           topic="Placements & Careers")["title"] == "Placements & careers at SRU"

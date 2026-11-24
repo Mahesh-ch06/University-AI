@@ -351,7 +351,11 @@ def should_display_videos(message: str) -> bool:
         "eligibility", "eligible", "syllabus", "curriculum", "transport", "bus", "route",
         "instagram", "attendance", "rules", "regulations", "mistake", "wrong",
     )
-    if any(k in msg for k in disallowed_keywords):
+    # v4.15.1: whole words only ("interview" is not "view", "rules" not inside another word)
+    def _has(words) -> bool:
+        return any(re.search(r"\b" + re.escape(k) + r"\b", msg) for k in words)
+
+    if _has(disallowed_keywords):
         return False
 
     facility_keywords = (
@@ -363,13 +367,14 @@ def should_display_videos(message: str) -> bool:
         "what is sru", "about sr", "know about sru", "what is sr university",
         "tell me about the university", "describe sru", "overview of sru",
     )
-    return any(k in msg for k in facility_keywords)
+    return _has(facility_keywords)
 
 
 _EVENT_FEST_KEYWORDS = (
     "fest", "fests", "bathukamma", "sparkill", "sparkrill", "ramp walk",
     "singer", "concert", "performance", "swagatam", "freshers", "celebration",
     "celebrations", "annual day", "sports day", "cultural", "navadhara",
+    "lumina", "luminia", "hostel night", "diwali", "deepavali", "bonalu", "junoon", "flash mob", "convocation",
 )
 
 
@@ -525,51 +530,136 @@ def get_semantic_videos(
 # start-up. When that quota is used up there are no vectors, and an explicit "show me a video"
 # used to fall back to the first two videos in the file, whatever they were about. This matcher
 # works from each video's own title, category and keywords, so a relevant video is always found.
+# v4.15.1: whole words only ("airport" is not "ai", "label" is not "lab", "roommate" is not "room"), and the more
+# specific topic first ("hostel night" is an event, "placements for CSE" is placements).
 _TOPIC_CATEGORIES = (
-    (("hostel", "mess", "food", "dining", "room", "accommodation", "stay", "living"), "Hostels & Living"),
-    (("placement", "placed", "package", "salary", "job", "lpa", "recruit", "career", "internship"), "Placements & Careers"),
-    (("agri", "agriculture", "farm", "icar"), "School of Agriculture"),
-    (("mba", "bba", "business", "management", "astra"), "MBA & Business"),
-    (("fest", "event", "cultural", "sparkrill", "navadhara", "swagatam", "freshers", "celebration"), "Campus Life & Fests"),
-    (("sport", "sports", "games", "athletic"), "Sports & Activities"),
-    (("startup", "srix", "innovation", "incubat", "project expo", "entrepreneur"), "Startups & Innovation"),
-    (("international student", "foreign student", "from abroad"), "International Students"),
-    (("iep", "study abroad", "usa", "international program", "twinning"), "International Programs"),
-    (("parent", "review", "testimonial", "experience", "student voice", "why sru", "why choose"), "Testimonials & Reviews"),
-    (("cse", "computer", "ai", "aiml", "machine learning", "robotics", "coding", "hackathon", "technology"), "CS, AI & Technology"),
-    (("campus", "tour", "infrastructure", "building", "library", "lab", "about sru", "night view", "green"), "Campus Tour & Infrastructure"),
+    (r"\b(?:fests?|festivals?|events?|cultural|sparkrill|navadhara|navdhara|swagatam|freshers?|celebrat\w*|lumina|"
+     r"bathukamma|diwali|deepavali|bonalu|dussehra|mun|model\s+united\s+nations|junoon|hostel\s+night|flash\s*mob|"
+     r"convocation|graduation\s+day|dance|music\s+night)\b", "Campus Life & Fests"),
+    (r"\b(?:startups?|srix|innovation|incubat\w*|entrepreneur\w*|project\s+expo|yantra)\b", "Startups & Innovation"),
+    (r"\b(?:placements?|placed|packages?|salary|salaries|jobs?|lpa|recruit\w*|careers?|internships?|companies|"
+     r"industrial\s+visit)\b", "Placements & Careers"),
+    (r"\b(?:agri\w*|farm\w*|icar|b\.?\s?sc\s+ag\w*|horticulture)\b", "School of Agriculture"),
+    (r"\b(?:mba|bba|business|(?<!hotel )(?<!event )management)\b", "MBA & Business"),
+    (r"\b(?:cse|computer\s+science|ai|aiml|ai\s*&\s*ml|machine\s+learning|robotics|coding|hackathons?|technology|"
+     r"data\s+science|cyber\s*security)\b", "CS, AI & Technology"),
+    (r"\b(?:sports?|games|athletics?|gym|cricket|football|basketball|volleyball|kabaddi)\b", "Sports & Activities"),
+    (r"\b(?:international\s+students?|foreign\s+students?|students?\s+from\s+(?:other\s+countries|abroad)|nri)\b",
+     "International Student Experience"),
+    (r"\b(?:study\s+abroad|iep|twinning|2\s*\+\s*2|3\s*\+\s*1|abroad|foreign\s+universit\w*)\b", "International Programs"),
+    (r"\b(?:reviews?|testimonials?|student\s+voices?|experiences?|parents?\s+(?:say|reviews?|opinion)|why\s+(?:sru|choose)|"
+     r"worth\s+it|toppers?|gold\s+medal\w*|rank\s+holders?|academic\s+excellence|achievers?)\b", "Testimonials & Reviews"),
+    (r"\b(?:hostels?|mess|food|dining|rooms?|accommodation|stay(?:ing)?\s+(?:on|in)\s+campus)\b", "Hostels & Living"),
+    (r"\b(?:campus|tour|infrastructure|buildings?|library|labs?|laborator\w*|classrooms?|green\s+campus|night\s+view)\b",
+     "Campus Tour & Infrastructure"),
 )
+_TOPIC_RX = [(re.compile(rx, re.IGNORECASE), cat) for rx, cat in _TOPIC_CATEGORIES]
+# Questions that are about a fee, an application, an eligibility check or a request are not answered with videos.
+_NO_VIDEO_Q = re.compile(
+    r"\b(?:fees?|fess|cost|tuition|scholarships?|concessions?|discount|eligib\w*|cut-?off|seats?|apply|application|"
+    r"admissions?|lateral|visa|"
+    r"admission\s+process|documents?|refund|loan|callback|call\s+me|counsell?or|phone|number|marks?|percent\w*|rank|"
+    r"percentile|safe(?:ty)?|security|ragging|curfew|timings?|in-?time|near|nearest|distance|reach|airport|railway|"
+    r"station|bus\s+stand|located|location|address|map|route)\b|\d", re.IGNORECASE)
+
+
+def video_topic(text: str) -> str | None:
+    """The one video topic (catalog category) a question is about, or None (v4.15.1)."""
+    for rx, cat in _TOPIC_RX:
+        if rx.search(text or ""):
+            return cat
+    return None
+
+
+def _same_category(video_category: str, wanted: str) -> bool:
+    a, b = (video_category or "").lower(), (wanted or "").lower()
+    return bool(a) and bool(b) and (a.startswith(b[:14]) or b.startswith(a[:14]))
+
+
+def topic_videos(question: str, exclude: "set[str] | frozenset[str]" = frozenset(), limit: int = 2
+                 ) -> tuple[str | None, list[dict]]:
+    """(topic, up to `limit` videos) for an informational question, only from that topic's own videos; (None, [])
+    when the question is about a fee / application / request or has no clear video topic (v4.15.1)."""
+    if _NO_VIDEO_Q.search(question or ""):
+        return None, []
+    topic = video_topic(question)
+    if not topic:
+        return None, []
+    words = [w for w in re.findall(r"[a-z0-9]{3,}", (question or "").lower()) if w not in _VIDEO_STOP and _rare(w)]
+    named = lambda v: any(re.search(rf"\b{w}", (v.get("title") or "").lower() + " " +  # noqa: E731
+                                    " ".join(v.get("keywords") or []).lower()) for w in words)
+    vids = [v for v in get_keyword_videos(question, limit=limit + 4, exclude=exclude)
+            if _same_category(v.get("category"), topic) or named(v)]
+    if words and any(named(v) for v in vids):
+        vids = [v for v in vids if named(v)]   # "what is lumina": the LUMINA videos, not other events
+    fresh = [v for v in vids if v.get("id") not in exclude]
+    return topic, fresh[:limit]
+
+
 _rng = random.Random()
 _VIDEO_STOP = frozenset("a an the of in on at to for from with and or is are me my show video videos watch see "
-                        "any some about sru sr university please can you i want tell give link clip".split())
+                        "any some about sru sr university please can you i want tell give link clip "
+                        # question words are never a video's name (v4.15.1: "how is the classroom" is not
+                        # "How is SRU Hostel Life?")
+                        "how what why when where which who whom whose there this that these those does did have has "
+                        "had good best nice great like know more need would could should get your their our its "
+                        "was were will much many very really also just only even ever".split())
+
+
+_DF_CACHE: dict = {}
+
+
+def _rare(word: str) -> bool:
+    """A word that appears in the titles / keywords of at most 4 videos (a name: an event, a company, a place)."""
+    key = len(catalog())
+    df = _DF_CACHE.get(key)
+    if df is None:
+        df = {}
+        for video in catalog():
+            text = ((video.get("title") or "") + " " + " ".join(video.get("keywords") or [])).lower()
+            for w in set(re.findall(r"[a-z0-9]{3,}", text)):
+                df[w] = df.get(w, 0) + 1
+        _DF_CACHE.clear()
+        _DF_CACHE[key] = df
+    return len(word) >= 3 and word not in _VIDEO_STOP and 0 < df.get(word, 0) <= 4
 
 
 def get_keyword_videos(text: str, limit: int = 2, prefer_campus: bool = False,
                        exclude: "set[str] | frozenset[str]" = frozenset()) -> list[dict]:
     """Videos whose title, category or keywords match the request. No AI call, never irrelevant:
     returns [] when nothing matches (the caller decides on a campus-tour fallback)."""
+    if _NO_VIDEO_Q.search(text or "") and not is_explicit_video_query(text or ""):
+        return []          # a fee, location, safety or request question: no videos (v4.15.1)
     low = " " + re.sub(r"[^a-z0-9& ]+", " ", (text or "").lower()) + " "
-    words = [w for w in low.split() if w not in _VIDEO_STOP and len(w) > 1]
-    wanted = {cat for cues, cat in _TOPIC_CATEGORIES if any(f" {c}" in low for c in cues)}
+    words = [w for w in low.split() if w not in _VIDEO_STOP and len(w) > 2]
+    topic = video_topic(text)
+    wanted = {topic} if topic else set()
     if prefer_campus and not wanted:
         wanted = {"Campus Tour & Infrastructure"}
+    events_asked = topic == "Campus Life & Fests"
     scored = []
     for order, video in enumerate(catalog()):
         category = (video.get("category") or "")
         title = (video.get("title") or "").lower()
         keywords = " ".join(k.lower() for k in (video.get("keywords") or []))
         score = 0.0
-        if any(category.startswith(w[:14]) or w.startswith(category[:14]) for w in wanted):
+        named_hit = False
+        in_topic = any(category.startswith(w[:14]) or w.startswith(category[:14]) for w in wanted)
+        if in_topic:
             score += 4
         for w in words:
-            if f" {w}" in " " + keywords:
-                score += 2
-            if f" {w}" in " " + title:
-                score += 1
-        if prefer_campus and is_event_or_fest_video(video):
-            score -= 3
+            in_kw = bool(re.search(rf"\b{re.escape(w)}", keywords))
+            in_title = bool(re.search(rf"\b{re.escape(w)}", title))
+            score += 2 * in_kw + in_title
+            if (in_kw or in_title) and _rare(w):
+                score += 6      # a name only a few videos have ("lumina", "junoon", "mun", "convocation"): that one
+                named_hit = True
+        if (prefer_campus or (wanted and not events_asked)) and not in_topic and is_event_or_fest_video(video):
+            score -= 3          # a party / fest video only when events were asked about
         if "/shorts/" in (video.get("url") or ""):
             score -= 0.5          # prefer full videos over shorts when equally relevant
+        if wanted and not prefer_campus and not (in_topic or named_hit):
+            continue            # a clear topic was asked: only its videos (or one named in the question)
         if score >= 2:
             scored.append((-score, order, video))
     scored.sort(key=lambda item: item[:2])
@@ -607,6 +697,8 @@ def get_relevant_videos(
     Rejection of unrelated topics (transport, attendance, fees, condonation)
     is handled naturally by dense vector distance in ChromaDB.
     """
+    if _NO_VIDEO_Q.search(user_message or "") and not is_explicit_video_query(user_message or ""):
+        return []          # v4.15.1: a fee, location, safety or request question gets no videos
     msg_lower = user_message.lower().strip()
     ans_lower = answer.lower()
 
@@ -804,9 +896,22 @@ def get_post_video_suggestions(category_name: str = "") -> list[str]:
     ]
 
 
-def create_video_card(videos: list[dict], is_explicit: bool = False) -> dict:
+_TOPIC_TITLES = {
+    "Hostels & Living": "Hostel life at SRU", "Placements & Careers": "Placements & careers at SRU",
+    "School of Agriculture": "School of Agriculture", "MBA & Business": "Business school at SRU",
+    "Campus Life & Fests": "Campus life & events", "Sports & Activities": "Sports at SRU",
+    "Startups & Innovation": "Startups & innovation (SRiX)", "International Student Experience": "International students at SRU",
+    "International Programs": "Study abroad pathways", "Testimonials & Reviews": "Students & parents on SRU",
+    "CS, AI & Technology": "CSE, AI & technology at SRU", "Campus Tour & Infrastructure": "Campus tour",
+}
+
+
+def create_video_card(videos: list[dict], is_explicit: bool = False, topic: str | None = None) -> dict:
     """Format structured official YouTube video recommendation card."""
-    title = "Official SR University Video Tours" if is_explicit else "Related Campus Videos"
+    if not topic and videos:
+        topic = videos[0].get("category")
+    title = next((t for k, t in _TOPIC_TITLES.items() if topic and _same_category(topic, k)), None) \
+        or ("Official SR University videos" if is_explicit else "Official SRU videos")
     # Videos hidden in the admin panel are never shown, whichever search found them; topic changes apply.
     allowed = {v.get("id"): v for v in catalog()}
     videos = [allowed[v.get("id")] for v in videos if v.get("id") in allowed]

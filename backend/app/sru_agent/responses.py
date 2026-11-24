@@ -1008,7 +1008,7 @@ _FACT_CLOSES = ["Want details on any of these?", "Which of these matters most to
 _FACT_CLOSES_NARROW = ["Anything else you'd like to know about SRU?", "What would you like to check next?"]
 
 _CHALLENGE = re.compile(
-    r"\b(bad|worst|poor|fake|worth|better than|vs\.?|versus|compare|compared|good (?:college|university)|"
+    r"\b(bad|worst|poor|fake|scam|fraud|cheat\w*|waste|worth|better than|vs\.?|versus|compare|compared|good (?:college|university)|"
     r"reputation|why not|is it good|is sru good)\b", re.IGNORECASE)
 
 

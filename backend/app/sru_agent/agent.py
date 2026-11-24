@@ -510,6 +510,50 @@ async def _counsellor_connect(message, session_id, conversation_id, profile, ctx
         yield ev
 
 
+# Cards that are information (videos may go with them); any other card means a workflow step (no videos then).
+_INFO_CARDS = {"placement_highlights", "hostel_facilities", "campus_tour", "curriculum"}
+_VIDEO_CARDS = {"video_recommendations", "get_university_videos", "event_highlights"}
+
+
+async def _with_topic_videos(message: str, text: str, cards: list, session_id: str, conversation_id) -> list:
+    """Up to 2 official SRU videos on the topic the student asked about (v4.15.1), only when the reply is information
+    (not a fee step, a form, a callback or a question back), only from that topic, once per topic per chat, and
+    never a video already shown in this chat."""
+    from app.services import video_service
+
+    types = {c.get("type") for c in cards if isinstance(c, dict)}
+    if types & _VIDEO_CARDS:
+        # videos chosen by another path: remembered, so the same topic / videos are not offered again in this chat
+        vids = [v for c in cards if isinstance(c, dict) and c.get("type") in _VIDEO_CARDS
+                for v in ((c.get("data") or c).get("videos") or []) if isinstance(v, dict)]
+        if vids:
+            state = await memory.get_conversation_state(session_id, conversation_id)
+            topic = video_service.video_topic(message) or vids[0].get("category")
+            await memory.update_conversation_state(
+                session_id, conversation_id,
+                video_topics=(list(state.get("video_topics") or []) + ([topic] if topic else []))[-12:],
+                videos_shown=(list(state.get("videos_shown") or []) + [v.get("id") for v in vids])[-30:])
+        return cards
+    if types - _INFO_CARDS:
+        return cards
+    if re.search(r"(?:^|\n)\s*Step\s+\d|\bwhich\s+(?:programme|program|board|branch)\b", text or "", re.I):
+        return cards
+    state = await memory.get_conversation_state(session_id, conversation_id)
+    if state.get("fee_intake", {}) and (state.get("fee_intake") or {}).get("waiting_for") not in (None, "done"):
+        return cards                                       # the fee steps are open: keep the chat on them
+    topics = list(state.get("video_topics") or [])
+    shown = set(state.get("videos_shown") or [])
+    topic = video_service.video_topic(message)
+    if not topic or topic in topics:
+        return cards
+    topic, vids = video_service.topic_videos(message, exclude=shown, limit=2)
+    if not vids:
+        return cards
+    await memory.update_conversation_state(session_id, conversation_id, video_topics=(topics + [topic])[-12:],
+                                           videos_shown=(list(shown) + [v["id"] for v in vids])[-30:])
+    return cards + [video_service.create_video_card(vids, topic=topic)]
+
+
 def _vary(options: list[str], *seed) -> str:
     """One of several natural wordings for a line the code writes (v4.15.0: no fixed phrasing for the same line
     every time). The choice depends on the conversation and the turn, so a repeat is worded differently."""
@@ -750,6 +794,10 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     if re.match(r"\s*Step\s+\d", text) and _DO_YOU_HAVE.search(message or "") and fees.find_program(message or "") \
             and "SR University offers" not in text:
         text = f"Yes, SR University offers **{fees.short_name(fees.find_program(message))}**.\n\n" + text
+    try:   # v4.15.1: official videos for an informational answer (one topic once per chat; never in a workflow)
+        cards = await _with_topic_videos(message, text, list(cards or []), session_id, conversation_id)
+    except Exception:
+        log.exception("topic videos skipped")
     if await _offer_fee_chart(session_id, conversation_id, cards):
         text = text.rstrip() + "\n\n" + _FEE_CHART_OFFER
         suggestions, exact_chips = ["Yes, prepare my fee chart", "No, thanks"], True
@@ -1704,7 +1752,11 @@ def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
 
 
 _DISCOUNT_ASK = re.compile(r"\b(?:discounts?|concessions?|reductions?|waivers?|fee\s+relief|less\s+fee|benefits?|"
-                           r"offers?|rebate|quota)\b", re.IGNORECASE)
+                           r"offers?|rebate|quota)\b|\bscholarships?\s+(?:for|to)\s+(?:girls?|daughters?|women|"
+                           r"sports\w*|athletes?|single\s+parent|orphans?|defen[cs]e|police|army|military|ncc|siblings?|"
+                           r"lateral\s+entry|alumni|(?:kids|children|sons?)\s+of)\b|"
+                           r"\b(?:girl\s+child|siblings?|army|military|lateral\s+entry|ncc|alumni)\b.{0,30}"
+                           r"\b(?:scholarships?|concessions?)\b", re.IGNORECASE)
 _CUTOFF_FACT = re.compile(
     r"\bclosing\s+(?:rank|cut[- ]?off|marks?)|\bcut[- ]?off\s+(?:rank|ranks)\b|\brank\s+cut[- ]?off|"
     r"\blast\s+year'?s?\s+(?:closing|cut[- ]?off|ranks?)\b|\b(?:cut[- ]?off|closing)\b.{0,40}\blast\s+year\b",
@@ -1977,7 +2029,9 @@ _TYPOS = [(re.compile(p, re.IGNORECASE), w) for p, w in (
     (r"\bhost(?:a|e)?ls?\b(?<!\bhostels)(?<!\bhostel)", "hostel"), (r"\bhostle?s?\b", "hostel"),
     (r"\bfe(?:es?s|ez|ss)\b", "fees"), (r"\bplac(?:e)?m(?:e|a)?nt(s)?\b", r"placement\1"),
     (r"\beligi?bi?li?ty\b", "eligibility"),
-    (r"\bcampas\b", "campus"), (r"\bevnts\b", "events"), (r"\badmi?s+ion\b", "admission"),
+    (r"\bcampas\b", "campus"), (r"^\W*fes\W*$", "fees"), (r"\bhstel\b|\bhostl\b", "hostel"),
+    (r"\bpl[ae]?cm(?:e)?nts?\b|\bplcmnt\w*", "placement"), (r"\badmsn\b|\badmisn\b", "admission"),
+    (r"\bsch(?:o)?l(?:a)?r(?:s)?h(?:i)?p\b|\bschlrshp\b", "scholarship"), (r"\bevnts\b", "events"), (r"\badmi?s+ion\b", "admission"),
     (r"\bcolle?a?ge\b", "college"), (r"\bcoures?\b|\bcorse\b", "course"))]
 
 
@@ -2153,6 +2207,15 @@ async def run_agent(
     # v4.15.0: this message answers the open fee step ("AI and Robotics" to "which programme?"): no topic answer
     # (labs, programmes...) may take it; the steps continue.
     step_answer = bool(dlg_busy and not side_q and intake_now.get("waiting_for") not in (None, "done"))
+    # v4.15.1: specific questions answered exactly from the fee card's terms / verified facts (quick_facts.py)
+    from . import quick_facts
+    qa = None if (step_answer or tools.find_phone(message) or intents.is_callback_request(message)) \
+        else quick_facts.answer(message)            # a phone number or callback request goes to the callback flow
+    if qa:
+        async for ev in _reply(qa.text, message, session_id, conversation_id, suggestions=qa.chips, exact_chips=True,
+                               client=client, history=history, profile=profile, conv_state=conv_state):
+            yield ev
+        return
     if _SEATS_Q.search(message or "") and not step_answer:   # a figure SRU doesn't publish: said plainly
         async for ev in _reply(_SEATS_TEXT, message, session_id, conversation_id,
                                suggestions=["How do I apply?", "Check my eligibility", "Talk to a counsellor"],
@@ -4140,6 +4203,12 @@ async def run_agent(
                 continue  # tool already provided video card; do not duplicate
             if c not in cards:
                 cards.append(c)
+        # v4.15.1: the same topic videos as code-written answers (one topic once per chat), when none came above
+        if not any(isinstance(c, dict) and c.get("type") in _VIDEO_CARDS for c in cards):
+            try:
+                cards[:] = await _with_topic_videos(message, final, list(cards), session_id, conversation_id)
+            except Exception:
+                log.exception("topic videos skipped")
         delivered = {c.get("type") for c in cards if isinstance(c, dict)}
         shown_now = get_session_shown_cards(card_scope)
         for card_type in list(shown_now - shown_before):

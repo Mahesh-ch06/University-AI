@@ -43,3 +43,49 @@ write WebP, under 400 KB), uploaded, and shown in the preview at once. Save to u
   discussed is now remembered); the request-size limit above.
 * Backend 1,277 passed; browser journeys 32/32, 27/27, 19/19, 26/26, 16/16; upload journey 10/10 (laptop and
   phone); frontend type check, lint (no errors) and build clean.
+
+## 4. Official videos (card and recommendations)
+
+* 22 videos added from the official "SR University" YouTube channel (each checked by YouTube oEmbed: the channel is
+  "SR University"): LUMINA 2026, JUNOON, SRU-MUN, Diwali, Bonalu, Navdhara, Convocation 2026, the 2025 recap,
+  toppers, agriculture, the campus tour, AI / CS and placement stories. 75 videos in all
+  (`backend/app/data/university_videos.json`). The LUMINA 2025 videos moved from "Hostels" to "Campus Life & Fests".
+* Recommendations (`video_service.topic_videos`, `agent._with_topic_videos`): videos only for an informational
+  answer on a visual topic (hostel, placements, fests, campus, a programme...), only from that topic, a named
+  video first ("junoon", "lumina"), up to 2, once per topic per chat, never a video already shown. No videos on
+  fee, eligibility, admission, location, safety or request questions, on a workflow step, or when the topic is
+  unclear. Keywords are matched as whole words ("interview" is not "view"). When the AI asks the video tool for a
+  topic with no official video, the tool now returns `no_match` (no card) instead of campus-tour videos.
+* The card keeps its one row (two videos side by side, a third scrolls). Each video shows its **YouTube thumbnail
+  as the preview**, with a small YouTube mark in the corner and no play button over the picture; a topic title
+  ("Hostel life at SRU", "Placements & careers at SRU"); a clean title (the channel's repeated "| SR University |
+  Best Private University…" tail removed); "SR University · YouTube". If a thumbnail can't load (a network that
+  blocks YouTube images), a navy tile with the title shows instead of an empty box.
+
+## 5. Unexpected questions (open-question audit)
+
+248 questions students may ask in their own words (admissions, programmes, fees, scholarships, eligibility,
+placements, hostel, food, academics, clubs, rankings, international, contacts, vague, off-topic, Telugu / Hindi,
+multi-part, typos, rude, security, future dates, and 70 new phrasings), each in a fresh chat: **no errors, no
+empty replies**. Answers fixed or added in `backend/app/sru_agent/quick_facts.py`, each from the 2027-28 fee card,
+the verified handbook (`backend/data/handbook`), or saying plainly that it is not in the official sources and who
+confirms it:
+
+* Programmes SRU does not offer (pharmacy, MBBS, law, B.Arch, nursing, online) said plainly, with what SRU offers.
+* Fee increase (the fee card's own words), "why is the fee so high", per semester, 4-year total, hostel not
+  included, other charges, caution deposit, transport; instalments and education loans: not on the fee card ->
+  the Admissions Office.
+* Which programmes a stream allows (MPC / BiPC / commerce), from the fee card's eligibility notes only ("required
+  subjects as per university norms" -> confirm with the Admissions Office); a named programme gets yes / no first.
+* Leadership (Vice-Chancellor, Chancellor, Registrar..., from sru.edu.in/about), history (notified May 2020, from SR
+  Engineering College; the group founded in 1976 by Sri A. Varada Reddy), international students (visa and
+  settling-in support, ₹15,000 concession), B.Tech lateral entry (6 semesters; eligibility -> Admissions Office).
+* Concessions recognised in more words: "sibling discount", "single girl child scholarship", "scholarship for army
+  kids", "concession for lateral entry".
+* Security: a request for keys or passwords, or for other students' details, gets a specific refusal.
+* Food specifics not in the sources (spicy, Jain, outside food) are said to be unconfirmed, with what is known.
+
+Questions with no verified answer in the sources are listed for the university to answer (the bot sends them to
+the Admissions Office until then): NAAC grade, scholarship renewal rules, instalments, education loans,
+admission dates and documents list, spot admission / management quota, lateral-entry eligibility, hostel Wi-Fi,
+laundry details, parent visits, attendance rule, exam pattern, Sunday campus visits, starting a new club.

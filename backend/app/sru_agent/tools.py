@@ -626,9 +626,15 @@ async def tool_get_university_videos(args, ctx):
     topic = (args.get("topic") or "").strip()
     try:
         from app.services.video_service import catalog as load_videos, get_keyword_videos
+        from app.services.video_service import topic_videos
         search_text = topic or "campus tour"
         # Matched on each video's own title, category and keywords: relevant, and no AI call.
         videos = get_keyword_videos(search_text, limit=2, prefer_campus=not topic)
+        if not videos and topic:
+            videos = topic_videos(topic)[1]
+        if not videos and topic and not re.search(r"\b(?:campus|tour|sru|university|college|general)\b", topic, re.I):
+            # v4.15.1: no official video on this topic: say so (no card) rather than show unrelated campus videos
+            return {"status": "no_match", "problem": f"No official SR University video matches '{topic}'."}
         if not videos:
             campus_vids = [v for v in load_videos() if v.get("category") == "Campus Tour & Infrastructure"]
             videos = campus_vids[:2] if campus_vids else load_videos()[:2]

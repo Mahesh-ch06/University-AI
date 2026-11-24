@@ -135,6 +135,9 @@ def _unknown_club(message: str) -> str | None:
         re.search(r"\bclubs?\s+(?:for|of|on|about)\s+([a-z][a-z\- ]{2,24})", (message or "").lower())
     if not m:
         return None
+    if re.search(r"\b(?:start|create|form|open|make|found|join|register|sign\s+up)\b.{0,20}\bclubs?\b",
+                 (message or "").lower()):
+        return None        # "can I start my own club?" asks how clubs work, not about a club called that (v4.15.1)
     word = re.sub(r"^(?:is|are|there|a|an|the|any|do|does|you|have|sru|in|at|of|which|what|good|best|"
                   r"tell|me|about|join|some|\s)+", "", m.group(1)).strip()
     if not word or word in ("student", "students", "college", "university", "campus", "all", "many", "how",
@@ -342,6 +345,11 @@ def _answer(key: str, message: str = "") -> Answer:
                           f"{others[0].lower()} or the {others[1].lower()}?", others[:2], [])
         unknown = _unknown_club(message)
         lead = (f"A **{unknown.title()}** club isn't on SR University's official list of clubs. " if unknown else "")
+        if re.search(r"\b(?:start|create|form|found)\b.{0,20}\b(?:own|new|a)\b.{0,10}\bclubs?\b", (message or "").lower()):
+            lead = ("The official sources I use don't describe how a new club is started; the Student Affairs team "
+                    "can tell you once you join. ")
+        elif re.search(r"\b(?:join|register|sign\s+up|apply)\b.{0,20}\bclubs?\b", (message or "").lower()):
+            lead = "Yes, students can join SR University's clubs. "
         return Answer(lead + _CLUBS_TEXT, ["Tech clubs", "Culture & creativity clubs", "Sports & wellbeing clubs"], [],
                       video_query="")
     if key == "sports":
@@ -380,6 +388,28 @@ def _answer(key: str, message: str = "") -> Answer:
             return Answer("Yes. The dining hall serves **vegetarian and non-vegetarian** food, with 4 meals a day "
                           "(healthy, hygienic and nutritious), and the cafeteria and kiosks for snacks.\n\nWould you like "
                           "the mess timings?", ["Mess timings", "Hostel life"], [], ["rpRekBrnGYs"])
+        if re.search(r"north\s+indian|south\s+indian|roti|chapati", low):
+            return Answer("Yes. Breakfast includes **South and North Indian** items with tea, coffee or milk (hostel "
+                          "handbook), and the dining hall serves 4 meals a day, vegetarian and non-vegetarian, with the "
+                          "Central Cafeteria and food kiosks for snacks.\n\nWould you like the mess timings?",
+                          ["Mess timings", "Hostel life"], [], ["rpRekBrnGYs"])
+        specific = re.search(r"\b(spicy|jain|halal|vegan|gluten|diabetic|allerg\w*|special\s+diet|eat\s+outside|outside\s+food|"
+                             r"order\s+food|swiggy|zomato|cook\w*|mess\s+(?:charges?|fees?|bill)|separate)\b", low)
+        if specific:
+            word = specific.group(1)
+            if re.match(r"mess|separate", word):
+                return Answer("Meals are **included in the hostel fee**: 4 meals a day in the 4,000-seat dining hall, "
+                              "vegetarian and non-vegetarian. The Central Cafeteria and kiosks (paid as you go) are there "
+                              "for snacks.\n\nWould you like the hostel fees?", ["Hostel fees", "Mess timings"], [])
+            phrase = {"spicy": "how spicy the food is", "eat outside": "eating outside food", "outside food":
+                      "outside food", "order food": "ordering food in", "swiggy": "ordering food in (Swiggy)",
+                      "zomato": "ordering food in (Zomato)", "cook": "cooking in the hostel", "cooking":
+                      "cooking in the hostel", "special diet": "special diets"}.get(word, f"{word.capitalize()} food")
+            return Answer(f"The official sources I use don't mention {phrase}, so I can't confirm that; "
+                          "the hostel office can. What they do say: 4 meals a day in the 4,000-seat dining hall, "
+                          "vegetarian and non-vegetarian, healthy and hygienic, plus the Central Cafeteria (8:30 AM–6:00 PM) "
+                          "and food kiosks (9:00 AM–7:00 PM).\n\nWould you like the mess timings?",
+                          ["Mess timings", "Talk to a counsellor"], [])
         if re.search(r"canteen|cafeteria|cafe|kiosk|food\s+court|snack", low):
             return Answer("Yes. Besides the 4,000-seat dining hall, SR University has the **Central Cafeteria** (8:30 AM–"
                           "6:00 PM) and the **Tasty Treat, Meet and Eat and Bharat Foods** kiosks (9:00 AM–7:00 PM).\n\n"
