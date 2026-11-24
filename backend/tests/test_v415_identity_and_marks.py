@@ -8,6 +8,8 @@
 """
 from __future__ import annotations
 
+import re
+
 import uuid
 
 import pytest
@@ -99,7 +101,7 @@ async def test_correction_after_the_final_fee_recalculates():
 async def test_correction_in_the_middle_of_the_steps_is_confirmed_and_used():
     out, sid, conv = await _chat(["B.Tech CSE fees", "Telangana State Board", "Completed", "870",
                                   "wait, my marks are 671 out of 1000", "MPC"], name="Asha Rani", phone="9876543210")
-    assert out[4]["answer"].startswith("Updated: I'm now using your marks **671/1000 (67.1%)**")
+    assert "**671/1000 (67.1%)**" in out[4]["answer"].split("\n")[0]   # the new marks confirmed first (varied wording)
     assert "Step 4 of 4" in out[4]["answer"]
     assert "67.1%" in out[5]["answer"] and "15% scholarship" in out[5]["answer"]
 

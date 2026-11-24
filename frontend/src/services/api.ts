@@ -627,6 +627,17 @@ export async function fetchAdminFeedback(adminKey: string): Promise<{ items: Fee
   return res.json();
 }
 
+export interface AdminStudentSummary {
+  name?: string | null;
+  phone?: string | null;
+  program?: string | null;
+  marks?: string | null;
+  scholarship_percent?: number | null;
+  request?: string | null;
+  lead_status?: string | null;
+  is_parent?: boolean | null;
+}
+
 export interface AdminConversationItem {
   id: string;
   session_id: string;
@@ -639,6 +650,7 @@ export interface AdminConversationItem {
   created_at: string;
   updated_at: string;
   last_message_preview: string | null;
+  student?: AdminStudentSummary | null;
 }
 
 export interface AdminMessageFeedback {
@@ -675,6 +687,7 @@ export interface AdminConversationDetail {
   created_at: string;
   updated_at: string;
   messages: AdminMessageDetail[];
+  student?: AdminStudentSummary | null;
 }
 
 export interface AdminConversationsResponse {
@@ -1090,6 +1103,32 @@ async function adminJson<T>(adminKey: string, path: string, init: RequestInit = 
       detail = typeof body?.detail === "string" ? body.detail : "";
     } catch {}
     throw new Error(detail || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
+// Images uploaded in Admin -> Campus media (v4.15.1): stored in the database, served at /api/v1/agent/media/<id>.
+export const MEDIA_PATH = /^\/api\/v1\/agent\/media\/[a-f0-9]{20}$/;
+
+/** A usable image address: an https:// link, or an uploaded image (made absolute against the API). */
+export function mediaUrl(u?: string | null): string {
+  const v = (u || "").trim();
+  if (MEDIA_PATH.test(v)) return `${API_BASE}${v}`;
+  return /^https:\/\/\S+$/i.test(v) ? v : "";
+}
+
+export async function uploadAdminImage(adminKey: string, file: Blob, name: string)
+  : Promise<{ id: string; url: string; type: string; size: number }> {
+  const form = new FormData();
+  form.append("file", file, name);
+  const res = await fetch(`${API_BASE}/api/v1/admin/media`, { method: "POST", headers: { "X-Admin-Key": adminKey }, body: form });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail : "";
+    } catch {}
+    throw new Error(detail || `Upload failed (${res.status})`);
   }
   return res.json();
 }

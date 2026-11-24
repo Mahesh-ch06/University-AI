@@ -83,6 +83,19 @@ async def admin_video_list(_admin: str = Depends(verify_admin_key)) -> dict:
             "topics": list(app_settings.VIDEO_TOPICS), "changes": app_settings.get("videos")}
 
 
+@router.post("/media")
+async def upload_media(file: UploadFile = File(...), _admin: str = Depends(verify_admin_key)) -> dict:
+    """Admin -> Campus media: upload an image for an ad or an event card (v4.15.1). Stored in the database (Render's
+    disk does not keep files); returns the public path to put in `image_url`. JPEG / PNG / WebP only."""
+    from app.services import media_store
+
+    data = await file.read(media_store.MAX_BYTES + 1)
+    try:
+        return await media_store.save(data)
+    except media_store.MediaError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
 @router.put("/settings", response_model=ChatSettingsResponse)
 async def update_chat_settings(
     body: ChatSettingsUpdate,

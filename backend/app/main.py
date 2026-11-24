@@ -127,7 +127,7 @@ async def lifespan(fastapi_app: FastAPI):
 app = FastAPI(
     title="University AI Companion",
     description="Conversational AI with RAG and Function-Calling Agent for university knowledge",
-    version="4.15.0",
+    version="4.15.1",
     lifespan=lifespan,
     docs_url="/docs" if security.docs_enabled() else None,
     redoc_url="/redoc" if security.docs_enabled() else None,
@@ -139,7 +139,7 @@ app.add_middleware(
     security.BodySizeLimitMiddleware,
     default_limit=settings.MAX_REQUEST_BYTES,
     upload_limit=settings.MAX_UPLOAD_BYTES,
-    upload_paths=("/api/v1/admin/documents",),
+    upload_paths=("/api/v1/admin/documents", "/api/v1/admin/media"),   # media: images for ads / events (v4.15.1)
 )
 
 # CORS

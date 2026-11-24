@@ -62,7 +62,9 @@ _DESCRIBED = (
     (r"\binternational[- ]level\s+(?:sports|player|athlete|champion)", "International-level sports achievers"),
     (r"\bnational[- ]level\s+(?:sports|player|athlete|champion)|\bsports\s+quota\b", "National-level sports achievers"),
     (r"\b(?:disab\w+|handicap\w*|pwd)\b", "Students with 50% or above disability"),
-    (r"\bonly\s+girl\s+child\b", "Only girl child from Telangana"),
+    (r"\b(?:only|single|one)\s+girl\s+child\b", "Only girl child from Telangana"),
+    (r"\bsiblings?\b", "Sibling (brother or sister) currently enrolled at SR University"),
+    (r"\blateral\s+entry\b|\becet\b", "Lateral entry students"),
 )
 
 

@@ -10,6 +10,8 @@
 """
 from __future__ import annotations
 
+import re
+
 import uuid
 
 import pytest
@@ -78,7 +80,8 @@ async def test_placement_questions():
 @pytest.mark.asyncio
 async def test_repeats_and_specific_questions():
     out, _, _ = await _chat(["B.Tech CSE fees", "cse fees?"])
-    assert out[1]["answer"].startswith("To work out your exact fee I still need this one detail")
+    assert re.match(r"(To work out your exact fee I still need|Just one more detail|I need this one detail|Almost there)",
+                    out[1]["answer"])   # v4.15.0: varied wording, same step
     assert "Just show the B.Tech CSE fee" in out[1]["suggestions"]
     out, _, _ = await _chat(["how is hostel life", "is the hostel good?"])
     assert out[1]["answer"].startswith("In short") and len(out[1]["answer"]) < len(out[0]["answer"])

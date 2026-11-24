@@ -510,6 +510,58 @@ async def _counsellor_connect(message, session_id, conversation_id, profile, ctx
         yield ev
 
 
+# Cards that are information (videos may go with them); any other card means a workflow step (no videos then).
+_INFO_CARDS = {"placement_highlights", "hostel_facilities", "campus_tour", "curriculum"}
+_VIDEO_CARDS = {"video_recommendations", "get_university_videos", "event_highlights"}
+
+
+async def _with_topic_videos(message: str, text: str, cards: list, session_id: str, conversation_id) -> list:
+    """Up to 2 official SRU videos on the topic the student asked about (v4.15.1), only when the reply is information
+    (not a fee step, a form, a callback or a question back), only from that topic, once per topic per chat, and
+    never a video already shown in this chat."""
+    from app.services import video_service
+
+    types = {c.get("type") for c in cards if isinstance(c, dict)}
+    if types & _VIDEO_CARDS:
+        # videos chosen by another path: remembered, so the same topic / videos are not offered again in this chat
+        vids = [v for c in cards if isinstance(c, dict) and c.get("type") in _VIDEO_CARDS
+                for v in ((c.get("data") or c).get("videos") or []) if isinstance(v, dict)]
+        if vids:
+            state = await memory.get_conversation_state(session_id, conversation_id)
+            topic = video_service.video_topic(message) or vids[0].get("category")
+            await memory.update_conversation_state(
+                session_id, conversation_id,
+                video_topics=(list(state.get("video_topics") or []) + ([topic] if topic else []))[-12:],
+                videos_shown=(list(state.get("videos_shown") or []) + [v.get("id") for v in vids])[-30:])
+        return cards
+    if types - _INFO_CARDS:
+        return cards
+    if re.search(r"(?:^|\n)\s*Step\s+\d|\bwhich\s+(?:programme|program|board|branch)\b", text or "", re.I):
+        return cards
+    state = await memory.get_conversation_state(session_id, conversation_id)
+    if state.get("fee_intake", {}) and (state.get("fee_intake") or {}).get("waiting_for") not in (None, "done"):
+        return cards                                       # the fee steps are open: keep the chat on them
+    topics = list(state.get("video_topics") or [])
+    shown = set(state.get("videos_shown") or [])
+    topic = video_service.video_topic(message)
+    if not topic or topic in topics:
+        return cards
+    topic, vids = video_service.topic_videos(message, exclude=shown, limit=2)
+    if not vids:
+        return cards
+    await memory.update_conversation_state(session_id, conversation_id, video_topics=(topics + [topic])[-12:],
+                                           videos_shown=(list(shown) + [v["id"] for v in vids])[-30:])
+    return cards + [video_service.create_video_card(vids, topic=topic)]
+
+
+def _vary(options: list[str], *seed) -> str:
+    """One of several natural wordings for a line the code writes (v4.15.0: no fixed phrasing for the same line
+    every time). The choice depends on the conversation and the turn, so a repeat is worded differently."""
+    import hashlib
+    key = "|".join(str(x) for x in seed)
+    return options[int(hashlib.md5(key.encode()).hexdigest(), 16) % len(options)]
+
+
 def _other_program_named(message: str, conv_state: dict) -> bool:
     """'Can I join Civil with 88%?' during a CSE estimate: a question about another programme (an eligibility
     check), not a correction of the marks for the one being evaluated (v4.15.0)."""
@@ -686,7 +738,10 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
         _MARKS_NOTE.set("")
         shown = re.sub(r"\s*\(.*\)", "", note)
         if shown not in text and note not in text:
-            text = f"Updated: I'm now using your marks **{note}**.\n\n" + text
+            text = _vary([f"Updated: I'm now using your marks **{note}**.",
+                          f"Got it, I've updated your marks to **{note}**.",
+                          f"Thanks for correcting that. I'm using **{note}** from now on.",
+                          f"No problem, your marks are now **{note}**."], session_id, message) + "\n\n" + text
     try:   # the same step question as the last reply (the student asked something else): say why it is asked again
         hist = await memory.get_history(session_id, conversation_id)
         last = next((h.get("text", "") for h in reversed(hist or []) if h.get("role") in ("model", "assistant")), "")
@@ -701,9 +756,13 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
                 first = first + "\n" + "\n".join(points[:3]) + ("\n…" if len(points) > 3 else "")
             elif len(first) < 140 and len(paras) > 1:        # a short lead: the line after it too (e.g. the fee)
                 first = first + "\n\n" + paras[1]
-            text = (f"As I shared just above:\n\n{first}" if len(first) <= 600
-                    else "That's the same as my answer just above.")
-            text += "\n\nScroll up for the full details, or ask me anything about it."
+            lead_r = _vary(["As I shared just above:", "Here's the short version of what I mentioned above:",
+                            "Quick recap from my earlier answer:"], session_id, message, len(hist or []))
+            text = (f"{lead_r}\n\n{first}" if len(first) <= 600 else "That's the same as my answer just above.")
+            text += "\n\n" + _vary(["Scroll up for the full details, or ask me anything about it.",
+                                     "The full details are just above; ask me if anything is unclear.",
+                                     "You'll find everything above, and I'm happy to explain any part."],
+                                    session_id, message, len(hist or []))
         if last and last.strip().endswith(text.strip()) and text.rstrip().endswith("?") and len(text) < 400 \
                 and re.match(r"\s*Step\s+\d", text):
             st_prog = fees.find_program(str(((await memory.get_conversation_state(session_id, conversation_id))
@@ -711,13 +770,23 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
             said_prog = fee_intake.parse_details(message or "").get("program")
             if st_prog and said_prog and fees.find_program(str(said_prog)) == st_prog \
                     and fee_journey._SWITCH.search(message or ""):
-                text = f"Sure, switching to **{fees.short_name(st_prog)}**.\n\n" + text   # a change of programme
+                sp = fees.short_name(st_prog)                                              # a change of programme
+                text = _vary([f"Sure, switching to **{sp}**.", f"No problem, let's go with **{sp}** instead.",
+                              f"Okay, **{sp}** it is."], session_id, message) + "\n\n" + text
             elif st_prog and said_prog and fees.find_program(str(said_prog)) == st_prog \
                     and not fee_intake.is_fee_enquiry(message or ""):
-                lead_p = ("Yes, SR University offers" if _DO_YOU_HAVE.search(message or "") else "Got it,")
-                text = f"{lead_p} **{fees.short_name(st_prog)}**.\n\n" + text              # the programme named
+                sp = fees.short_name(st_prog)                                              # the programme named
+                lead_p = (_vary([f"Yes, SR University offers **{sp}**.", f"Yes, we do have **{sp}**.",
+                                 f"Yes! **{sp}** is offered at SR University."], session_id, message)
+                          if _DO_YOU_HAVE.search(message or "") else
+                          _vary([f"Got it, **{sp}**.", f"Great, **{sp}**.", f"**{sp}**, noted."], session_id, message))
+                text = f"{lead_p}\n\n" + text
             else:
-                text = "To work out your exact fee I still need this one detail.\n\n" + text
+                text = _vary(["To work out your exact fee I still need this one detail.",
+                              "Just one more detail and I can work out your exact fee.",
+                              "I need this one detail to give you your exact fee.",
+                              "Almost there: this detail decides your exact fee."],
+                             session_id, message, len(hist or [])) + "\n\n" + text
             if st_prog:
                 suggestions, exact_chips = list(suggestions or []) + [f"Just show the {fees.short_name(st_prog)} fee"], True
     except Exception:
@@ -725,6 +794,10 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     if re.match(r"\s*Step\s+\d", text) and _DO_YOU_HAVE.search(message or "") and fees.find_program(message or "") \
             and "SR University offers" not in text:
         text = f"Yes, SR University offers **{fees.short_name(fees.find_program(message))}**.\n\n" + text
+    try:   # v4.15.1: official videos for an informational answer (one topic once per chat; never in a workflow)
+        cards = await _with_topic_videos(message, text, list(cards or []), session_id, conversation_id)
+    except Exception:
+        log.exception("topic videos skipped")
     if await _offer_fee_chart(session_id, conversation_id, cards):
         text = text.rstrip() + "\n\n" + _FEE_CHART_OFFER
         suggestions, exact_chips = ["Yes, prepare my fee chart", "No, thanks"], True
@@ -957,8 +1030,15 @@ async def _small_talk_reply(kind: str, message, session_id, conversation_id, *, 
         text = _SMALL_TALK_FALLBACK.get(key, _SMALL_TALK_FALLBACK["greeting"]).format(name=name or "")
         first = _first_name((profile or {}).get("name")) if (profile or {}).get("address_by_name") is not False else ""
         if key in ("greeting", "greeting_again") and first and not tools.is_placeholder_name(first):
-            text = (f"Hi again, {first}! What would you like to know next?" if key == "greeting_again"
-                    else f"Hi {first}! What would you like to know about SR University?")
+            seed = (session_id, message, len(history or []))
+            text = (_vary([f"Hi again, {first}! What would you like to know next?",
+                           f"Hello again, {first}! What else can I help you with?",
+                           f"Hey {first}! What would you like to explore next?"], *seed)
+                    if key == "greeting_again" else
+                    _vary([f"Hi {first}! What would you like to know about SR University?",
+                           f"Hello {first}! How can I help you with SR University today?",
+                           f"Hey {first}! Ask me anything about admissions, fees or campus life at SR University."],
+                          *seed))
     async for ev in _say(text, message, session_id, conversation_id, suggestions=suggestions, profile=profile):
         yield ev
 
@@ -1640,9 +1720,9 @@ def _side_question(message: str, conv_state: dict) -> bool:
     if fee_intake.is_fee_enquiry(text) and not re.search(r"\b(?:hostel|room|mess|bus|transport)\b", text, re.I):
         return False                                     # a fee question continues the fee steps
     # A programme's own label is an answer, even when it has words like "ICAR Accredited" in brackets (v4.15.0)
-    if intake.get("waiting_for") == "program" and fees.find_program(text) \
-            and re.search(r"\b(?:details?|about|tell\s+me|info(?:rmation)?|explain|overview)\b", text, re.I):
-        return True     # "B.Sc Agriculture details": a question about the programme, answered first (v4.15.0)
+    if fees.find_program(text) and re.search(r"\b(?:details?|about|tell\s+me|info(?:rmation)?|explain|overview)\b",
+                                             text, re.I) and not fee_intake.is_fee_enquiry(text):
+        return True     # "tell me about BBA" / "B.Sc Agriculture details" at any step: answered first (v4.15.1)
     if intake.get("waiting_for") == "program" and fees.find_program(text) \
             and not _SIDE_TOPIC.search(re.sub(r"\([^)]*\)", " ", text)):
         return False
@@ -1672,7 +1752,11 @@ def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
 
 
 _DISCOUNT_ASK = re.compile(r"\b(?:discounts?|concessions?|reductions?|waivers?|fee\s+relief|less\s+fee|benefits?|"
-                           r"offers?|rebate|quota)\b", re.IGNORECASE)
+                           r"offers?|rebate|quota)\b|\bscholarships?\s+(?:for|to)\s+(?:girls?|daughters?|women|"
+                           r"sports\w*|athletes?|single\s+parent|orphans?|defen[cs]e|police|army|military|ncc|siblings?|"
+                           r"lateral\s+entry|alumni|(?:kids|children|sons?)\s+of)\b|"
+                           r"\b(?:girl\s+child|siblings?|army|military|lateral\s+entry|ncc|alumni)\b.{0,30}"
+                           r"\b(?:scholarships?|concessions?)\b", re.IGNORECASE)
 _CUTOFF_FACT = re.compile(
     r"\bclosing\s+(?:rank|cut[- ]?off|marks?)|\bcut[- ]?off\s+(?:rank|ranks)\b|\brank\s+cut[- ]?off|"
     r"\blast\s+year'?s?\s+(?:closing|cut[- ]?off|ranks?)\b|\b(?:cut[- ]?off|closing)\b.{0,40}\blast\s+year\b",
@@ -1945,7 +2029,9 @@ _TYPOS = [(re.compile(p, re.IGNORECASE), w) for p, w in (
     (r"\bhost(?:a|e)?ls?\b(?<!\bhostels)(?<!\bhostel)", "hostel"), (r"\bhostle?s?\b", "hostel"),
     (r"\bfe(?:es?s|ez|ss)\b", "fees"), (r"\bplac(?:e)?m(?:e|a)?nt(s)?\b", r"placement\1"),
     (r"\beligi?bi?li?ty\b", "eligibility"),
-    (r"\bcampas\b", "campus"), (r"\bevnts\b", "events"), (r"\badmi?s+ion\b", "admission"),
+    (r"\bcampas\b", "campus"), (r"^\W*fes\W*$", "fees"), (r"\bhstel\b|\bhostl\b", "hostel"),
+    (r"\bpl[ae]?cm(?:e)?nts?\b|\bplcmnt\w*", "placement"), (r"\badmsn\b|\badmisn\b", "admission"),
+    (r"\bsch(?:o)?l(?:a)?r(?:s)?h(?:i)?p\b|\bschlrshp\b", "scholarship"), (r"\bevnts\b", "events"), (r"\badmi?s+ion\b", "admission"),
     (r"\bcolle?a?ge\b", "college"), (r"\bcoures?\b|\bcorse\b", "course"))]
 
 
@@ -2121,6 +2207,15 @@ async def run_agent(
     # v4.15.0: this message answers the open fee step ("AI and Robotics" to "which programme?"): no topic answer
     # (labs, programmes...) may take it; the steps continue.
     step_answer = bool(dlg_busy and not side_q and intake_now.get("waiting_for") not in (None, "done"))
+    # v4.15.1: specific questions answered exactly from the fee card's terms / verified facts (quick_facts.py)
+    from . import quick_facts
+    qa = None if (step_answer or tools.find_phone(message) or intents.is_callback_request(message)) \
+        else quick_facts.answer(message)            # a phone number or callback request goes to the callback flow
+    if qa:
+        async for ev in _reply(qa.text, message, session_id, conversation_id, suggestions=qa.chips, exact_chips=True,
+                               client=client, history=history, profile=profile, conv_state=conv_state):
+            yield ev
+        return
     if _SEATS_Q.search(message or "") and not step_answer:   # a figure SRU doesn't publish: said plainly
         async for ev in _reply(_SEATS_TEXT, message, session_id, conversation_id,
                                suggestions=["How do I apply?", "Check my eligibility", "Talk to a counsellor"],
@@ -2136,8 +2231,13 @@ async def run_agent(
             or (conv_state.get("fee_intake") or {}).get("program") or conv_state.get("active_program") \
             or profile.get("program_interest")
         if rule_prog in fees.load_data()["programs"]:
-            await memory.update_conversation_state(session_id, conversation_id, active_program=rule_prog)
+            # the programme is now the one being discussed (an open "which branch?" is answered by it)
+            dlg_now = {k: v for k, v in (conv_state.get("dialogue") or {}).items() if k != "step"}
+            dlg_now["program"] = rule_prog
+            await memory.update_conversation_state(session_id, conversation_id, active_program=rule_prog,
+                                                   dialogue=dlg_now)
             conv_state["active_program"] = rule_prog
+            conv_state["dialogue"] = dlg_now
             async for ev in _reply(eligibility.rule_text(rule_prog), message, session_id, conversation_id,
                                    suggestions=["Check my eligibility with my marks", f"{fees.short_name(rule_prog)} fees",
                                                 "Calculate my scholarship"],
@@ -2711,8 +2811,12 @@ async def run_agent(
         if step:
             # A greeting in the middle of the fee steps: say hello, then the same question again (nothing reset).
             first = _first_name(profile.get("name")) if profile.get("address_by_name") is not False else ""
-            hello = ("I'm doing well, thanks for asking!" if chat == "how_are_you"
-                     else f"Hi{', ' + first if first else ''}!")
+            name_bit = f", {first}" if first else ""
+            hello = (_vary(["I'm doing well, thanks for asking!", "All good here, thank you!",
+                            "Doing great, thanks!"], session_id, message, len(history or []))
+                     if chat == "how_are_you" else
+                     _vary([f"Hi{name_bit}!", f"Hello{name_bit}!", f"Hey{name_bit}!"],
+                           session_id, message, len(history or [])))
             if _use_model(client):   # the hello is written for this conversation; the step itself stays exact
                 words = await _model_words(
                     "REPLY BRIEF: The student said hello (or asked how you are) in the middle of their fee estimate. "
@@ -2724,7 +2828,9 @@ async def run_agent(
             if step.get("fee_state"):
                 await set_state(**{fee_journey.KEY: step["fee_state"]})
             joined = hello if re.search(r"carry on|continue|pick up", hello, re.I) else \
-                f"{hello} Let's carry on with your fee estimate."
+                f"{hello} " + _vary(["Let's carry on with your fee estimate.", "Let's pick up your fee estimate.",
+                                     "We were in the middle of your fee estimate, so let's continue."],
+                                    session_id, len(history or []))
             async for ev in _say(f"{joined}\n\n{step['text']}", message,
                                  session_id, conversation_id, cards=step["cards"], suggestions=step["chips"],
                                  exact_chips=True, profile=profile, resume=False):
@@ -4097,6 +4203,12 @@ async def run_agent(
                 continue  # tool already provided video card; do not duplicate
             if c not in cards:
                 cards.append(c)
+        # v4.15.1: the same topic videos as code-written answers (one topic once per chat), when none came above
+        if not any(isinstance(c, dict) and c.get("type") in _VIDEO_CARDS for c in cards):
+            try:
+                cards[:] = await _with_topic_videos(message, final, list(cards), session_id, conversation_id)
+            except Exception:
+                log.exception("topic videos skipped")
         delivered = {c.get("type") for c in cards if isinstance(c, dict)}
         shown_now = get_session_shown_cards(card_scope)
         for card_type in list(shown_now - shown_before):

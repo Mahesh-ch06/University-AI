@@ -1343,15 +1343,24 @@ async def handle_chat_stream(
 
         # Background: save extractive memory summary after the response is already streamed.
         # Fire-and-forget; errors are caught inside save_summary and are non-critical.
+        # Its own database session: the request's session is committed and closed by get_db when the stream
+        # ends, and two operations on one connection at once fail ("another operation is in progress").
+        conv_id_for_summary = conversation.id
+
         async def _save_memory_summary() -> None:
             try:
-                await memory_service.save_summary(
-                    db,
-                    conversation.id,
-                    memory_service.build_extractive_summary(
-                        await conversation_service.get_recent_messages(db, conversation.id)
-                    ),
-                )
+                from app.db.session import async_session_factory
+                if async_session_factory is None:
+                    return
+                async with async_session_factory() as bg_db:
+                    await memory_service.save_summary(
+                        bg_db,
+                        conv_id_for_summary,
+                        memory_service.build_extractive_summary(
+                            await conversation_service.get_recent_messages(bg_db, conv_id_for_summary)
+                        ),
+                    )
+                    await bg_db.commit()
             except Exception as _mem_err:
                 logger.warning("Background memory summary failed (non-critical): %s", _mem_err)
 

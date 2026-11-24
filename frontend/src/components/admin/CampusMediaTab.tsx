@@ -12,7 +12,9 @@ import {
   type EventHighlight,
   type VideoChanges,
 } from "../../services/api";
+import { mediaUrl } from "../../services/api";
 import { ChatAdStrip, EventHighlightsCard } from "../CampusCards";
+import ImageField, { isImageSource } from "./ImageField";
 import "./CampusMediaTab.css";
 
 type Section = "events" | "videos" | "ads";
@@ -78,11 +80,11 @@ export default function CampusMediaTab({ adminKey }: { adminKey: string }) {
       {!settings ? (
         <p className="cm-muted">{status ? "" : "Loading…"}</p>
       ) : section === "events" ? (
-        <EventsEditor items={settings.event_highlights} busy={busy} onSave={(v) => save({ event_highlights: v })} />
+        <EventsEditor adminKey={adminKey} items={settings.event_highlights} busy={busy} onSave={(v) => save({ event_highlights: v })} />
       ) : section === "videos" ? (
         <VideosEditor adminKey={adminKey} changes={settings.videos} busy={busy} onSave={(v) => save({ videos: v })} />
       ) : (
-        <AdsEditor items={settings.chat_ads} seconds={settings.ads_rotate_seconds} busy={busy}
+        <AdsEditor adminKey={adminKey} items={settings.chat_ads} seconds={settings.ads_rotate_seconds} busy={busy}
                    onSave={(items, secs) => save({ chat_ads: items, ads_rotate_seconds: secs })} />
       )}
     </div>
@@ -141,11 +143,13 @@ function SaveBar({ changed, invalid, busy, onUndo, onSave, error }: {
 }
 
 // ------------------------------------------------------------------ events
-function EventsEditor({ items, busy, onSave }: { items: EventHighlight[]; busy: boolean; onSave: (v: EventHighlight[]) => void }) {
+function EventsEditor({ adminKey, items, busy, onSave }: {
+  adminKey: string; items: EventHighlight[]; busy: boolean; onSave: (v: EventHighlight[]) => void;
+}) {
   const { draft, setDraft, set, move, remove, changed } = useDraft(items);
   const [open, setOpen] = useState<string | null>(null);
   const problem = draft.find((e) => !e.title.trim()) ? "Every event needs a title."
-    : draft.find((e) => !isHttps(e.image_url)) ? "Image links must start with https://" : "";
+    : draft.find((e) => !isImageSource(e.image_url)) ? "Images must be uploaded or an https:// link." : "";
   const shown = draft.filter((e) => e.enabled !== false && e.title.trim());
 
   return (
@@ -160,7 +164,7 @@ function EventsEditor({ items, busy, onSave }: { items: EventHighlight[]; busy: 
             <div key={e.id} className={`cm-row ${e.enabled === false ? "is-off" : ""}`}>
               <button type="button" className="cm-row-head" aria-expanded={open === e.id}
                       onClick={() => setOpen(open === e.id ? null : e.id)}>
-                <span className="cm-thumb">{e.image_url && isHttps(e.image_url) ? <img src={e.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}</span>
+                <span className="cm-thumb">{mediaUrl(e.image_url) ? <img src={mediaUrl(e.image_url)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}</span>
                 <span className="cm-row-name">
                   <strong>{e.title || "New event"}</strong>
                   <small>{e.when || "No date"}</small>
@@ -176,9 +180,9 @@ function EventsEditor({ items, busy, onSave }: { items: EventHighlight[]; busy: 
                                     onChange={(x) => set(i, { when: x.target.value })} /></label>
                   <label className="wide">Description<textarea value={e.summary} maxLength={220} rows={2}
                                                              onChange={(x) => set(i, { summary: x.target.value })} /></label>
-                  <label className="wide">Image link (https)<input value={e.image_url} maxLength={400}
-                                                                  placeholder="https://sru.edu.in/wp-content/uploads/…"
-                                                                  onChange={(x) => set(i, { image_url: x.target.value.trim() })} /></label>
+                  <ImageField label="Image" adminKey={adminKey} value={e.image_url}
+                              placeholder="https://sru.edu.in/wp-content/uploads/…"
+                              onChange={(v) => set(i, { image_url: v })} />
                   <label>YouTube video (link or id, optional)<input value={e.video_id} maxLength={80}
                                                                     onChange={(x) => set(i, { video_id: ytId(x.target.value) })} /></label>
                   <label>Other names students use<input value={e.keywords} maxLength={200} placeholder="comma separated"
@@ -335,14 +339,15 @@ function VideosEditor({ adminKey, changes, busy, onSave }: {
 }
 
 // ------------------------------------------------------------------ ads
-function AdsEditor({ items, seconds, busy, onSave }: {
-  items: ChatAd[]; seconds: number; busy: boolean; onSave: (items: ChatAd[], seconds: number) => void;
+function AdsEditor({ adminKey, items, seconds, busy, onSave }: {
+  adminKey: string; items: ChatAd[]; seconds: number; busy: boolean; onSave: (items: ChatAd[], seconds: number) => void;
 }) {
   const { draft, setDraft, set, move, remove, changed } = useDraft(items);
   const [secs, setSecs] = useState(seconds);
   const [open, setOpen] = useState<string | null>(null);
   const problem = draft.find((a) => !a.title.trim()) ? "Every ad needs a highlight."
-    : draft.find((a) => !isHttps(a.image_url) || !isHttps(a.link_url)) ? "Links must start with https://"
+    : draft.find((a) => !isImageSource(a.image_url)) ? "The cover image must be uploaded or an https:// link."
+    : draft.find((a) => !isHttps(a.link_url)) ? "The button link must start with https://"
     : draft.find((a) => a.enabled !== false && !a.link_url.trim()) ? "An ad that is shown needs a button link." : "";
   const live = draft.filter((a) => a.enabled !== false && a.title.trim() && a.link_url.trim());
 
@@ -357,7 +362,7 @@ function AdsEditor({ items, seconds, busy, onSave }: {
             <div key={a.id} className={`cm-row ${a.enabled === false ? "is-off" : ""}`}>
               <button type="button" className="cm-row-head" aria-expanded={open === a.id}
                       onClick={() => setOpen(open === a.id ? null : a.id)}>
-                <span className="cm-thumb">{a.image_url && isHttps(a.image_url) ? <img src={a.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}</span>
+                <span className="cm-thumb">{mediaUrl(a.image_url) ? <img src={mediaUrl(a.image_url)} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}</span>
                 <span className="cm-row-name">
                   <strong>{a.title || "New ad"}</strong>
                   <small>{a.tag ? `${a.tag} · ` : ""}{a.cta_text || "Know more"}</small>
@@ -375,8 +380,8 @@ function AdsEditor({ items, seconds, busy, onSave }: {
                   <label>Tag (optional)<input value={a.tag} maxLength={18} placeholder="e.g. New"
                                               onChange={(x) => set(i, { tag: x.target.value })} /></label>
                   <label>Button text<input value={a.cta_text} maxLength={24} onChange={(x) => set(i, { cta_text: x.target.value })} /></label>
-                  <label className="wide">Cover image link (https)<input value={a.image_url} maxLength={400}
-                                                                        onChange={(x) => set(i, { image_url: x.target.value.trim() })} /></label>
+                  <ImageField label="Cover image" adminKey={adminKey} value={a.image_url}
+                              onChange={(v) => set(i, { image_url: v })} />
                   <label className="wide">Button link (https)<input value={a.link_url} maxLength={400} placeholder="https://apply.sru.edu.in"
                                                                    onChange={(x) => set(i, { link_url: x.target.value.trim() })} /></label>
                 </div>

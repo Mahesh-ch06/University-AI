@@ -115,7 +115,7 @@ def test_create_video_card():
     card = create_video_card(videos, is_explicit=True)
 
     assert card["type"] == "video_recommendations"
-    assert "Official SR University" in card["title"]
+    assert card["title"] == "Business school at SRU"      # v4.15.1: named after the videos' topic
     assert "channel_url" in card
     assert "channel_name" in card
     assert len(card["videos"]) == 2

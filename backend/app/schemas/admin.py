@@ -52,6 +52,18 @@ class AdminMessageDetail(BaseModel):
     created_at: datetime
 
 
+class AdminStudentSummary(BaseModel):
+    """Who the student is, for the admissions team (v4.15.1): from the profile the chat saved and the leads."""
+    name: str | None = None
+    phone: str | None = None
+    program: str | None = None
+    marks: str | None = None
+    scholarship_percent: float | None = None
+    request: str | None = None          # "callback" / "campus_visit" when one was made
+    lead_status: str | None = None
+    is_parent: bool | None = None
+
+
 class AdminConversationItem(BaseModel):
     id: UUID
     session_id: str
@@ -64,6 +76,7 @@ class AdminConversationItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_message_preview: str | None = None
+    student: AdminStudentSummary | None = None
 
 
 class AdminConversationListResponse(BaseModel):
@@ -80,6 +93,7 @@ class AdminConversationDetailResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     messages: list[AdminMessageDetail]
+    student: AdminStudentSummary | None = None
 
 
 class PromoteExemplarRequest(BaseModel):

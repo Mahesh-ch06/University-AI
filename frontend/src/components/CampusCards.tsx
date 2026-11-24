@@ -1,10 +1,11 @@
 // v4.14.0: the events' photo cards in the chat, and the small ad at the bottom of the chat. Both are set in
 // Admin -> Campus media. Text from the server is rendered as text (never as HTML); links must be https.
 import { useEffect, useState } from "react";
-import { fetchChatAds, type ChatAd } from "../services/api";
+import { fetchChatAds, mediaUrl, type ChatAd } from "../services/api";
 import "./CampusCards.css";
 
-const safeUrl = (url?: string) => (typeof url === "string" && /^https:\/\//i.test(url) ? url : "");
+// https:// links, and images uploaded in the admin panel (served by the API, v4.15.1)
+const safeUrl = (url?: string) => mediaUrl(typeof url === "string" ? url : "");
 
 type EventItem = { id: string; title: string; when?: string; summary?: string; image_url?: string; video_url?: string };
 

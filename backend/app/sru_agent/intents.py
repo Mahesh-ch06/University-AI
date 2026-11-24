@@ -1011,6 +1011,14 @@ _ADVERSARIAL_PROMPT_PATTERN = re.compile(
     r"enter\s+(developer\s+mode|DAN\s+mode|god\s+mode|unrestricted\s+mode)|"
     r"enable\s+(developer\s+mode|DAN\s+mode|jailbreak)|"
     r"jailbreak|"
+    # v4.15.1: secrets, other people's data, pretending to be someone else
+    r"(?:your|the|bot'?s?|system|server|admin|gemini|openai)\s+(?:api\s*keys?|secret\s*keys?|passwords?|tokens?|credentials)|"
+    r"(?:api\s*key|admin\s+(?:key|password))\b|"
+    r"(?:show|give|list|share|send|tell)\s+(?:me\s+)?(?:the\s+|all\s+(?:the\s+)?)?(?:other\s+)?(?:students?'?|applicants?'?|"
+    r"users?'?|leads?)\s*(?:'s\s+)?(?:phone|mobile|numbers?|details|data|names|list|contacts?|emails?)|"
+    r"(?:list|show)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?(?:students|applicants|people)\s+who\s+(?:applied|registered|asked)|"
+    r"other\s+students?'?\s+(?:phone|mobile|numbers?|details|data|marks)|"
+    r"pretend\s+(?:to\s+be|you\s+are)|you\s+are\s+not\s+sru\s+buddy|role-?play\s+as|"
     # System prompt extraction / leaking
     r"(reveal|tell\s+me|show\s+me|print|output|repeat|display|dump)\s+(your|the)\s+(?:system\s+prompt|context|hidden\s+prompt|raw\s+prompt|rules|(?:initial\s+|secret\s+|internal\s+)+(?:instructions?|prompt))|"
     r"(what\s+(?:is|are)\s+your|what\s+were\s+your)\s+(?:system\s+prompt|(?:initial\s+|secret\s+|internal\s+)+(?:instructions?|prompt)|rules|context)|"
@@ -1039,6 +1047,14 @@ def check_adversarial_guardrail(message: str) -> str | None:
     if not message:
         return None
     if _ADVERSARIAL_PROMPT_PATTERN.search(message):
+        low = message.lower()
+        if re.search(r"students?'?|applicants?|users?|leads?|people\s+who", low) and \
+                re.search(r"phone|mobile|number|details|data|names|list|contacts?|emails?|marks|applied|registered", low):
+            return ("I can't share other students' details: they're private. I'm happy to help with your own "
+                    "admission questions: programmes, fees, scholarships or a callback.")
+        if re.search(r"api\s*keys?|secret\s*keys?|passwords?|tokens?|credentials?|admin\s+keys?|gemini\s+keys?", low):
+            return ("I can't share keys, passwords or internal details. I'm here for SR University admissions: "
+                    "programmes, fees, scholarships and campus life. What would you like to know?")
         return ADVERSARIAL_REFUSAL_RESPONSE
     return None
 

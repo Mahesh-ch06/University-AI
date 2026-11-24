@@ -404,6 +404,9 @@ def _ask_aspect(key: str, state: dict, lead: str = "Sure! ") -> dict:
         text = (program_overview(key) + f"\n\nWhat would you like to explore about {p} next: eligibility, fees, "
                                          f"curriculum, placements, faculty or labs?")
         return _ask(text, ["Eligibility", "Fees", "Placements", "Curriculum"], state)
+    if re.match(r"^\W*(?:do\s+you\s+(?:have|offer)|is\s+there|does\s+(?:sru|sr\s+university)\s+(?:have|offer))\b",
+                _MESSAGE.get() or "", re.I):
+        lead = f"Yes, SR University offers {p}. "
     text = (f"{lead}What would you like to explore about {p}: admission eligibility, fees, curriculum, placements, "
             f"faculty, labs or career opportunities?")
     return _ask(text, ["Eligibility", "Fees", "Placements", "Curriculum"], state)

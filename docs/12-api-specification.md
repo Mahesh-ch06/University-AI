@@ -315,3 +315,12 @@ Callback / visit leads carry `metadata.case`: `program`, `marks`, `scholarship`,
 * `POST /api/v1/leads`: a repeat callback / visit request from the same mobile number within 7 days (lead still
   `new`) returns the existing lead, updated, instead of a new one.
 * `PUT /api/v1/agent/profile` with `fresh_start` keeps the student's name usable in the new chat.
+
+
+### v4.15.1
+
+* `POST /api/v1/admin/media` (admin): upload a JPEG / PNG / WebP (≤ 450 KB) for an ad or event card; returns
+  `{id, url, type, size}`. `GET /api/v1/agent/media/{id}` (public) serves it. See docs/41.
+* `chat_ads[].image_url` and `event_highlights[].image_url` accept `/api/v1/agent/media/<id>` as well as https:// links.
+* Admin conversations list / detail: new optional `student` object (name, phone, program, marks, scholarship_percent,
+  request, lead_status, is_parent).

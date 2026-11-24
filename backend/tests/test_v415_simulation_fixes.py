@@ -4,6 +4,7 @@ Each test is one real failure from the simulation (e2e/student_simulation_2000.p
 answers it: the fee steps (fee_intake), the fee evaluation (fee_journey), the concessions (fee_plan), the dialogue
 manager, the typo reader and the durable conversation state (memory).
 """
+import re
 import asyncio
 
 import pytest
@@ -74,21 +75,21 @@ EVAL = {"active": True, "origin": "eligibility", "program": "btech_cse", "conces
 def test_a_marks_correction_is_not_read_as_no_to_the_open_step():
     r = fee_journey.decide("no my marks are 671 out of 1000", dict(EVAL), {"percent": 67.1},
                            {"last_reply": "x Before we finalise y", "marks_corrected": True})
-    assert "scholarship on **B.Tech CSE** is **15%**" in r["text"]
+    assert "**15%**" in r["text"] and "**B.Tech CSE**" in r["text"]
     assert r["state"]["concession_decided"] is False            # the concession question is asked again
 
 
 @pytest.mark.parametrize("answer", ["none", "nothing", "ledu", "None of these apply"])
 def test_no_concession_in_any_wording(answer):
     r = fee_journey.decide(answer, dict(EVAL), {"percent": 80}, {"last_reply": "x Before we finalise y"})
-    assert r["text"].startswith("No problem, no special concession then.")
+    assert re.match(r"(No problem, no special concession then|Okay, no special concession|Got it, we'll skip the special concessions)", r["text"])
 
 
 def test_programme_change_in_the_middle_keeps_the_evaluation():
     st = {**EVAL, "concession_decided": True, "hostel": "none", "transport": False, "final_shown": True,
           "awaiting": None}
     r = fee_journey.decide("actually I want ece", st, {"percent": 90, "board": "state_board"}, {})
-    assert r["state"]["program"] == "btech_ece" and "switching to **B.Tech ECE**" in r["text"]
+    assert r["state"]["program"] == "btech_ece" and "**B.Tech ECE**" in r["text"]
 
 
 def test_pay_question_from_a_new_student_starts_the_evaluation_not_the_final_card():

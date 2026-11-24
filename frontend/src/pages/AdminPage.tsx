@@ -31,12 +31,36 @@ import AdminLogin from "../components/admin/AdminLogin";
 import "../components/admin/AdminShell.css";
 import "./AdminMobile.css";
 import "./AdminPage.css";
+import "./AdminChats.css";
 
 interface Props {
   onBackToChat: () => void;
 }
 
 /** Strips markdown formatting to display clean preview text */
+// Student chats (v4.15.1): who the student is, when, and what happened, at a glance.
+function initials(name?: string | null): string {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  return parts.length ? (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase() : "?";
+}
+function chatWhen(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff === 0) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (diff === 1) return "Yesterday";
+  if (diff < 7) return d.toLocaleDateString([], { weekday: "short" });
+  return d.toLocaleDateString([], { day: "numeric", month: "short" });
+}
+function prettyPhone(p?: string | null): string {
+  const d = (p || "").replace(/\D/g, "").slice(-10);
+  return d.length === 10 ? `${d.slice(0, 5)} ${d.slice(5)}` : (p || "");
+}
+function requestLabel(r?: string | null): string {
+  return r === "campus_visit" ? "Visit request" : r === "callback" ? "Callback requested" : r ? "Request" : "";
+}
+
 function plainPreview(text: string): string {
   return (text || "")
     .replace(/\*\*|__|`|#{1,6}\s/g, "")
@@ -1098,7 +1122,7 @@ export default function AdminPage({ onBackToChat }: Props) {
                       onClick={handleExportAllMarkdown}
                       title="Download ALL conversations in Markdown (.md) to train or evaluate the AI model"
                     >
-                      {isExportingAll ? "Generating Dataset..." : "Export All Chats (.md for AI Training)"}
+                      {isExportingAll ? "Preparing…" : "Export all chats"}
                     </button>
                   </div>
                 </div>
@@ -1130,40 +1154,36 @@ export default function AdminPage({ onBackToChat }: Props) {
                         {conversations.map((c) => {
                           const isSelected = selectedConvId === c.id;
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={c.id}
-                              className={`conv-list-item ${isSelected ? "selected" : ""}`}
+                              className={`conv-list-item cv-item ${isSelected ? "selected" : ""}`}
+                              aria-current={isSelected ? "true" : undefined}
                               onClick={() => handleSelectConversation(c.id)}
                             >
-                              <div className="conv-item-top">
-                                <span className="conv-item-title">{c.title || "Untitled Conversation"}</span>
-                                <span className="conv-item-time">
-                                  {new Date(c.updated_at).toLocaleDateString([], {
-                                    month: "short",
-                                    day: "numeric",
-                                  })}
+                              <span className={`cv-avatar ${c.student?.name ? "" : "is-unknown"}`} aria-hidden="true">
+                                {initials(c.student?.name)}
+                              </span>
+                              <span className="cv-main">
+                                <span className="cv-top">
+                                  <strong className="cv-name">{c.student?.name || "Student (name not given)"}</strong>
+                                  <time className="cv-time" dateTime={c.updated_at}
+                                        title={new Date(c.updated_at).toLocaleString()}>{chatWhen(c.updated_at)}</time>
                                 </span>
-                              </div>
-
-                              {c.last_message_preview && (
-                                <p className="conv-item-preview">{plainPreview(c.last_message_preview)}</p>
-                              )}
-
-                              <div className="conv-item-footer">
-                                <span className="conv-msg-tag">{c.message_count} msgs</span>
-                                <div className="conv-feedback-tags">
-                                  {c.positive_feedback_count > 0 && (
-                                    <span className="fb-tag-pos">👍 {c.positive_feedback_count}</span>
-                                  )}
-                                  {c.negative_feedback_count > 0 && (
-                                    <span className="fb-tag-neg">👎 {c.negative_feedback_count}</span>
-                                  )}
-                                </div>
-                                <span className="conv-session-tag" title={c.session_id}>
-                                  {c.session_id.slice(0, 8)}...
+                                <span className="cv-topic">{c.title || "Untitled conversation"}</span>
+                                {c.last_message_preview && (
+                                  <span className="cv-preview">{plainPreview(c.last_message_preview)}</span>
+                                )}
+                                <span className="cv-tags">
+                                  {c.student?.program && <span className="cv-tag">{c.student.program}</span>}
+                                  {c.student?.marks && <span className="cv-tag">{c.student.marks}</span>}
+                                  {c.student?.request && <span className="cv-tag is-req">{requestLabel(c.student.request)}</span>}
+                                  <span className="cv-tag is-muted">{c.message_count} messages</span>
+                                  {c.positive_feedback_count > 0 && <span className="cv-tag is-good">Helpful {c.positive_feedback_count}</span>}
+                                  {c.negative_feedback_count > 0 && <span className="cv-tag is-bad">Not helpful {c.negative_feedback_count}</span>}
                                 </span>
-                              </div>
-                            </div>
+                              </span>
+                            </button>
                           );
                         })}
                       </div>
@@ -1222,86 +1242,68 @@ export default function AdminPage({ onBackToChat }: Props) {
                             <button type="button" className="admin-mobile-back" onClick={() => setSelectedConvId(null)}>
                               ← All chats
                             </button>
-                            {/* Header */}
-                            <div className="transcript-top-header">
-                              <div className="transcript-headline">
-                                <div className="transcript-title-row">
-                                  <h3>{selectedConvDetail.title}</h3>
-                                  <button
-                                    className="transcript-id-badge"
-                                    title="Click to copy full Conversation ID"
-                                    onClick={() => handleCopyConvId(selectedConvDetail.id)}
-                                  >
-                                    #{selectedConvDetail.id.slice(0, 8)}
-                                    {copiedChatId === selectedConvDetail.id ? " ✓ Copied" : " "}
-                                  </button>
-                                </div>
-                                <div className="transcript-meta-row">
-                                  <span>Session: <code>{selectedConvDetail.session_id.slice(0, 16)}...</code></span>
-                                  <span>•</span>
-                                  <span>Started: {new Date(selectedConvDetail.created_at).toLocaleString()}</span>
-                                  <span>•</span>
-                                  <span>{selectedConvDetail.messages.length} Messages</span>
-                                </div>
-                                {matchedLead && (
-                                  <div className="transcript-lead-snapshot">
-                                    <span className="lead-snap-pill lead-snap-name">{matchedLead.name}</span>
-                                    <span className="lead-snap-pill lead-snap-phone">{matchedLead.phone}</span>
-                                    {matchedLead.program_interest && (
-                                      <span className="lead-snap-pill lead-snap-prog">{matchedLead.program_interest}</span>
-                                    )}
-                                    {matchedLead.score && (
-                                      <span className="lead-snap-pill lead-snap-score">
-                                        {matchedLead.score} {matchedLead.exam_type ? `(${matchedLead.exam_type})` : ""}
-                                      </span>
-                                    )}
-                                    <span className={`lead-snap-pill status-pill status-${matchedLead.status}`}>
-                                      {matchedLead.status}
-                                    </span>
+                            {/* Header: who the student is, then the actions (v4.15.1) */}
+                            {(() => {
+                              const st = selectedConvDetail.student || null;
+                              const name = st?.name || matchedLead?.name || "";
+                              const phone = (st?.phone || matchedLead?.phone || "").replace(/\D/g, "").slice(-10);
+                              const program = st?.program || matchedLead?.program_interest || "";
+                              const marks = st?.marks || matchedLead?.score || "";
+                              return (
+                                <div className="cv-head">
+                                  <div className="cv-student">
+                                    <span className={`cv-avatar cv-avatar-lg ${name ? "" : "is-unknown"}`} aria-hidden="true">{initials(name)}</span>
+                                    <div className="cv-student-info">
+                                      <h3 className="cv-student-name">
+                                        {name || "Student (name not given)"}
+                                        {st?.is_parent && <span className="cv-tag">Parent</span>}
+                                      </h3>
+                                      {phone.length === 10 && (
+                                        <div className="cv-contact">
+                                          <a className="cv-contact-link" href={`tel:+91${phone}`}>Call {prettyPhone(phone)}</a>
+                                          <a className="cv-contact-link" href={`https://wa.me/91${phone}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+                                        </div>
+                                      )}
+                                      <div className="cv-tags">
+                                        {program && <span className="cv-tag">{program}</span>}
+                                        {marks && <span className="cv-tag">Marks {marks}</span>}
+                                        {st?.scholarship_percent != null && <span className="cv-tag is-good">{st.scholarship_percent}% scholarship</span>}
+                                        {st?.request && <span className="cv-tag is-req">{requestLabel(st.request)}</span>}
+                                        {(st?.lead_status || matchedLead?.status) && (
+                                          <span className={`cv-tag status-${st?.lead_status || matchedLead?.status}`}>Lead: {st?.lead_status || matchedLead?.status}</span>
+                                        )}
+                                      </div>
+                                      <div className="cv-meta">
+                                        <span title={selectedConvDetail.title}>{selectedConvDetail.title}</span>
+                                        <span aria-hidden="true">·</span>
+                                        <span>{new Date(selectedConvDetail.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
+                                        <span aria-hidden="true">·</span>
+                                        <span>{selectedConvDetail.messages.length} messages</span>
+                                      </div>
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                              <div className="transcript-toolbar-btns">
-                                <button
-                                  className="admin-btn-action-student"
-                                  title="Open in Student Live Chat view (recreates student experience)"
-                                  onClick={() => handleOpenLiveStudentChat(selectedConvDetail.id)}
-                                >
-                                  Student View ↗
-                                </button>
-                                <button
-                                  className="admin-btn-secondary"
-                                  title="Copy direct shareable link to this conversation"
-                                  onClick={() => handleCopyShareableChatLink(selectedConvDetail.id)}
-                                >
-                                  Copy Link
-                                </button>
-                                <button
-                                  className="admin-btn-secondary"
-                                  title="Copy complete formatted dialogue to clipboard"
-                                  onClick={() => handleCopyFullTranscriptText(selectedConvDetail)}
-                                >
-                                  {copiedTranscript ? "✓ Copied!" : "Copy Dialogue"}
-                                </button>
-                                <button className="admin-btn-secondary" onClick={handlePrintPdf} title="Print or save as PDF">
-                                  PDF
-                                </button>
-                                <button
-                                  className="admin-btn-secondary"
-                                  onClick={() => handleExportSingleJson(selectedConvDetail)}
-                                  title="Export JSON"
-                                >
-                                  JSON
-                                </button>
-                                <button
-                                  className="admin-btn-danger"
-                                  onClick={() => handleDeleteConversation(selectedConvDetail.id)}
-                                  title="Delete conversation permanently"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
+                                  <div className="cv-actions">
+                                    <button type="button" className="admin-btn-primary" onClick={() => handleOpenLiveStudentChat(selectedConvDetail.id)}
+                                            title="Open this chat exactly as the student sees it">Open as student</button>
+                                    <button type="button" className="admin-btn-secondary" onClick={() => handleCopyFullTranscriptText(selectedConvDetail)}>
+                                      {copiedTranscript ? "Copied" : "Copy chat"}
+                                    </button>
+                                    <details className="cv-more">
+                                      <summary className="admin-btn-secondary">More</summary>
+                                      <div className="cv-menu" role="menu">
+                                        <button type="button" role="menuitem" onClick={() => handleCopyShareableChatLink(selectedConvDetail.id)}>Copy link to this chat</button>
+                                        <button type="button" role="menuitem" onClick={handlePrintPdf}>Print / save as PDF</button>
+                                        <button type="button" role="menuitem" onClick={() => handleExportSingleJson(selectedConvDetail)}>Download JSON</button>
+                                        <button type="button" role="menuitem" onClick={() => handleCopyConvId(selectedConvDetail.id)}>
+                                          {copiedChatId === selectedConvDetail.id ? "ID copied" : "Copy conversation ID"}
+                                        </button>
+                                        <button type="button" role="menuitem" className="is-danger" onClick={() => handleDeleteConversation(selectedConvDetail.id)}>Delete chat</button>
+                                      </div>
+                                    </details>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             {/* View Controls Sub-bar */}
                             <div className="transcript-sub-bar">
@@ -1356,12 +1358,12 @@ export default function AdminPage({ onBackToChat }: Props) {
                                         key={m.id}
                                         className={`transcript-bubble-wrap ${isUser ? "role-user" : "role-assistant"}`}
                                       >
-                                        <div className={`transcript-avatar ${isUser ? "student-avatar" : "bot-avatar"}`}>
-                                          {isUser ? "" : ""}
+                                        <div className={`transcript-avatar ${isUser ? "student-avatar" : "bot-avatar"}`} aria-hidden="true">
+                                          {isUser ? initials(selectedConvDetail.student?.name || matchedLead?.name) : "SRU"}
                                         </div>
                                         <div className="transcript-bubble-box">
                                           <div className="transcript-bubble-meta">
-                                            <span className="sender-name">{isUser ? "Student" : "SRU Buddy"}</span>
+                                            <span className="sender-name">{isUser ? ((selectedConvDetail.student?.name || "").split(" ")[0] || "Student") : "SRU Buddy"}</span>
                                             {!isUser && <span className="bot-role-tag">AI Guide</span>}
                                             {m.model && <span className="msg-model-tag">{m.model}</span>}
                                             <span className="msg-time">
