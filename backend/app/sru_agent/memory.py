@@ -194,6 +194,16 @@ def seed_new_conversation(session_id: str, conversation_id: str):
 _profile_loader = None   # async (session_id) -> dict
 _profile_saver = None    # async (session_id, profile: dict) -> None
 _history_loader = None   # async (session_id, conversation_id) -> [{"role": "user"|"model", "text": str}]
+# Lasting conversation state (v4.15.0): the workflow of a conversation (programme, marks, fee steps, choices)
+# outlives the 24-hour cache, so "Continue previous chat" a day later restores it, not only the messages.
+_state_loader = None     # async (session_id, conversation_id) -> dict | None
+_state_saver = None      # async (session_id, conversation_id, state: dict) -> None
+_state_saved: dict = {}  # key -> json of the state last saved (no write when nothing changed)
+
+
+def set_state_store(loader, saver):
+    global _state_loader, _state_saver
+    _state_loader, _state_saver = loader, saver
 
 # What the student may see and edit about themselves (Settings > My details).
 PUBLIC_PROFILE_KEYS = ("name", "phone", "program_interest", "percent", "board", "eapcet_rank",
@@ -309,15 +319,35 @@ async def append_history(session_id: str, user_text: str, agent_text: str, conve
 
 
 async def get_conversation_state(session_id: str, conversation_id: str | None = None) -> dict:
-    """Retrieve structured conversation state (e.g., pending_visit_date, awaiting_date_confirmation)."""
-    return await _get(_state_key(session_id, conversation_id), {})
+    """Retrieve structured conversation state (e.g., pending_visit_date, awaiting_date_confirmation).
+    Not in the cache (a conversation continued days later, or after a restart): read back from the database."""
+    key = _state_key(session_id, conversation_id)
+    state = await _get(key, None)
+    if state is None:
+        state = {}
+        if _state_loader and conversation_id:
+            try:
+                state = dict(await _state_loader(session_id, str(conversation_id)) or {})
+            except Exception as exc:
+                log.warning("conversation state not loaded: %s", type(exc).__name__)
+                state = {}
+            if state:
+                _state_saved[key] = json.dumps(state, sort_keys=True, ensure_ascii=False, default=str)
+                await _set(key, state)
+    return state
 
 
 async def update_conversation_state(session_id: str, conversation_id: str | None = None, **fields) -> dict:
-    """Update structured conversation state."""
+    """Update structured conversation state (cache now, database in the background when it changed)."""
     state = await get_conversation_state(session_id, conversation_id)
     state.update(fields)
-    await _set(_state_key(session_id, conversation_id), state)
+    key = _state_key(session_id, conversation_id)
+    await _set(key, state)
+    if _state_saver and conversation_id:
+        encoded = json.dumps(state, sort_keys=True, ensure_ascii=False, default=str)
+        if _state_saved.get(key) != encoded:
+            _state_saved[key] = encoded
+            in_background(_state_saver(session_id, str(conversation_id), dict(state)), "conversation state")
     return state
 
 

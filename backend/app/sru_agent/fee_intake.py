@@ -939,6 +939,13 @@ def _decide(message: str, profile: dict, intake: dict | None, first_name: str | 
                 known["route_label"] = "Not decided yet"
                 known["no_entrance"] = True
                 has_route = True
+        # What was assumed above (stage, route, board for an EAPCET rank) is kept for the next turns too: the
+        # state was copied from `known` before these assumptions (v4.15.0: a later marks correction asked the
+        # stage again).
+        for _k in ("academic_stage", "stage_label", "is_projected", "admission_route", "route_label", "no_entrance",
+                   "board", "board_key", "board_label"):
+            if known.get(_k) is not None:
+                state[_k] = known[_k]
 
         # Check if this is a re-query (all details were already known)
         needs_route = _uses_entrance(prog_key)
@@ -952,6 +959,8 @@ def _decide(message: str, profile: dict, intake: dict | None, first_name: str | 
             raw_v, pct_v = known.get("raw_marks"), known.get("percent")
             max_v = known.get("max_marks") or get_max_marks(known.get("board_key"), known.get("academic_stage"))
             if raw_v and max_v and max_v > 100:
+                if pct_v is None:
+                    pct_v = round(float(raw_v) / float(max_v) * 100, 2)
                 return f"{_num(raw_v)}/{_num(max_v)} ({_num(pct_v)}%)"
             return f"{_num(pct_v)}%"
 
@@ -1014,7 +1023,7 @@ def _decide(message: str, profile: dict, intake: dict | None, first_name: str | 
             step_label = f"Step {n_now} of {n_total}"
             opener = (f"Sure{name_bit}! Let's work out your scholarship for **{short}**. " if first_turn else "")
             if first_turn and have:
-                opener += f"I have {', '.join(have)}. "
+                opener += f"Noted: {', '.join(have)}. "
             saved = None
             if first_turn and not have and profile.get("saved_academic"):
                 from . import journey

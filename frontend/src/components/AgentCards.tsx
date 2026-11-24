@@ -114,6 +114,9 @@ export function CounsellorConnectCard({ card, onSelect }: { card: any; onSelect?
   }, [st.status]);
 
   const masked = `******${st.phone_last4 || initial.phone_last4 || ""}`;
+  // The student's first name (never a placeholder such as "Unknown"): shown in the confirmation.
+  const rawName = String(st.first_name || initial.first_name || "").trim();
+  const who = /^(unknown|student|user|guest|null|undefined|n\/?a|none)$/i.test(rawName) ? "" : rawName;
 
   if (lost) {
     return (
@@ -146,9 +149,10 @@ export function CounsellorConnectCard({ card, onSelect }: { card: any; onSelect?
           <CheckIcon size={18} />
         </span>
         <div>
-          <p className="ag-connect-title">All our counsellors are busy right now</p>
+          <p className="ag-connect-title">Your callback request has been submitted{who ? `, ${who}` : ""}</p>
           <p className="ag-connect-msg">
-            They're helping other students. Our admissions team will call you back on <strong>{masked}</strong>.
+            Our counsellors are helping other students right now. Our admissions counsellor will call you back on{" "}
+            <strong>{masked}</strong>.
           </p>
           {onSelect && (
             <button type="button" className="card-more-btn ag-connect-change" onClick={() => onSelect("Change my number")}>

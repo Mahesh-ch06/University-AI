@@ -253,6 +253,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   // Conversation memory: the "continue or start new" offer for a returning student (see docs/32)
   const [recovery, setRecovery] = useState<RecoveryOffer | null>(null);
   const recoveryRef = useRef<RecoveryOffer | null>(null);
+  // v4.15.0: the previous conversation found on opening is HELD here, not shown. The choice appears only after
+  // the student sends their first message (no pop-up on load; nothing restored behind their back).
+  const heldOfferRef = useRef<ConversationRecoveryContext | null>(null);
   const [isRestoringConv, setIsRestoringConv] = useState<boolean>(false);
   const [pendingRecoveryQuery, setPendingRecoveryQuery] = useState<string | null>(null);
   const pendingRecoveryQueryRef = useRef<string | null>(null);
@@ -354,17 +357,23 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       deepLinked = Boolean(params.get("chat") || params.get("cid") || params.get("chat_id"));
     } catch {}
     recordUserActivity();
+    heldOfferRef.current = null;
     if (deepLinked) return;
+    let tabConv = "";
+    try {
+      tabConv = sessionStorage.getItem("sru_active_conv_id") || "";
+    } catch {}
     fetchRecoveryContext(sessionId)
       .then(async (ctx) => {
         if (cancelled || !ctx?.has_resumable_conversation || !ctx.conversation_id) return;
         resumeAfterMinutesRef.current = ctx.resume_after_minutes || DEFAULT_RESUME_AFTER_MINUTES;
         if (readDismissed().includes(ctx.conversation_id)) return;
         if (activeConvIdRef.current || isLoadingRef.current) return; // a conversation already started here
-        if (ctx.offer_choice) {
-          setRecovery({ ctx, mode: "returning", status: "idle" });
-        } else {
+        if (tabConv && tabConv === ctx.conversation_id) {
+          // The same tab was refreshed in the middle of this conversation: simply carry on.
           await restoreConversation(ctx.conversation_id, { silent: true });
+        } else {
+          heldOfferRef.current = ctx; // asked after the student's first message
         }
       })
       .catch(() => {});
@@ -377,7 +386,11 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   // A tab left open: when the student comes back after the same break, offer the same choice at the end of
   // the conversation (never while they are typing, waiting for an answer, or already choosing).
   useEffect(() => {
+    // v4.15.0: a tab left open is never interrupted with a "continue or start new?" question; the student simply
+    // carries on (a greeting in an ongoing conversation does not reset it either).
+    const IDLE_PROMPT_ENABLED = false;
     const checkInactivity = () => {
+      if (!IDLE_PROMPT_ENABLED) return;
       if (document.visibilityState !== "visible") return;
       if (isLoadingRef.current || widgetInputRef.current || dockQueryRef.current) return;
       if (recoveryRef.current || !activeConvIdRef.current) return;
@@ -449,7 +462,8 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     }
     setRecovery(null);
     const pending = takePendingRecoveryQuery();
-    if (pending) {
+    // A plain greeting ("hi") was only the way back in: the restored conversation is the answer to it.
+    if (pending && !/^\s*(?:hi+|hello+|hey+|hai|hii+|good\s+(?:morning|afternoon|evening)|namaste|namaskaram|hlo|helo)\b[\s!.,]*$/i.test(pending)) {
       setTimeout(() => {
         executeSendMessage(pending, false);
       }, 60);
@@ -483,6 +497,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     if (previousId) void resetSessionConversation(previousSession, previousId);
     markDismissed(previousId);
     if (offer?.ctx.conversation_id) markDismissed(offer.ctx.conversation_id);
+    heldOfferRef.current = null;
     const freshId = startFreshSession();
     sessionIdRef.current = freshId;
     setSessionId(freshId);
@@ -577,9 +592,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         : { text: "Connected", type: "connected" };
   // While a returning student chooses, the welcome-back panel is the greeting (no second, generic welcome
   // above it pushing the choice below the fold).
-  const shownMessages = recovery?.mode === "returning"
-    ? messages.filter((m) => m.id !== "welcome-sru-buddy")
-    : messages;
+  const shownMessages = messages;
   const visibleMessages = shownMessages.length > visibleMessageCount
     ? shownMessages.slice(-visibleMessageCount)
     : shownMessages;
@@ -648,6 +661,27 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     if (!trimmed) return;
 
     recordUserActivity();
+
+    // The first message of a visit, with an earlier conversation on file: ask now, after this message, whether to
+    // continue it or start fresh (the message is answered once the student chooses).
+    const held = heldOfferRef.current;
+    if (held && !activeConvIdRef.current && !recoveryRef.current && hasValidContactDetails()) {
+      heldOfferRef.current = null;
+      if (held.conversation_id && !readDismissed().includes(held.conversation_id)) {
+        const firstOffer: RecoveryOffer = { ctx: held, mode: "returning", status: "idle" };
+        recoveryRef.current = firstOffer;
+        setRecovery(firstOffer);
+        setPendingRecoveryQuery(trimmed);
+        pendingRecoveryQueryRef.current = trimmed;
+        const userMsgId = crypto.randomUUID();
+        setMessages((prev) => [
+          ...prev.filter((m) => !m.id.startsWith("pending-recovery-")),
+          { id: `pending-recovery-${userMsgId}`, role: "user", content: trimmed, created_at: new Date().toISOString() },
+        ]);
+        scrollToLatest("smooth");
+        return;
+      }
+    }
 
     // While the welcome-back choice is open, typed answers to it choose too ("continue", "start fresh").
     const offer = recoveryRef.current;

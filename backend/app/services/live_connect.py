@@ -68,7 +68,7 @@ def _public(req: dict, now: float | None = None) -> dict:
     left = max(0, int(round(req["deadline"] - now))) if req["status"] == "waiting" else 0
     return {"request_id": req["id"], "status": req["status"], "seconds_left": left,
             "wait_seconds": req["wait_seconds"], "phone_last4": req["phone_last4"],
-            "counsellor": req.get("accepted_by") or None}
+            "first_name": req.get("first_name") or "", "counsellor": req.get("accepted_by") or None}
 
 
 async def _resolve(req: dict) -> dict:

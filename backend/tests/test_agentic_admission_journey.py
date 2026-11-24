@@ -201,7 +201,8 @@ async def test_12_and_25_new_conversation_starts_clean_and_offers_saved_details(
     await s.say("B.Tech")
     await s.say("CSE")
     form = await s.say("Check my eligibility")
-    assert "Intermediate (10+2) marks" in form["answer"] and not form.get("cards")   # asked afresh, one step
+    assert "Intermediate (10+2) marks" in form["answer"]                     # asked afresh, one step ...
+    assert [c["type"] for c in form.get("cards") or []] == ["counsellor_marks_input"]   # ... with the marks form (v4.15.0)
     assert any(c.startswith("Use my saved details (671/1000, MPC") for c in form["suggestions"])   # opt-in reuse
     assert (await s.profile()).get("raw_marks") is None    # earlier marks are not assumed in this chat
 
@@ -250,7 +251,7 @@ async def test_17_18_19_scholarship_after_eligibility_reuses_everything():
     done = await s.say("I want to know about the scholarship")
     text = done["answer"]
     assert "Let's work out your scholarship for **B.Tech CSE**" in text
-    assert "I have 671/1000 (67.1%), MPC" in text                       # reused, not asked again
+    assert "Noted: 671/1000 (67.1%), MPC" in text                       # reused, not asked again
     assert "Which programme" not in text and "Which branch" not in text
     assert _card(done, "counsellor_board_selection")                    # only the missing steps
     # Only the missing details: board typed -> status only

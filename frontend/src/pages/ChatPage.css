@@ -1873,7 +1873,7 @@
 }
 
 /* Welcome-back choice and the resume divider inside the chat body: never squeezed by the flex column */
-.sru-widget-body .wb-panel,
+.sru-widget-body .wb-row,
 .sru-widget-body .wb-resume-divider {
   flex-shrink: 0;
 }

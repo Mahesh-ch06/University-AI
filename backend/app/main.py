@@ -539,6 +539,7 @@ from app.services import agent_profile_store
 from app.sru_agent import memory as agent_memory
 agent_memory.set_profile_store(agent_profile_store.load_profile, agent_profile_store.save_profile)
 agent_memory.set_history_loader(agent_profile_store.load_history)
+agent_memory.set_state_store(agent_profile_store.load_conversation_state, agent_profile_store.save_conversation_state)
 agent_tools.set_lead_updater(agent_profile_store.update_lead_contact)
 
 app.include_router(chat_router)

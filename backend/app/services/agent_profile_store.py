@@ -131,3 +131,50 @@ async def update_lead_contact(lead_id: str, name: str | None = None, phone: str 
         await db.commit()
     logger.info("Lead %s contact details updated by the student", lead_id)
     return True
+
+
+# ---- Conversation workflow state (v4.15.0) -------------------------------------------------------------------
+# The state of one conversation (programme, marks, fee steps, selections) in `user_memories` under the session,
+# key "cstate.<conversation id>", in numbered pieces of 240 characters (memory_value is VARCHAR(255)): no new
+# table, no migration. Read only when the cache no longer has it (a conversation continued later).
+STATE_PREFIX = "cstate."
+STATE_CHUNK = 240
+
+
+async def save_conversation_state(session_id: str, conversation_id: str, state: dict) -> None:
+    encoded = json.dumps(state, ensure_ascii=False, default=str)
+    parts = [encoded[i:i + STATE_CHUNK] for i in range(0, len(encoded), STATE_CHUNK)] or [""]
+    base = f"{STATE_PREFIX}{conversation_id}"
+    async with async_session_factory() as db:
+        rows = (await db.execute(select(UserMemory).where(
+            UserMemory.session_id == session_id, UserMemory.memory_key.like(base + "%")))).scalars().all()
+        existing = {row.memory_key: row for row in rows}
+
+        def put(key: str, value: str):
+            row = existing.pop(key, None)
+            if row is None:
+                db.add(UserMemory(id=uuid.uuid4(), session_id=session_id, memory_key=key, memory_value=value,
+                                  consented=True))
+            elif row.memory_value != value:
+                row.memory_value = value
+
+        put(base, json.dumps({"__pieces__": len(parts)}))
+        for i, part in enumerate(parts):
+            put(f"{base}#{i}", part)
+        for row in existing.values():          # pieces left from a longer earlier state
+            await db.delete(row)
+        await db.commit()
+
+
+async def load_conversation_state(session_id: str, conversation_id: str) -> dict:
+    base = f"{STATE_PREFIX}{conversation_id}"
+    async with async_session_factory() as db:
+        rows = (await db.execute(select(UserMemory).where(
+            UserMemory.session_id == session_id, UserMemory.memory_key.like(base + "%")))).scalars().all()
+    values = {row.memory_key: row.memory_value for row in rows}
+    try:
+        n = int(json.loads(values[base])["__pieces__"])
+        state = json.loads("".join(values[f"{base}#{i}"] for i in range(n)))
+    except (KeyError, TypeError, ValueError):
+        return {}
+    return state if isinstance(state, dict) else {}

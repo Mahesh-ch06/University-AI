@@ -512,7 +512,8 @@ async def _with_resume_chip(session_id, conversation_id, chips, text: str = "") 
     except Exception:
         state = None
     chip = fee_journey.resume_chip(state)
-    is_step = bool(re.match(r"\s*(?:Step\s+\d|To work out your exact fee|Before I give you)", text or ""))
+    is_step = bool(re.search(r"(?:^|\n|\. )\s*Step\s+\d+\s+of\s+\d|^\s*(?:To work out your exact fee|Before I give you)",
+                             text or ""))
     if not chip and not is_step and (_SIDE_TURN.get() or text):
         try:   # a side question while the scholarship / fee steps (fee_intake) wait for an answer
             intake = (await memory.get_conversation_state(session_id, conversation_id)).get("fee_intake") or {}
@@ -609,6 +610,31 @@ async def _offer_fee_chart(session_id, conversation_id, cards) -> bool:
     return True
 
 
+# A reply that asks for marks always comes with the marks form (v4.15.0): never only a question in the text.
+_ASKS_MARKS = re.compile(
+    r"\b(?:what|which|share|enter|send|tell\s+me|type|give\s+me)\b[^?\n]{0,70}\b(?:marks|percentage|score|aggregate)\b[^?\n]*\?"
+    r"|\bwhat\s+percentage\s+did\s+you\s+(?:score|get)\b", re.I)
+_MARKS_CARD_TYPES = {"counsellor_marks_input", "academic_details_form", "fee_scholarship_form"}
+
+
+def _with_marks_form(text: str, cards: list, session_id: str = "") -> list:
+    if any(isinstance(c, dict) and c.get("type") in _MARKS_CARD_TYPES for c in cards):
+        return cards
+    if not _ASKS_MARKS.search(text or "") or re.search(r"\b(?:rank|percentile)\b[^?\n]*\?\s*$", text or "", re.I) \
+            and not re.search(r"\bmarks\b", text or "", re.I):
+        return cards
+    if re.search(r"which\s+board|where\s+are\s+you\s+in\s+intermediate|which\s+group", text or "", re.I):
+        return cards                                   # a different step is being asked
+    mx = None
+    m = re.search(r"\(out\s+of\s+(\d{3,4})\)", text or "")
+    if m:
+        mx = int(m.group(1))
+    elif re.search(r"\bpercentage\b", text or "", re.I) and not re.search(r"\bmarks\b", text or "", re.I):
+        mx = 100
+    return cards + [{"type": "counsellor_marks_input", "title": "Enter your marks", "max_marks": mx,
+                     "step_label": "Your marks", "hint": "You can also type them, e.g. 870 out of 1000 or 87%."}]
+
+
 async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None, profile=None,
                eligible=None, exact_chips=False, resume=True):
     """Stream a reply the code wrote itself (no model call), remember it, and finish the turn.
@@ -617,6 +643,13 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     programme...) and the chips are the answers to it."""
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     text = normalize_positive_brand_advocacy(text)
+    cards = _with_marks_form(text, list(cards or []), session_id)
+    note = _MARKS_NOTE.get()
+    if note:
+        _MARKS_NOTE.set("")
+        shown = re.sub(r"\s*\(.*\)", "", note)
+        if shown not in text and note not in text:
+            text = f"Updated: I'm now using your marks **{note}**.\n\n" + text
     try:   # the same step question as the last reply (the student asked something else): say why it is asked again
         hist = await memory.get_history(session_id, conversation_id)
         last = next((h.get("text", "") for h in reversed(hist or []) if h.get("role") in ("model", "assistant")), "")
@@ -915,8 +948,10 @@ def _saved_text(kind: str, result: dict, preferred_time: str | None = None) -> s
                     f"them directly on {config.CAMPUS_VISIT_PHONE} (call or WhatsApp). To withdraw the request, "
                     f"just say \"cancel my visit request\".")
         when = f" (preferred time: {preferred_time})" if preferred_time else ""
-        return (f"Thank you, {first}. Your callback request {again}. An admissions "
-                f"counsellor will call you on the number ending {last4}{when}. "
+        who = f", {first}" if first else ""
+        lead = (f"Your callback request is already with our admissions team{who}." if result.get("already_saved")
+                else f"Your callback request has been successfully submitted{who}.")
+        return (f"{lead} Our admissions counsellor will contact you on the number ending {last4}{when}. "
                 f"To cancel it, say \"cancel the callback\"; if the number is wrong, say \"change my number\".")
     if status == "invalid":
         return result.get("problem") or "Some details were not valid. Please check and send them again."
@@ -1601,8 +1636,8 @@ def _switch_target_program(message: str):
 def _prompt_profile(profile: dict | None) -> dict:
     """What the model is told about the student: without the name in a session started afresh."""
     p = dict(profile or {})
-    if p.pop("address_by_name", None) is False:
-        p.pop("name", None)
+    if p.pop("address_by_name", None) is False and p.get("name"):
+        p["name_on_file"] = p.pop("name")      # still known for callbacks; just not used to address them
     return p
 
 
@@ -1729,6 +1764,81 @@ async def _resolve_sub_query(sub_q: str, topic: str, session_id: str) -> tuple[s
     return "", cards, []
 
 
+# ---- Marks: the latest value always wins (v4.15.0) ------------------------------------------------------------
+# A student who gives or corrects their marks ("No, my actual marks are 671 out of 1000", "not 92, I got 82
+# percent") must have that value used at once, everywhere: the profile, the fee steps (fee_intake) and every
+# calculation after. Done once, at the start of the turn, before any workflow reads the marks; a stale value
+# (old raw marks next to a new percentage) is removed, not left beside it. The reply then confirms the update.
+_MARKS_NOTE: contextvars.ContextVar[str] = contextvars.ContextVar("sru_marks_note", default="")
+_MARKS_WORDS = re.compile(r"\b(?:marks?|percent(?:age)?|scored?|got|out\s+of|cgpa|gpa|aggregate)\b|%|\d\s*/\s*\d", re.I)
+
+
+def _marks_text(raw, mx, pct) -> str:
+    if raw is not None and mx and float(mx) > 100:
+        return f"{fees_num(raw)}/{fees_num(mx)} ({fees_num(pct)}%)" if pct is not None else f"{fees_num(raw)}/{fees_num(mx)}"
+    return f"{fees_num(pct)}%" if pct is not None else f"{fees_num(raw)} marks"
+
+
+def fees_num(v) -> str:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    return str(int(f)) if f == int(f) else f"{f:.2f}".rstrip("0").rstrip(".")
+
+
+async def _sync_marks(message: str, session_id: str, conversation_id, profile: dict, conv_state: dict) -> dict:
+    """Read marks given in this message and make them the only marks on file (see above). Returns the profile."""
+    _MARKS_NOTE.set("")
+    d = fee_intake.parse_details(message or "")
+    new_raw, new_max, new_pct = d.get("raw_marks"), d.get("max_marks"), d.get("percent")
+    if (new_raw is None and new_pct is None) or d.get("jee_percentile") is not None or d.get("eapcet_rank") is not None:
+        return profile
+    intake = dict(conv_state.get("fee_intake") or {})
+    waiting_marks = intake.get("waiting_for") in ("marks", "marks_max", "percent")
+    if not (_MARKS_WORDS.search(message or "") or waiting_marks):
+        return profile
+    old_raw = intake.get("raw_marks", profile.get("raw_marks"))
+    old_pct = intake.get("percent", profile.get("percent"))
+    old_max = intake.get("max_marks") or profile.get("max_marks")
+    board = d.get("board_key") or intake.get("board_key") or profile.get("board_key")
+    stage = d.get("academic_stage") or intake.get("academic_stage") or profile.get("academic_stage")
+    fields: dict = {}
+    clear: list = []
+    if new_raw is None:                                   # a percentage (or CGPA) only: no raw marks any more
+        fields["percent"] = float(new_pct)
+        clear = ["raw_marks", "max_marks", "pending_raw_marks"]
+    else:
+        new_raw = float(new_raw)
+        mx = new_max
+        if not mx and old_max and new_raw <= float(old_max):
+            mx = old_max
+        if not mx and board:
+            board_max = fee_intake.get_max_marks(board, stage or "completed")
+            mx = board_max if board_max and new_raw <= board_max else None
+        fields["raw_marks"] = new_raw
+        if mx:
+            fields["max_marks"] = float(mx)
+            fields["percent"] = float(new_pct) if new_pct is not None else round(new_raw / float(mx) * 100, 2)
+        else:
+            clear = ["percent", "max_marks"]               # unknown total: the old percentage must not stay
+    if fields.get("raw_marks") == old_raw and fields.get("percent", old_pct) == old_pct:
+        return profile                                    # the same marks again: nothing changes
+    profile = await memory.update_profile(session_id, **fields)
+    if clear:
+        profile = await memory.remove_profile_keys(session_id, *clear)
+    if intake:
+        intake.update(fields)
+        for k in clear:
+            intake.pop(k, None)
+        intake.pop("needs_marks_confirmation", None)
+        conv_state["fee_intake"] = intake
+        await memory.update_conversation_state(session_id, conversation_id, fee_intake=intake)
+    if old_raw is not None or old_pct is not None:        # a correction (not the first marks): confirm it
+        _MARKS_NOTE.set(_marks_text(fields.get("raw_marks"), fields.get("max_marks"), fields.get("percent")))
+    return profile
+
+
 async def run_agent(
     message: str,
     session_id: str,
@@ -1761,6 +1871,10 @@ async def run_agent(
         memory.get_conversation_state(session_id, conversation_id), app_settings.refresh())
     # Academic details belong to one conversation: a new chat starts clean (journey.py).
     profile = await journey.scope_profile(session_id, conversation_id, profile, conv_state)
+    try:
+        profile = await _sync_marks(message, session_id, conversation_id, profile, conv_state)
+    except Exception:
+        log.exception("marks sync failed for session %s", (session_id or "")[:8])
     ctx = {"session_id": session_id, "conversation_id": conversation_id, "profile": profile,
            "conv_state": conv_state, "history": history}   # conv_state / history: for the counsellor's case summary
     natural_name = _natural_first_name(profile, history)

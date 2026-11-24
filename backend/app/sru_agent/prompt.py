@@ -107,8 +107,12 @@ def build_system_prompt(
                 f"  * Avoid when: routine factual answers, technical explanations, short follow-ups, or consecutive messages.\n"
                 f"  * Never force name just for personalisation. Core principle: make user feel recognized, not read from a profile."
             )
+    elif profile.get("name_on_file"):
+        name_instruction = (f"STUDENT'S NAME ON FILE (for callback / visit requests only; do not address them by it): "
+                            f"{profile['name_on_file']}.")
     else:
-        name_instruction = "STUDENT'S NAME: Unknown. Never assume/invent a name. If unavailable, continue normally without asking unnecessarily."
+        name_instruction = ("STUDENT'S NAME: not given yet. Never assume or invent a name, and never write placeholder "
+                            "words such as 'Unknown', 'Student' or 'User' as a name. For a callback, ask for the name.")
 
     detected_persona = persona or ("parent" if profile.get("is_parent") else None)
     persona_note = (_PERSONA_GUIDES.get(detected_persona, "") + "\n") if detected_persona in _PERSONA_GUIDES else ""
