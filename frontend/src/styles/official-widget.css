@@ -224,6 +224,8 @@ html[data-surface="widget"] .sru-widget-body > button[type="button"]:first-child
    -------------------------------------------------------------------------- */
 html[data-surface="widget"] .suggestion-chip {
   border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.76rem;
   border: 1px solid #C9D2DE;
   background: #ffffff;
   color: #194F90;

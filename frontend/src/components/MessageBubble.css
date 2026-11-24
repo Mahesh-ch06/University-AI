@@ -430,3 +430,29 @@
   margin-top: 2px;
 }
 
+
+/* v4.13.0: compact quick-response buttons (two room options fit on one line in the 420 px widget) */
+.suggestion-chips-wrapper .suggestion-chips-list {
+  gap: 6px;
+}
+
+.suggestion-chips-list .suggestion-chip {
+  gap: 5px;
+  padding: 4px 10px;
+  min-height: 30px;
+  font-size: 0.76rem;
+  line-height: 1.3;
+}
+
+.suggestion-chip .suggestion-chip-meta {
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.72;
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .suggestion-chips-list .suggestion-chip {
+    min-height: 32px;
+  }
+}

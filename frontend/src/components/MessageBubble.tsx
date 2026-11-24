@@ -232,7 +232,18 @@ function MessageBubble({
                     type="button"
                   >
                     {icon && <span className="suggestion-chip-icon">{icon}</span>}
-                    <span className="suggestion-chip-text">{label}</span>
+                    {(() => {
+                      // "AC 4-sharing (₹1,25,000)": the price in a lighter, smaller style (v4.13.0) so two options
+                      // fit on one line; the text sent and read is unchanged.
+                      const m = label.match(/^(.*\S)\s(\(₹[^)]*\))$/);
+                      return m ? (
+                        <span className="suggestion-chip-text">
+                          {m[1]} <span className="suggestion-chip-meta">{m[2]}</span>
+                        </span>
+                      ) : (
+                        <span className="suggestion-chip-text">{label}</span>
+                      );
+                    })()}
                   </button>
                 );
               })}
