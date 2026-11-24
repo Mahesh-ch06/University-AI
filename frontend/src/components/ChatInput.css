@@ -125,25 +125,25 @@
 }
 
 .chatgpt-action-circle.waveform {
-  background: var(--sru-blue, #2563eb);
+  background: var(--sru-blue, var(--o-action, #2563eb));
   color: #ffffff;
   box-shadow: 0 2px 10px rgba(37, 99, 235, 0.35);
 }
 
 .chatgpt-action-circle.waveform:hover {
   transform: scale(1.05);
-  background: var(--primary-hover, #1d4ed8);
+  background: var(--primary-hover, var(--o-action, #1d4ed8));
 }
 
 .chatgpt-action-circle.send {
-  background: var(--sru-blue, #2563eb);
+  background: var(--sru-blue, var(--o-action, #2563eb));
   color: #ffffff;
   box-shadow: 0 2px 12px rgba(37, 99, 235, 0.4);
 }
 
 .chatgpt-action-circle.send:hover {
   transform: scale(1.06);
-  background: var(--primary-hover, #1d4ed8);
+  background: var(--primary-hover, var(--o-action, #1d4ed8));
 }
 
 .chatgpt-action-circle.send:active {
@@ -227,7 +227,7 @@
 }
 
 [data-theme="light"] .plus-quick-item {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 .plus-quick-item:hover {
@@ -266,7 +266,7 @@
   text-align: center;
   font-size: 0.72rem;
   line-height: 1.4;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   padding: 0 12px;
 }
 .chatgpt-action-circle.send:disabled {
@@ -290,7 +290,7 @@
 .input-plus-circle-btn:focus-visible,
 .input-mic-btn:focus-visible,
 .chatgpt-action-circle:focus-visible {
-  outline: 2px solid var(--primary, #0055a4);
+  outline: 2px solid var(--primary, var(--o-brand, #0055a4));
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {

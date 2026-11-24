@@ -29,7 +29,7 @@
   font-size: var(--chat-card-small, 0.76rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .ag-steps {
@@ -58,7 +58,7 @@
   height: 18px;
   margin-top: 1px;
   border-radius: 50%;
-  border: 1.5px solid var(--chat-card-border, #cbd5e1);
+  border: 1.5px solid var(--chat-card-border, var(--o-line-strong, #cbd5e1));
   background: var(--chat-card-bg, #ffffff);
   color: #ffffff;
 }
@@ -68,19 +68,19 @@
 }
 
 .ag-step--done .ag-step-icon {
-  border-color: #16a34a;
-  background: #16a34a;
+  border-color: var(--o-ok, #16a34a);
+  background: var(--o-ok, #16a34a);
 }
 
 .ag-step--now .ag-step-icon {
-  border-color: var(--primary, #0055a4);
+  border-color: var(--primary, var(--o-brand, #0055a4));
 }
 
 .ag-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--primary, #0055a4);
+  background: var(--primary, var(--o-brand, #0055a4));
   animation: agPulse 1.2s ease-in-out infinite;
 }
 
@@ -93,11 +93,11 @@
   width: 8px;
   height: 2px;
   border-radius: 1px;
-  background: var(--chat-card-muted, #64748b);
+  background: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .ag-step--skipped .ag-step-title {
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .ag-step-text {
@@ -107,11 +107,11 @@
 }
 
 .ag-step-title {
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
 }
 
 .ag-step--todo .ag-step-title {
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .ag-step--now .ag-step-title {
@@ -120,7 +120,7 @@
 
 .ag-step-detail {
   font-size: var(--chat-card-small, 0.76rem);
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
   overflow-wrap: anywhere;
 }
 
@@ -155,19 +155,19 @@
   font-size: var(--chat-card-text, 0.86rem);
   font-weight: 700;
   line-height: 1.35;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
 }
 
 .ag-connect-msg {
   margin: 2px 0 0;
   font-size: var(--chat-card-text, 0.86rem);
   line-height: 1.45;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
 }
 
 .ag-connect--waiting .ag-connect-msg {
   font-size: var(--chat-card-small, 0.76rem);
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .ag-connect-icon {
@@ -186,11 +186,11 @@
 }
 
 .ag-connect--ok .ag-connect-icon {
-  background: #16a34a;
+  background: var(--o-ok, #16a34a);
 }
 
 .ag-connect--busy .ag-connect-icon {
-  background: var(--primary, #0055a4);
+  background: var(--primary, var(--o-brand, #0055a4));
 }
 
 .ag-timer {
@@ -198,7 +198,7 @@
   font-size: 1.15rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--primary, #0055a4);
+  color: var(--primary, var(--o-brand, #0055a4));
 }
 
 .ag-spinner {
@@ -206,8 +206,8 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 3px solid color-mix(in srgb, var(--primary, #0055a4) 20%, transparent);
-  border-top-color: var(--primary, #0055a4);
+  border: 3px solid color-mix(in srgb, var(--primary, var(--o-brand, #0055a4)) 20%, transparent);
+  border-top-color: var(--primary, var(--o-brand, #0055a4));
   animation: agSpin 0.9s linear infinite;
 }
 
@@ -218,14 +218,14 @@
 .ag-bar {
   height: 4px;
   border-radius: 999px;
-  background: var(--chat-card-inner-bg, #f1f5f9);
+  background: var(--chat-card-inner-bg, var(--o-surface-2, #f1f5f9));
   overflow: hidden;
 }
 
 .ag-bar span {
   display: block;
   height: 100%;
-  background: var(--primary, #0055a4);
+  background: var(--primary, var(--o-brand, #0055a4));
   transition: width 0.25s linear;
 }
 

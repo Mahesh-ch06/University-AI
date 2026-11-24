@@ -2,22 +2,22 @@
    Built on the chat card tokens in ChatCards.css (shell, heading, footer and buttons come from there). */
 
 .fp-card {
-  --fp-green: #15803d;
-  --fp-green-bg: #ecfdf3;
-  --fp-green-border: #bbf7d0;
-  --fp-row-hover: color-mix(in srgb, var(--primary, #0055a4) 6%, transparent);
-  --fp-row-on: color-mix(in srgb, var(--primary, #0055a4) 10%, transparent);
+  --fp-green: var(--o-ok, #15803d);
+  --fp-green-bg: var(--o-ok-tint, #ecfdf3);
+  --fp-green-border: var(--o-ok-border, #bbf7d0);
+  --fp-row-hover: color-mix(in srgb, var(--primary, var(--o-brand, #0055a4)) 6%, transparent);
+  --fp-row-on: color-mix(in srgb, var(--primary, var(--o-brand, #0055a4)) 10%, transparent);
 }
 
 .fp-hint {
   margin: 0 0 8px;
   font-size: var(--chat-card-small, 0.76rem);
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 /* ---------- tables ---------- */
 .fp-table-wrap {
-  border: 1px solid var(--chat-card-border, #e2e8f0);
+  border: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
   border-radius: var(--chat-card-inner-radius, 10px);
   overflow: hidden;
 }
@@ -27,7 +27,7 @@
   border-collapse: collapse;
   font-size: var(--chat-card-text, 0.86rem);
   line-height: 1.35;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
   table-layout: auto;
 }
 
@@ -36,7 +36,7 @@
   padding: 8px 10px;
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid var(--chat-card-border, #e2e8f0);
+  border-bottom: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
 }
 
 .fp-table thead th {
@@ -44,8 +44,8 @@
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--chat-card-muted, #64748b);
-  background: var(--chat-card-inner-bg, #f6f8fc);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
+  background: var(--chat-card-inner-bg, var(--o-surface, #f6f8fc));
 }
 
 .fp-table tbody tr:last-child td {
@@ -69,7 +69,7 @@
   margin-top: 1px;
   font-size: var(--chat-card-small, 0.76rem);
   font-weight: 400;
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .fp-table tr.is-discount td {
@@ -79,8 +79,8 @@
 .fp-table tfoot th,
 .fp-table tfoot td {
   border-bottom: 0;
-  border-top: 1px solid var(--chat-card-border, #e2e8f0);
-  background: var(--chat-card-inner-bg, #f6f8fc);
+  border-top: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
+  background: var(--chat-card-inner-bg, var(--o-surface, #f6f8fc));
 }
 
 .fp-table tfoot tr.is-total th,
@@ -113,7 +113,7 @@
 }
 
 .fp-select-row:focus-visible {
-  outline: 2px solid var(--primary, #0055a4);
+  outline: 2px solid var(--primary, var(--o-brand, #0055a4));
   outline-offset: -2px;
 }
 
@@ -138,7 +138,7 @@
   height: 18px;
   margin-top: 1px;
   border-radius: 50%;
-  border: 1.5px solid var(--chat-card-border, #cbd5e1);
+  border: 1.5px solid var(--chat-card-border, var(--o-line-strong, #cbd5e1));
   background: var(--chat-card-bg, #ffffff);
   color: #ffffff;
 }
@@ -148,8 +148,8 @@
 }
 
 .fp-select-row.is-on .fp-radio {
-  border-color: var(--primary, #0055a4);
-  background: var(--primary, #0055a4);
+  border-color: var(--primary, var(--o-brand, #0055a4));
+  background: var(--primary, var(--o-brand, #0055a4));
 }
 
 .message-cards-container .rich-card .fp-apply:disabled {
@@ -189,18 +189,18 @@
   font-weight: 800;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
 }
 
 .fp-hero-amount small {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .fp-hero-sub {
   font-size: var(--chat-card-small, 0.76rem);
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .fp-lines {
@@ -208,7 +208,7 @@
   padding: 8px 10px;
   border-radius: var(--chat-card-inner-radius, 10px);
   background: var(--chat-card-bg, #ffffff);
-  border: 1px solid var(--chat-card-border, #e2e8f0);
+  border: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
   font-size: var(--chat-card-text, 0.86rem);
 }
 
@@ -223,7 +223,7 @@
 .fp-lines dt {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
 }
 
 .fp-lines dd {
@@ -241,7 +241,7 @@
 .fp-lines .is-total {
   margin-top: 2px;
   padding-top: 7px;
-  border-top: 1px dashed var(--chat-card-border, #e2e8f0);
+  border-top: 1px dashed var(--chat-card-border, var(--o-line, #e2e8f0));
   font-weight: 750;
 }
 
@@ -249,7 +249,7 @@
   margin: 10px 0 0;
   font-size: var(--chat-card-small, 0.76rem);
   line-height: 1.45;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
 }
 
 .fp-proof {
@@ -278,7 +278,7 @@
   padding-left: 18px;
   font-size: var(--chat-card-small, 0.76rem);
   line-height: 1.45;
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .fp-foot-notes li + li {
@@ -287,7 +287,7 @@
 
 /* ---------- dark theme ---------- */
 [data-theme="dark"] .fp-card {
-  --fp-green: #4ade80;
+  --fp-green: var(--o-ok-light, #4ade80);
   --fp-green-bg: rgba(34, 197, 94, 0.12);
   --fp-green-border: rgba(34, 197, 94, 0.35);
 }
@@ -311,12 +311,12 @@
   margin: 0 0 10px;
   font-size: var(--chat-card-small, 0.76rem);
   line-height: 1.45;
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .fp-meta strong {
   font-weight: 650;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
 }
 
 .fp-totals {
@@ -339,13 +339,13 @@
   gap: 2px;
   padding: 10px 12px;
   border-radius: var(--chat-card-inner-radius, 10px);
-  border: 1px solid var(--chat-card-border, #e2e8f0);
-  background: var(--chat-card-inner-bg, #f6f8fc);
+  border: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
+  background: var(--chat-card-inner-bg, var(--o-surface, #f6f8fc));
   min-width: 0;
 }
 
 .fp-total-main .fp-hero-label {
-  color: var(--primary, #0055a4);
+  color: var(--primary, var(--o-brand, #0055a4));
 }
 
 .fp-total-after {
@@ -415,12 +415,12 @@
 
 .fp-status-list dt {
   font-weight: 650;
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
 }
 
 .fp-status-list dd {
   margin: 0;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
   overflow-wrap: anywhere;
 }
 
@@ -447,14 +447,14 @@
 }
 
 .fp-group {
-  border: 1px solid var(--chat-card-border, #e2e8f0);
+  border: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
   border-radius: var(--chat-card-inner-radius, 10px);
   background: var(--chat-card-bg, #ffffff);
   overflow: hidden;
 }
 
 .fp-group.is-open {
-  border-color: color-mix(in srgb, var(--primary, #0055a4) 40%, var(--chat-card-border, #e2e8f0));
+  border-color: color-mix(in srgb, var(--primary, var(--o-brand, #0055a4)) 40%, var(--chat-card-border, var(--o-line, #e2e8f0)));
 }
 
 .fp-group-head {
@@ -468,7 +468,7 @@
   background: transparent;
   font: inherit;
   text-align: left;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
   cursor: pointer;
 }
 
@@ -478,7 +478,7 @@
 
 .fp-group-head:focus-visible,
 .fp-option:focus-visible {
-  outline: 2px solid var(--primary, #0055a4);
+  outline: 2px solid var(--primary, var(--o-brand, #0055a4));
   outline-offset: -2px;
 }
 
@@ -499,7 +499,7 @@
 .fp-group-hint {
   font-size: var(--chat-card-small, 0.76rem);
   font-weight: 400;
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
   overflow-wrap: anywhere;
 }
 
@@ -511,7 +511,7 @@
   font-size: var(--chat-card-small, 0.76rem);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
-  color: var(--chat-card-muted, #64748b);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
   white-space: nowrap;
 }
 
@@ -527,15 +527,15 @@
 .fp-group-body {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--chat-card-border, #e2e8f0);
+  border-top: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
 }
 
 .fp-private-note {
   margin: 0;
   padding: 8px 12px;
   font-size: var(--chat-card-small, 0.76rem);
-  color: var(--chat-card-muted, #64748b);
-  background: var(--chat-card-inner-bg, #f6f8fc);
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
+  background: var(--chat-card-inner-bg, var(--o-surface, #f6f8fc));
 }
 
 .fp-option {
@@ -546,13 +546,13 @@
   width: 100%;
   padding: 9px 12px;
   border: 0;
-  border-top: 1px solid var(--chat-card-border, #e2e8f0);
+  border-top: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
   background: transparent;
   font: inherit;
   font-size: var(--chat-card-text, 0.86rem);
   line-height: 1.35;
   text-align: left;
-  color: var(--chat-card-text-color, #0a1b3a);
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
   cursor: pointer;
 }
 
@@ -569,8 +569,8 @@
 }
 
 .fp-option.is-on .fp-radio {
-  border-color: var(--primary, #0055a4);
-  background: var(--primary, #0055a4);
+  border-color: var(--primary, var(--o-brand, #0055a4));
+  background: var(--primary, var(--o-brand, #0055a4));
 }
 
 .fp-option:disabled {

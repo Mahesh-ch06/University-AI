@@ -1,5 +1,5 @@
 /*!
- * SRU Buddy chat widget (v3.0.0)
+ * SRU Buddy chat widget (v3.1.0: the official sru.edu.in look)
  *
  * Add SRU Buddy to any web page (for example the SR University admission page) with ONE line,
  * just before </body>:
@@ -8,7 +8,7 @@
  *
  * Optional settings on the same tag:
  *   data-position="left"            bubble on the left (default: right)
- *   data-color="#1d4ed8"            bubble colour
+ *   data-color="#194F90"            bubble colour (default: the SRU logo blue)
  *   data-label="Ask SRU Buddy"      text next to the bubble on wide screens ("" hides it)
  *   data-greeting="Hi! ..."         the small greeting shown once per visit ("" turns it off)
  *   data-open="true"                open the chat straight away
@@ -55,8 +55,8 @@
     return PROD_BASE;
   })());
   var side = opt("position", "right") === "left" ? "left" : "right";
-  var rawColor = opt("color", "#0055a4");
-  var color = /^#(?:[0-9a-fA-F]{3}){1,2}$/.test(rawColor) ? rawColor : "#0055a4";
+  var rawColor = opt("color", "#194F90");
+  var color = /^#(?:[0-9a-fA-F]{3}){1,2}$/.test(rawColor) ? rawColor : "#194F90";
   var label = opt("label", "Ask SRU Buddy");
   var greeting = opt("greeting", "Hi! Questions about admissions 2027-28? Ask me.");
   var startOpen = opt("open", "false") === "true";
@@ -81,33 +81,34 @@
 
   var css =
     ":host{all:initial}" +
-    "*{box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}" +
+    "*{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}" +
     ".launcher-cluster{position:fixed;bottom:max(20px,env(safe-area-inset-bottom,20px));" + side + ":max(20px,env(safe-area-inset-" + side + ",20px));display:flex;align-items:center;gap:12px;" +
     "flex-direction:" + (side === "left" ? "row-reverse" : "row") + ";z-index:2147483000;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
-    ".register-btn{background:linear-gradient(135deg,#0055a4 0%,#2979e2 100%);color:#ffffff;border:none;border-radius:8px;padding:9px 13px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;box-shadow:0 4px 16px rgba(0,85,164,0.4);transition:all .2s ease;display:flex;flex-direction:column;align-items:center;line-height:1.15;user-select:none}" +
-    ".register-btn:hover{background:linear-gradient(135deg,#004382 0%,#1c66c9 100%);transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,85,164,0.55)}" +
+    ".register-btn{background:#297DE5;color:#ffffff;border:none;border-radius:4px;padding:9px 14px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer;box-shadow:0 2px 8px rgba(15,15,17,0.16);transition:background-color .15s ease;display:flex;flex-direction:column;align-items:center;line-height:1.2;user-select:none}" +
+    ".register-btn:hover{background:#1F6BCB}" +
+    ".register-btn:focus-visible{outline:2px solid #0F0F11;outline-offset:2px}" +
     ".launcher{position:relative;border:0;background:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
     ".launcher .dot{width:62px;height:62px;border-radius:50%;background:" + color + ";border:3px solid #fff;display:flex;align-items:center;" +
-    "justify-content:center;box-shadow:0 8px 24px rgba(0,85,164,.45);transition:transform .15s ease;" +
-    "animation:sruPulse 2.5s infinite;padding:8px}" +
-    "@keyframes sruPulse{0%{box-shadow:0 0 0 0 rgba(41,121,226,.7),0 8px 24px rgba(0,0,0,.3)}70%{box-shadow:0 0 0 16px rgba(41,121,226,0),0 8px 24px rgba(0,0,0,.3)}100%{box-shadow:0 0 0 0 rgba(41,121,226,0),0 8px 24px rgba(0,0,0,.3)}}" +
-    ".launcher:hover .dot{transform:scale(1.08)}" +
+    "justify-content:center;box-shadow:0 4px 14px rgba(15,15,17,.22);transition:transform .15s ease;" +
+    "animation:sruPulse 3s infinite;padding:8px}" +
+    "@keyframes sruPulse{0%{box-shadow:0 0 0 0 rgba(41,125,229,.45),0 4px 14px rgba(15,15,17,.22)}70%{box-shadow:0 0 0 12px rgba(41,125,229,0),0 4px 14px rgba(15,15,17,.22)}100%{box-shadow:0 0 0 0 rgba(41,125,229,0),0 4px 14px rgba(15,15,17,.22)}}" +
+    ".launcher:hover .dot{transform:scale(1.05)}" +
     ".launcher .dot img{width:38px;height:auto;max-height:24px;object-fit:contain;display:block}" +
-    ".tooltip{position:absolute;bottom:calc(100% + 10px);right:0;background:#ffffff;color:#0055a4;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;box-shadow:0 4px 18px rgba(0,85,164,0.18);border:1px solid #e2e8f0;white-space:nowrap;animation:sruFloat 2.6s ease-in-out infinite alternate;pointer-events:auto;cursor:pointer;z-index:2;display:block!important}" +
+    ".tooltip{position:absolute;bottom:calc(100% + 10px);right:0;background:#ffffff;color:#0F0F11;font-size:12px;font-weight:600;padding:5px 10px;border-radius:4px;box-shadow:0 2px 10px rgba(15,15,17,0.12);border:1px solid #E4E6EB;white-space:nowrap;animation:sruFloat 2.6s ease-in-out infinite alternate;pointer-events:auto;cursor:pointer;z-index:2;display:block!important}" +
     ".tooltip::after{content:'';position:absolute;top:100%;right:24px;border-width:5px;border-style:solid;border-color:#ffffff transparent transparent transparent}" +
     "@keyframes sruFloat{0%{transform:translateY(0)}100%{transform:translateY(-4px)}}" +
-    ".launcher:focus-visible{outline:none}.launcher:focus-visible .dot{outline:3px solid #2979e2;outline-offset:3px}" +
-    ".greet{position:fixed;bottom:calc(max(20px,env(safe-area-inset-bottom,20px)) + 74px);" + side + ":max(20px,env(safe-area-inset-" + side + ",20px));max-width:280px;background:#fff;color:#0f172a;font-size:14px;" +
-    "line-height:1.4;padding:12px 34px 12px 14px;border-radius:14px;box-shadow:0 8px 28px rgba(15,23,42,.2);cursor:pointer;z-index:2147483000}" +
-    ".greet button{position:absolute;top:6px;right:6px;border:0;background:none;font-size:16px;line-height:1;color:#64748b;" +
+    ".launcher:focus-visible{outline:none}.launcher:focus-visible .dot{outline:3px solid #297DE5;outline-offset:3px}" +
+    ".greet{position:fixed;bottom:calc(max(20px,env(safe-area-inset-bottom,20px)) + 74px);" + side + ":max(20px,env(safe-area-inset-" + side + ",20px));max-width:280px;background:#fff;color:#0F0F11;font-size:14px;" +
+    "line-height:1.45;padding:12px 34px 12px 14px;border-radius:8px;border:1px solid #E4E6EB;border-left:3px solid #194F90;box-shadow:0 6px 20px rgba(15,15,17,.14);cursor:pointer;z-index:2147483000}" +
+    ".greet button{position:absolute;top:6px;right:6px;border:0;background:none;font-size:16px;line-height:1;color:#5D5E6C;" +
     "cursor:pointer;padding:4px}" +
     ".panel{position:fixed;bottom:calc(max(20px,env(safe-area-inset-bottom,20px)) + 74px);" + side + ":max(20px,env(safe-area-inset-" + side + ",20px));width:420px;max-width:calc(100vw - 32px);height:min(720px,calc(100dvh - 110px));" +
-    "background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;box-shadow:0 20px 50px rgba(0,50,110,.18),0 0 0 1px rgba(0,0,0,.04);display:none;z-index:2147483001}" +
+    "background:#ffffff;border:1px solid #E4E6EB;border-radius:10px;overflow:hidden;box-shadow:0 16px 40px rgba(15,15,17,.16);display:none;z-index:2147483001}" +
     ".panel.open{display:block}.panel iframe{width:100%;height:100%;border:0;display:block;background:#ffffff}" +
     "@media (max-width:768px){" +
     ".panel{left:0!important;right:0!important;bottom:0!important;top:0!important;width:100%!important;width:100vw!important;height:100%!important;height:100dvh!important;height:-webkit-fill-available!important;max-width:none!important;max-height:none!important;border-radius:0!important;border:none!important;box-shadow:none!important;margin:0!important}" +
     ".launcher-cluster{bottom:max(16px,env(safe-area-inset-bottom,16px));" + side + ":max(16px,env(safe-area-inset-" + side + ",16px));gap:8px}" +
-    ".register-btn{padding:7px 10px;font-size:10px;border-radius:6px;display:flex!important}" +
+    ".register-btn{padding:7px 10px;font-size:10px;border-radius:4px;display:flex!important}" +
     ".launcher .dot{width:58px;height:58px}" +
     ".tooltip{display:block!important;font-size:11px;padding:4px 10px;bottom:calc(100% + 8px);right:0}" +
     ".tooltip::after{right:20px}" +

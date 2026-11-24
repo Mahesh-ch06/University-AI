@@ -3,6 +3,18 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import './styles/polish.css'
+import './styles/official-widget.css'
+
+// The embeddable widget (public/widget.js opens /?mode=widget) uses the official sru.edu.in look
+// (styles/official-widget.css). Set before the first render so there is no flash of the other look.
+try {
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('mode') === 'widget' || /^\/widget\/?$/.test(window.location.pathname)) {
+    document.documentElement.dataset.surface = 'widget'
+  }
+} catch {
+  /* no URL API: keep the default look */
+}
 
 // Production Anti-Inspection & Console Protection
 if (import.meta.env.PROD) {

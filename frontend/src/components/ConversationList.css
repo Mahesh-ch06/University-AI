@@ -13,9 +13,9 @@
 }
 
 [data-theme="light"] .chatgpt-sidebar {
-  background: #f8fafc;
-  color: #0f172a;
-  border-right: 1px solid #e2e8f0;
+  background: var(--o-surface, #f8fafc);
+  color: var(--o-text, #0f172a);
+  border-right: 1px solid var(--o-line, #e2e8f0);
 }
 
 /* Top Bar: Brand Title & Search Button */
@@ -47,14 +47,14 @@
   padding: 2px 7px;
   border-radius: 9999px;
   background: rgba(37, 99, 235, 0.22);
-  color: #38bdf8;
+  color: var(--o-action-light, #38bdf8);
   border: 1px solid rgba(56, 189, 248, 0.35);
   line-height: 1.2;
 }
 
 [data-theme="light"] .brand-version-pill {
   background: rgba(0, 85, 164, 0.09);
-  color: #0055a4;
+  color: var(--o-brand, #0055a4);
   border-color: rgba(0, 85, 164, 0.22);
 }
 
@@ -95,7 +95,7 @@
 }
 
 .sidebar-search-input:focus {
-  border-color: var(--sru-blue, #2563eb);
+  border-color: var(--sru-blue, var(--o-action, #2563eb));
 }
 
 /* Quick Portals Navigation (Matching Image 2 top list) */
@@ -124,7 +124,7 @@
 }
 
 [data-theme="light"] .sidebar-portal-btn {
-  color: #334155;
+  color: var(--o-text-2, #334155);
 }
 
 .sidebar-portal-btn:hover {
@@ -141,7 +141,7 @@
 }
 
 .sidebar-portal-btn:hover .portal-icon {
-  color: var(--sru-blue, #2563eb);
+  color: var(--sru-blue, var(--o-action, #2563eb));
 }
 
 /* Section Header (Matching Image 2 "Pinned" / "Chats") */
@@ -184,7 +184,7 @@
 }
 
 [data-theme="light"] .sidebar-chat-item {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 .sidebar-chat-item:hover {
@@ -201,7 +201,7 @@
 }
 
 .sidebar-chat-item.active .chat-bubble-outline-icon {
-  color: var(--sru-blue, #2563eb);
+  color: var(--sru-blue, var(--o-action, #2563eb));
 }
 
 .chat-title-text {
@@ -244,12 +244,12 @@
 }
 
 [data-theme="light"] .sidebar-bottom-bar {
-  border-top-color: #e2e8f0;
+  border-top-color: var(--o-line, #e2e8f0);
 }
 
 /* Blue New Chat Pill (Image 2) */
 .sidebar-blue-new-chat-pill {
-  background: var(--sru-blue, #2563eb);
+  background: var(--sru-blue, var(--o-action, #2563eb));
   color: #ffffff;
   border: none;
   border-radius: 9999px;
@@ -266,7 +266,7 @@
 }
 
 .sidebar-blue-new-chat-pill:hover {
-  background: var(--primary-hover, #1d4ed8);
+  background: var(--primary-hover, var(--o-action, #1d4ed8));
   transform: translateY(-1px);
 }
 
@@ -279,7 +279,7 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: #9333ea;
+  background: var(--o-action, #9333ea);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -309,6 +309,6 @@
 
 [data-theme="light"] .sidebar-version-badge {
   background: rgba(0, 0, 0, 0.04);
-  border-color: #e2e8f0;
-  color: #64748b;
+  border-color: var(--o-line, #e2e8f0);
+  color: var(--o-muted, #64748b);
 }

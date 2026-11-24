@@ -322,3 +322,23 @@ See `docs/36-understanding-the-student-backlog.md` (standing priority).
 - **"Add hostel to my fee"** goes to the hostel question even when other steps are open.
 - **Button-contract test:** every button the fee agent offers must get a relevant answer.
 
+
+## v4.13.0 (24 Nov 2026): the official widget look; multi-question answers made safe
+
+See `docs/37-official-widget-look-and-multi-questions-nov-2026.md`.
+
+- **The widget looks like sru.edu.in:** logo blue `#194F90`, button blue `#297DE5`, black text, Inter, flat, small
+  corners.
+  - Covers the bubble, the REGISTER NOW button, the header, bubbles, tiles, chips, input, every card, the
+    calculator, the confetti and the icons.
+  - Only inside the widget (`html[data-surface="widget"]`, `styles/official-widget.css`); the full website is
+    unchanged. Colours go through `--o-*` tokens (`frontend/scripts/official_tokens.py`).
+- **Fixed:** the widget's Fee Calculator button opened the calculator behind the chat.
+- **Nikhil's multi-question commits reviewed and kept, with safety rules** (`sru_agent/compound.py`):
+  - **Never split:** messages with actions or the student's data (callbacks, marks, visits), button labels,
+    single questions, and other programmes' fees.
+  - **Verified parts only:** every part is answered from verified content. Fees without a programme ask which
+    one.
+  - **Fixed:** the wrong hand-written scholarship slabs, now written from the fee data; the "ai" in "detail" match;
+    a pending dialogue answer being skipped.
+- **Tests:** `tests/test_v413_compound_safety.py` (25); the 7 tests the commits had broken pass again.

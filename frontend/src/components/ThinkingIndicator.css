@@ -35,14 +35,14 @@
   padding: 3px 8px;
   border-radius: 6px;
   background: rgba(0, 85, 164, 0.09);
-  color: var(--sru-blue, #0055a4);
+  color: var(--sru-blue, var(--o-brand, #0055a4));
   border: 1px solid rgba(0, 85, 164, 0.2);
 }
 
 .thinking-badge-timer {
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, var(--o-muted, #64748b));
   font-family: var(--font-mono, monospace);
   padding: 2px 6px;
   border-radius: 6px;
@@ -58,7 +58,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--sru-blue, #0055a4);
+  background: var(--sru-blue, var(--o-brand, #0055a4));
   animation: dotPulse 1.2s ease-in-out infinite;
 }
 
@@ -121,7 +121,7 @@
 .step-title-animated {
   font-size: 0.88rem;
   font-weight: 600;
-  color: var(--text-1, #0f172a);
+  color: var(--text-1, var(--o-text, #0f172a));
   line-height: 1.35;
 }
 
@@ -142,12 +142,12 @@
 }
 
 .thinking-step-segment.active {
-  background: linear-gradient(90deg, #0055a4, #2979e2);
+  background: linear-gradient(90deg, var(--o-brand, #0055a4), var(--o-action, #2979e2));
   box-shadow: 0 0 6px rgba(0, 85, 164, 0.35);
 }
 
 .thinking-step-segment.completed {
-  background: #10b981;
+  background: var(--o-ok, #10b981);
 }
 
 /* ---- v2.9: honest progress (no fake steps) ------------------------------------------ */
@@ -163,7 +163,7 @@
   margin: 8px 0 0;
   font-size: 0.8rem;
   line-height: 1.45;
-  color: var(--text-secondary, #64748b);
+  color: var(--text-secondary, var(--o-muted, #64748b));
 }
 .thinking-progress-track.indeterminate {
   position: relative;
@@ -180,7 +180,7 @@
   bottom: 0;
   width: 35%;
   border-radius: 3px;
-  background: var(--primary, #0055a4);
+  background: var(--primary, var(--o-brand, #0055a4));
   animation: sru-indeterminate 1.4s ease-in-out infinite;
 }
 @keyframes sru-indeterminate {

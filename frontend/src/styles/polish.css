@@ -6,7 +6,7 @@
 
 /* ---- Keyboard focus is always visible (and only for keyboard users) ------------------- */
 :where(button, a, [role="button"], input, select, textarea, summary):focus-visible {
-  outline: 2px solid var(--primary, #0055a4);
+  outline: 2px solid var(--primary, var(--o-brand, #0055a4));
   outline-offset: 2px;
 }
 
@@ -24,7 +24,7 @@
 
 /* ---- Header: icons in one style; keep the right-hand group clear of the centre pill ---- */
 .header-icon-btn {
-  color: var(--text-secondary, #475569);
+  color: var(--text-secondary, var(--o-text-2, #475569));
 }
 .header-icon-btn svg {
   display: block;
@@ -33,11 +33,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary, #475569);
+  color: var(--text-secondary, var(--o-text-2, #475569));
 }
 .export-opt-icon {
   display: inline-flex;
-  color: var(--primary, #0055a4);
+  color: var(--primary, var(--o-brand, #0055a4));
 }
 @media (min-width: 769px) and (max-width: 1240px) {
   .calc-nav-pill-btn .calc-nav-text,
@@ -57,15 +57,15 @@
 [data-theme="light"] .calc-nav-pill-btn {
   border-color: rgba(0, 85, 164, 0.35);
   background: rgba(0, 85, 164, 0.08);
-  color: var(--primary, #0055a4);
+  color: var(--primary, var(--o-brand, #0055a4));
 }
 .calc-nav-pill-btn:hover,
 [data-theme="light"] .calc-nav-pill-btn:hover {
-  border-color: var(--primary, #0055a4);
+  border-color: var(--primary, var(--o-brand, #0055a4));
   background: rgba(0, 85, 164, 0.14);
 }
 [data-theme="dark"] .calc-nav-pill-btn {
-  color: #93c5fd;
+  color: var(--o-action-light, #93c5fd);
   border-color: rgba(147, 197, 253, 0.35);
   background: rgba(59, 130, 246, 0.12);
 }
@@ -73,41 +73,41 @@
 /* ---- Pop-ups (verification, My details): brand blue, not purple ----------------------- */
 .lead-icon-badge,
 [data-theme="light"] .lead-icon-badge {
-  background: var(--primary-light, #e8f1fb);
-  color: var(--primary, #0055a4);
+  background: var(--primary-light, var(--o-tint, #e8f1fb));
+  color: var(--primary, var(--o-brand, #0055a4));
   border-color: rgba(0, 85, 164, 0.2);
 }
 [data-theme="dark"] .lead-icon-badge {
   background: rgba(59, 130, 246, 0.14);
-  color: #93c5fd;
+  color: var(--o-action-light, #93c5fd);
 }
 .lead-prompt-banner,
 [data-theme="light"] .lead-prompt-banner {
-  background: var(--primary-light, #e8f1fb);
+  background: var(--primary-light, var(--o-tint, #e8f1fb));
   border-color: rgba(0, 85, 164, 0.18);
-  color: #0b3d75;
+  color: var(--o-brand, #0b3d75);
 }
 [data-theme="dark"] .lead-prompt-banner {
   background: rgba(59, 130, 246, 0.1);
   border-color: rgba(147, 197, 253, 0.25);
-  color: #cfe0ff;
+  color: var(--o-tint, #cfe0ff);
 }
 .lead-submit-btn {
-  background: var(--primary, #0055a4);
+  background: var(--primary, var(--o-brand, #0055a4));
 }
 .lead-submit-btn:hover:not(:disabled) {
-  background: var(--primary-hover, #004382);
+  background: var(--primary-hover, var(--o-brand-dark, #004382));
 }
 .lead-input:focus,
 [data-theme="light"] .lead-input:focus {
-  border-color: var(--primary, #0055a4);
+  border-color: var(--primary, var(--o-brand, #0055a4));
   box-shadow: 0 0 0 3px rgba(0, 85, 164, 0.16);
 }
 .lead-optional-note {
   margin: 2px 0 0;
   font-size: 0.78rem;
   line-height: 1.45;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, var(--o-muted, #64748b));
 }
 @media (max-width: 480px) {
   .lead-modal-card {
@@ -122,10 +122,10 @@
   gap: 10px;
 }
 .agent-fee-stat-val.bold-emerald {
-  color: #047857;
+  color: var(--o-ok, #047857);
 }
 [data-theme="dark"] .agent-fee-stat-val.bold-emerald {
-  color: #34d399;
+  color: var(--o-ok-light, #34d399);
 }
 .agent-fee-card .card-badge {
   white-space: nowrap;
@@ -162,7 +162,7 @@
 /* ---- Sidebar footer: the SRU logo instead of a purple "SRU" circle -------------------- */
 .sidebar-avatar-circle-btn {
   background: #ffffff;
-  border: 1px solid var(--border, #e2e8f0);
+  border: 1px solid var(--border, var(--o-line, #e2e8f0));
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
@@ -174,7 +174,7 @@
 
 /* ---- Welcome screen ------------------------------------------------------------------- */
 .welcome-hero-tagline {
-  color: var(--text-secondary, #475569);
+  color: var(--text-secondary, var(--o-text-2, #475569));
 }
 
 /* ---- Respect "reduce motion" ---------------------------------------------------------- */
@@ -202,10 +202,10 @@
 .calc-result-heading {
   font-size: 0.9rem;
   font-weight: 700;
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary, var(--o-text, #0f172a));
 }
 [data-theme="dark"] .calc-result-heading {
-  color: #e2e8f0;
+  color: var(--o-line, #e2e8f0);
 }
 
 /* ---- Touch targets and minimum text size (v2.9.0) ---- */
@@ -276,13 +276,13 @@
 .faculty-card-agent .faculty-summary {
   margin: 4px 0 8px;
   font-size: 0.82rem;
-  color: var(--text-2, #475569);
+  color: var(--text-2, var(--o-text-2, #475569));
 }
 .faculty-school-list {
   margin: 0 0 8px;
   padding-left: 18px;
   font-size: 0.82rem;
-  color: var(--text-1, #0f172a);
+  color: var(--text-1, var(--o-text, #0f172a));
 }
 .faculty-list {
   list-style: none;
@@ -294,9 +294,9 @@
 }
 .faculty-row {
   padding: 10px 12px;
-  border: 1px solid var(--border, #e2e8f0);
+  border: 1px solid var(--border, var(--o-line, #e2e8f0));
   border-radius: 10px;
-  background: var(--surface-2, #f8fafc);
+  background: var(--surface-2, var(--o-surface, #f8fafc));
 }
 .faculty-row-main {
   display: flex;
@@ -307,7 +307,7 @@
 .faculty-row-name {
   font-weight: 700;
   font-size: 0.9rem;
-  color: #1d4ed8;
+  color: var(--o-action, #1d4ed8);
   text-decoration: none;
 }
 .faculty-row-name:hover {
@@ -315,13 +315,13 @@
 }
 .faculty-row-position {
   font-size: 0.8rem;
-  color: var(--text-2, #475569);
+  color: var(--text-2, var(--o-text-2, #475569));
 }
 .faculty-row-meta,
 .faculty-row-research {
   margin-top: 3px;
   font-size: 0.78rem;
-  color: var(--text-2, #475569);
+  color: var(--text-2, var(--o-text-2, #475569));
   line-height: 1.4;
 }
 .visit-contact-card .agent-contacts-row {
@@ -339,7 +339,7 @@
   margin-top: 10px;
 }
 [data-theme="dark"] .faculty-row-name {
-  color: #93c5fd;
+  color: var(--o-action-light, #93c5fd);
 }
 
 /* ---- v3.0.0: the embeddable widget (public/widget.js opens /?mode=widget) ---- */
@@ -355,7 +355,7 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: #1d4ed8;
+  background: var(--o-action, #1d4ed8);
   color: #fff;
   flex-shrink: 0;
 }

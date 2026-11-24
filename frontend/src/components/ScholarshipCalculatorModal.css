@@ -1,7 +1,7 @@
 /* ==========================================================================
    ScholarshipCalculatorModal.css
    Modern Minimalist Styling for SR University Scholarship & Fee Calculator
-   Strictly adheres to SR University branding (#0055a4, #2979e2, #10b981, #f59e0b)
+   Strictly adheres to SR University branding (var(--o-brand, #0055a4), var(--o-action, #2979e2), var(--o-ok, #10b981), #f59e0b)
    ========================================================================== */
 
 /* Modal Backdrop */
@@ -83,7 +83,7 @@
   height: 38px;
   border-radius: 10px;
   background: rgba(0, 85, 164, 0.15);
-  color: #3b82f6;
+  color: var(--o-action, #3b82f6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -102,13 +102,13 @@
 .calc-subtitle {
   margin: 2px 0 0 0;
   font-size: 0.78rem;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
 }
 
 .calc-close-btn {
   background: transparent;
   border: 1px solid transparent;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -153,13 +153,13 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #10b981;
+  background: var(--o-ok, #10b981);
   color: #ffffff;
   flex-shrink: 0;
 }
 
 .calc-verified-phone {
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   font-size: 0.78rem;
 }
 
@@ -171,7 +171,7 @@
   padding: 2px 7px;
   border-radius: 5px;
   background: rgba(16, 185, 129, 0.16);
-  color: #10b981;
+  color: var(--o-ok, #10b981);
 }
 
 /* 2. Modern Inline Program & Exam Selectors */
@@ -192,7 +192,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
 }
 
 .calc-select-wrap {
@@ -222,7 +222,7 @@
 }
 
 .calc-select-modern:focus {
-  border-color: #3b82f6;
+  border-color: var(--o-action, #3b82f6);
   background-color: var(--surface-1, #131418);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
@@ -257,7 +257,7 @@
 
 .calc-input-subtext {
   font-size: 0.76rem;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
 }
 
 .calc-input-action-row {
@@ -289,13 +289,13 @@
 }
 
 .calc-main-input:focus {
-  border-color: #3b82f6;
+  border-color: var(--o-action, #3b82f6);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
   background: #181920;
 }
 
 .calc-main-input::placeholder {
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, var(--o-muted, #64748b));
   font-weight: 400;
 }
 
@@ -304,7 +304,7 @@
   right: 10px;
   background: transparent;
   border: none;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   cursor: pointer;
   font-size: 0.85rem;
   padding: 4px;
@@ -327,7 +327,7 @@
   gap: 6px;
   padding: 0 20px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #0055a4 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--o-brand, #0055a4) 0%, var(--o-action, #2563eb) 100%);
   color: #ffffff;
   border: none;
   font-size: 0.88rem;
@@ -340,7 +340,7 @@
 }
 
 .calc-submit-btn:hover {
-  background: linear-gradient(135deg, #004488 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, var(--o-brand, #004488) 0%, var(--o-action, #1d4ed8) 100%);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
 }
@@ -351,7 +351,7 @@
   align-items: center;
   gap: 6px;
   font-size: 0.8rem;
-  color: #10b981;
+  color: var(--o-ok, #10b981);
   background: rgba(16, 185, 129, 0.1);
   padding: 6px 10px;
   border-radius: 8px;
@@ -401,7 +401,7 @@
 .calc-empty-info p {
   margin: 4px 0 0 0;
   font-size: 0.8rem;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   max-width: 440px;
   line-height: 1.45;
 }
@@ -409,7 +409,7 @@
 .calc-toggle-slabs-btn {
   background: transparent;
   border: none;
-  color: #3b82f6;
+  color: var(--o-action, #3b82f6);
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
@@ -439,7 +439,7 @@
   padding: 7px 12px;
   background: var(--surface-2, rgba(255, 255, 255, 0.06));
   font-weight: 600;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   text-transform: uppercase;
   letter-spacing: 0.03em;
   font-size: 0.7rem;
@@ -460,15 +460,15 @@
 
 .slab-badge-min {
   font-weight: 700;
-  color: #10b981;
+  color: var(--o-ok, #10b981);
 }
 
 .slab-criteria-min {
-  color: var(--text, #e2e8f0);
+  color: var(--text, var(--o-line, #e2e8f0));
 }
 
 .slab-payable-min {
-  color: #60a5fa;
+  color: var(--o-action-light, #60a5fa);
   font-weight: 600;
 }
 
@@ -501,7 +501,7 @@
 .calc-status-badge.scholarship-awarded {
   background: rgba(16, 185, 129, 0.12);
   border: 1px solid rgba(16, 185, 129, 0.3);
-  color: #10b981;
+  color: var(--o-ok, #10b981);
 }
 
 .calc-status-badge.standard-tuition {
@@ -513,7 +513,7 @@
 .calc-reset-action {
   background: transparent;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   font-size: 0.76rem;
   font-weight: 600;
   padding: 5px 10px;
@@ -564,7 +564,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   margin-bottom: 4px;
 }
 
@@ -576,18 +576,18 @@
 }
 
 .metric-primary-val.green {
-  color: #10b981;
+  color: var(--o-ok, #10b981);
 }
 
 .metric-unit {
   font-size: 0.8rem;
   font-weight: 500;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
 }
 
 .metric-sub-val {
   font-size: 0.75rem;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   margin-top: 4px;
 }
 
@@ -617,7 +617,7 @@
   padding: 2px 7px;
   border-radius: 5px;
   background: rgba(59, 130, 246, 0.12);
-  color: #60a5fa;
+  color: var(--o-action-light, #60a5fa);
   border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
@@ -631,12 +631,12 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.82rem;
-  color: var(--text, #e2e8f0);
+  color: var(--text, var(--o-line, #e2e8f0));
 }
 
 .breakdown-line.sub {
   font-size: 0.76rem;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   padding-left: 10px;
 }
 
@@ -668,7 +668,7 @@
 .hostel-checkbox {
   width: 16px;
   height: 16px;
-  accent-color: #3b82f6;
+  accent-color: var(--o-action, #3b82f6);
   cursor: pointer;
 }
 
@@ -688,19 +688,19 @@
   background: var(--surface-1, #131418);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   font-size: 0.76rem;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .hostel-type-pill input {
-  accent-color: #3b82f6;
+  accent-color: var(--o-action, #3b82f6);
   margin: 0;
 }
 
 .hostel-type-pill.selected {
-  border-color: #3b82f6;
-  color: #93c5fd;
+  border-color: var(--o-action, #3b82f6);
+  color: var(--o-action-light, #93c5fd);
   background: rgba(59, 130, 246, 0.12);
   font-weight: 600;
 }
@@ -724,7 +724,7 @@
 .total-val.bold-emerald {
   font-size: 1.18rem;
   font-weight: 800;
-  color: #10b981;
+  color: var(--o-ok, #10b981);
 }
 
 /* Upgrade Opportunity Card */
@@ -763,7 +763,7 @@
   gap: 6px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
 }
 
 .progression-pill-grid {
@@ -785,7 +785,7 @@
 .prog-yr {
   font-size: 0.68rem;
   text-transform: uppercase;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   font-weight: 600;
 }
 
@@ -812,7 +812,7 @@
   align-items: flex-start;
   gap: 8px;
   font-size: 0.75rem;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   line-height: 1.4;
 }
 
@@ -821,7 +821,7 @@
 }
 
 .note-item.special-scholarship {
-  color: #38bdf8;
+  color: var(--o-action-light, #38bdf8);
 }
 
 /* Admissions Counselor Callback Box */
@@ -847,7 +847,7 @@
 .calc-auth-subtext {
   margin: 0;
   font-size: 0.74rem;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
 }
 
 .calc-lead-success {
@@ -858,7 +858,7 @@
   border-radius: 8px;
   background: rgba(16, 185, 129, 0.12);
   border: 1px solid rgba(16, 185, 129, 0.25);
-  color: #10b981;
+  color: var(--o-ok, #10b981);
   font-size: 0.8rem;
   font-weight: 500;
 }
@@ -884,7 +884,7 @@
 .calc-field label {
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   text-transform: uppercase;
 }
 
@@ -899,7 +899,7 @@
   align-items: center;
   gap: 6px;
   font-size: 0.72rem;
-  color: var(--text-muted, #94a3b8);
+  color: var(--text-muted, var(--o-faint, #94a3b8));
   cursor: pointer;
 }
 
@@ -917,8 +917,8 @@
 }
 
 .calc-callback-btn:hover {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: var(--o-action, #2563eb);
+  border-color: var(--o-action, #2563eb);
   color: #ffffff;
 }
 
@@ -944,7 +944,7 @@
   cursor: pointer;
   transition: all 0.15s ease;
   background: var(--surface-2, rgba(255, 255, 255, 0.06));
-  color: var(--text, #e2e8f0);
+  color: var(--text, var(--o-line, #e2e8f0));
   border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
 }
 
@@ -970,7 +970,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.18s ease;
-  background: linear-gradient(135deg, #0055a4 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--o-brand, #0055a4) 0%, var(--o-action, #2563eb) 100%);
   color: #ffffff;
   border: none;
   margin-left: auto;
@@ -978,7 +978,7 @@
 }
 
 .btn-ask-buddy:hover {
-  background: linear-gradient(135deg, #004488 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, var(--o-brand, #004488) 0%, var(--o-action, #1d4ed8) 100%);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
 }
@@ -988,32 +988,32 @@
    ========================================================================== */
 [data-theme="light"] .scholarship-modal-card {
   background: #ffffff;
-  color: #0f172a;
-  border-color: #e2e8f0;
+  color: var(--o-text, #0f172a);
+  border-color: var(--o-line, #e2e8f0);
   box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.18);
 }
 
 [data-theme="light"] .calc-header {
-  border-bottom-color: #f1f5f9;
+  border-bottom-color: var(--o-surface-2, #f1f5f9);
 }
 
 [data-theme="light"] .calc-title {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .calc-subtitle {
-  color: #64748b;
+  color: var(--o-muted, #64748b);
 }
 
 [data-theme="light"] .calc-select-modern {
-  background-color: #f8fafc;
-  color: #0f172a;
-  border-color: #cbd5e1;
+  background-color: var(--o-surface, #f8fafc);
+  color: var(--o-text, #0f172a);
+  border-color: var(--o-line-strong, #cbd5e1);
 }
 
 [data-theme="light"] .calc-select-modern:focus {
   background-color: #ffffff;
-  border-color: #0055a4;
+  border-color: var(--o-brand, #0055a4);
 }
 
 [data-theme="light"] .calc-input-box {
@@ -1022,53 +1022,53 @@
 }
 
 [data-theme="light"] .calc-input-label span:first-child {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .calc-main-input {
   background: #ffffff;
-  color: #0f172a;
-  border-color: #cbd5e1;
+  color: var(--o-text, #0f172a);
+  border-color: var(--o-line-strong, #cbd5e1);
 }
 
 [data-theme="light"] .calc-main-input:focus {
   background: #ffffff;
-  border-color: #0055a4;
+  border-color: var(--o-brand, #0055a4);
 }
 
 [data-theme="light"] .calc-empty-card {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: var(--o-surface, #f8fafc);
+  border-color: var(--o-line-strong, #cbd5e1);
 }
 
 [data-theme="light"] .calc-empty-info h4 {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .calc-empty-info p {
-  color: #64748b;
+  color: var(--o-muted, #64748b);
 }
 
 [data-theme="light"] .slabs-table-header {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--o-surface-2, #f1f5f9);
+  color: var(--o-text-2, #475569);
 }
 
 [data-theme="light"] .slabs-table-row {
-  border-top-color: #e2e8f0;
+  border-top-color: var(--o-line, #e2e8f0);
 }
 
 [data-theme="light"] .slabs-table-row:nth-child(even) {
-  background: #f8fafc;
+  background: var(--o-surface, #f8fafc);
 }
 
 [data-theme="light"] .slab-criteria-min {
-  color: #334155;
+  color: var(--o-text-2, #334155);
 }
 
 [data-theme="light"] .calc-metric-card {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: var(--o-surface, #f8fafc);
+  border-color: var(--o-line, #e2e8f0);
 }
 
 [data-theme="light"] .calc-metric-card.primary-card {
@@ -1077,21 +1077,21 @@
 }
 
 [data-theme="light"] .metric-primary-val {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .calc-breakdown-card {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: var(--o-surface, #f8fafc);
+  border-color: var(--o-line, #e2e8f0);
 }
 
 [data-theme="light"] .breakdown-card-header {
-  border-bottom-color: #e2e8f0;
-  color: #0f172a;
+  border-bottom-color: var(--o-line, #e2e8f0);
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .breakdown-line {
-  color: #1e293b;
+  color: var(--o-text, #1e293b);
 }
 
 [data-theme="light"] .calc-hostel-option-box {
@@ -1100,27 +1100,27 @@
 }
 
 [data-theme="light"] .hostel-toggle-label {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .hostel-type-pill {
   background: #ffffff;
-  border-color: #cbd5e1;
-  color: #334155;
+  border-color: var(--o-line-strong, #cbd5e1);
+  color: var(--o-text-2, #334155);
 }
 
 [data-theme="light"] .hostel-type-pill.selected {
   background: rgba(0, 85, 164, 0.1);
-  border-color: #0055a4;
-  color: #0055a4;
+  border-color: var(--o-brand, #0055a4);
+  color: var(--o-brand, #0055a4);
 }
 
 [data-theme="light"] .breakdown-total-row {
-  border-top-color: #cbd5e1;
+  border-top-color: var(--o-line-strong, #cbd5e1);
 }
 
 [data-theme="light"] .total-label {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .calc-upgrade-card {
@@ -1130,52 +1130,52 @@
 }
 
 [data-theme="light"] .calc-progression-card {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: var(--o-surface, #f8fafc);
+  border-color: var(--o-line, #e2e8f0);
 }
 
 [data-theme="light"] .prog-pill {
   background: #ffffff;
-  border-color: #e2e8f0;
+  border-color: var(--o-line, #e2e8f0);
 }
 
 [data-theme="light"] .prog-amt {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .calc-notes {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: var(--o-surface, #f8fafc);
+  border-color: var(--o-line, #e2e8f0);
 }
 
 [data-theme="light"] .note-item strong {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .calc-auth-box {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: var(--o-surface, #f8fafc);
+  border-color: var(--o-line, #e2e8f0);
 }
 
 [data-theme="light"] .calc-auth-header {
-  color: #0f172a;
+  color: var(--o-text, #0f172a);
 }
 
 [data-theme="light"] .btn-whatsapp,
 [data-theme="light"] .btn-print {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-  color: #334155;
+  background: var(--o-surface-2, #f1f5f9);
+  border-color: var(--o-line, #e2e8f0);
+  color: var(--o-text-2, #334155);
 }
 
 [data-theme="light"] .calc-reset-action {
-  border-color: #cbd5e1;
-  color: #475569;
+  border-color: var(--o-line-strong, #cbd5e1);
+  color: var(--o-text-2, #475569);
 }
 
 [data-theme="light"] .calc-reset-action:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--o-surface-2, #f1f5f9);
+  color: var(--o-text, #0f172a);
 }
 
 /* ==========================================================================
@@ -1292,8 +1292,8 @@
   .calc-breakdown-card,
   .calc-notes,
   .calc-progression-card {
-    border-color: #cbd5e1 !important;
-    background: #f8fafc !important;
-    color: #0f172a !important;
+    border-color: var(--o-line-strong, #cbd5e1) !important;
+    background: var(--o-surface, #f8fafc) !important;
+    color: var(--o-text, #0f172a) !important;
   }
 }

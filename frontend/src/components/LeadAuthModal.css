@@ -41,7 +41,7 @@
   height: 42px;
   border-radius: 10px;
   background: rgba(99, 102, 241, 0.12);
-  color: #818cf8;
+  color: var(--o-action-light, #818cf8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -83,7 +83,7 @@
 .lead-prompt-banner {
   background: rgba(99, 102, 241, 0.08);
   border: 1px solid rgba(99, 102, 241, 0.2);
-  color: #c7d2fe;
+  color: var(--o-tint-border, #c7d2fe);
   font-size: 0.84rem;
   line-height: 1.45;
   padding: 10px 12px;
@@ -123,7 +123,7 @@
 }
 
 .lead-input:focus {
-  border-color: #6366f1;
+  border-color: var(--o-action, #6366f1);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
 }
 
@@ -141,7 +141,7 @@
 }
 
 .lead-submit-btn {
-  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  background: linear-gradient(135deg, var(--o-action, #4f46e5), var(--o-action, #6366f1));
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -159,7 +159,7 @@
 }
 
 .lead-submit-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4338ca, #4f46e5);
+  background: linear-gradient(135deg, var(--o-action-dark, #4338ca), var(--o-action, #4f46e5));
   transform: translateY(-1px);
 }
 
@@ -196,15 +196,15 @@
 }
 
 [data-theme="light"] .lead-icon-badge {
-  background: #eef2ff;
-  color: #4f46e5;
-  border-color: #c7d2fe;
+  background: var(--o-tint, #eef2ff);
+  color: var(--o-action, #4f46e5);
+  border-color: var(--o-tint-border, #c7d2fe);
 }
 
 [data-theme="light"] .lead-prompt-banner {
-  background: #f5f3ff;
-  border-color: #ddd6fe;
-  color: #5b21b6;
+  background: var(--o-tint, #f5f3ff);
+  border-color: var(--o-tint-border, #ddd6fe);
+  color: var(--o-action-dark, #5b21b6);
 }
 
 [data-theme="light"] .lead-input {
