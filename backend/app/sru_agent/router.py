@@ -262,6 +262,22 @@ async def chat_ads():
                                                                                 for a in ads]}
 
 
+@router.get("/media/{media_id}")
+async def media(media_id: str = Path(..., pattern=r"^[a-f0-9]{20}$")):
+    """An image uploaded in the admin panel for an ad or event card (v4.15.1). Public; never changes (the id is
+    its hash), so browsers may keep it for a year."""
+    from fastapi import Response
+    from app.services import media_store
+
+    found = await media_store.load(media_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Image not found.")
+    data, ctype = found
+    return Response(content=data, media_type=ctype, headers={
+        "Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'", "Cross-Origin-Resource-Policy": "cross-origin"})
+
+
 @router.get("/videos")
 async def official_videos():
     """The official SRU YouTube videos the chat may show (the built-in list with the admin panel's changes)."""

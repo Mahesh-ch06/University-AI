@@ -1672,9 +1672,9 @@ def _side_question(message: str, conv_state: dict) -> bool:
     if fee_intake.is_fee_enquiry(text) and not re.search(r"\b(?:hostel|room|mess|bus|transport)\b", text, re.I):
         return False                                     # a fee question continues the fee steps
     # A programme's own label is an answer, even when it has words like "ICAR Accredited" in brackets (v4.15.0)
-    if intake.get("waiting_for") == "program" and fees.find_program(text) \
-            and re.search(r"\b(?:details?|about|tell\s+me|info(?:rmation)?|explain|overview)\b", text, re.I):
-        return True     # "B.Sc Agriculture details": a question about the programme, answered first (v4.15.0)
+    if fees.find_program(text) and re.search(r"\b(?:details?|about|tell\s+me|info(?:rmation)?|explain|overview)\b",
+                                             text, re.I) and not fee_intake.is_fee_enquiry(text):
+        return True     # "tell me about BBA" / "B.Sc Agriculture details" at any step: answered first (v4.15.1)
     if intake.get("waiting_for") == "program" and fees.find_program(text) \
             and not _SIDE_TOPIC.search(re.sub(r"\([^)]*\)", " ", text)):
         return False
@@ -2168,8 +2168,13 @@ async def run_agent(
             or (conv_state.get("fee_intake") or {}).get("program") or conv_state.get("active_program") \
             or profile.get("program_interest")
         if rule_prog in fees.load_data()["programs"]:
-            await memory.update_conversation_state(session_id, conversation_id, active_program=rule_prog)
+            # the programme is now the one being discussed (an open "which branch?" is answered by it)
+            dlg_now = {k: v for k, v in (conv_state.get("dialogue") or {}).items() if k != "step"}
+            dlg_now["program"] = rule_prog
+            await memory.update_conversation_state(session_id, conversation_id, active_program=rule_prog,
+                                                   dialogue=dlg_now)
             conv_state["active_program"] = rule_prog
+            conv_state["dialogue"] = dlg_now
             async for ev in _reply(eligibility.rule_text(rule_prog), message, session_id, conversation_id,
                                    suggestions=["Check my eligibility with my marks", f"{fees.short_name(rule_prog)} fees",
                                                 "Calculate my scholarship"],

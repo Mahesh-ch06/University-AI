@@ -103,10 +103,7 @@ class EventHighlight(BaseModel):
     @field_validator("image_url")
     @classmethod
     def _https(cls, v: str) -> str:
-        v = (v or "").strip()
-        if v and not re.fullmatch(r"https://[^\s\"'<>]+", v):
-            raise ValueError("the image link must start with https://")
-        return v
+        return _image_source(v)
 
     @field_validator("video_id")
     @classmethod
@@ -243,13 +240,27 @@ class ChatAd(BaseModel):
     def _plain(cls, v: str) -> str:
         return _plain_text(v)
 
-    @field_validator("image_url", "link_url")
+    @field_validator("link_url")
     @classmethod
     def _https(cls, v: str) -> str:
         v = (v or "").strip()
         if v and not re.fullmatch(r"https://[^\s\"'<>]+", v):
             raise ValueError("links must start with https://")
         return v
+
+    @field_validator("image_url")
+    @classmethod
+    def _image(cls, v: str) -> str:
+        return _image_source(v)
+
+
+def _image_source(v: str) -> str:
+    """An https:// image link, or an image uploaded in the admin panel (/api/v1/agent/media/<id>, v4.15.1)."""
+    from app.services.media_store import is_media_path
+    v = (v or "").strip()
+    if v and not (re.fullmatch(r"https://[^\s\"'<>]+", v) or is_media_path(v)):
+        raise ValueError("images must be an https:// link or an uploaded image")
+    return v
 
 
 # One example, switched off: the admissions team writes and switches on its own ads.

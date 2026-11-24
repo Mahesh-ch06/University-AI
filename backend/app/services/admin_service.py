@@ -14,6 +14,7 @@ from app.models.feedback import Feedback
 from app.models.message import Message
 from app.providers.embedding_base import EmbeddingProvider
 from app.schemas.admin import (
+    AdminStudentSummary,
     AdminConversationDetailResponse,
     AdminConversationItem,
     AdminConversationListResponse,
@@ -159,6 +160,11 @@ async def list_all_conversations(
     latest_res = await db.execute(latest_msg_stmt)
     latest_map = {row.conversation_id: row.content for row in latest_res}
 
+    try:
+        students = await student_summaries(db, list(conversations))
+    except Exception as exc:  # the list still works without the student details
+        logger.warning("student summaries unavailable: %s", type(exc).__name__)
+        students = {}
     conv_items: list[AdminConversationItem] = []
     for c in conversations:
         m_counts = msg_map.get(c.id)
@@ -179,6 +185,7 @@ async def list_all_conversations(
                 created_at=c.created_at,
                 updated_at=c.updated_at,
                 last_message_preview=preview,
+                student=students.get(c.id),
             )
         )
 
@@ -188,6 +195,62 @@ async def list_all_conversations(
         page=page,
         page_size=page_size,
     )
+
+
+async def student_summaries(db: AsyncSession, convs: list) -> dict:
+    """{conversation id: AdminStudentSummary} for these conversations (v4.15.1), from the student profiles the chat
+    saved (user_memories, "agent.*") and the leads for these conversations. Two queries for the whole page."""
+    from app.models.lead import ProspectiveLead
+    from app.models.memory import UserMemory
+    from app.sru_agent import fees
+
+    if not convs:
+        return {}
+    sessions = list({c.session_id for c in convs})
+    keys = ["agent." + k for k in ("name", "phone", "program_interest", "percent", "raw_marks", "max_marks",
+                                   "scholarship_percent", "last_lead_type", "is_parent")]
+    rows = (await db.execute(select(UserMemory.session_id, UserMemory.memory_key, UserMemory.memory_value).where(
+        UserMemory.session_id.in_(sessions), UserMemory.memory_key.in_(keys)))).all()
+    profiles: dict[str, dict] = {}
+    for sid, key, value in rows:
+        try:
+            profiles.setdefault(sid, {})[key[len("agent."):]] = json.loads(value)
+        except (TypeError, ValueError):
+            continue
+    leads = (await db.execute(select(ProspectiveLead).where(
+        ProspectiveLead.conversation_id.in_([c.id for c in convs])))).scalars().all()
+    lead_by_conv = {lead.conversation_id: lead for lead in leads}
+
+    def marks_text(p: dict) -> str | None:
+        def n(v):
+            try:
+                f = float(v)
+            except (TypeError, ValueError):
+                return None
+            return str(int(f)) if f == int(f) else f"{f:g}"
+        if p.get("raw_marks") and p.get("max_marks") and float(p["max_marks"]) > 100:
+            return f"{n(p['raw_marks'])}/{n(p['max_marks'])}" + (f" ({n(p.get('percent'))}%)" if p.get("percent") else "")
+        return f"{n(p['percent'])}%" if p.get("percent") is not None else None
+
+    out = {}
+    for c in convs:
+        p = profiles.get(c.session_id, {})
+        lead = lead_by_conv.get(c.id)
+        prog = p.get("program_interest") or (lead.program_interest if lead else None)
+        if prog and fees.find_program(str(prog)):
+            prog = fees.short_name(fees.find_program(str(prog)))
+        summary = AdminStudentSummary(
+            name=(lead.name if lead else None) or p.get("name") or None,
+            phone=(lead.phone if lead else None) or p.get("phone") or None,
+            program=prog or None,
+            marks=marks_text(p),
+            scholarship_percent=p.get("scholarship_percent"),
+            request=((lead.metadata_ or {}).get("request_type") if lead else None) or p.get("last_lead_type"),
+            lead_status=lead.status if lead else None,
+            is_parent=p.get("is_parent"),
+        )
+        out[c.id] = summary if any(v not in (None, "") for v in summary.model_dump().values()) else None
+    return out
 
 
 async def get_conversation_detail(
@@ -248,7 +311,16 @@ async def get_conversation_detail(
         created_at=conv.created_at,
         updated_at=conv.updated_at,
         messages=message_details,
+        student=(await _safe_student(db, conv)),
     )
+
+
+async def _safe_student(db: AsyncSession, conv) -> AdminStudentSummary | None:
+    try:
+        return (await student_summaries(db, [conv])).get(conv.id)
+    except Exception as exc:
+        logger.warning("student summary unavailable: %s", type(exc).__name__)
+        return None
 
 
 async def delete_conversation_by_admin(
