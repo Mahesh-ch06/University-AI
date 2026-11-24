@@ -359,6 +359,12 @@ See `docs/39-campus-life-media-and-admin-mobile-nov-2026.md`.
 - **Fixed:** curfew text (first-years 8:30 PM); "Who won the cricket world cup?" is not a sports question about SRU.
 - **Tests:** `tests/test_v414_campus_life.py` (55); backend 1,207 passed; browser journeys v410 32/32, v411 27/27,
   v412 19/19.
+- **1,000-student test** (`e2e/student_simulation_1000.py`, 18 mindsets, 800 typing / 200 tapping buttons):
+  code-answered replies with no problem 79.4% -> 88.5% (97.0% not counting repeated facts for a repeated question).
+  Fixed: fee steps capturing every next message (side questions now answered, "Continue my fee estimate"); "Just
+  show the fee" button; general scholarship questions; direct placement answers; repeated step / topic answers;
+  specific food and sports questions; CSE specialisation named; no welcome again after a "hi" mid-chat.
+  Tests: `tests/test_v414_side_questions.py`; backend 1,213 passed.
 
 ### v4.13.0 (continued, 24 Nov 2026): "connect me to customer care / a human"
 

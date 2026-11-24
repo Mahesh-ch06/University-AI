@@ -72,3 +72,46 @@ New chat card: `{"type": "event_highlights", "title", "items": [{id,title,when,s
 * Updated vehicles (their messages are now answered from the approved facts): `test_agent_actions` and
   `test_v412_agentic_features` use a library question for the model path; `test_hostel_flow` checks the new food
   answer and the 8:30 PM first-year in-time.
+
+## 7. The 1,000-student test (`e2e/student_simulation_1000.py`)
+
+1,000 generated students, 18 mindsets (anxious parent, topper, low scorer, budget, fun-seeker, skeptic, confused,
+impatient texter, Telugu-English, Hindi-English, hostel-focused, sports person, safety-conscious, comparison shopper,
+rude, wanderer, day scholar, outstation), 3-7 questions each about SR University only, ~30 topics with varied
+wording, typos and follow-ups. 800 only type; 200 also tap the quick-response buttons (a reply to a button is checked
+against the button's words). Each reply is checked: error, empty, filler ending, welcomed again, repeated answer,
+unverified rupee amount, length, and that it is about what was asked.
+
+Replies the code cannot give itself go to the language model; without a Gemini key here the review server's
+stand-in answers them, so those turns (22.6%: safety, location, curfew, room fees, off-topic) are counted apart.
+
+| Round | Replies | Checked (code) | No problem | No problem, not counting "same facts as an earlier reply" |
+|---|---|---|---|---|
+| 1 (before fixes) | 5,441 | 4,098 | 79.4% | 95.4% |
+| 2 | 5,452 | 4,220 | 86.8% | 96.9% |
+| 3 | 5,463 | 4,230 | 88.2% | 96.7% |
+| Final | 5,463 | 4,230 | 88.5% | 97.0% |
+
+Median reply 103 ms, 90th percentile 175 ms (code path, local).
+
+**Found and fixed** (each with a test in `tests/test_v414_side_questions.py`):
+
+* **The fee steps captured every next message.** After "B.Tech CSE fees" asked "which board did you study under?",
+  "how are the placements?", "fests in sru", "what is the AC room fee", "tech clubs" all got the board question
+  again. Now a question about something else (`agent._side_question`) is answered; the steps stay saved and the
+  reply offers "Continue my fee estimate". A fee question or an answer to the step still continues the steps.
+* **"Just show the B.Tech CSE fee"** (the button) was read as an answer to a pending question ("which kind of
+  events?" matched "Tech"). It now closes the steps and gives the standard fee, whatever was waiting.
+* **"What scholarships does SRU give?"** started the steps; it now gets the merit scholarship slabs from the fee data.
+* **Placement questions** ("how are the placements?", "highest package", "jobs after BBA") get the verified placement
+  answer at once; a bare "placements" / "what about placements?" still asks which aspect; a guarantee question keeps
+  its approved answer.
+* **The same step question again** now says why it is asked again and offers "Just show the … fee".
+* **A campus topic asked again** gets a short recap instead of the same block; specific questions get their own
+  answer: mess timings, canteen, non-veg, a gym, a listed sport (cricket…) or an unlisted one (swimming: not listed,
+  the Admissions team can confirm).
+* **"tell me about B.Tech AI & ML"** now says "B.Tech CSE (AI & ML)" (AI & ML is a CSE specialisation in the fee data).
+* **"hi" after earlier answers** no longer brings the first-visit welcome back.
+
+Remaining flags are mostly the simulated student asking the same question twice and getting the same facts, and
+scholarship savings the fee engine computed (the checker only whitelists amounts shown in a fee card).

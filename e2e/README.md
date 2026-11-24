@@ -24,3 +24,14 @@ Playwright with Chromium must be installed (it is not a project dependency).
 | `widget_on_official_site.cjs <outdir> [desktop\|mobile]` | v4.13.0 (`docs/37`): the widget injected into the live sru.edu.in (through the session proxy): closed bubble, open welcome, the two-step contact form, eligibility with concessions, grouped pick, pending, final fee card. `CDN_MIRROR=<dir>` serves the site's Bootstrap / Swiper from a local `npm pack` copy where cdn.jsdelivr.net is blocked |
 | `python student_simulation.py <outdir> [--users 60] [--concurrency 4]` | v4.13.0 (`docs/38`): 60–100 students chatting the way real students do (short texts, typos, parents, Tenglish / Hinglish, repeated greetings, follow-ups, topic switches, journeys, concessions, callbacks, skeptics, off-topic, unpublished facts, multi-questions, Start Afresh). Every reply checked (errors, filler endings, re-welcomes, repeats, unverified ₹ amounts, length, known details asked again, cards, advocacy, scope); writes `report.md`, `results.json`, transcripts. With the real model: start the server with `REVIEW_MODEL=live` (and raise `AI_IP_RATE_LIMIT_PER_MIN` / `AGENT_RATE_LIMIT_PER_MIN` for one test IP) |
 
+
+## 1,000-student simulation (v4.14.0)
+
+```bash
+AI_IP_RATE_LIMIT_PER_MIN=100000 AGENT_RATE_LIMIT_PER_MIN=100000 AI_IP_DAILY_LIMIT=1000000 \
+  AI_DAILY_TURN_BUDGET=10000000 python e2e/review_server.py &
+python e2e/student_simulation_1000.py /tmp/sim1000 --users 1000 --concurrency 12
+```
+
+Writes `report.md` (by topic, problems, examples), `results.json` and every transcript. All students come from one
+IP, so the per-IP daily limit must be raised for the review server as above (never in production).

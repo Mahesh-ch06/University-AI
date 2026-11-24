@@ -17,6 +17,7 @@ AGENT_MAX_CONCURRENCY model calls run at once, and (5) still answers fee questio
 file if the model cannot be reached at all.
 """
 import asyncio
+import contextvars
 import logging
 import re
 import time
@@ -504,13 +505,21 @@ async def _counsellor_connect(message, session_id, conversation_id, profile, ctx
         yield ev
 
 
-async def _with_resume_chip(session_id, conversation_id, chips) -> list:
+async def _with_resume_chip(session_id, conversation_id, chips, text: str = "") -> list:
     """A side question answered while a fee evaluation is unfinished: offer to continue it (one tap)."""
     try:
         state = (await memory.get_conversation_state(session_id, conversation_id)).get(fee_journey.KEY)
     except Exception:
         state = None
     chip = fee_journey.resume_chip(state)
+    is_step = bool(re.match(r"\s*(?:Step\s+\d|To work out your exact fee|Before I give you)", text or ""))
+    if not chip and not is_step and (_SIDE_TURN.get() or text):
+        try:   # a side question while the scholarship / fee steps (fee_intake) wait for an answer
+            intake = (await memory.get_conversation_state(session_id, conversation_id)).get("fee_intake") or {}
+            if intake.get("waiting_for") not in (None, "done"):
+                chip = fee_journey.RESUME
+        except Exception:
+            pass
     chips = list(chips or [])
     if not chip or chip in chips or chips == ["Yes", "No"]:
         return chips
@@ -608,6 +617,18 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     programme...) and the chips are the answers to it."""
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     text = normalize_positive_brand_advocacy(text)
+    try:   # the same step question as the last reply (the student asked something else): say why it is asked again
+        hist = await memory.get_history(session_id, conversation_id)
+        last = next((h.get("text", "") for h in reversed(hist or []) if h.get("role") in ("model", "assistant")), "")
+        if last and last.strip().endswith(text.strip()) and text.rstrip().endswith("?") and len(text) < 400 \
+                and re.match(r"\s*Step\s+\d", text):
+            text = "To work out your exact fee I still need this one detail.\n\n" + text
+            st_prog = fees.find_program(str(((await memory.get_conversation_state(session_id, conversation_id))
+                                             .get("fee_intake") or {}).get("program") or ""))
+            if st_prog:
+                suggestions, exact_chips = list(suggestions or []) + [f"Just show the {fees.short_name(st_prog)} fee"], True
+    except Exception:
+        pass
     if await _offer_fee_chart(session_id, conversation_id, cards):
         text = text.rstrip() + "\n\n" + _FEE_CHART_OFFER
         suggestions, exact_chips = ["Yes, prepare my fee chart", "No, thanks"], True
@@ -623,7 +644,7 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     else:
         final_suggestions = ()
     if resume:
-        final_suggestions = await _with_resume_chip(session_id, conversation_id, final_suggestions)
+        final_suggestions = await _with_resume_chip(session_id, conversation_id, final_suggestions, text)
     if profile is None:
         try:
             profile = await memory.get_profile(session_id)
@@ -1476,13 +1497,55 @@ _FEE_STEP_OPENER = re.compile(r"^(?:Sure|Absolutely|Great)[^!.]*[!.]\s*(?:Let's 
                               re.IGNORECASE)
 
 
+# v4.14.0 (1,000-student test): while the fee steps wait for the board / marks / programme, a question about
+# something else ("how are the placements?", "fests in sru", "what is the AC room fee") is answered; it used to get
+# the same step question back. The steps stay saved, and the reply offers "Continue my fee estimate".
+_SIDE_TOPIC = re.compile(
+    r"\b(?:placements?|placments?|packages?|recruit\w*|compan(?:y|ies)|jobs?|hostels?|hostals?|mess|food|canteen|"
+    r"rooms?|events?|fests?|festivals?|clubs?|sports?|gym|campus|campas|rank(?:ed|ing|ings)?|nirf|naac|accredit\w*|"
+    r"apply|application|admission\s+process|located|location|where\s+is|address|safe\w*|security|curfew|"
+    r"in-?time|timings?|cut-?off|refund|courses|programmes|programs|branches|faculty|hod|library|labs?|bus|"
+    r"transport|lumina|sparkrill|sparkill|navadhara|swagath\w*|swagatam|hackathons?|worth|fake|better\s+than|"
+    r"why\s+(?:sru|should|choose)|life|vibe|culture)\b", re.IGNORECASE)
+_STEP_ANSWER = re.compile(
+    r"\d|\b(?:state\s+board|board|cbse|icse|isc|ib|igcse|nios|intermediate|inter|12th|10\+2|completed|"
+    r"appearing|passed|writing|mpc|bipc|mec|cec|hec|yes|yeah|no|none|skip)\b", re.IGNORECASE)
+
+
+_GENERAL_SCHOLARSHIP = re.compile(
+    r"\b(?:what|which|any|list\s+of|types?\s+of|kinds?\s+of)\s+(?:are\s+the\s+)?(?:merit\s+)?scholarships?\b(?!\s+(?:for\s+me|can\s+i|will\s+i))|"
+    r"\b(?:merit\s+)?scholarships?\s+(?:details|available|options|structure|policy|criteria|slabs?)\b|"
+    r"\bscholarships?\s+for\s+toppers\b|\bdoes\s+(?:sru|sr\s+university)\s+(?:give|offer|provide)\s+scholarships?\b|"
+    r"\btell\s+me\s+about\s+(?:the\s+)?scholarships?\b", re.I)
+_SIDE_TURN: contextvars.ContextVar[bool] = contextvars.ContextVar("sru_side_turn", default=False)
+_PLACEMENT_Q = re.compile(
+    r"\b(?:placements?|placments?|placemnts?|packages?|recruiters?|recruitment|hiring|"
+    r"jobs?\s+after|get\s+(?:a\s+)?jobs?|companies\s+(?:come|visit)|highest\s+package|average\s+package)\b", re.I)
+
+
+def _side_question(message: str, conv_state: dict) -> bool:
+    """The fee steps are waiting and this message asks about something else (not an answer to the step)."""
+    intake = conv_state.get("fee_intake") or {}
+    if intake.get("waiting_for") in (None, "done"):
+        return False
+    text = (message or "").strip()
+    if not text or fee_journey._CONTINUE.search(text) or _STEP_ANSWER.search(text) or _FEE_STANDARD_ONLY.search(text):
+        return False
+    if fee_intake.is_fee_enquiry(text) and not re.search(r"\b(?:hostel|room|mess|bus|transport)\b", text, re.I):
+        return False                                     # a fee question continues the fee steps
+    if intake.get("waiting_for") == "program" and fees.find_program(text) and not _SIDE_TOPIC.search(text):
+        return False
+    return bool(_SIDE_TOPIC.search(text))
+
+
 def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
     """A plain fee question ("B.Tech CSE fees", "fee for MBA?") with no evaluation running: evaluate first."""
     from app.services import app_settings
     if app_settings.get("fee_questions") != "evaluate_first":
         return False
     text = message or ""
-    if not fee_intake.is_fee_enquiry(text) or _FEE_STANDARD_ONLY.search(text) or _FEE_OTHER_TOPIC.search(text):
+    if not fee_intake.is_fee_enquiry(text) or _FEE_STANDARD_ONLY.search(text) or _FEE_OTHER_TOPIC.search(text) \
+            or _GENERAL_SCHOLARSHIP.search(text):
         return False
     if _FEE_CHART_REQUEST.search(text) or _concession_requested(text) or tools.find_phone(text) \
             or intents.is_callback_request(text):
@@ -1793,7 +1856,16 @@ async def run_agent(
                     or conv_state.get("fee_flow_state") in ("awaiting_school_selection", "awaiting_course_selection")
                     or conv_state.get("fee_tree_step"))
     intake_now = conv_state.get("fee_intake") or {}
-    if not dlg_busy and intake_now.get("waiting_for") not in (None, "done") \
+    side_q = _side_question(message, conv_state)
+    _SIDE_TURN.set(side_q)
+    if _FEE_STANDARD_ONLY.search(message or "") and fees.find_program(message or "") \
+            and (intake_now.get("waiting_for") not in (None, "done") or (conv_state.get("dialogue") or {}).get("step")):
+        # "Just show the B.Tech CSE fee": the standard fee now, the evaluation steps closed.
+        conv_state["fee_intake"], intake_now = None, {}
+        conv_state["dialogue"] = {k: v for k, v in (conv_state.get("dialogue") or {}).items() if k != "step"}
+        await memory.update_conversation_state(session_id, conversation_id, fee_intake=None,
+                                               dialogue=conv_state["dialogue"])
+    if not dlg_busy and not side_q and intake_now.get("waiting_for") not in (None, "done") \
             and not (conv_state.get("dialogue") or {}).get("step"):
         try:  # the fee intake is waiting for an answer and this message is one: let it continue
             dlg_busy = fee_intake.decide(message, profile, dict(intake_now)) is not None
@@ -1895,11 +1967,61 @@ async def run_agent(
         or ((conv_state.get("pending_concession") or conv_state.get("offer") == "fee_chart_program")
             and fees.find_program(message))
         or (conv_state.get("offer") == "fee_chart" and (_AFFIRM.match(message or "") or _DECLINE.match(message or ""))))
+    # ---- "What scholarships does SRU give?" (v4.14.0, 1,000-student test): the merit scholarship slabs from the
+    # official fee data, then the offer to work out the student's own. (It used to start the step questions at once.)
+    if not fee_plan_turn and _GENERAL_SCHOLARSHIP.search(message or "") and not re.search(r"\d", message or "") \
+            and compound.plan(message, profile) is None:
+        sch_prog = fees.find_program(message or "") or conv_state.get("active_program") \
+            or profile.get("program_interest") or "btech_cse"
+        if sch_prog not in fees.load_data()["programs"]:
+            sch_prog = "btech_cse"
+        try:
+            slabs = compound.scholarship_overview_text(sch_prog)
+        except Exception:
+            slabs = ""
+        if slabs:
+            text = slabs
+            async for ev in _reply(text, message, session_id, conversation_id, client=client, history=history,
+                                   profile=profile, conv_state=conv_state,
+                                   suggestions=["Calculate my scholarship", "Special consideration"], exact_chips=True):
+                yield ev
+            return
+
+    # ---- Placements (v4.14.0, 1,000-student test): "how are the placements?", "highest package", "do students get
+    # jobs after BBA" get the verified placement answer at once (it used to ask "what about placements?" first, or go
+    # to the model). Guarantee / recruiters / training / internships each get their own answer.
+    if not fee_plan_turn and _PLACEMENT_Q.search(message or "") and not tools.find_phone(message) \
+            and not intents.is_callback_request(message) and compound.plan(message, profile) is None \
+            and not re.search(r"\b(?:fees?|cost|scholarship|eligib\w*|hostel|cut-?off)\b", message or "", re.I) \
+            and (side_q or not (dlg_busy or (conv_state.get("dialogue") or {}).get("step"))) \
+            and responses.placement_aspect(message) != "guarantee" \
+            and not re.search(r"\b(?:this|that|my|the\s+same)\s+(?:branch|course|programme|program)\b", message or "", re.I) \
+            and not (dialogue._broad_topic(message) == "placements" and len(re.findall(r"\w+", re.sub(
+                r"^\s*(?:and\s+)?(?:what|how)\s+about|^\s*tell\s+me\s+about|\b(?:the|please|pls|at\s+sru|in\s+sru)\b",
+                "", message or "", flags=re.I))) <= 2):
+        # (a guarantee question keeps its approved answer; "this branch" needs the programme; a bare "placements"
+        # still asks which aspect, as designed for broad topics)
+        from app.services.card_service import PLACEMENT_EXCELLENCE_CARD, get_session_shown_cards, record_session_card
+        p_text, p_chips, _aspect = responses.placement_reply(message, f"{session_id}{len(history)}")
+        p_prog = fees.find_program(message or "")
+        if p_prog and _aspect == "record":
+            p_text = (f"Yes. SRU's placement support (training and campus drives with 150+ recruiters) is for every "
+                      f"programme, including **{fees.short_name(p_prog)}**. " + p_text)
+        p_scope = f"{session_id}:{conversation_id or ''}"
+        p_cards = [] if "placement_card" in get_session_shown_cards(p_scope) else [PLACEMENT_EXCELLENCE_CARD]
+        if p_cards:
+            record_session_card(p_scope, "placement_card")
+        await memory.update_conversation_state(session_id, conversation_id, active_topic="placements")
+        async for ev in _reply(p_text, message, session_id, conversation_id, client=client, history=history,
+                               profile=profile, conv_state=conv_state, cards=p_cards, suggestions=p_chips):
+            yield ev
+        return
+
     # ---- Events, campus life, clubs, sports, hostel life and food (v4.14.0): answered from the approved facts and
     # the admin panel's events (campus_life.py), with the events' photo cards and the official videos. A word that
     # answers a pending step ("sports" for a concession) is left to that step; several questions go to compound.
     if not fee_plan_turn and not tools.find_phone(message) and not intents.is_callback_request(message):
-        step_waiting = bool(dlg_busy or (conv_state.get("dialogue") or {}).get("step")
+        step_waiting = not side_q and bool(dlg_busy or (conv_state.get("dialogue") or {}).get("step")
                             or conv_state.get("pending_concession") or conv_state.get("offer")
                             or (conv_state.get(fee_journey.KEY) or {}).get("awaiting"))
         campus_key = campus_life.topic(message, waiting=step_waiting)
@@ -1908,6 +2030,10 @@ async def run_agent(
             campus_key = conv_state.get("campus_offer")      # "yes" to "Would you like to see the other events?"
         if campus_key and compound.plan(message, profile) is None:
             ans = campus_life.answer(campus_key, message)
+            told = list(conv_state.get("campus_told") or [])
+            if campus_key in told and not campus_key.startswith("event:"):
+                ans = campus_life.recap(campus_key, ans, message)  # asked again: a short recap, not the same block
+            told = (told + [campus_key])[-20:]
             campus_cards = []
             carousel = campus_life.event_cards(ans.event_ids)
             if carousel:
@@ -1923,7 +2049,7 @@ async def run_agent(
             offer = "events" if campus_key.startswith("event:") else (
                 "clubs" if ans.text.rstrip().endswith("all 39 clubs?") else None)
             await memory.update_conversation_state(session_id, conversation_id, campus_offer=offer,
-                                                   active_topic="campus_life")
+                                                   active_topic="campus_life", campus_told=told)
             async for ev in _reply(ans.text, message, session_id, conversation_id, client=client, history=history,
                                    profile=profile, conv_state=conv_state, cards=campus_cards, suggestions=ans.chips,
                                    exact_chips=ans.options,
@@ -2020,8 +2146,10 @@ async def run_agent(
         conv_state.get("welcome_actions_shown")
         or profile.get("welcome_actions_shown")
     )
+    answered_before = any(h.get("role") in ("model", "assistant") for h in history or [])
     if require_contact_details and not welcome_actions_shown and existing_name and existing_phone \
-            and intents.small_talk(message) != "greeting":
+            and (intents.small_talk(message) != "greeting" or answered_before):
+        # (a "hi" after earlier answers in this chat is not a first visit: no welcome again, v4.14.0)
         # A real question as the first message: answer it, and do not show the welcome greeting later.
         await set_state(welcome_actions_shown=True)
         await memory.update_profile(session_id, welcome_actions_shown=True)
@@ -3136,7 +3264,8 @@ async def run_agent(
                 await set_state(fee_intake=None)
                 intake_state = {}
 
-        intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for")) and not is_multi_q
+        intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for")) and not is_multi_q \
+            and not side_q
         if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (intake_in_progress or is_scholarship_calc_q or (is_bare_score_msg and client is None)):
             intake_decision = fee_intake.decide(message, profile, intake_state, first_name=natural_name)
             if intake_decision and intake_decision["action"] == "ineligible":
