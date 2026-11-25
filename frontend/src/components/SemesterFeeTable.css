@@ -1,0 +1,105 @@
+/* Semester-by-semester fee table (shared by every fee card). Mobile first: three narrow columns
+   fit a 320px bubble; numbers are tabular and right-aligned so rupee amounts line up. */
+.sft-wrap {
+  border: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
+  border-radius: var(--chat-card-inner-radius, 10px);
+  overflow: hidden;
+  background: var(--chat-card-bg, #ffffff);
+}
+
+.sft-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--chat-card-text, 0.86rem);
+  line-height: 1.35;
+  color: var(--chat-card-text-color, var(--o-text, #0a1b3a));
+}
+
+.sft-caption {
+  caption-side: top;
+  text-align: left;
+  padding: 8px 10px 0;
+  font-size: var(--chat-card-label, 0.7rem);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
+}
+
+.sft-table th,
+.sft-table td {
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--chat-card-border, var(--o-line, #e2e8f0));
+  font-weight: 450;
+}
+
+.sft-table thead th {
+  font-size: var(--chat-card-label, 0.7rem);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
+  background: var(--chat-card-inner-bg, var(--o-surface, #f6f8fc));
+}
+
+.sft-table .sft-num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  width: 1%;
+}
+
+.sft-table .sft-empty {
+  color: var(--chat-card-muted, var(--o-muted, #94a3b8));
+}
+
+.sft-label {
+  display: inline;
+}
+
+.sft-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.5;
+  vertical-align: 1px;
+  color: var(--chat-card-muted, var(--o-muted, #64748b));
+  background: var(--chat-card-inner-bg, var(--o-surface, #f1f5f9));
+}
+
+.sft-row--concession td,
+.sft-row--concession th {
+  color: var(--o-ok, #15803d);
+}
+
+.sft-table tfoot th,
+.sft-table tfoot td {
+  border-bottom: 0;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--primary, var(--o-brand, #0055a4)) 7%, transparent);
+}
+
+.sft-compact .sft-table th,
+.sft-compact .sft-table td {
+  padding: 6px 8px;
+}
+
+@media (max-width: 380px) {
+  .sft-table {
+    font-size: 0.8rem;
+  }
+  .sft-table th,
+  .sft-table td {
+    padding: 6px 7px;
+  }
+  .sft-tag {
+    display: block;
+    width: fit-content;
+    margin: 2px 0 0;
+  }
+}

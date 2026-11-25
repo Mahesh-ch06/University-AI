@@ -68,7 +68,6 @@
 
 ---
 
-<!-- FEES:BEGIN (generated from fees_2027_28.json, do not edit by hand) -->
 <!-- FEES:BEGIN (generated from fee_policy_2027_28.json, do not edit by hand) -->
 ## 3. Tuition Fee Structure (2027-28)
 

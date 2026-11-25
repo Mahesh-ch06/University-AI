@@ -218,7 +218,7 @@ def chart_share_text(chart: dict) -> str:
 
 
 # ---------------------------------------------------------------- the concessions picker (v4.12.0)
-# The fee card's 19 categories in five groups, so a student opens only the group that may apply. The
+# The circular's claimable categories (all but the recommendation-only one) in five groups, so a student opens only the group that may apply. The
 # sensitive ones (lost parents, single parent, disability) sit in "Other circumstances": never asked about,
 # chosen privately. Every key must exist in the fee data (test_v412 checks that all 19 are placed once).
 CONCESSION_GROUPS = [

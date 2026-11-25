@@ -28,6 +28,7 @@ import type { Estimate, FeeConfig } from "../utils/feeCalculator";
 import { getSessionId } from "../hooks/useSession";
 import { saveStudentDetails } from "../utils/studentProfile";
 import "./ScholarshipCalculatorModal.css";
+import { SemesterFeeTable } from "./SemesterFeeTable";
 
 /*
  * Fee & Scholarship Calculator.
@@ -497,13 +498,13 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
                 <div className="slabs-table-header">
                   <span>Merit Waiver</span>
                   <span>{exam.label}</span>
-                  <span>Payable Tuition</span>
+                  <span>Tuition / semester</span>
                 </div>
                 {program.slabs.map((slab) => (
                   <div key={slab.scholarship_percent} className="slabs-table-row">
                     <span className="slab-badge-min">{slab.scholarship_percent}% Waiver</span>
                     <span className="slab-criteria-min">{slab.ranges[exam.key] || "Not applicable"}</span>
-                    <span className="slab-payable-min">{inr(slab.payable_per_semester)}/sem</span>
+                    <span className="slab-payable-min">{inr(slab.tuition_per_semester)}/sem</span>
                   </div>
                 ))}
               </div>
@@ -530,7 +531,7 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
 
             <div className="calc-metrics-grid">
               <div className="calc-metric-card primary-card">
-                <span className="metric-tag">Net Payable Tuition</span>
+                <span className="metric-tag">Tuition per semester (after scholarship)</span>
                 <div className="metric-primary-val">
                   {inr(estimate.netSem)}
                   <span className="metric-unit"> / semester</span>
@@ -601,39 +602,13 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
                 <div className="calc-sem-pending" role="status">Working out your semester fees with these options…</div>
               ) : (
                 <div className="calc-sem-table-wrap">
-                  <table className="calc-sem-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Component</th>
-                        {estimate.semesters.map((s) => (
-                          <th scope="col" key={s.semester}>Sem {s.semester}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Array.from(new Set(estimate.semesters.flatMap((s) => s.items.map((i) => i.label)))).map((label) => (
-                        <tr key={label}>
-                          <th scope="row">{label}</th>
-                          {estimate.semesters.map((s) => {
-                            const item = s.items.find((i) => i.label === label);
-                            return (
-                              <td key={s.semester} className={item && item.amount < 0 ? "is-discount" : undefined}>
-                                {item ? inr(item.amount) : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <th scope="row">Semester payable</th>
-                        {estimate.semesters.map((s) => (
-                          <td key={s.semester}>{inr(s.total)}</td>
-                        ))}
-                      </tr>
-                    </tfoot>
-                  </table>
+                  <SemesterFeeTable
+                    semesters={estimate.semesters.map((sem) => ({
+                      semester: sem.semester,
+                      total: sem.total,
+                      items: sem.items.map((i) => ({ label: i.label, amount: i.amount, kind: i.kind })),
+                    }))}
+                  />
                   <div className="breakdown-total-row">
                     <span className="total-label">First-year total (Sem 1 + Sem 2):</span>
                     <span className="total-val bold-emerald">{inr(estimate.firstYearTotal)}</span>

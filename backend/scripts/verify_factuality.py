@@ -35,9 +35,9 @@ from app.services.factuality_eval_service import (
 REFERENCE_GROUNDED_RESPONSES = {
     "btech_eligibility_cutoff": (
         "Candidates seeking admission to B.Tech programs at SR University must have passed "
-        "10+2 / Intermediate or equivalent with a minimum of 60% aggregate marks in PCM "
-        "(Mathematics, Physics, Chemistry). In standard state boards, this corresponds to "
-        "600 marks out of 1000. This 60% requirement applies across all branches including CSE, ECE, and AIML."
+        "10+2 / Intermediate with Mathematics, Physics and Chemistry (MPC). The 2027-28 fee circular lists a "
+        "minimum of 55% for B.Tech CSE and ECE and their specialisations, and 50% for the other branches. "
+        "Meeting the minimum does not guarantee admission; documents and seat availability decide it."
     ),
     "direct_admission_entrance_exam": (
         "No entrance exam is required for direct or management quota admissions at SR University. "
@@ -57,12 +57,14 @@ REFERENCE_GROUNDED_RESPONSES = {
     ),
     "btech_cse_tuition_fee": (
         "The annual tuition fee for B.Tech Computer Science and Engineering (CSE) at SR University "
-        "is Rs. 2,10,000/- per year. Tuition fees are payable on a semester basis at Rs. 1,05,000/- per semester."
+        "is ₹3,40,000 per year, split equally into ₹1,70,000 per semester, and rises by ₹9,000 a year. "
+        "Semester 1 also has the one-time ₹5,000 enrollment fee, the ₹15,000 other fee and the ₹5,000 Year-1 exam fee: "
+        "₹1,95,000 in Semester 1 and ₹1,70,000 in Semester 2."
     ),
     "merit_scholarships_slabs": (
-        "SR University awards merit scholarships based on 12th / Intermediate board marks on a first-come, "
-        "first-served basis: students with 97%+ (970+ marks out of 1000) are eligible for up to 30% tuition fee scholarship, "
-        "and students with 90% to 96.9% (900-969 marks out of 1000) qualify for up to 20% scholarship."
+        "SR University awards merit scholarships on tuition based on 12th / Intermediate marks or entrance scores: "
+        "Intermediate 98% and above gets 40% (B.Tech CSE net tuition ₹2,04,000 a year), 92% to 97.9% gets 30% "
+        "(₹2,38,000), 80% to 91.9% gets 25%, 70% to 79.9% gets 20%, 65% to 69.9% gets 15% and 60% to 64.9% gets 10%."
     ),
     "highest_placement_package": (
         "The highest placement package at SR University is 51 LPA, secured by students at Microsoft. "

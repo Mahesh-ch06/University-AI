@@ -297,8 +297,8 @@ def write_all() -> list:
 
 def replace_facts_sections(text: str) -> str:
     block = render_facts_sections()
-    if BEGIN in text:
-        return re.sub(re.escape(BEGIN) + r".*?" + re.escape(END), lambda _m: block, text, flags=re.S)
+    if "<!-- FEES:BEGIN" in text:
+        return re.sub(r"<!-- FEES:BEGIN[^>]*-->.*?" + re.escape(END), lambda _m: block, text, flags=re.S)
     # first run: replace the old hand-typed sections 3 and 4
     start = text.index("## 3. Tuition Fee Structure")
     end = text.index("## 5. Campus Placements")

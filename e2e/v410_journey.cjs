@@ -155,7 +155,7 @@ async function main() {
   row = await send(page, 'None of these apply');
   t = await row.innerText();
   check('D13 summary includes hostel and the merit scholarship', /Hostel \(AC, 4-sharing\)/.test(t) && /Academic scholarship \(25%\)/.test(t));
-  check('D14 chart total 4,05,000 = 2,55,000 + 20,000 + 5,000 + 1,25,000', /4,05,000/.test(t), t.replace(/\n/g, ' | ').slice(0, 400));
+  check('D14 chart total 4,15,000 = 2,55,000 + 5,000 enrol + 15,000 other + 5,000 exam + 1,25,000 AC hostel + 10,000 AC deposit', /4,15,000/.test(t), t.replace(/\n/g, ' | ').slice(0, 400));
   row = await send(page, 'please ask a counsellor to call me');
   const callbackChips = await chipsOf(row);
   t = await row.innerText();

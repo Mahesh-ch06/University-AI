@@ -1392,7 +1392,7 @@ def _contextual_query(
         if _has_word(low, "ac", "non-ac", "air"):
             additions.append("AC Non-AC room amenities power backup")
         if _has_word(low, "fee", "cost", "annual", "charge", "rent"):
-            additions.append("hostel fees per year caution deposit laundry")
+            additions.append("hostel fees per year electricity deposit")
 
     elif topic == "placements" or _has_word(low, "placement", "package", "guarantee", "guaranteed", "lpa", "jobs"):
         if not _has_word(low, "placement", "placements"):

@@ -36,6 +36,85 @@ def _handbook_fingerprint(handbook_dir: Path) -> str:
     return digest.hexdigest()
 
 
+# Text that only the retired fee policy contained. A vector chunk carrying any of it is removed from the index
+# (it is derived data: the handbook re-index adds the current text back), and the FAQ document whose fee answers
+# predate the 2027-28 circular is archived, not deleted.
+_OBSOLETE_FEE_MARKERS = ("Rs. 2,10,000", "Rs. 1,05,000", "aution deposit", "aundry per year", "fee card lists standard fees",
+                         "60% in 10+2 PCM", "₹1,85,000", "₹1,80,000 / sem", "19 special", "Examination fee (first year)",
+                         "60% aggregate", "60% and above", "60% cutoff", "970 out of 1000", "970+", "first-come, first-served")
+_RETIRED_DOCUMENT_TITLES = ("University FAQ — Fee",)
+
+
+def _norm(text: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9₹%]+", " ", (text or "").lower()).strip()
+
+
+def _current_fee_pages() -> dict:
+    """{handbook title: normalised current text} for the generated fee pages (08 and 09)."""
+    try:
+        from scripts.ingest_handbook_docs import HANDBOOK_DOCS
+    except Exception:
+        return {}
+    out = {}
+    for doc in HANDBOOK_DOCS:
+        if doc["file"].startswith(("08_", "09_")):
+            path = settings.DATA_DIR / "handbook" / doc["file"]
+            if path.exists():
+                out[doc["title"]] = _norm(path.read_text(encoding="utf-8"))
+    return out
+
+
+def _outdated_fee_page_chunk(title, text, current: dict) -> bool:
+    """A chunk of a fee page whose text is no longer in the page (written from the retired fee policy)."""
+    page = current.get(title)
+    if not page:
+        return False
+    body = _norm(text)
+    for prefix in ("section ", "source "):          # ingestion may prepend a short header line
+        if body.startswith(prefix):
+            body = body.split(" ", 12)[-1]
+    probes = [body[i:i + 80] for i in range(0, max(len(body) - 80, 1), 200)] or [body]
+    return any(p and p not in page for p in probes)
+
+
+async def retire_obsolete_fee_knowledge() -> int:
+    """Remove obsolete fee chunks from the vector index and archive retired fee documents. Returns chunks removed."""
+    removed = 0
+    try:
+        collection = get_chroma_client().get_or_create_collection(name=COLLECTION_NAME,
+                                                                  metadata={"hnsw:space": "cosine"})
+        got = collection.get(include=["documents", "metadatas"])
+        current = _current_fee_pages()
+        stale = [cid for cid, text, meta in zip(got["ids"], got["documents"], got["metadatas"])
+                 if (meta or {}).get("title") in _RETIRED_DOCUMENT_TITLES
+                 or any(m in (text or "") for m in _OBSOLETE_FEE_MARKERS)
+                 or _outdated_fee_page_chunk((meta or {}).get("title"), text, current)]
+        if stale:
+            collection.delete(ids=stale)
+            removed = len(stale)
+            logger.info("Removed %d obsolete fee chunks from the vector index.", removed)
+    except Exception as err:
+        logger.warning("Obsolete fee chunk clean-up skipped: %s", err)
+    try:
+        from sqlalchemy import update
+        from app.db.session import async_session_factory
+        from app.models.document import Document, DocumentVersion
+        async with async_session_factory() as session:
+            ids = (await session.execute(
+                Document.__table__.select().with_only_columns(Document.id).where(
+                    Document.title.in_(_RETIRED_DOCUMENT_TITLES), Document.status != "inactive"))).scalars().all()
+            if ids:
+                await session.execute(update(Document).where(Document.id.in_(ids)).values(status="inactive"))
+                await session.execute(update(DocumentVersion).where(DocumentVersion.document_id.in_(ids))
+                                      .values(active=False))
+                await session.commit()
+                logger.info("Archived %d retired fee document(s).", len(ids))
+    except Exception as err:
+        logger.warning("Retired fee document archiving skipped: %s", err)
+    return removed
+
+
 async def refresh_handbook_if_changed() -> bool:
     """Re-index the handbook when its files changed since the vector index was built.
 

@@ -101,9 +101,14 @@ def _build_cse_semester_card(hostel: str | None = None) -> dict:
             f"{f.inr(plan['application_fee'])} is paid separately.")
     if hostel:
         note += " Hostel fees are not on the fee circular and are confirmed by the Admissions Office."
+    y1 = plan["years"][0]
+    semesters = [{"semester": s["semester"], "total": f.inr(s["total"]),
+                  "items": [{"item": i["label"], "amount": f.inr(i["amount"]), "kind": i["kind"]} for i in s["items"]]}
+                 for s in y1["semesters"]]
     return {"type": "fee_breakdown",
             "title": f"B.Tech CSE{with_h}: Semester-wise Fee, Year 1 ({data['academic_year']})",
-            "currency": "INR", "items": items, "scholarship_note": note}
+            "currency": "INR", "items": items, "semesters": semesters, "first_year_total": f.inr(y1["total"]),
+            "scholarship_note": note, "note_label": "Note"}
 
 
 def _build_merit_scholarship_card() -> dict:
@@ -477,7 +482,7 @@ SRU_ADVANTAGE_CARD = {
         {
             "category": "Merit Scholarships",
             "icon": "💰",
-            "sru_highlight": "Up to 40% tuition fee waiver based on board/entrance scores. 19 special category concessions up to Rs.50,000/year for girl students, defence personnel, differently-abled, sports achievers, and more.",
+            "sru_highlight": "Up to 40% tuition fee waiver based on board/entrance scores. 20 special category concessions up to Rs.50,000/year for girl students, defence personnel, differently-abled, sports achievers, and more.",
             "standout": "Up to 40% Scholarship",
         },
     ],

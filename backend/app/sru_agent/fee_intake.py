@@ -77,6 +77,11 @@ _ROUTE_NOT_DECIDED = re.compile(
     r"\binter(?:mediate)?\s+alone\b|\bmarks\s+alone\b|\bnone\b",
     re.IGNORECASE,
 )
+# "95% in inter": Intermediate is the Telangana / AP state board's name for 10+2. Used only with a percentage;
+# raw marks ("850 in Intermediate") still ask the board, because the maximum marks differ between boards.
+_INTER_HINT = re.compile(r"\b(?:in|from|my)\s+(?:inter|intermediate|ipe)\b|\b(?:inter|intermediate|ipe)\s+"
+                         r"(?:marks|percentage|score|result)\b", re.IGNORECASE)
+
 _ROUTE_OTHER = re.compile(r"\bother(?:\s+(?:entrance|exam|route))?\b", re.IGNORECASE)
 
 _STATE_BOARD = re.compile(
@@ -393,7 +398,8 @@ def parse_details(message: str) -> dict:
             out["board_label"] = "CBSE"
             out["board_key"] = "cbse"
     elif _STATE_BOARD.search(re.sub(r"\b(?:borad|bord|baord)\b", "board", message or "", flags=re.I)) \
-            or _BARE_STATE.fullmatch(message or ""):
+            or _BARE_STATE.fullmatch(message or "") \
+            or (_INTER_HINT.search(message or "") and re.search(r"\d\s*%", message or "")):
         out["board"] = "state_board"
         if re.search(r"\b(?:ts|tg|telangana|telengana|telagana|tsbie|biets)\b", low):
             out["board_label"] = "Telangana Intermediate (TSBIE)"

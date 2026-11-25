@@ -52,34 +52,30 @@ BENCHMARK_POLICIES: dict[str, FactualityBenchmarkItem] = {
         question="What is the minimum eligibility criteria for B.Tech admission at SR University?",
         handbook_source="data/handbook/08_admissions_fees_scholarships_and_eligibility.md",
         ground_truth_claims=[
-            "2027-28 fee card: standard fees from 50% in 10+2 / Intermediate with MPC (CSE / ECE fees from 55%)",
-            "2026-27 programme pages: 60% in 10+2 PCM; scores between the listed values need Admissions Office confirmation",
-            "50% corresponds to 500 marks out of 1000; below 50% does not meet any listed minimum",
+            "2027-28 fee circular: minimum 55% in 10+2 / Intermediate for B.Tech CSE and ECE (and their specialisations)",
+            "50% for other B.Tech branches and UG programmes; meeting the minimum is not a guarantee of admission",
+            "Scores below the minimum are referred to the Admissions Office for verification",
         ],
         required_keywords_any=[
-            ["50%", "50 percent", "500"],
-            ["10+2", "12th", "intermediate", "pcm", "qualifying"],
+            ["55%", "55 percent", "550", "50%"],
+            ["10+2", "12th", "intermediate", "pcm", "mpc", "qualifying"],
         ],
         prohibited_hallucinations=[
             (
-                # 50% (fee card), 55% (CSE / ECE fee band) and 60% (programme pages) are all documented.
-                re.compile(r"(?:(?:minimum|cutoff|aggregate|marks|percentage|required|eligibility)\b.*?\b(?:65|70|75|80)\s*%|(?:65|70|75|80)\s*%\s*(?:cutoff|aggregate|marks|percentage|required|eligibility))", re.I),
-                "Hallucinated cutoff: no official source lists 65%, 70%, 75% or 80% for B.Tech",
+                re.compile(r"(?:(?:minimum|cutoff|aggregate|marks|percentage|required|eligibility)\b.*?\b(?:60|65|70|75|80)\s*%|(?:60|65|70|75|80)\s*%\s*(?:cutoff|aggregate|marks|percentage|required|eligibility))", re.I),
+                "Outdated or hallucinated cutoff: 60%, 65%, 70%, 75% and 80% are not B.Tech minimums; the 2027-28 circular "
+                "lists 55% (CSE/ECE) and 50% (other branches)",
             ),
             (
-                # One source's figure stated as THE confirmed cutoff (the 2027-28 fee card and the 2026-27
-                # programme pages disagree, so neither 50% nor 60% alone may be presented as confirmed).
-                re.compile(r"(?:strictly|officially|only)\s+(?:is\s+)?(?:60|50)\s*%|cutoff\s+is\s+(?:strictly\s+)?(?:60|50)\s*%"
-                           r"|not\s+eligible\s+because[^.]*\b60\s*%|fully\s+eligible[^.]*\b5[0-9](?:\.\d+)?\s*%", re.I),
-                "Disputed cutoff presented as confirmed: the 2027-28 fee card lists 50% and the 2026-27 programme "
-                "pages 60%; scores between them need Admissions Office confirmation",
+                re.compile(r"guaranteed\s+(?:admission|seat)|fully\s+eligible\s+for\s+admission", re.I),
+                "Minimum marks presented as guaranteed admission",
             ),
             (
                 re.compile(r"\b(499|480|450|400)\s*(?:out\s+of\s+1000|\/1000)?\s*(?:is\s+eligible|qualifies|accepted)\b", re.I),
                 "Hallucination: Marks below 500/1000 claimed as unconditionally eligible",
             ),
         ],
-        allowed_numbers=["50%", "55%", "60%", "500", "58%", "52%", "1000", "10+2", "12th", "833 100 3030", "8331003030"],
+        allowed_numbers=["50%", "55%", "500", "550", "58%", "52%", "1000", "10+2", "12th", "833 100 3030", "8331003030"],
     ),
     "direct_admission_entrance_exam": FactualityBenchmarkItem(
         policy_id="direct_admission_entrance_exam",
@@ -184,11 +180,15 @@ BENCHMARK_POLICIES: dict[str, FactualityBenchmarkItem] = {
         ],
         prohibited_hallucinations=[
             (
-                re.compile(r"\b(100%\s*(full\s*scholarship|free\s*ride|guaranteed\s*free)\s*for\s*all)\b", re.I),
+                re.compile(r"\b100%\s*(?:full\s*)?(?:scholarship|free|waiver)[^.]*\bfor\s+all\b", re.I),
                 "Hallucination: Claiming 100% full fee waiver is unconditionally guaranteed for all intermediate students",
             ),
+            (
+                re.compile(r"first[- ]come|\b970\b|\b900\s*-\s*969\b", re.I),
+                "Retired scholarship rule: the 2027-28 circular has fixed slabs, not first-come 970+/900-969 bands",
+            ),
         ],
-        allowed_numbers=["40%", "30%", "25%", "20%", "15%", "10%", "50%", "100%", "98%", "97.99%", "97.9%", "95%", "92%", "90%", "80%", "70%", "65%", "60%", "2,04,000", "2,38,000", "2,55,000", "2,72,000", "2,89,000", "3,06,000", "88,500", "1,77,000", "3,40,000"],
+        allowed_numbers=["40%", "30%", "25%", "20%", "15%", "10%", "50%", "100%", "98%", "97.99%", "97.9%", "95%", "92%", "91.9%", "90%", "80%", "79.9%", "70%", "69.9%", "65%", "64.9%", "60%", "2,04,000", "2,38,000", "2,55,000", "2,72,000", "2,89,000", "3,06,000", "88,500", "1,77,000", "3,40,000"],
     ),
     "highest_placement_package": FactualityBenchmarkItem(
         policy_id="highest_placement_package",

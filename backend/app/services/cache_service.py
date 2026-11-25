@@ -23,7 +23,22 @@ logger = logging.getLogger(__name__)
 _CACHE_TTL_SECONDS = 86400  # 24 hours — university facts change at most once a semester;
                             # document uploads call bump_index_version() which invalidates stale keys
 _MAX_ANSWER_LEN = 4000     # don't cache abnormally long answers
-_KEY_PREFIX = f"sru:rag:v{settings.RAG_CACHE_VERSION}:"
+def _knowledge_fingerprint() -> str:
+    """Short hash of the fee policy and handbook files: a fee or handbook change gives every cached answer a new
+    key, so an answer cached under an older fee policy is never served again."""
+    from pathlib import Path
+    digest = hashlib.sha256()
+    policy = Path(__file__).resolve().parent.parent / "sru_agent" / "fee_policy_2027_28.json"
+    paths = [policy] + sorted((settings.DATA_DIR / "handbook").glob("*.md"))
+    for path in paths:
+        try:
+            digest.update(path.read_bytes())
+        except OSError:
+            continue
+    return digest.hexdigest()[:10]
+
+
+_KEY_PREFIX = f"sru:rag:v{settings.RAG_CACHE_VERSION}:{_knowledge_fingerprint()}:"
 
 
 def make_cache_key(canonical_query: str) -> str:
