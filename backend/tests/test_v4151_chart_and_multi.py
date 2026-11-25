@@ -189,3 +189,9 @@ def test_music_band_is_the_sangeetam_club():
     from app.sru_agent import campus_life
     assert campus_life.topic("is there a music band") == "clubs"
     assert "Sangeetam" in campus_life.answer("clubs", "is there a music band").text
+
+
+@pytest.mark.parametrize("message,key", [("b.des?", "bdes"), ("b.com?", "bcom"), ("m.tech", "mtech")])
+def test_dotted_programme_names_alone_are_recognised(message, key):
+    from app.sru_agent import dialogue
+    assert dialogue._broad_program(message) == (key, False)
