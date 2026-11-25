@@ -74,7 +74,7 @@ async def _through_eligibility(s: Student):
     await s.say("B.Tech")
     await s.say("CSE")
     ask = await s.say("Check my eligibility")
-    assert "marks" in ask["answer"] and not _card(ask, "academic_details_form")   # v4.9.0: one step, no form
+    assert "which board did you study under?" in ask["answer"] and not _card(ask, "academic_details_form")
     await s.say("671")
     await s.say("671 out of 1000")
     return await s.say("MPC")
@@ -201,8 +201,8 @@ async def test_12_and_25_new_conversation_starts_clean_and_offers_saved_details(
     await s.say("B.Tech")
     await s.say("CSE")
     form = await s.say("Check my eligibility")
-    assert "Intermediate (10+2) marks" in form["answer"]                     # asked afresh, one step ...
-    assert [c["type"] for c in form.get("cards") or []] == ["counsellor_marks_input"]   # ... with the marks form (v4.15.0)
+    assert "which board did you study under?" in form["answer"]                # starts Board -> Stage -> Marks afresh
+    assert [c["type"] for c in form.get("cards") or []] == ["counsellor_board_selection"]
     assert any(c.startswith("Use my saved details (671/1000, MPC") for c in form["suggestions"])   # opt-in reuse
     assert (await s.profile()).get("raw_marks") is None    # earlier marks are not assumed in this chat
 
@@ -231,9 +231,11 @@ async def test_13_to_16_join_programme_branch_eligibility_marks_confirmation_gro
     assert "Which B.Tech branch" in (await s.say("B.Tech."))["answer"]
     assert "check your B.Tech CSE eligibility" in (await s.say("CSE."))["answer"]
     ask = await s.say("Check my eligibility")
-    assert "Intermediate (10+2) marks" in ask["answer"]                        # one question, not a form
-    total = await s.say("671")
-    assert "Out of how many total marks is **671**" in total["answer"]          # never assumed
+    assert "which board did you study under?" in ask["answer"]                 # asks Board -> Stage -> Marks dynamically
+    stage = await s.say("Telangana Intermediate (TSBIE)")
+    assert "where are you in Intermediate" in stage["answer"]
+    marks_ask = await s.say("Completed Intermediate (Passed out)")
+    assert "Step 3 of 4" in marks_ask["answer"] and _card(marks_ask, "counsellor_marks_input")["max_marks"] == 1000
     group = await s.say("671 out of 1000")
     assert "MPC" in group["answer"]
     verdict = await s.say("MPC")

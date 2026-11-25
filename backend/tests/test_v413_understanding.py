@@ -71,10 +71,10 @@ async def test_what_is_the_eligibility_uses_the_programme_already_chosen():
 @pytest.mark.asyncio
 async def test_bare_eligibility_choice_still_starts_the_check():
     out = await _chat(["I want to join SR University", "B.Tech", "CSE", "Eligibility."])
-    assert "Intermediate (10+2) marks" in out[-1]["answer"]
+    assert "which board did you study under?" in out[-1]["answer"]
 
 
 @pytest.mark.asyncio
 async def test_am_i_eligible_is_the_check_not_the_rule():
     [done] = await _chat(["Am I eligible for B.Tech CSE?"])
-    assert "Intermediate (10+2) marks" in done["answer"]
+    assert "which board did you study under?" in done["answer"]

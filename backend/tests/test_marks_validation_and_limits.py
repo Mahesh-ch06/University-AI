@@ -100,3 +100,24 @@ def test_with_marks_form_resolves_board_max_dynamically_from_profile():
     assert ts_completed[0]["max_marks"] == 1000 and ts_completed[0]["board_key"] == "ts_state_board"
     ts_2nd = agent._with_marks_form(text, [], profile={"board_key": "ts_state_board", "academic_stage": "2nd_year"})
     assert ts_2nd[0]["max_marks"] == 470
+
+
+def test_eligibility_asks_board_and_stage_before_marks_with_dynamic_max():
+    from app.sru_agent import dialogue
+
+    r1 = dialogue.decide("Eligibility for B.Tech CSE", {}, {})
+    assert r1["state"]["step"] == "board"
+    assert r1["cards"][0]["type"] == "counsellor_board_selection"
+
+    r2 = dialogue.decide("Telangana Intermediate (TSBIE)", {"dialogue": r1["state"]}, {})
+    assert r2["state"]["step"] == "stage"
+    assert r2["cards"][0]["type"] == "counsellor_stage_selection"
+
+    r3 = dialogue.decide("Completed Intermediate (Passed out)", {"dialogue": r2["state"]}, {})
+    assert r3["state"]["step"] == "marks"
+    assert r3["cards"][0]["type"] == "counsellor_marks_input"
+    assert r3["cards"][0]["max_marks"] == 1000
+
+    bad = dialogue.decide("9000000", {"dialogue": r3["state"]}, {})
+    assert bad["state"]["step"] == "marks"
+    assert "1000" in bad["text"] and bad["cards"][0]["max_marks"] == 1000
