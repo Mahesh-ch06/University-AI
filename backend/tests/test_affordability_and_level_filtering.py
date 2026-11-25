@@ -68,7 +68,7 @@ def test_affordability_multi_step_flow_turn_by_turn():
     res1 = affordability.process_affordability_flow("i can't afford that much fee", profile, conv_state)
     assert res1 is not None
     assert "Mahesh" in res1["text"]
-    assert "I will be asking you some questions, answer them, and at last I will let you know your final net fee after all concessions and deductions." in res1["text"]
+    assert "I will be asking you some questions" not in res1["text"]   # no scripted preamble (Nov 2026)
     assert "Step 1 of 2: Academic Programme & Marks" in res1["text"]
     assert res1["new_state"]["affordability_flow"]["step"] == "awaiting_academics"
     assert len(res1["cards"]) == 1
@@ -78,7 +78,7 @@ def test_affordability_multi_step_flow_turn_by_turn():
     state2 = res1["new_state"]
     res2 = affordability.process_affordability_flow("B.Tech CSE with 90% marks in Telangana State Board", profile, state2)
     assert res2 is not None
-    assert "Step 2 of 2: Special-Category Concessions" in res2["text"]
+    assert "Could a special concession lower it further?" in res2["text"]
     assert "25% Merit Scholarship" in res2["text"]
     assert res2["new_state"]["affordability_flow"]["step"] == "awaiting_concession"
     assert any("Single parent" in c for c in res2["suggestions"])
@@ -97,8 +97,8 @@ def test_affordability_multi_step_flow_turn_by_turn():
     assert "₹2,40,000" in res3["text"]
     assert "Semester 1 payable**: **₹1,37,500**" in res3["text"] and "₹1,27,500" in res3["text"]
     assert "**₹2,65,000**" in res3["text"]
-    assert "State Bank of India (SBI)" in res3["text"]
-    assert "Union Bank of India" in res3["text"]
+    # loans are not on the fee circular: referred to the Admissions Office, never invented (no bank names)
+    assert "Admissions Office" in res3["text"] and "SBI" not in res3["text"] and "Union Bank" not in res3["text"]
     assert len(res3["cards"]) == 1
     assert res3["cards"][0]["type"] == "calculate_fee"
     assert res3["new_state"]["affordability_flow"] is None
@@ -112,8 +112,8 @@ def test_affordability_flow_direct_jump_when_already_known():
     res = affordability.process_affordability_flow("fees are too high, can't pay this much", profile, conv_state)
     assert res is not None
     assert "Priya" in res["text"]
-    assert "I will be asking you some questions" in res["text"]
+    assert "I will be asking you some questions" not in res["text"]
     # Should jump directly to Step 2 (Special Concessions) without asking Step 1
-    assert "Step 2: Special-Category Concessions" in res["text"]
+    assert "Could a special concession lower it further?" in res["text"]
     assert "30% Merit Scholarship" in res["text"]
     assert res["new_state"]["affordability_flow"]["step"] == "awaiting_concession"

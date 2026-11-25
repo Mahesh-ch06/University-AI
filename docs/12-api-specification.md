@@ -202,7 +202,9 @@ GET  /api/v1/agent/fee-config    # everything the Fee & Scholarship Calculator d
 ```
 
 `POST /api/v1/agent/stream` body: `session_id`, `message`, `conversation_id?`, `channel?`
-(`web` | `widget`), and, only when the student submits the academic details form (card type
+(`web` | `widget`), `source?` (v4.17.0: `typed` (default) when the student typed the message, `button` when it is
+the text of a chip, card option or tile the bot offered; any other value is rejected with 422; see
+`docs/43-model-first-understanding-nov-2026.md`), and, only when the student submits the academic details form (card type
 `academic_details_form`, v4.6.0), `form`:
 
 | Field | Values |

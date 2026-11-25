@@ -447,16 +447,22 @@ async def test_fee_question_is_still_answered_when_the_model_is_unreachable(no_w
         async def generate_content(self, model, contents, config):
             raise _ApiError(429, "429 RESOURCE_EXHAUSTED")
 
-    _, done = await _run("cse fee with 85% in inter, state board, no JEE or EAPCET", "act-offline", Down())
-    assert done["type"] == "done"
-    assert "₹2,55,000" in done["answer"] and "25% merit scholarship" in done["answer"]
-    assert done["cards"][0]["type"] == "calculate_fee"
-    # a handbook question gets the matching handbook passage instead of an error
-    _, last = await _run("what are the hostel in-time rules?", "act-offline-2", Down())
-    assert last["type"] == "done" and ("handbook" in last["answer"] or "Timings" in last["answer"] or "In-Time" in last["answer"])
+    # v4.17.0: a TYPED question is never answered from keywords when the model is down: the student is told
+    # plainly, with buttons that work without the model.
+    events = [e async for e in run_agent("cse fee with 85% in inter, state board, no JEE or EAPCET", "act-offline",
+                                         client=Down(), source="typed")]
+    done = events[-1]
+    assert done["type"] == "done" and "₹" not in done["answer"]
+    assert any(w in done["answer"].lower() for w in ("try again", "ask again", "send it again"))
+    assert done["suggestions"] == list(agent._BUSY_CHIPS)
+    assert not done["cards"]
+    events = [e async for e in run_agent("what are the hostel in-time rules?", "act-offline-2", client=Down(),
+                                         source="typed")]
+    last = events[-1]
+    assert last["type"] == "done" and "handbook" not in last["answer"] and last["suggestions"] == list(agent._BUSY_CHIPS)
     # anything else: an honest message about what still works, never a blank or a crash
     _, last = await _run("zzz qqq xyzzy", "act-offline-3", Down())
-    assert last["type"] == "done" and "free AI limit" in last["answer"]
+    assert last["type"] == "done" and last["answer"] in agent._LIMIT_REPLY_OPTIONS
 
 
 @pytest.mark.asyncio

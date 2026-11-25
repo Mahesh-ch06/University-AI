@@ -724,9 +724,14 @@ def _with_marks_form(text: str, cards: list, session_id: str = "") -> list:
                      "step_label": "Your marks", "hint": "You can also type them, e.g. 870 out of 1000 or 87%."}]
 
 
+class _Plain(Exception):
+    """Skips the recap / step-prefix rewriting in _say for a plain reply."""
+
+
 async def _say(text, message, session_id, conversation_id, used=(), cards=(), suggestions=(), telemetry=None, profile=None,
-               eligible=None, exact_chips=False, resume=True):
+               eligible=None, exact_chips=False, resume=True, plain=False):
     """Stream a reply the code wrote itself (no model call), remember it, and finish the turn.
+    plain=True: the text and chips exactly as given (the "busy" reply): no videos, offers or recap added.
     exact_chips=True: show these chips as given (at most 4), without adding the general
     "Fee & Scholarship" / "Why SRU" chips. Used when a reply asks one question (board, marks,
     programme...) and the chips are the answers to it."""
@@ -743,6 +748,8 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
                           f"Thanks for correcting that. I'm using **{note}** from now on.",
                           f"No problem, your marks are now **{note}**."], session_id, message) + "\n\n" + text
     try:   # the same step question as the last reply (the student asked something else): say why it is asked again
+        if plain:
+            raise _Plain
         hist = await memory.get_history(session_id, conversation_id)
         last = next((h.get("text", "") for h in reversed(hist or []) if h.get("role") in ("model", "assistant")), "")
         # v4.15.0: a long answer already given word for word in the last few replies is not repeated in full: the
@@ -789,16 +796,19 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
                              session_id, message, len(hist or [])) + "\n\n" + text
             if st_prog:
                 suggestions, exact_chips = list(suggestions or []) + [f"Just show the {fees.short_name(st_prog)} fee"], True
+    except _Plain:
+        pass
     except Exception:
         pass
     if re.match(r"\s*Step\s+\d", text) and _DO_YOU_HAVE.search(message or "") and fees.find_program(message or "") \
             and "SR University offers" not in text:
         text = f"Yes, SR University offers **{fees.short_name(fees.find_program(message))}**.\n\n" + text
     try:   # v4.15.1: official videos for an informational answer (one topic once per chat; never in a workflow)
-        cards = await _with_topic_videos(message, text, list(cards or []), session_id, conversation_id)
+        if not plain:
+            cards = await _with_topic_videos(message, text, list(cards or []), session_id, conversation_id)
     except Exception:
         log.exception("topic videos skipped")
-    if await _offer_fee_chart(session_id, conversation_id, cards):
+    if not plain and await _offer_fee_chart(session_id, conversation_id, cards):
         text = text.rstrip() + "\n\n" + _FEE_CHART_OFFER
         suggestions, exact_chips = ["Yes, prepare my fee chart", "No, thanks"], True
     for c in cards:
@@ -812,7 +822,7 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
         final_suggestions = followups.ensure_fixed_chips(list(suggestions), answer=text, message=message)
     else:
         final_suggestions = ()
-    if resume:
+    if resume and not plain:
         final_suggestions = await _with_resume_chip(session_id, conversation_id, final_suggestions, text)
     if profile is None:
         try:
@@ -1154,26 +1164,6 @@ def _claims_cancelled(text: str) -> bool:
 _FEE_WORDS = re.compile(r"\b(?:fee|fees|fess|feez|tuition|cost|schol\w*|waiver|how\s+much|per\s+sem)\b", re.IGNORECASE)
 
 
-def _offline_fee_reply(message: str, ctx: dict, fee: dict | None = None):
-    """A fee answer straight from the fee file, for when the model cannot be reached."""
-    if fee and fee.get("status") == "ok":
-        return _offline_fee_text(fee), fee
-    if not _FEE_WORDS.search(message):
-        return None
-    profile = ctx.get("profile") or {}
-    program = message if fees.find_program(message) else profile.get("program_interest")
-    if not program:
-        return None
-    m = re.search(r"(?<!\d)(\d{2}(?:\.\d+)?)\s*(?:%|percent)", message, re.IGNORECASE)
-    percent = float(m.group(1)) if m else profile.get("percent")
-    m = re.search(r"\b(?:eapcet|eamcet)\D{0,20}(\d{1,6})\b|\brank\D{0,10}(\d{1,6})\b", message, re.IGNORECASE)
-    rank = int(m.group(1) or m.group(2)) if m else profile.get("eapcet_rank")
-    board = "cbse" if re.search(r"\b(?:cbse|icse)\b", message, re.IGNORECASE) else profile.get("board") or "state_board"
-    fee = fees.calculate_fee(program=program, percent=percent, board=board, eapcet_rank=rank)
-    if fee.get("status") != "ok":
-        return None
-    return _offline_fee_text(fee), fee
-
 
 def _offline_fee_text(fee: dict) -> str:
     elig = fee.get("admission_eligibility") or {}
@@ -1455,46 +1445,21 @@ def _handbook_context(query: str) -> str:
 _shown_offline_titles: dict = {}
 
 
-def _offline_knowledge_reply(message: str, session_id: str = ""):
-    """The most relevant handbook passage, shown as it is, with rotation across turns for when the model cannot be reached."""
-    try:
-        found = knowledge.search(message, k=4, min_score=6.0)
-    except Exception:
-        found = []
-    if not found:
-        return None
-    recent = _shown_offline_titles.setdefault(session_id, [])
-    selected = found[0]
-    for c in found:
-        t = c.get("title", "")
-        if t not in recent:
-            selected = c
-            break
-    recent.append(selected.get("title", ""))
-    if len(recent) > 10:
-        recent.pop(0)
 
-    text = re.sub(r"\[FACT-ID:[^\]]*\]\s*|\[STATUS:[^\]]*\]\s*|\[SOURCE:[^\]]*\]\s*", "", selected["text"]).strip()
-    if len(text) > 900:
-        text = text[:900].rsplit("\n", 1)[0] + "\n..."
-    return (f"I cannot reach my AI model right now (the free limit for today has been used), so here is the "
-            f"matching part of the SR University handbook, **{selected['title'].split(' > ')[-1]}**:\n\n{text}\n\n"
-            f"I can still calculate fees and scholarships, find faculty profiles and arrange a callback. "
-            f"For anything else, please call the Admissions Office at {config.ADMISSIONS_PHONE}.")
-
-
+# v4.17.0: said when every AI key is resting (rate limit) or the model can't be reached. It never guesses an
+# answer from the words of the question; it says so, and offers buttons that work without the model.
 _LIMIT_REPLY_OPTIONS = [
-    (f"Many students are using SRU Buddy right now and the free AI limit has been reached, so I cannot "
-     f"answer that question at the moment. I can still do these without it: calculate a fee or "
-     f"scholarship (for example \"CSE fee with 85%\"), arrange a counsellor callback (\"call me\"), "
-     f"find a faculty member, or plan a campus visit ({config.CAMPUS_VISIT_PHONE}). You can also call the Admissions Office at {config.ADMISSIONS_PHONE}."),
-    (f"SRU Buddy is receiving high student traffic right now and the free AI limit has been reached momentarily. "
-     f"However, our fee & scholarship calculator (e.g. \"CSE fee with 85%\"), counsellor callbacks (\"call me\"), "
-     f"faculty search, and campus visit planning ({config.CAMPUS_VISIT_PHONE}) still work without it. You can also call Admissions at {config.ADMISSIONS_PHONE}."),
-    (f"The free AI limit has been reached due to heavy traffic. I can still calculate your fees and scholarships, "
-     f"arrange a counsellor callback (\"call me\"), or help plan a campus visit ({config.CAMPUS_VISIT_PHONE}). For admissions support, please call "
-     f"the Admissions Office at {config.ADMISSIONS_PHONE}."),
+    ("I'm getting a lot of questions right now, so I couldn't read yours properly. Please send it again in a "
+     "minute and I'll answer it fully. Meanwhile, the buttons below work straight away, or call the Admissions "
+     f"Office at {config.ADMISSIONS_PHONE}."),
+    ("Sorry, I'm handling many students at the moment and couldn't answer that just now. Please try again in a "
+     "minute. The buttons below still work, and the Admissions Office is on "
+     f"{config.ADMISSIONS_PHONE}."),
+    ("I'm a little busy right now and didn't want to give you a guessed answer. Please ask again in a minute. "
+     f"You can use the buttons below meanwhile, or call Admissions at {config.ADMISSIONS_PHONE}."),
 ]
+# Buttons that work without the model: the calculator opens in the browser; the others run fixed flows.
+_BUSY_CHIPS = ("Open fee calculator", "Calculate my scholarship", "Talk to a counsellor", "Plan a campus visit")
 _LIMIT_REPLY = _LIMIT_REPLY_OPTIONS[0]
 
 
@@ -1723,6 +1688,18 @@ def _side_question(message: str, conv_state: dict) -> bool:
     return bool(_SIDE_TOPIC.search(text))
 
 
+def _intake_open(conv_state: dict, message: str) -> bool:
+    """Is the fee intake waiting for this message? A finished intake ("done") re-opens only when the message
+    brings new academic details (a marks correction, another board): every other question after the result is
+    answered as itself, never by re-sending the scholarship result and the fee card."""
+    waiting = (conv_state.get("fee_intake") or {}).get("waiting_for")
+    if not waiting:
+        return False
+    if waiting != "done":
+        return True
+    return bool(set(fee_intake.parse_details(message)) & set(fee_intake._ACADEMIC_FIELDS))
+
+
 def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
     """A plain fee question ("B.Tech CSE fees", "fee for MBA?") with no evaluation running: evaluate first."""
     from app.services import app_settings
@@ -1738,6 +1715,8 @@ def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
         return False
     if _fee_overview_question(text):
         return False   # "fees for all branches", "BBA and MBA fees": show the fees, don't start the steps
+    if affordability.is_affordability_query(text):
+        return False   # "I can't afford the fee": the affordability answer, not the evaluation steps again
     if _DISCOUNT_ASK.search(text) and (fee_plan.infer_concession(text) or fee_plan.concessions_for_group(text)):
         return False   # "my brother studies at SRU, any discount?": that concession is the answer (v4.15.0)
     intake = conv_state.get("fee_intake") or {}
@@ -2076,6 +2055,45 @@ def _fix_typos(message: str) -> str:
     return out
 
 
+_QUESTION_START = re.compile(
+    r"^\s*(?:what|which|who|whom|whose|when|where|why|how|is|are|am|was|were|do|does|did|can|could|will|would|"
+    r"should|shall|may|might|tell|explain|give|show|list|compare)\b", re.IGNORECASE)
+
+
+def _short_reply(message: str) -> bool:
+    """A short reply to the bot's own question ("CBSE", "no hostel", "yes", "Ravi Kumar"), not a new question.
+    Judged by the FORM of the message (length, a question mark, a question opening), never by topic words."""
+    text = (message or "").strip()
+    return bool(text) and "?" not in text and len(text.split()) <= 8 and not _QUESTION_START.match(text)
+
+
+def _structured_turn(source, rewritten: bool, conv_state: dict, message: str, step_answer: bool,
+                     dlg_busy: bool) -> str | None:
+    """Why this turn belongs to a fixed flow, or None when the model should understand it (v4.17.0).
+
+    Only facts about the TURN are used, never the meaning of topic words: what the student pressed, a submitted
+    form, the answer the open step's own parser accepted, a short reply while the bot waits on its own question
+    (a callback being arranged, "shall I prepare your fee chart?", a fee step), or a phone number (data the
+    callback flow must save exactly). A question typed during an open step goes to the model, which sees the
+    whole conversation; the step stays open and its "continue" chip brings the student back."""
+    if source != "typed":
+        return "button" if source == "button" else "internal"
+    if rewritten:
+        return "form"
+    if step_answer:
+        return "answer_to_fee_step"
+    if tools.find_phone(message or ""):
+        return "phone_number"
+    fee_eval = conv_state.get(fee_journey.KEY) or {}
+    waiting = bool(dlg_busy or conv_state.get("pending_action") or conv_state.get("gate_pending")
+                   or conv_state.get("offer") or conv_state.get("pending_concession")
+                   or (conv_state.get("dialogue") or {}).get("step")
+                   or (fee_eval.get("active") and fee_eval.get("awaiting") and not fee_eval.get("final_shown")))
+    if waiting and _short_reply(message):
+        return "reply_to_open_step"
+    return None
+
+
 async def run_agent(
     message: str,
     session_id: str,
@@ -2083,9 +2101,12 @@ async def run_agent(
     client=None,
     require_contact_details: bool = False,
     form: dict | None = None,
+    source: str | None = None,
 ):
     """Async generator of events for one student message.
-    form: a submitted academic details form (structured; see _read_academic_form)."""
+    form: a submitted academic details form (structured; see _read_academic_form).
+    source: "typed" (the student typed it: understood by the model) or "button" (a chip / card / tile the bot
+    offered: the fixed flow for that button). None = an internal caller (tests, replays): treated as a button."""
     started = time.perf_counter()
     message = _fix_typos((message or "").strip()[:config.AGENT_MAX_MESSAGE_CHARS])
     yield {"type": "start", "conversation_id": conversation_id}
@@ -2159,6 +2180,7 @@ async def run_agent(
                 yield ev
             return
 
+    rewritten = False   # the message was rewritten from a form / "use my saved details" (a structured turn)
     # ---- Academic details form submitted: validate, store as this conversation's details, then continue as
     # the request the form was for, so eligibility / scholarship are evaluated by the usual code. ----------
     if form:
@@ -2195,6 +2217,7 @@ async def run_agent(
         full_name = fees.clean_program_name(form_program)
         message = (f"Calculate my scholarship for {full_name}" if form_mode == "scholarship"
                    else f"Am I eligible for {full_name}?")
+        rewritten = True
 
     if _USE_SAVED.match(message) and profile.get("saved_academic"):
         profile = await journey.restore_saved(session_id, profile)
@@ -2202,9 +2225,9 @@ async def run_agent(
         pending_prog = (conv_state.get("dialogue") or {}).get("program") or conv_state.get("active_program")
         intake_wait = (conv_state.get("fee_intake") or {}).get("waiting_for")
         if pending_prog and intake_wait and (conv_state.get("fee_intake") or {}).get("counsellor_mode"):
-            message = f"Calculate my scholarship for {fees.clean_program_name(pending_prog)}"
+            message, rewritten = f"Calculate my scholarship for {fees.clean_program_name(pending_prog)}", True
         elif pending_prog:
-            message = f"Am I eligible for {fees.clean_program_name(pending_prog)}?"
+            message, rewritten = f"Am I eligible for {fees.clean_program_name(pending_prog)}?", True
         else:
             text = (f"Done! I'll use your saved details ({journey.saved_summary(profile)}) in this chat. "
                     "What would you like to check?")
@@ -2242,1606 +2265,1645 @@ async def run_agent(
     # (labs, programmes...) may take it; the steps continue.
     step_answer = bool(dlg_busy and not side_q and intake_now.get("waiting_for") not in (None, "done"))
     # v4.15.1: specific questions answered exactly from the fee card's terms / verified facts (quick_facts.py)
-    from . import quick_facts
-    # a phone number or callback request goes to the callback flow; several questions go to the multi-question step
-    # below, which answers every part (a single quick fact would answer only one of them)
-    qa = None if (step_answer or tools.find_phone(message) or intents.is_callback_request(message)
-                  or compound.model_note(message)) else quick_facts.answer(message)
-    if qa:
-        async for ev in _reply(qa.text, message, session_id, conversation_id, cards=list(qa.cards or []),
-                               suggestions=qa.chips, exact_chips=True,
-                               client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-    # v4.15.1 (live chat): a fee question for a programme the student's marks don't qualify for gets the honest "not
-    # eligible" answer with the programmes they can join, never a fee summary for a programme they can't join.
-    if not step_answer and profile.get("percent") not in (None, "") and fee_intake.is_fee_enquiry(message or "") \
-            and not tools.find_phone(message) and not intents.is_callback_request(message):
-        asked_prog = fees.find_program(message or "") or (
-            conv_state.get("active_program") if not fees.find_program(message or "") else None)
-        blocked = fee_journey.not_eligible({"program": asked_prog}, profile) if asked_prog else None
-        if blocked:
-            async for ev in _reply(blocked["text"], message, session_id, conversation_id, suggestions=blocked["chips"],
-                                   exact_chips=True, client=client, history=history, profile=profile,
-                                   conv_state=conv_state):
-                yield ev
-            return
-    # v4.15.1 (2,000-student run): a cut-off question after "how to apply" was taken by the admission steps; it is
-    # a figure SRU doesn't publish, so it is answered here, before any step can ask for marks.
-    if _CUTOFF_FACT.search(message or "") and not step_answer \
-            and not (conv_state.get("fee_intake") or {}).get("waiting_for"):
-        async for ev in _reply(_CUTOFF_TEXT, message, session_id, conversation_id,
-                               suggestions=["Eligibility for B.Tech CSE", "Calculate my scholarship", "How do I apply?"],
-                               client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-    if _SEATS_Q.search(message or "") and not step_answer:   # a figure SRU doesn't publish: said plainly
-        async for ev in _reply(_SEATS_TEXT, message, session_id, conversation_id,
-                               suggestions=["How do I apply?", "Check my eligibility", "Talk to a counsellor"],
-                               client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-    # ---- "What is the eligibility (for it)?": the RULE for the programme named or already being discussed, then
-    # the offer to check the student's own marks (v4.13.0: information asked, information given; "am I eligible?"
-    # is the action and still goes to the check).
-    if not dlg_busy and _ELIGIBILITY_RULE_Q.search(message or "") and not re.search(r"\d", message or "") \
-            and not _CUTOFF_FACT.search(message or "") and not intents.is_callback_request(message):
-        rule_prog = fees.find_program(message) or (conv_state.get("dialogue") or {}).get("program") \
-            or (conv_state.get("fee_intake") or {}).get("program") or conv_state.get("active_program") \
-            or profile.get("program_interest")
-        if rule_prog in fees.load_data()["programs"]:
-            # the programme is now the one being discussed (an open "which branch?" is answered by it)
-            dlg_now = {k: v for k, v in (conv_state.get("dialogue") or {}).items() if k != "step"}
-            dlg_now["program"] = rule_prog
-            await memory.update_conversation_state(session_id, conversation_id, active_program=rule_prog,
-                                                   dialogue=dlg_now)
-            conv_state["active_program"] = rule_prog
-            conv_state["dialogue"] = dlg_now
-            async for ev in _reply(eligibility.rule_text(rule_prog), message, session_id, conversation_id,
-                                   suggestions=["Check my eligibility with my marks", f"{fees.short_name(rule_prog)} fees",
-                                                "Calculate my scholarship"],
-                                   exact_chips=True, client=client, history=history, profile=profile,
-                                   conv_state=conv_state):
-                yield ev
-            return
-    # ---- "Talk to a counsellor / a person" (v4.12.0): a short real attempt to reach a counsellor (it rings in the
-    # admin panel), then a callback on the number on file. "Call me" stays the callback flow below.
-    if not form and intents.is_connect_request(message) and not tools.find_phone(message):
-        async for ev in _counsellor_connect(message, session_id, conversation_id, profile, ctx):
-            yield ev
-        return
-
-    # ---- The fee evaluation agent (fee_journey): special consideration, concession picked, "final fee",
-    # and the answers to its own questions (programme, proof, scholarship, hostel, bus). It works from the
-    # conversation's saved selections, so a side question in between does not lose the progress.
-    if not form:
-        last_fee_args = conv_state.get("last_fee_args") or {}
-        last_reply = next((h.get("text", "") for h in reversed(history) if h.get("role") in ("model", "assistant")),
-                          "")
-        fj = fee_journey.decide(message, conv_state.get(fee_journey.KEY), profile, {
-            "program": (conv_state.get("active_program") or profile.get("program_interest")
-                        or (conv_state.get("fee_intake") or {}).get("program") or last_fee_args.get("program")),
-            # v4.15.1: a room type only when the student chose one ("AC 4 sharing"), never one the model assumed
-            "hostel": last_fee_args.get("hostel") if last_fee_args.get("hostel") not in (None, "none") and (
-                fee_journey._read_hostel(message or "") or any(
-                    fee_journey._read_hostel(h.get("text", "") or "") for h in history[-12:] if h.get("role") == "user"))
-                else None,
-            "transport": True if last_fee_args.get("transport") else None,
-            "last_reply": last_reply,
-            "selected_concession": conv_state.get("selected_concession"),
-            "fuzzy_concession": _concession_requested(message),
-            "marks_corrected": bool(_MARKS_NOTE.get()) and not _other_program_named(message, conv_state),
-            "evaluate_first": app_settings.get("fee_questions") == "evaluate_first",
-            "offer": conv_state.get("offer"),
-            "seed": f"{session_id}{len(history)}",
-        })
-        if fj:
-            async def _save_state(**fields):
-                conv_state.update(fields)
-                await memory.update_conversation_state(session_id, conversation_id, **fields)
-            async for ev in _run_fee_journey(fj, message, session_id, conversation_id, profile, _save_state):
-                yield ev
-            return
-
-    # ---- A fee question ("B.Tech CSE fees", "MBA fee?") evaluates first (v4.13.0, admin "fee_questions"): the
-    # marks and eligibility, the merit scholarship, special concessions, hostel, then the FINAL fee, step by step
-    # (fee_intake's counsellor steps -> fee_journey). "Just show the ... fee" gives the standard fee at once.
-    if not form and not dlg_busy and _starts_fee_evaluation(message, conv_state):
-        fee_prog = fees.find_program(message) or (conv_state.get("dialogue") or {}).get("program") \
-            or conv_state.get("active_program") or profile.get("program_interest")
-        if fee_prog not in fees.load_data()["programs"]:
-            fee_prog = None
-        start = {"counsellor_mode": True, **({"program": fee_prog} if fee_prog else {})}
-        step = fee_intake.decide("Calculate my scholarship. " + message, profile, start, first_name=natural_name)
-        if step and step.get("action") == "ask":
-            conv_state["fee_intake"] = step["state"]
-            await memory.update_conversation_state(session_id, conversation_id, fee_intake=step["state"],
-                                                   **({"active_program": fee_prog} if fee_prog else {}))
-            short = fees.short_name(fee_prog) if fee_prog else ""
-            lead = (f"Before I give you the **{short}** fee, let's check your eligibility and scholarship, so any "
-                    "merit scholarship or special concession you qualify for is included in your final fee."
-                    if fee_prog else
-                    "Before I give you the fee, let's check your eligibility and scholarship, so any merit "
-                    "scholarship or special concession you qualify for is included in your final fee.")
-            body = _FEE_STEP_OPENER.sub("", step["text"]).strip()
-            if not fee_prog:
-                body = ("Which B.Tech branch are you interested in?" if "branch" in step["text"]
-                        else "Which programme are you interested in?")
-            chips = list(step.get("chips") or [])
-            if fee_prog:
-                chips.append(f"Just show the {short} fee")
-            async for ev in _say(f"{lead}\n\n{body}", message, session_id, conversation_id,
-                                 cards=step.get("cards") or [], suggestions=chips, exact_chips=True, profile=profile):
-                yield ev
-            return
-        if step and step.get("action") == "calculate":
-            # Everything is known already: the same evaluation as "Calculate my scholarship", at once.
-            conv_state["fee_intake"] = start
-            await memory.update_conversation_state(session_id, conversation_id, fee_intake=start)
-            message = "Calculate my scholarship" + (f" for {fees.short_name(fee_prog)}" if fee_prog else "")
-
-    # Our own fee-plan questions and requests are answered below, not by the topic clarification:
-    # a concession picked in the table, "prepare my fee chart", the programme for a pending concession or
-    # chart, and yes / no to the fee chart offer.
-    fee_plan_turn = bool(
-        _FEE_CHART_REQUEST.search(message or "") or _concession_requested(message)
-        or ((conv_state.get("pending_concession") or conv_state.get("offer") == "fee_chart_program")
-            and fees.find_program(message))
-        or (conv_state.get("offer") == "fee_chart" and (_AFFIRM.match(message or "") or _DECLINE.match(message or ""))))
-    # ---- "What scholarships does SRU give?" (v4.14.0, 1,000-student test): the merit scholarship slabs from the
-    # official fee data, then the offer to work out the student's own. (It used to start the step questions at once.)
-    if not fee_plan_turn and _GENERAL_SCHOLARSHIP.search(message or "") and not re.search(r"\d", message or "") \
-            and not _OWN_FEE.search(message or "") \
-            and _one_question(message, profile):
-        sch_prog = fees.find_program(message or "") or conv_state.get("active_program") \
-            or profile.get("program_interest") or "btech_cse"
-        if sch_prog not in fees.load_data()["programs"]:
-            sch_prog = "btech_cse"
-        try:
-            slabs = compound.scholarship_overview_text(sch_prog)
-        except Exception:
-            slabs = ""
-        if slabs:
-            text = slabs
-            async for ev in _reply(text, message, session_id, conversation_id, client=client, history=history,
-                                   profile=profile, conv_state=conv_state,
-                                   suggestions=["Calculate my scholarship", "Special consideration"], exact_chips=True):
-                yield ev
-            return
-
-    # ---- Placements (v4.14.0, 1,000-student test): "how are the placements?", "highest package", "do students get
-    # jobs after BBA" get the verified placement answer at once (it used to ask "what about placements?" first, or go
-    # to the model). Guarantee / recruiters / training / internships each get their own answer.
-    if not fee_plan_turn and _PLACEMENT_Q.search(message or "") and not tools.find_phone(message) \
-            and not intents.is_callback_request(message) and _one_question(message, profile) \
-            and not re.search(r"\b(?:fees?|cost|scholarship|eligib\w*|hostel|cut-?off)\b", message or "", re.I) \
-            and (side_q or not (dlg_busy or (conv_state.get("dialogue") or {}).get("step"))) \
-            and responses.placement_aspect(message) != "guarantee" \
-            and not re.search(r"\b(?:this|that|my|the\s+same)\s+(?:branch|course|programme|program)\b", message or "", re.I) \
-            and not (dialogue._broad_topic(message) == "placements" and len(re.findall(r"\w+", re.sub(
-                r"^\s*(?:and\s+)?(?:what|how)\s+about|^\s*tell\s+me\s+about|\b(?:the|please|pls|at\s+sru|in\s+sru)\b",
-                "", message or "", flags=re.I))) <= 2):
-        # (a guarantee question keeps its approved answer; "this branch" needs the programme; a bare "placements"
-        # still asks which aspect, as designed for broad topics)
-        from app.services.card_service import PLACEMENT_EXCELLENCE_CARD, get_session_shown_cards, record_session_card
-        p_text, p_chips, _aspect = responses.placement_reply(message, f"{session_id}{len(history)}")
-        p_prog = fees.find_program(message or "")
-        if p_prog and _aspect == "record":
-            p_text = (f"Yes. SRU's placement support (training and campus drives with 150+ recruiters) is for every "
-                      f"programme, including **{fees.short_name(p_prog)}**. " + p_text)
-        p_scope = f"{session_id}:{conversation_id or ''}"
-        p_cards = [] if "placement_card" in get_session_shown_cards(p_scope) else [PLACEMENT_EXCELLENCE_CARD]
-        if p_cards:
-            record_session_card(p_scope, "placement_card")
-        await memory.update_conversation_state(session_id, conversation_id, active_topic="placements")
-        async for ev in _reply(p_text, message, session_id, conversation_id, client=client, history=history,
-                               profile=profile, conv_state=conv_state, cards=p_cards, suggestions=p_chips):
-            yield ev
-        return
-
-    # ---- Events, campus life, clubs, sports, hostel life and food (v4.14.0): answered from the approved facts and
-    # the admin panel's events (campus_life.py), with the events' photo cards and the official videos. A word that
-    # answers a pending step ("sports" for a concession) is left to that step; several questions go to compound.
-    if not fee_plan_turn and not tools.find_phone(message) and not intents.is_callback_request(message):
-        step_waiting = not side_q and bool(dlg_busy or (conv_state.get("dialogue") or {}).get("step")
-                            or conv_state.get("pending_concession") or conv_state.get("offer")
-                            or (conv_state.get(fee_journey.KEY) or {}).get("awaiting"))
-        campus_key = campus_life.topic(message, waiting=step_waiting)
-        if campus_key is None and conv_state.get("campus_offer") and _AFFIRM.match(message or "") \
-                and len((message or "").split()) <= 4:
-            campus_key = conv_state.get("campus_offer")      # "yes" to "Would you like to see the other events?"
-        if campus_key and _one_question(message, profile):
-            ans = campus_life.answer(campus_key, message)
-            told = list(conv_state.get("campus_told") or [])
-            if campus_key in told and not campus_key.startswith("event:"):
-                ans = campus_life.recap(campus_key, ans, message)  # asked again: a short recap, not the same block
-            told = (told + [campus_key])[-20:]
-            campus_cards = []
-            carousel = campus_life.event_cards(ans.event_ids)
-            if carousel:
-                campus_cards.append(carousel)
-            from app.services.video_service import create_video_card, get_keyword_videos, video_by_id
-            vids = [v for v in (video_by_id(i) for i in ans.video_ids) if v]
-            if not vids and ans.video_query:
-                shown = {v.get("id") for h in history or [] for c in (h.get("cards") or [])
-                         if isinstance(c, dict) for v in (c.get("videos") or []) if isinstance(v, dict)}
-                vids = get_keyword_videos(ans.video_query, limit=2, exclude=shown)
-            if vids:
-                campus_cards.append(create_video_card(vids[:2]))
-            offer = "events" if campus_key.startswith("event:") else (
-                "clubs" if ans.text.rstrip().endswith("all 39 clubs?") else None)
-            await memory.update_conversation_state(session_id, conversation_id, campus_offer=offer,
-                                                   active_topic="campus_life", campus_told=told)
-            async for ev in _reply(ans.text, message, session_id, conversation_id, client=client, history=history,
-                                   profile=profile, conv_state=conv_state, cards=campus_cards, suggestions=ans.chips,
-                                   exact_chips=ans.options,
-                                   note="Answer only from these facts; do not add links or sources."):
-                yield ev
-            return
-
-    if not dlg_busy and not fee_plan_turn and not tools.find_phone(message) and not intents.is_callback_request(message) \
-            and not intents.is_cancel_contact(message, bool(profile.get("last_lead_id"))):
-        dlg = dialogue.decide(message, conv_state, profile, name=natural_name)
-        if dlg:
-            new_dialogue = dlg.get("state")
-            if new_dialogue is not None:
-                conv_state["dialogue"] = new_dialogue
-                extra = {"active_program": new_dialogue["program"]} if new_dialogue.get("program") else {}
-                conv_state.update(extra)
-                await memory.update_conversation_state(session_id, conversation_id, dialogue=new_dialogue, **extra)
-            if dlg.get("profile_updates"):
-                profile = await memory.update_profile(session_id, **dlg["profile_updates"])
-                ctx["profile"] = profile
-            if dlg["kind"] == "reply":
-                async for ev in _say(dlg["text"], message, session_id, conversation_id,
-                                     cards=dlg.get("cards") or [],
-                                     suggestions=dlg.get("chips") or [], exact_chips=True,
-                                     eligible=dlg.get("eligible")):
-                    yield ev
-                return
-            if dlg["kind"] == "rewrite":
-                message = dlg["message"]
-
-    # ---- Semantic Routing & Approved Answer Policy Matching ----
-    t0_routing = time.perf_counter()
-    routing_decision = semantic_router.route_message(message, history, conv_state)
-    routing_latency_ms = round((time.perf_counter() - t0_routing) * 1000, 2)
-
-    # State preservation: detect interruptions to active admission dialogue
-    is_admission_in_progress = bool(
-        (conv_state.get("fee_intake") or {}).get("waiting_for")
-        or conv_state.get("admission_stage")
-    )
-    paused_intent = conv_state.get("paused_intent")
-    if is_admission_in_progress and routing_decision.intent_id not in ("ADMISSION_DATA_INPUT", "ADMISSION_COUNSELLING"):
-        paused_intent = conv_state.get("current_intent") or "ADMISSION_COUNSELLING"
-
-    # Map semantic policy intent to agent execution intent
-    _SEMANTIC_TO_AGENT_INTENT = {
-        "ABOUT_SRU": "ABOUT_SRU_QUERY",
-        "WHY_CHOOSE_SRU": "WHY_CHOOSE_SRU_QUERY",
-        "PLACEMENT_GUARANTEE": "PLACEMENT_GUARANTEE_QUERY",
-        "ADMISSION_GUARANTEE": "ADMISSION_GUARANTEE_QUERY",
-        "HOSTEL_CURFEW": "HOSTEL_CURFEW_RULES_QUERY",
-        "HOSTEL_INFO": "HOSTEL_INFO_QUERY",
-        "FUTURE_YEAR_FEE": "FUTURE_YEAR_FEE_QUERY",
-        "SPECIAL_CONCESSIONS": "SPECIAL_CONCESSIONS_QUERY",
-        "DATE_QUERY": "DATE_QUERY",
-        "LAB_FACILITIES": "LAB_FACILITIES_QUERY",
-    }
-    legacy_intent = intents.classify_agent_intent(message, conv_state)
-    _SPECIFIC_FLOW_INTENTS = {
-        "FEE_TREE_QUERY", "BTECH_TREE_QUERY", "BTECH_CSE_FEE_QUERY", "BTECH_AI_ROBOTICS_FEE_QUERY",
-        "BTECH_ECE_FEE_QUERY", "BTECH_CORE_FEE_QUERY", "MANAGEMENT_FEE_QUERY", "AGRICULTURE_FEE_QUERY",
-        "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "CAMPUS_TOUR_DISPATCH", "CAMPUS_TOUR_VIRTUAL",
-        "CAMPUS_VISIT_BOOKING_WITH_DATE", "CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_INFO", "JOIN_SRU_QUERY",
-        "CONFUSION_QUERY", "NEXT_GEN_TECH_QUERY", "ALL_PROGRAMS_QUERY", "OTHER_FEES_QUERY",
-        "HOSTEL_FEE_QUERY", "HOSTEL_MESS_QUERY", "HOSTEL_SAFETY_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
-        "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ABOUT_SRU_QUERY",
-    }
-    if step_answer and not intents.is_callback_request(message):
-        intent = "GENERAL"            # the open fee step answers it (below)
-    elif legacy_intent in _SPECIFIC_FLOW_INTENTS:
-        intent = legacy_intent
-    elif routing_decision.policy_id and not routing_decision.is_fallback:
-        mapped_intent = _SEMANTIC_TO_AGENT_INTENT.get(routing_decision.intent_id)
-        intent = mapped_intent if mapped_intent else legacy_intent
-    else:
-        intent = legacy_intent
-
     used, cards = [], []
 
     async def set_state(**fields):
         conv_state.update(fields)
         await memory.update_conversation_state(session_id, conversation_id, **fields)
 
-    # A fixed overview (a programme, labs, canteen, evaluation, all programmes...) is given once per
-    # conversation. Asked again, the question goes to the model with the conversation, which answers
-    # the follow-up instead of re-sending the same block.
-    if intent in _OVERVIEW_INTENTS:
-        given = list(conv_state.get("overviews_given") or [])
-        if intent in given:
-            intent = "GENERAL"
+    async def clear_pending():
+        await set_state(pending_action=None, pending_phone=None, pending_name=None, pending_turns=0)
+
+    # ---- Model-first understanding (v4.17.0) -----------------------------------------------------------------
+    # A message the student TYPED is understood by the language model, with the whole conversation, the
+    # student's saved details, the verified facts and the tools (fee engine, eligibility, callbacks...). No
+    # keyword or phrase decides what a typed question means. The fixed flows below run only for STRUCTURED
+    # turns: a button / chip / card the bot itself offered, a submitted form, or an answer to the question the
+    # bot has just asked (see _structured_turn). Fee amounts still come only from the fee engine (tools).
+    structured = _structured_turn(source, rewritten, conv_state, message, step_answer, dlg_busy)
+    model_first = structured is None
+    if model_first:
+        intent, action, action_note, canned_action_text = "GENERAL", None, None, None
+        intake_decision, is_other_fee_inquiry, early_details = None, False, {}
+        active_topic = conv_state.get("active_topic")
+        active_program = conv_state.get("active_program")
+        named_prog = fees.find_program(message)       # context for the model, never an answer by itself
+        if named_prog and named_prog != active_program:
+            active_program = named_prog
+            await set_state(active_program=named_prog)
+        if require_contact_details and not (conv_state.get("welcome_actions_shown")
+                                            or profile.get("welcome_actions_shown")):
+            await set_state(welcome_actions_shown=True)
+            await memory.update_profile(session_id, welcome_actions_shown=True)
+        persona = intents.detect_user_persona(message, history, profile)
+        # The student asked something new instead of answering the bot's last question: that question is not
+        # waiting any more (a fee evaluation in progress stays, with its "continue" chip).
+        stale = {}
+        if (conv_state.get("dialogue") or {}).get("step"):
+            stale["dialogue"] = {k: v for k, v in (conv_state.get("dialogue") or {}).items() if k != "step"}
+        if conv_state.get("offer"):
+            stale["offer"] = None
+        if stale:
+            await set_state(**stale)
+        shown_facts = list(conv_state.get("facts_shown") or [])
+        picked = fact_service.retrieve(message, k=6, exclude=shown_facts)
+        facts_note = fact_service.format_facts_for_prompt(picked) if picked else None
+        turn_telemetry = observability.PolicyTurnTelemetry(
+            session_id=session_id, conversation_id=conversation_id, message=message,
+            detected_intent="MODEL_FIRST", response_mode="model")
+        log.info("model-first turn (session %s)", (session_id or "")[:8])
+    else:
+        log.info("structured turn (%s) session %s", structured, (session_id or "")[:8])
+
+    if not model_first:
+        from . import quick_facts
+        # a phone number or callback request goes to the callback flow; several questions go to the multi-question step
+        # below, which answers every part (a single quick fact would answer only one of them)
+        qa = None if (step_answer or tools.find_phone(message) or intents.is_callback_request(message)
+                      or compound.model_note(message)) else quick_facts.answer(message, profile)
+        if qa:
+            async for ev in _reply(qa.text, message, session_id, conversation_id, cards=list(qa.cards or []),
+                                   suggestions=qa.chips, exact_chips=True,
+                                   client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+        # v4.15.1 (live chat): a fee question for a programme the student's marks don't qualify for gets the honest "not
+        # eligible" answer with the programmes they can join, never a fee summary for a programme they can't join.
+        if not step_answer and profile.get("percent") not in (None, "") and fee_intake.is_fee_enquiry(message or "") \
+                and not tools.find_phone(message) and not intents.is_callback_request(message):
+            asked_prog = fees.find_program(message or "") or (
+                conv_state.get("active_program") if not fees.find_program(message or "") else None)
+            blocked = fee_journey.not_eligible({"program": asked_prog}, profile) if asked_prog else None
+            if blocked:
+                async for ev in _reply(blocked["text"], message, session_id, conversation_id, suggestions=blocked["chips"],
+                                       exact_chips=True, client=client, history=history, profile=profile,
+                                       conv_state=conv_state):
+                    yield ev
+                return
+        # v4.15.1 (2,000-student run): a cut-off question after "how to apply" was taken by the admission steps; it is
+        # a figure SRU doesn't publish, so it is answered here, before any step can ask for marks.
+        if _CUTOFF_FACT.search(message or "") and not step_answer \
+                and not (conv_state.get("fee_intake") or {}).get("waiting_for"):
+            async for ev in _reply(_CUTOFF_TEXT, message, session_id, conversation_id,
+                                   suggestions=["Eligibility for B.Tech CSE", "Calculate my scholarship", "How do I apply?"],
+                                   client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+        if _SEATS_Q.search(message or "") and not step_answer:   # a figure SRU doesn't publish: said plainly
+            async for ev in _reply(_SEATS_TEXT, message, session_id, conversation_id,
+                                   suggestions=["How do I apply?", "Check my eligibility", "Talk to a counsellor"],
+                                   client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+        # ---- "What is the eligibility (for it)?": the RULE for the programme named or already being discussed, then
+        # the offer to check the student's own marks (v4.13.0: information asked, information given; "am I eligible?"
+        # is the action and still goes to the check).
+        if not dlg_busy and _ELIGIBILITY_RULE_Q.search(message or "") and not re.search(r"\d", message or "") \
+                and not _CUTOFF_FACT.search(message or "") and not intents.is_callback_request(message):
+            rule_prog = fees.find_program(message) or (conv_state.get("dialogue") or {}).get("program") \
+                or (conv_state.get("fee_intake") or {}).get("program") or conv_state.get("active_program") \
+                or profile.get("program_interest")
+            if rule_prog in fees.load_data()["programs"]:
+                # the programme is now the one being discussed (an open "which branch?" is answered by it)
+                dlg_now = {k: v for k, v in (conv_state.get("dialogue") or {}).items() if k != "step"}
+                dlg_now["program"] = rule_prog
+                await memory.update_conversation_state(session_id, conversation_id, active_program=rule_prog,
+                                                       dialogue=dlg_now)
+                conv_state["active_program"] = rule_prog
+                conv_state["dialogue"] = dlg_now
+                async for ev in _reply(eligibility.rule_text(rule_prog), message, session_id, conversation_id,
+                                       suggestions=["Check my eligibility with my marks", f"{fees.short_name(rule_prog)} fees",
+                                                    "Calculate my scholarship"],
+                                       exact_chips=True, client=client, history=history, profile=profile,
+                                       conv_state=conv_state):
+                    yield ev
+                return
+        # ---- "Talk to a counsellor / a person" (v4.12.0): a short real attempt to reach a counsellor (it rings in the
+        # admin panel), then a callback on the number on file. "Call me" stays the callback flow below.
+        if not form and intents.is_connect_request(message) and not tools.find_phone(message):
+            async for ev in _counsellor_connect(message, session_id, conversation_id, profile, ctx):
+                yield ev
+            return
+
+        # ---- The fee evaluation agent (fee_journey): special consideration, concession picked, "final fee",
+        # and the answers to its own questions (programme, proof, scholarship, hostel, bus). It works from the
+        # conversation's saved selections, so a side question in between does not lose the progress.
+        if not form:
+            last_fee_args = conv_state.get("last_fee_args") or {}
+            last_reply = next((h.get("text", "") for h in reversed(history) if h.get("role") in ("model", "assistant")),
+                              "")
+            fj = fee_journey.decide(message, conv_state.get(fee_journey.KEY), profile, {
+                "program": (conv_state.get("active_program") or profile.get("program_interest")
+                            or (conv_state.get("fee_intake") or {}).get("program") or last_fee_args.get("program")),
+                # v4.15.1: a room type only when the student chose one ("AC 4 sharing"), never one the model assumed
+                "hostel": last_fee_args.get("hostel") if last_fee_args.get("hostel") not in (None, "none") and (
+                    fee_journey._read_hostel(message or "") or any(
+                        fee_journey._read_hostel(h.get("text", "") or "") for h in history[-12:] if h.get("role") == "user"))
+                    else None,
+                "transport": True if last_fee_args.get("transport") else None,
+                "last_reply": last_reply,
+                "selected_concession": conv_state.get("selected_concession"),
+                "fuzzy_concession": _concession_requested(message),
+                "marks_corrected": bool(_MARKS_NOTE.get()) and not _other_program_named(message, conv_state),
+                "evaluate_first": app_settings.get("fee_questions") == "evaluate_first",
+                "offer": conv_state.get("offer"),
+                "seed": f"{session_id}{len(history)}",
+            })
+            if fj:
+                async def _save_state(**fields):
+                    conv_state.update(fields)
+                    await memory.update_conversation_state(session_id, conversation_id, **fields)
+                async for ev in _run_fee_journey(fj, message, session_id, conversation_id, profile, _save_state):
+                    yield ev
+                return
+
+        # ---- A fee question ("B.Tech CSE fees", "MBA fee?") evaluates first (v4.13.0, admin "fee_questions"): the
+        # marks and eligibility, the merit scholarship, special concessions, hostel, then the FINAL fee, step by step
+        # (fee_intake's counsellor steps -> fee_journey). "Just show the ... fee" gives the standard fee at once.
+        if not form and not dlg_busy and _starts_fee_evaluation(message, conv_state):
+            fee_prog = fees.find_program(message) or (conv_state.get("dialogue") or {}).get("program") \
+                or conv_state.get("active_program") or profile.get("program_interest")
+            if fee_prog not in fees.load_data()["programs"]:
+                fee_prog = None
+            start = {"counsellor_mode": True, **({"program": fee_prog} if fee_prog else {})}
+            step = fee_intake.decide("Calculate my scholarship. " + message, profile, start, first_name=natural_name)
+            if step and step.get("action") == "ask":
+                conv_state["fee_intake"] = step["state"]
+                await memory.update_conversation_state(session_id, conversation_id, fee_intake=step["state"],
+                                                       **({"active_program": fee_prog} if fee_prog else {}))
+                short = fees.short_name(fee_prog) if fee_prog else ""
+                lead = (f"Before I give you the **{short}** fee, let's check your eligibility and scholarship, so any "
+                        "merit scholarship or special concession you qualify for is included in your final fee."
+                        if fee_prog else
+                        "Before I give you the fee, let's check your eligibility and scholarship, so any merit "
+                        "scholarship or special concession you qualify for is included in your final fee.")
+                body = _FEE_STEP_OPENER.sub("", step["text"]).strip()
+                if not fee_prog:
+                    body = ("Which B.Tech branch are you interested in?" if "branch" in step["text"]
+                            else "Which programme are you interested in?")
+                chips = list(step.get("chips") or [])
+                if fee_prog:
+                    chips.append(f"Just show the {short} fee")
+                async for ev in _say(f"{lead}\n\n{body}", message, session_id, conversation_id,
+                                     cards=step.get("cards") or [], suggestions=chips, exact_chips=True, profile=profile):
+                    yield ev
+                return
+            if step and step.get("action") == "calculate":
+                # Everything is known already: the same evaluation as "Calculate my scholarship", at once.
+                conv_state["fee_intake"] = start
+                await memory.update_conversation_state(session_id, conversation_id, fee_intake=start)
+                message = "Calculate my scholarship" + (f" for {fees.short_name(fee_prog)}" if fee_prog else "")
+
+        # Our own fee-plan questions and requests are answered below, not by the topic clarification:
+        # a concession picked in the table, "prepare my fee chart", the programme for a pending concession or
+        # chart, and yes / no to the fee chart offer.
+        fee_plan_turn = bool(
+            _FEE_CHART_REQUEST.search(message or "") or _concession_requested(message)
+            or ((conv_state.get("pending_concession") or conv_state.get("offer") == "fee_chart_program")
+                and fees.find_program(message))
+            or (conv_state.get("offer") == "fee_chart" and (_AFFIRM.match(message or "") or _DECLINE.match(message or ""))))
+        # ---- "What scholarships does SRU give?" (v4.14.0, 1,000-student test): the merit scholarship slabs from the
+        # official fee data, then the offer to work out the student's own. (It used to start the step questions at once.)
+        if not fee_plan_turn and _GENERAL_SCHOLARSHIP.search(message or "") and not re.search(r"\d", message or "") \
+                and not _OWN_FEE.search(message or "") \
+                and _one_question(message, profile):
+            sch_prog = fees.find_program(message or "") or conv_state.get("active_program") \
+                or profile.get("program_interest") or "btech_cse"
+            if sch_prog not in fees.load_data()["programs"]:
+                sch_prog = "btech_cse"
+            try:
+                slabs = compound.scholarship_overview_text(sch_prog)
+            except Exception:
+                slabs = ""
+            if slabs:
+                text = slabs
+                async for ev in _reply(text, message, session_id, conversation_id, client=client, history=history,
+                                       profile=profile, conv_state=conv_state,
+                                       suggestions=["Calculate my scholarship", "Special consideration"], exact_chips=True):
+                    yield ev
+                return
+
+        # ---- Placements (v4.14.0, 1,000-student test): "how are the placements?", "highest package", "do students get
+        # jobs after BBA" get the verified placement answer at once (it used to ask "what about placements?" first, or go
+        # to the model). Guarantee / recruiters / training / internships each get their own answer.
+        if not fee_plan_turn and _PLACEMENT_Q.search(message or "") and not tools.find_phone(message) \
+                and not intents.is_callback_request(message) and _one_question(message, profile) \
+                and not re.search(r"\b(?:fees?|cost|scholarship|eligib\w*|hostel|cut-?off)\b", message or "", re.I) \
+                and (side_q or not (dlg_busy or (conv_state.get("dialogue") or {}).get("step"))) \
+                and responses.placement_aspect(message) != "guarantee" \
+                and not re.search(r"\b(?:this|that|my|the\s+same)\s+(?:branch|course|programme|program)\b", message or "", re.I) \
+                and not (dialogue._broad_topic(message) == "placements" and len(re.findall(r"\w+", re.sub(
+                    r"^\s*(?:and\s+)?(?:what|how)\s+about|^\s*tell\s+me\s+about|\b(?:the|please|pls|at\s+sru|in\s+sru)\b",
+                    "", message or "", flags=re.I))) <= 2):
+            # (a guarantee question keeps its approved answer; "this branch" needs the programme; a bare "placements"
+            # still asks which aspect, as designed for broad topics)
+            from app.services.card_service import PLACEMENT_EXCELLENCE_CARD, get_session_shown_cards, record_session_card
+            p_text, p_chips, _aspect = responses.placement_reply(message, f"{session_id}{len(history)}")
+            p_prog = fees.find_program(message or "")
+            if p_prog and _aspect == "record":
+                p_text = (f"Yes. SRU's placement support (training and campus drives with 150+ recruiters) is for every "
+                          f"programme, including **{fees.short_name(p_prog)}**. " + p_text)
+            p_scope = f"{session_id}:{conversation_id or ''}"
+            p_cards = [] if "placement_card" in get_session_shown_cards(p_scope) else [PLACEMENT_EXCELLENCE_CARD]
+            if p_cards:
+                record_session_card(p_scope, "placement_card")
+            await memory.update_conversation_state(session_id, conversation_id, active_topic="placements")
+            async for ev in _reply(p_text, message, session_id, conversation_id, client=client, history=history,
+                                   profile=profile, conv_state=conv_state, cards=p_cards, suggestions=p_chips):
+                yield ev
+            return
+
+        # ---- Events, campus life, clubs, sports, hostel life and food (v4.14.0): answered from the approved facts and
+        # the admin panel's events (campus_life.py), with the events' photo cards and the official videos. A word that
+        # answers a pending step ("sports" for a concession) is left to that step; several questions go to compound.
+        if not fee_plan_turn and not tools.find_phone(message) and not intents.is_callback_request(message):
+            step_waiting = not side_q and bool(dlg_busy or (conv_state.get("dialogue") or {}).get("step")
+                                or conv_state.get("pending_concession") or conv_state.get("offer")
+                                or (conv_state.get(fee_journey.KEY) or {}).get("awaiting"))
+            campus_key = campus_life.topic(message, waiting=step_waiting)
+            if campus_key is None and conv_state.get("campus_offer") and _AFFIRM.match(message or "") \
+                    and len((message or "").split()) <= 4:
+                campus_key = conv_state.get("campus_offer")      # "yes" to "Would you like to see the other events?"
+            if campus_key and _one_question(message, profile):
+                ans = campus_life.answer(campus_key, message)
+                told = list(conv_state.get("campus_told") or [])
+                if campus_key in told and not campus_key.startswith("event:"):
+                    ans = campus_life.recap(campus_key, ans, message)  # asked again: a short recap, not the same block
+                told = (told + [campus_key])[-20:]
+                campus_cards = []
+                carousel = campus_life.event_cards(ans.event_ids)
+                if carousel:
+                    campus_cards.append(carousel)
+                from app.services.video_service import create_video_card, get_keyword_videos, video_by_id
+                vids = [v for v in (video_by_id(i) for i in ans.video_ids) if v]
+                if not vids and ans.video_query:
+                    shown = {v.get("id") for h in history or [] for c in (h.get("cards") or [])
+                             if isinstance(c, dict) for v in (c.get("videos") or []) if isinstance(v, dict)}
+                    vids = get_keyword_videos(ans.video_query, limit=2, exclude=shown)
+                if vids:
+                    campus_cards.append(create_video_card(vids[:2]))
+                offer = "events" if campus_key.startswith("event:") else (
+                    "clubs" if ans.text.rstrip().endswith("all 39 clubs?") else None)
+                await memory.update_conversation_state(session_id, conversation_id, campus_offer=offer,
+                                                       active_topic="campus_life", campus_told=told)
+                async for ev in _reply(ans.text, message, session_id, conversation_id, client=client, history=history,
+                                       profile=profile, conv_state=conv_state, cards=campus_cards, suggestions=ans.chips,
+                                       exact_chips=ans.options,
+                                       note="Answer only from these facts; do not add links or sources."):
+                    yield ev
+                return
+
+        if not dlg_busy and not fee_plan_turn and not tools.find_phone(message) and not intents.is_callback_request(message) \
+                and not intents.is_cancel_contact(message, bool(profile.get("last_lead_id"))):
+            dlg = dialogue.decide(message, conv_state, profile, name=natural_name)
+            if dlg:
+                new_dialogue = dlg.get("state")
+                if new_dialogue is not None:
+                    conv_state["dialogue"] = new_dialogue
+                    extra = {"active_program": new_dialogue["program"]} if new_dialogue.get("program") else {}
+                    conv_state.update(extra)
+                    await memory.update_conversation_state(session_id, conversation_id, dialogue=new_dialogue, **extra)
+                if dlg.get("profile_updates"):
+                    profile = await memory.update_profile(session_id, **dlg["profile_updates"])
+                    ctx["profile"] = profile
+                if dlg["kind"] == "reply":
+                    async for ev in _say(dlg["text"], message, session_id, conversation_id,
+                                         cards=dlg.get("cards") or [],
+                                         suggestions=dlg.get("chips") or [], exact_chips=True,
+                                         eligible=dlg.get("eligible")):
+                        yield ev
+                    return
+                if dlg["kind"] == "rewrite":
+                    message = dlg["message"]
+
+        # ---- Semantic Routing & Approved Answer Policy Matching ----
+        t0_routing = time.perf_counter()
+        routing_decision = semantic_router.route_message(message, history, conv_state)
+        routing_latency_ms = round((time.perf_counter() - t0_routing) * 1000, 2)
+
+        # State preservation: detect interruptions to active admission dialogue
+        is_admission_in_progress = bool(_intake_open(conv_state, message) or conv_state.get("admission_stage"))
+        paused_intent = conv_state.get("paused_intent")
+        if is_admission_in_progress and routing_decision.intent_id not in ("ADMISSION_DATA_INPUT", "ADMISSION_COUNSELLING"):
+            paused_intent = conv_state.get("current_intent") or "ADMISSION_COUNSELLING"
+
+        # Map semantic policy intent to agent execution intent
+        _SEMANTIC_TO_AGENT_INTENT = {
+            "ABOUT_SRU": "ABOUT_SRU_QUERY",
+            "WHY_CHOOSE_SRU": "WHY_CHOOSE_SRU_QUERY",
+            "PLACEMENT_GUARANTEE": "PLACEMENT_GUARANTEE_QUERY",
+            "ADMISSION_GUARANTEE": "ADMISSION_GUARANTEE_QUERY",
+            "HOSTEL_CURFEW": "HOSTEL_CURFEW_RULES_QUERY",
+            "HOSTEL_INFO": "HOSTEL_INFO_QUERY",
+            "FUTURE_YEAR_FEE": "FUTURE_YEAR_FEE_QUERY",
+            "SPECIAL_CONCESSIONS": "SPECIAL_CONCESSIONS_QUERY",
+            "DATE_QUERY": "DATE_QUERY",
+            "LAB_FACILITIES": "LAB_FACILITIES_QUERY",
+        }
+        legacy_intent = intents.classify_agent_intent(message, conv_state)
+        _SPECIFIC_FLOW_INTENTS = {
+            "FEE_TREE_QUERY", "BTECH_TREE_QUERY", "BTECH_CSE_FEE_QUERY", "BTECH_AI_ROBOTICS_FEE_QUERY",
+            "BTECH_ECE_FEE_QUERY", "BTECH_CORE_FEE_QUERY", "MANAGEMENT_FEE_QUERY", "AGRICULTURE_FEE_QUERY",
+            "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "CAMPUS_TOUR_DISPATCH", "CAMPUS_TOUR_VIRTUAL",
+            "CAMPUS_VISIT_BOOKING_WITH_DATE", "CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_INFO", "JOIN_SRU_QUERY",
+            "CONFUSION_QUERY", "NEXT_GEN_TECH_QUERY", "ALL_PROGRAMS_QUERY", "OTHER_FEES_QUERY",
+            "HOSTEL_FEE_QUERY", "HOSTEL_MESS_QUERY", "HOSTEL_SAFETY_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
+            "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ABOUT_SRU_QUERY",
+        }
+        if step_answer and not intents.is_callback_request(message):
+            intent = "GENERAL"            # the open fee step answers it (below)
+        elif legacy_intent in _SPECIFIC_FLOW_INTENTS:
+            intent = legacy_intent
+        elif routing_decision.policy_id and not routing_decision.is_fallback:
+            mapped_intent = _SEMANTIC_TO_AGENT_INTENT.get(routing_decision.intent_id)
+            intent = mapped_intent if mapped_intent else legacy_intent
         else:
-            await set_state(overviews_given=(given + [intent])[-20:])
+            intent = legacy_intent
 
-    # Check if welcome quick-action cards have been shown after lead collection
-    welcome_actions_shown = bool(
-        conv_state.get("welcome_actions_shown")
-        or profile.get("welcome_actions_shown")
-    )
-    answered_before = any(h.get("role") in ("model", "assistant") for h in history or [])
-    if require_contact_details and not welcome_actions_shown and existing_name and existing_phone \
-            and (intents.small_talk(message) != "greeting" or answered_before):
-        # (a "hi" after earlier answers in this chat is not a first visit: no welcome again, v4.14.0)
-        # A real question as the first message: answer it, and do not show the welcome greeting later.
-        await set_state(welcome_actions_shown=True)
-        await memory.update_profile(session_id, welcome_actions_shown=True)
-        welcome_actions_shown = True
-    if require_contact_details and not welcome_actions_shown and existing_name and existing_phone:
-        await set_state(welcome_actions_shown=True)
-        await memory.update_profile(session_id, welcome_actions_shown=True)
-        card_service.record_session_card(f"{session_id}:{conversation_id or ''}", "welcome_actions")
-        first_name = _first_name(existing_name)
-        first_name = first_name[:1].upper() + first_name[1:]
-        # The quick-action tiles are already on the opening welcome message, so they are not repeated here.
-        welcome_text = (
-            f"Welcome to SR University, **{first_name}**! 🎓\n\n"
-            "I'm **SRU Buddy**, your official AI companion. Tap one of the quick options above, or ask me "
-            "anything about programmes, fees, scholarships or campus life."
+
+        # A fixed overview (a programme, labs, canteen, evaluation, all programmes...) is given once per
+        # conversation. Asked again, the question goes to the model with the conversation, which answers
+        # the follow-up instead of re-sending the same block.
+        if intent in _OVERVIEW_INTENTS:
+            given = list(conv_state.get("overviews_given") or [])
+            if intent in given:
+                intent = "GENERAL"
+            else:
+                await set_state(overviews_given=(given + [intent])[-20:])
+
+        # Check if welcome quick-action cards have been shown after lead collection
+        welcome_actions_shown = bool(
+            conv_state.get("welcome_actions_shown")
+            or profile.get("welcome_actions_shown")
         )
-        async for ev in _say(
-            welcome_text,
-            message,
-            session_id,
-            conversation_id,
-            suggestions=list(card_service.POST_WELCOME_CHIPS),
-            exact_chips=True,
-        ):
-            yield ev
-        return
-
-    # ---- One message, several questions: answer each part (compound.plan has the safety rules) ----
-    compound_plan = None
-    if not form and not dlg_busy and not fee_plan_turn and not _concession_requested(message) \
-            and not conv_state.get("offer"):
-        compound_plan = compound.plan(message, profile)
-    if compound_plan:
-        log.info("Agent compound query: %d parts for '%s'", len(compound_plan), message[:60])
-        resolved_parts, combined_cards, combined_chips, seen_card_types = [], [], [], set()
-        for sq, sq_topic in compound_plan:
-            part_text, part_cards, part_chips = await _resolve_sub_query(sq, sq_topic, session_id)
-            if part_text:
-                resolved_parts.append(part_text.strip())
-            for c in part_cards:
-                ctype = c.get("type") if isinstance(c, dict) else str(c)
-                if ctype not in seen_card_types:
-                    seen_card_types.add(ctype)
-                    combined_cards.append(c)
-            for chip in part_chips:
-                if chip not in combined_chips:
-                    combined_chips.append(chip)
-        if resolved_parts and compound.from_other_state(message):
-            conc = next((c for c in fees.load_data().get("special_concessions", []) if c["key"] == "non_local"), None)
-            if conc:
-                resolved_parts.append(
-                    f"Coming from outside Telangana and Andhra Pradesh? The 2027-28 fee circular has a special concession "
-                    f"of **{fees.inr(int(conc['amount']))} a year** for students from outside Telangana and AP, applied after the "
-                    "Admissions Office verifies your proof.")
-        if resolved_parts:
-            # A side question during an unfinished fee evaluation keeps the "continue" button (docs/36 rule 2).
-            chips = await _with_resume_chip(session_id, conversation_id, combined_chips[:4])
-            async for ev in _reply(
-                "\n\n---\n\n".join(resolved_parts),
+        answered_before = any(h.get("role") in ("model", "assistant") for h in history or [])
+        if require_contact_details and not welcome_actions_shown and existing_name and existing_phone \
+                and (intents.small_talk(message) != "greeting" or answered_before):
+            # (a "hi" after earlier answers in this chat is not a first visit: no welcome again, v4.14.0)
+            # A real question as the first message: answer it, and do not show the welcome greeting later.
+            await set_state(welcome_actions_shown=True)
+            await memory.update_profile(session_id, welcome_actions_shown=True)
+            welcome_actions_shown = True
+        if require_contact_details and not welcome_actions_shown and existing_name and existing_phone:
+            await set_state(welcome_actions_shown=True)
+            await memory.update_profile(session_id, welcome_actions_shown=True)
+            card_service.record_session_card(f"{session_id}:{conversation_id or ''}", "welcome_actions")
+            first_name = _first_name(existing_name)
+            first_name = first_name[:1].upper() + first_name[1:]
+            # The quick-action tiles are already on the opening welcome message, so they are not repeated here.
+            welcome_text = (
+                f"Welcome to SR University, **{first_name}**! 🎓\n\n"
+                "I'm **SRU Buddy**, your official AI companion. Tap one of the quick options above, or ask me "
+                "anything about programmes, fees, scholarships or campus life."
+            )
+            async for ev in _say(
+                welcome_text,
                 message,
                 session_id,
                 conversation_id,
-                cards=combined_cards,
-                suggestions=chips,
+                suggestions=list(card_service.POST_WELCOME_CHIPS),
                 exact_chips=True,
-                resume=False,
-                client=client, history=history, profile=profile, conv_state=conv_state,
-                note="The message asks several things: answer every part, each in its own short section.",
             ):
                 yield ev
             return
 
-    # Persist preserved state variables
-    await set_state(
-        current_intent=routing_decision.intent_id,
-        paused_intent=paused_intent,
-        collected_data=profile or {},
-        pending_question=conv_state.get("pending_user_question"),
-    )
+        # ---- One message, several questions: answer each part (compound.plan has the safety rules) ----
+        compound_plan = None
+        if not form and not dlg_busy and not fee_plan_turn and not _concession_requested(message) \
+                and not conv_state.get("offer"):
+            compound_plan = compound.plan(message, profile)
+        if compound_plan:
+            log.info("Agent compound query: %d parts for '%s'", len(compound_plan), message[:60])
+            resolved_parts, combined_cards, combined_chips, seen_card_types = [], [], [], set()
+            for sq, sq_topic in compound_plan:
+                part_text, part_cards, part_chips = await _resolve_sub_query(sq, sq_topic, session_id)
+                if part_text:
+                    resolved_parts.append(part_text.strip())
+                for c in part_cards:
+                    ctype = c.get("type") if isinstance(c, dict) else str(c)
+                    if ctype not in seen_card_types:
+                        seen_card_types.add(ctype)
+                        combined_cards.append(c)
+                for chip in part_chips:
+                    if chip not in combined_chips:
+                        combined_chips.append(chip)
+            if resolved_parts and compound.from_other_state(message):
+                conc = next((c for c in fees.load_data().get("special_concessions", []) if c["key"] == "non_local"), None)
+                if conc:
+                    resolved_parts.append(
+                        f"Coming from outside Telangana and Andhra Pradesh? The 2027-28 fee circular has a special concession "
+                        f"of **{fees.inr(int(conc['amount']))} a year** for students from outside Telangana and AP, applied after the "
+                        "Admissions Office verifies your proof.")
+            if resolved_parts:
+                # A side question during an unfinished fee evaluation keeps the "continue" button (docs/36 rule 2).
+                chips = await _with_resume_chip(session_id, conversation_id, combined_chips[:4])
+                async for ev in _reply(
+                    "\n\n---\n\n".join(resolved_parts),
+                    message,
+                    session_id,
+                    conversation_id,
+                    cards=combined_cards,
+                    suggestions=chips,
+                    exact_chips=True,
+                    resume=False,
+                    client=client, history=history, profile=profile, conv_state=conv_state,
+                    note="The message asks several things: answer every part, each in its own short section.",
+                ):
+                    yield ev
+                return
 
-    turn_telemetry = observability.PolicyTurnTelemetry(
-        session_id=session_id,
-        conversation_id=conversation_id,
-        message=message,
-        detected_intent=routing_decision.intent_id,
-        selected_policy_id=routing_decision.policy_id,
-        policy_version=routing_decision.policy_version,
-        response_mode=routing_decision.response_mode.value if hasattr(routing_decision.response_mode, "value") else str(routing_decision.response_mode),
-        retrieved_evidence_ids=routing_decision.evidence_ids,
-        routing_confidence=routing_decision.confidence,
-        fallback_decision=routing_decision.is_fallback,
-        fallback_reason=routing_decision.fallback_reason,
-        routing_latency_ms=routing_latency_ms,
-    )
+        # Persist preserved state variables
+        await set_state(
+            current_intent=routing_decision.intent_id,
+            paused_intent=paused_intent,
+            collected_data=profile or {},
+            pending_question=conv_state.get("pending_user_question"),
+        )
 
-    async def clear_pending():
-        await set_state(pending_action=None, pending_phone=None, pending_name=None, pending_turns=0)
+        turn_telemetry = observability.PolicyTurnTelemetry(
+            session_id=session_id,
+            conversation_id=conversation_id,
+            message=message,
+            detected_intent=routing_decision.intent_id,
+            selected_policy_id=routing_decision.policy_id,
+            policy_version=routing_decision.policy_version,
+            response_mode=routing_decision.response_mode.value if hasattr(routing_decision.response_mode, "value") else str(routing_decision.response_mode),
+            retrieved_evidence_ids=routing_decision.evidence_ids,
+            routing_confidence=routing_decision.confidence,
+            fallback_decision=routing_decision.is_fallback,
+            fallback_reason=routing_decision.fallback_reason,
+            routing_latency_ms=routing_latency_ms,
+        )
 
-    # Track conversational topic and program across turns
-    active_topic = conv_state.get("active_topic")
-    active_program = conv_state.get("active_program")
+        # Track conversational topic and program across turns
+        active_topic = conv_state.get("active_topic")
+        active_program = conv_state.get("active_program")
 
-    current_topic = followups.topic_of(message, used, active_topic=active_topic)
-    if current_topic:
-        active_topic = current_topic
-        await set_state(active_topic=active_topic)
+        current_topic = followups.topic_of(message, used, active_topic=active_topic)
+        if current_topic:
+            active_topic = current_topic
+            await set_state(active_topic=active_topic)
 
-    # Track conversational program and course changes across turns. "Change CSE to ECE" / "switch from MBA
-    # to BBA" names two programmes: the one after "to" is the student's new choice.
-    explicit_msg_prog = _switch_target_program(message) or fees.find_program(message)
-    previous_active_prog = conv_state.get("active_program") or (profile.get("program_interest") if profile else None)
+        # Track conversational program and course changes across turns. "Change CSE to ECE" / "switch from MBA
+        # to BBA" names two programmes: the one after "to" is the student's new choice.
+        explicit_msg_prog = _switch_target_program(message) or fees.find_program(message)
+        previous_active_prog = conv_state.get("active_program") or (profile.get("program_interest") if profile else None)
 
-    if explicit_msg_prog:
-        active_program = explicit_msg_prog
-        if profile is not None:
-            profile["program_interest"] = explicit_msg_prog
-        await memory.update_profile(session_id, program_interest=explicit_msg_prog)
+        if explicit_msg_prog:
+            active_program = explicit_msg_prog
+            if profile is not None:
+                profile["program_interest"] = explicit_msg_prog
+            await memory.update_profile(session_id, program_interest=explicit_msg_prog)
 
-        # Handle course switch
-        if previous_active_prog and previous_active_prog != explicit_msg_prog:
-            data = fees.load_data()
-            old_level = data.get("programs", {}).get(previous_active_prog, {}).get("level", "ug")
-            new_level = data.get("programs", {}).get(explicit_msg_prog, {}).get("level", "ug")
-            current_intake = dict(conv_state.get("fee_intake") or {})
-            if current_intake:
-                current_intake["program"] = explicit_msg_prog
-                if old_level != new_level:
-                    for k_clr in (
-                        "board", "board_label", "board_key", "academic_stage", "stage_label",
-                        "raw_marks", "max_marks", "percent", "is_projected", "admission_route",
-                        "route_label", "eapcet_rank", "jee_percentile", "ib_score"
-                    ):
-                        current_intake.pop(k_clr, None)
-                        if profile is not None:
-                            profile.pop(k_clr, None)
-            await set_state(
-                active_program=explicit_msg_prog,
-                fee_flow_prog=explicit_msg_prog,
-                fee_tree_step=None,
-                fee_intake=current_intake if current_intake.get("waiting_for") else None,
-            )
+            # Handle course switch
+            if previous_active_prog and previous_active_prog != explicit_msg_prog:
+                data = fees.load_data()
+                old_level = data.get("programs", {}).get(previous_active_prog, {}).get("level", "ug")
+                new_level = data.get("programs", {}).get(explicit_msg_prog, {}).get("level", "ug")
+                current_intake = dict(conv_state.get("fee_intake") or {})
+                if current_intake:
+                    current_intake["program"] = explicit_msg_prog
+                    if old_level != new_level:
+                        for k_clr in (
+                            "board", "board_label", "board_key", "academic_stage", "stage_label",
+                            "raw_marks", "max_marks", "percent", "is_projected", "admission_route",
+                            "route_label", "eapcet_rank", "jee_percentile", "ib_score"
+                        ):
+                            current_intake.pop(k_clr, None)
+                            if profile is not None:
+                                profile.pop(k_clr, None)
+                await set_state(
+                    active_program=explicit_msg_prog,
+                    fee_flow_prog=explicit_msg_prog,
+                    fee_tree_step=None,
+                    fee_intake=current_intake if current_intake.get("waiting_for") else None,
+                )
+            else:
+                current_intake = dict(conv_state.get("fee_intake") or {})
+                if current_intake.get("waiting_for"):
+                    current_intake["program"] = explicit_msg_prog
+                    await set_state(
+                        active_program=active_program,
+                        fee_flow_prog=active_program,
+                        fee_intake=current_intake,
+                    )
+                else:
+                    await set_state(
+                        active_program=active_program,
+                        fee_flow_prog=active_program,
+                    )
         else:
+            # The student's latest choice wins: program_interest is also changed from Settings > My details and by
+            # the "update my programme" tool, which do not touch this conversation's state.
+            active_program = (
+                (profile.get("program_interest") if profile else None)
+                or conv_state.get("active_program")
+                or ((conv_state.get("fee_intake") or {}).get("program"))
+            )
+            if active_program:
+                intake_prog = (conv_state.get("fee_intake") or {}).get("program")
+                if intake_prog and fees.find_program(str(intake_prog)) not in (None, active_program):
+                    # an estimate started for the previous programme continues for the new one
+                    await set_state(fee_intake={**conv_state["fee_intake"], "program": active_program},
+                                    fee_flow_prog=active_program)
+                await set_state(active_program=active_program)
+                if profile is not None and not profile.get("program_interest"):
+                    profile["program_interest"] = active_program
+                    await memory.update_profile(session_id, program_interest=active_program)
+
+        # Early extract academic facts (board, stage, marks, rank) so they are preserved across turns
+        early_details = fee_intake.parse_details(message)
+        academic_updates = {}
+        for k in (
+            "board", "board_label", "board_key", "academic_stage", "stage_label",
+            "raw_marks", "max_marks", "percent", "is_projected", "admission_route",
+            "route_label", "eapcet_rank", "jee_percentile", "ib_score"
+        ):
+            if early_details.get(k) is not None:
+                if profile is not None:
+                    profile[k] = early_details[k]
+                academic_updates[k] = early_details[k]
+
+        # Synchronize percentage when raw marks are corrected in a multi-turn session
+        if early_details.get("raw_marks") is not None:
+            old_raw = (profile or {}).get("raw_marks")
+            new_raw = early_details["raw_marks"]
+            if old_raw and old_raw != new_raw and not early_details.get("percent"):
+                max_m = (profile or {}).get("max_marks")
+                if max_m and max_m > 0:
+                    new_pct = round((new_raw / max_m) * 100, 2)
+                    academic_updates["percent"] = new_pct
+                    if profile is not None:
+                        profile["percent"] = new_pct
+                else:
+                    academic_updates["percent"] = None
+                    if profile is not None:
+                        profile["percent"] = None
+        if early_details.get("generic_btech") and not (profile or {}).get("degree_interest") and not (profile or {}).get("program_interest"):
+            academic_updates["degree_interest"] = "btech"
+            academic_updates["generic_btech"] = True
+            if profile is not None:
+                profile["degree_interest"] = "btech"
+                profile["generic_btech"] = True
+        if academic_updates:
+            await memory.update_profile(session_id, **academic_updates)
             current_intake = dict(conv_state.get("fee_intake") or {})
             if current_intake.get("waiting_for"):
-                current_intake["program"] = explicit_msg_prog
-                await set_state(
-                    active_program=active_program,
-                    fee_flow_prog=active_program,
-                    fee_intake=current_intake,
-                )
-            else:
-                await set_state(
-                    active_program=active_program,
-                    fee_flow_prog=active_program,
-                )
-    else:
-        # The student's latest choice wins: program_interest is also changed from Settings > My details and by
-        # the "update my programme" tool, which do not touch this conversation's state.
-        active_program = (
-            (profile.get("program_interest") if profile else None)
-            or conv_state.get("active_program")
-            or ((conv_state.get("fee_intake") or {}).get("program"))
-        )
-        if active_program:
-            intake_prog = (conv_state.get("fee_intake") or {}).get("program")
-            if intake_prog and fees.find_program(str(intake_prog)) not in (None, active_program):
-                # an estimate started for the previous programme continues for the new one
-                await set_state(fee_intake={**conv_state["fee_intake"], "program": active_program},
-                                fee_flow_prog=active_program)
-            await set_state(active_program=active_program)
-            if profile is not None and not profile.get("program_interest"):
-                profile["program_interest"] = active_program
-                await memory.update_profile(session_id, program_interest=active_program)
+                current_intake.update(academic_updates)
+                await set_state(fee_intake=current_intake)
 
-    # Early extract academic facts (board, stage, marks, rank) so they are preserved across turns
-    early_details = fee_intake.parse_details(message)
-    academic_updates = {}
-    for k in (
-        "board", "board_label", "board_key", "academic_stage", "stage_label",
-        "raw_marks", "max_marks", "percent", "is_projected", "admission_route",
-        "route_label", "eapcet_rank", "jee_percentile", "ib_score"
-    ):
-        if early_details.get(k) is not None:
-            if profile is not None:
-                profile[k] = early_details[k]
-            academic_updates[k] = early_details[k]
+        # Detect user persona and style
+        persona = intents.detect_user_persona(message, history, profile)
+        if persona == "parent" and not profile.get("is_parent"):
+            profile["is_parent"] = True
+            await memory.update_profile(session_id, is_parent=True)
 
-    # Synchronize percentage when raw marks are corrected in a multi-turn session
-    if early_details.get("raw_marks") is not None:
-        old_raw = (profile or {}).get("raw_marks")
-        new_raw = early_details["raw_marks"]
-        if old_raw and old_raw != new_raw and not early_details.get("percent"):
-            max_m = (profile or {}).get("max_marks")
-            if max_m and max_m > 0:
-                new_pct = round((new_raw / max_m) * 100, 2)
-                academic_updates["percent"] = new_pct
-                if profile is not None:
-                    profile["percent"] = new_pct
-            else:
-                academic_updates["percent"] = None
-                if profile is not None:
-                    profile["percent"] = None
-    if early_details.get("generic_btech") and not (profile or {}).get("degree_interest") and not (profile or {}).get("program_interest"):
-        academic_updates["degree_interest"] = "btech"
-        academic_updates["generic_btech"] = True
-        if profile is not None:
-            profile["degree_interest"] = "btech"
-            profile["generic_btech"] = True
-    if academic_updates:
-        await memory.update_profile(session_id, **academic_updates)
-        current_intake = dict(conv_state.get("fee_intake") or {})
-        if current_intake.get("waiting_for"):
-            current_intake.update(academic_updates)
-            await set_state(fee_intake=current_intake)
-
-    # Detect user persona and style
-    persona = intents.detect_user_persona(message, history, profile)
-    if persona == "parent" and not profile.get("is_parent"):
-        profile["is_parent"] = True
-        await memory.update_profile(session_id, is_parent=True)
-
-    # Extract name if user provided one
-    awaiting_name = bool(conv_state.get("awaiting_name"))
-    extracted_name = intents.extract_name(message, bare_ok=awaiting_name)
-    if extracted_name and not profile.get("name"):
-        profile["name"] = extracted_name
-        await memory.update_profile(session_id, name=extracted_name)
-        await set_state(name_asked=True, awaiting_name=False)
-
-    # ---- Handle Turn 2 after name was requested ----
-    if awaiting_name:
-        if extracted_name:
-            await set_state(awaiting_name=False)
-            pending_q = conv_state.get("pending_user_question")
-            if pending_q:
-                # Answer the question asked in Turn 1 immediately
-                await set_state(pending_user_question=None)
-                message = pending_q
-                intent = intents.classify_agent_intent(message, conv_state)
-            else:
-                # User had only sent a greeting in Turn 1
-                async for ev in _small_talk_reply("name_given", message, session_id, conversation_id, client=client,
-                                                  history=history, profile=profile, conv_state=conv_state,
-                                                  suggestions=_SMALL_TALK_CHIPS,
-                                                  name=_first_name(extracted_name)):
-                    yield ev
-                return
-        else:
-            # User declined, skipped, or asked another question
-            await set_state(awaiting_name=False)
-            pending_q = conv_state.get("pending_user_question")
-            if pending_q and intents.is_refusal_or_skip(message):
-                await set_state(pending_user_question=None)
-                message = pending_q
-                intent = intents.classify_agent_intent(message, conv_state)
-            elif pending_q:
-                await set_state(pending_user_question=None)
-
-    # ---- 1. Things the code can answer by itself ------------------------------------------
-    if intent == "DATE_QUERY":
-        async for ev in _say(f"Today is {date.today():%B %d, %Y}.", message, session_id, conversation_id,
-                             suggestions=["Plan a campus visit", "What are the B.Tech CSE fees?",
-                                          "Hostel rules & curfew"]):
-            yield ev
-        return
-
-    if intent == "CONFUSION_QUERY":
-        async for ev in _reply("Sorry for the confusion! I'm here to help clarify. Could you share what specific details you're looking for? "
-                               "I can help with B.Tech & PG programs, fee structure, scholarships, placements, or visiting the campus.",
-                               message, session_id, conversation_id,
-                               suggestions=["B.Tech CSE fees", "Scholarship slabs", "Placements at SRU", "Plan a campus visit"],
-                               client=client, history=history, profile=profile, conv_state=conv_state,
-                               note="The student is confused: use the conversation to see what about, clear it up in "
-                                    "one or two sentences, and ask one specific question only if still needed."):
-            yield ev
-        return
-
-    if intent == "JOIN_SRU_QUERY":
-        flow_card = fee_flow.build_school_selection_card()
-        async for ev in _reply(
-            "That's great! Which course or degree are you interested in pursuing at SR University?\n\n"
-            "We offer diverse undergraduate and postgraduate programs across Engineering, Management, "
-            "Agriculture, Computer Applications, and Sciences. Choose an academic area below or tell me your preferred course:",
-            message,
-            session_id,
-            conversation_id,
-            cards=[flow_card],
-            suggestions=["B.Tech Engineering", "MBA", "BBA", "B.Sc (Hons) Agriculture", "Explore all programs"],
-            client=client, history=history, profile=profile, conv_state=conv_state,
-            note="Ask which course they want (one question); never assume a course.",
-        ):
-            yield ev
-        return
-
-    # Greetings and small talk: written by the model for this conversation (v4.13.0: no greeting bank).
-    chat = intents.small_talk(message) if intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO") else None
-    if chat:
-        if chat == "greeting" and not profile.get("name"):
-            # No name on file (the widget's contact form normally collects it): the next message is read as the name.
-            await set_state(awaiting_name=True, name_asked=True)
-        kind = chat if chat in _SMALL_TALK_BRIEFS else "greeting"
-        if chat == "greeting" and not profile.get("name"):
-            kind = "greeting_ask_name"
-        step = _open_step(profile, conv_state) if chat in ("greeting", "how_are_you") and profile.get("name") else None
-        if step:
-            # A greeting in the middle of the fee steps: say hello, then the same question again (nothing reset).
-            first = _first_name(profile.get("name")) if profile.get("address_by_name") is not False else ""
-            name_bit = f", {first}" if first else ""
-            hello = (_vary(["I'm doing well, thanks for asking!", "All good here, thank you!",
-                            "Doing great, thanks!"], session_id, message, len(history or []))
-                     if chat == "how_are_you" else
-                     _vary([f"Hi{name_bit}!", f"Hello{name_bit}!", f"Hey{name_bit}!"],
-                           session_id, message, len(history or [])))
-            if _use_model(client):   # the hello is written for this conversation; the step itself stays exact
-                words = await _model_words(
-                    "REPLY BRIEF: The student said hello (or asked how you are) in the middle of their fee estimate. "
-                    "Reply warmly in ONE short sentence (use their first name if known) and say you'll carry on with "
-                    "the estimate. Do not ask any question and do not mention amounts.", message, session_id,
-                    history=history, profile=profile, conv_state=conv_state, client=client)
-                if words and "?" not in words and len(words) < 200:
-                    hello = words.strip()
-            if step.get("fee_state"):
-                await set_state(**{fee_journey.KEY: step["fee_state"]})
-            joined = hello if re.search(r"carry on|continue|pick up", hello, re.I) else \
-                f"{hello} " + _vary(["Let's carry on with your fee estimate.", "Let's pick up your fee estimate.",
-                                     "We were in the middle of your fee estimate, so let's continue."],
-                                    session_id, len(history or []))
-            async for ev in _say(f"{joined}\n\n{step['text']}", message,
-                                 session_id, conversation_id, cards=step["cards"], suggestions=step["chips"],
-                                 exact_chips=True, profile=profile, resume=False):
-                yield ev
-            return
-        # Starting points after a greeting; nothing after "thanks" / "bye" (the student is wrapping up).
-        chips = [] if chat in ("thanks", "bye") else _SMALL_TALK_CHIPS
-        async for ev in _small_talk_reply(kind, message, session_id, conversation_id, client=client, history=history,
-                                          profile=profile, conv_state=conv_state, suggestions=chips):
-            yield ev
-        return
-
-    # ---- 1b. Deterministic quick responses (placement assistance, special concessions, next-gen tech, fee tree, all programs) ----
-    # "Change my academic details / marks": forget them for this chat and ask again, one step at a time.
-    _has_marks = any(fee_intake.parse_details(message).get(k) is not None for k in ("raw_marks", "percent"))
-    if _CHANGE_ACADEMIC.search(message) and not tools.find_phone(message) and not _has_marks:
-        keys = [k for k in fee_intake._ACADEMIC_FIELDS if profile.get(k) not in (None, "")]
-        if keys or (conv_state.get("fee_intake") or {}).get("ineligible"):
-            profile = await memory.remove_profile_keys(session_id, *keys) if keys else profile
-            ctx["profile"] = profile
-            prog = active_program or (conv_state.get("fee_intake") or {}).get("program")
-            fresh_intake = {"counsellor_mode": True, **({"program": prog} if prog else {})}
-            step = fee_intake.decide("Calculate my scholarship", profile, fresh_intake)
-            if step and step.get("action") == "ask":
-                await set_state(fee_intake=step["state"])
-                async for ev in _say("No problem, let's update them. " + step["text"].replace("Sure! ", "").replace(
-                        "Sure, ", ""), message, session_id, conversation_id, cards=step.get("cards") or [],
-                        suggestions=step.get("chips") or [], exact_chips=True):
-                    yield ev
-                return
-
-    # (v4.11.0) A concession picked or asked for ("add the sibling concession to my fee") is handled by the fee
-    # evaluation agent above (fee_journey): it is evaluated, never applied straight away.
-
-    # The complete first-year fee chart (asked for, or "yes" to the offer made after a fee with hostel or
-    # transport): every line from the official fee data, with a Share button on the card.
-    offer = conv_state.get("offer")
-    wants_chart = bool(_FEE_CHART_REQUEST.search(message or "")) or (
-        offer in ("fee_chart", "fee_chart_program") and bool(_AFFIRM.match(message or "")))
-    if offer == "fee_chart_program" and fees.find_program(message):
-        wants_chart = True
-    if offer and not wants_chart:
-        await set_state(offer=None)
-        if offer == "fee_chart" and _DECLINE.match(message or ""):
-            async for ev in _say("No problem! What else would you like to know?", message, session_id,
-                                 conversation_id):
-                yield ev
-            return
-    if wants_chart:
-        last = conv_state.get("last_fee_args") or {}
-        program = fees.find_program(message) or last.get("program") or active_program
-        if not program:
-            await set_state(offer="fee_chart_program")
-            async for ev in _say("Sure! Which programme should the fee chart be for?", message, session_id,
-                                 conversation_id, suggestions=["B.Tech CSE", "B.Tech ECE", "B.Tech AI & Robotics", "BBA"],
-                                 exact_chips=True):
-                yield ev
-            return
-        said = _fee_args_from_message(message, profile) or {}
-        hostel = said.get("hostel") or (last.get("hostel") if last.get("program") == program else None) or "none"
-        transport = bool(said.get("transport") or (last.get("transport") if last.get("program") == program else False))
-        chart = fee_plan.full_fee_chart(program, profile, hostel=hostel, transport=transport,
-                                        concession=conv_state.get("selected_concession"))
-        if chart:
-            chart["share_text"] = fee_plan.chart_share_text(chart)
-            await set_state(offer=None, active_program=program)
-            chips = ["How is the fee paid each semester?", "How do I apply for 2027-28?"]
-            if not conv_state.get("selected_concession"):
-                chips.insert(0, "Special category concessions")
-            if hostel == "none":
-                chips.insert(0, f"Add hostel to my {fees.short_name(program)} fee")
-            async for ev in _say(f"Here's your complete {chart['academic_year']} fee chart for **{chart['program']}**. "
-                                 "Tap **Share** to send it to your family.", message, session_id, conversation_id,
-                                 cards=[{"type": "fee_plan", "data": chart}], suggestions=chips[:3], exact_chips=True):
-                yield ev
-            return
-
-    if intent in ("PLACEMENT_GUARANTEE_QUERY", "PLACEMENT_INFO_QUERY"):
-        # A short answer to the aspect asked (record, recruiters, training, internships, guarantee); the
-        # placement card once per conversation, under the record / recruiters answers.
-        from app.services.card_service import PLACEMENT_EXCELLENCE_CARD, get_session_shown_cards, record_session_card
-        reply, chips, aspect = responses.placement_reply(message, f"{session_id}{len(history)}{message}")
-        scope = f"{session_id}:{conversation_id or ''}"
-        cards_to_show = []
-        if aspect in ("record", "recruiters", "guarantee") and "placement_highlights" not in get_session_shown_cards(scope):
-            cards_to_show = [PLACEMENT_EXCELLENCE_CARD]
-            record_session_card(scope, "placement_highlights")
-        await set_state(placement_seen=True)
-        async for ev in _reply(reply, message, session_id, conversation_id,
-                             cards=cards_to_show, suggestions=chips, client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-
-    if intent == "ADMISSION_GUARANTEE_QUERY":
-        await set_state(fee_intake=None)
-        async for ev in _reply(_ADMISSION_GUARANTEE_TEXT, message, session_id, conversation_id,
-                             suggestions=_ADMISSION_GUARANTEE_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-
-    if intent == "FUTURE_YEAR_FEE_QUERY":
-        await set_state(fee_intake=None)
-        text = _FUTURE_YEAR_FEE_TEXT
-        named = fees.find_program(message)
-        if named:
-            # The programme asked about: its latest verified figure, clearly labelled as 2027-28.
-            prog = fees.load_data()["programs"][named]
-            text = text.replace(
-                "\n\nWould you like the 2027-28 fees for a particular programme?",
-                f"\n\nThe latest verified figure for **{fees.clean_program_name(named)}** is the "
-                f"{config.ADMISSION_YEAR} tuition of **{fees.inr(prog['tuition_per_year'])} per year** "
-                f"(yearly increase for students admitted in {config.ADMISSION_YEAR}: "
-                f"{fees.inr(prog.get('yearly_increase', 0))}). Would you like the full {config.ADMISSION_YEAR} "
-                f"fee breakdown for it?")
-        async for ev in _reply(text, message, session_id, conversation_id,
-                             suggestions=_FUTURE_YEAR_FEE_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-
-    # A cut-off / closing-rank question asks for a figure SRU doesn't publish: say so (never the scholarship steps).
-    if _CUTOFF_FACT.search(message or "") and not (conv_state.get("fee_intake") or {}).get("waiting_for"):
-        async for ev in _reply(_CUTOFF_TEXT, message, session_id, conversation_id,
-                               suggestions=["Eligibility for B.Tech CSE", "Calculate my scholarship", "How do I apply?"],
-                               client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-
-    # A student describing a special category ("my brother studies at SRU, any discount?"): the concessions, with
-    # that category named, not the scholarship steps (v4.13.0, docs/36 rule 1: the meaning before the keyword).
-    asks_discount = bool(_DISCOUNT_ASK.search(message or ""))
-    group = fee_plan.concessions_for_group(message) if asks_discount and not fee_plan.find_concession(message) else []
-    described = fee_plan.infer_concession(message) if asks_discount and not group else None
-    if intent == "SPECIAL_CONCESSIONS_QUERY" or described or group:
-        # The answer IS the table (pick a row to apply it to your fee), so it is shown every time it is asked,
-        # with a one-line lead instead of the list in text.
-        data = fees.special_concessions()
-        lead = responses.special_concessions_lead(data, active_program)
-        if group:
-            lead = ("These official concessions may fit:\n\n"
-                    + "\n".join(f"• **{g['label']}**: {fees.inr(g['amount'])} a year" for g in group)
-                    + "\n\nEach is applied only after the Admissions Office verifies the proof: pick the one that "
-                      "applies below to see what it would mean for your fee.")
-        elif described:
-            lead = (f"The **{described['label']}** concession (**{fees.inr(described['amount'])} a year**) looks like "
-                    "it fits. It is applied only after the Admissions Office verifies the proof: pick it below to see "
-                    "what it would mean for your fee.")
-        async for ev in _reply(lead, message,
-                               session_id, conversation_id,
-                               used=[{"name": "get_special_concessions", "status": "ok", "is_action": False}],
-                               cards=[fee_plan.concession_card(active_program, in_evaluation=False)],
-                               suggestions=["Calculate my scholarship", "Documents needed for the concession"],
-                               exact_chips=True, client=client, history=history, profile=profile,
-                               conv_state=conv_state):
-            yield ev
-        return
-
-    if intent == "NEXT_GEN_TECH_QUERY":
-        async for ev in _reply(_NEXT_GEN_TECH_TEXT, message, session_id, conversation_id,
-                             suggestions=["Fee for AI & Robotics", "B.Tech CSE fee structure",
-                                          "Calculate my scholarship", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-
-    if intent == "ALL_PROGRAMS_QUERY":
-        async for ev in _reply(_ALL_PROGRAMS_TEXT, message, session_id, conversation_id,
-                             suggestions=["Fee Structure 2027-28", "Next-Gen Tech Programs",
-                                          "Special Concessions", "Calculate my scholarship"], client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-
-    if intent == "OTHER_FEES_QUERY" and (_is_mock_or_test_client(client) or client is None):
-        from app.services.card_service import OTHER_FEES_CARD, get_session_shown_cards, record_session_card
-        cards_to_show = []
-        if "fee_breakdown" not in get_session_shown_cards(f"{session_id}:{conversation_id or ''}"):
-            cards_to_show = [OTHER_FEES_CARD]
-            record_session_card(f"{session_id}:{conversation_id or ''}", "fee_breakdown")
-        async for ev in _reply(responses._OTHER_FEES_TEXT, message, session_id, conversation_id,
-                             cards=cards_to_show,
-                             suggestions=responses._OTHER_FEES_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-            yield ev
-        return
-
-    if bool(tools.find_phone(message) or intents.is_callback_request(message)):
-        canned_intents = (
-            "FEE_TREE_QUERY", "BTECH_TREE_QUERY", "BTECH_CSE_FEE_QUERY", "BTECH_AI_ROBOTICS_FEE_QUERY",
-            "BTECH_ECE_FEE_QUERY", "BTECH_CORE_FEE_QUERY", "MANAGEMENT_FEE_QUERY", "AGRICULTURE_FEE_QUERY",
-            "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "HOSTEL_INFO_QUERY", "HOSTEL_MESS_QUERY",
-            "HOSTEL_CURFEW_RULES_QUERY", "HOSTEL_SAFETY_QUERY", "HOSTEL_FEE_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
-            "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY", "OTHER_FEES_QUERY",
-            "LAB_FACILITIES_QUERY", "WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY", "ADMISSION_GUARANTEE_QUERY",
-            "FUTURE_YEAR_FEE_QUERY", "BTECH_PROGRAMS_QUERY", "PROGRAM_AI_ROBOTICS_QUERY", "PROGRAM_CSE_QUERY",
-            "PROGRAM_ECE_QUERY", "PROGRAM_CORE_QUERY", "PROGRAM_MANAGEMENT_QUERY", "PROGRAM_AGRICULTURE_QUERY",
-            "PROGRAM_COMP_APP_QUERY", "PROGRAM_DESIGN_QUERY", "ELIGIBILITY_QUERY",
-        )
-        if intent in canned_intents:
-            intent = "GENERAL"
-    # The scholarship steps asked "which programme?": the programme named is the answer to that question,
-    # not a request for the programme's overview.
-    if (conv_state.get("fee_intake") or {}).get("waiting_for") == "program" and intent.startswith("PROGRAM_"):
-        intent = "GENERAL"
-
-    _SPECIFIC_SUBTOPIC_KEYWORDS = (
-        "cyber", "cybersecurity", "security", "cloud", "data science",
-        "robotics", "ece", "vlsi", "eee", "civil", "mechanical", "biotech", "agriculture",
-        "bba", "mba", "bca", "mca", "b.des", "design", "fee", "fees", "cost", "price",
-        "scholarship", "eligibility", "hostel", "cutoff", "sports",
-        "library", "canteen", "mess", "curfew", "timing", "bus", "transport", "syllabus",
-        "curriculum", "available", "offered", "how to apply",
-    )
-    # Short words are matched as whole words: "ai" must not match "detail", nor "cs" "physics".
-    _SPECIFIC_SUBTOPIC_WORDS = re.compile(
-        r"\b(?:vs|versus|compare|comparison|difference|better|easier|cse|cs|aiml|ai|artificial\s+intelligence|"
-        r"machine\s+learning)\b",
-        re.IGNORECASE,
-    )
-    if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") and (
-        any(k in (message or "").lower() for k in _SPECIFIC_SUBTOPIC_KEYWORDS)
-        or _SPECIFIC_SUBTOPIC_WORDS.search(message or "")
-    ):
-        intent = "GENERAL"
-
-    # ---- Questions about the university itself: why SRU, about SRU, rankings, accreditation, research,
-    # startups, international links, campus life, and challenges ("is SRU bad?", "is X better?").
-    # The answer is built from the verified facts retrieved for THIS question (fact_service.retrieve), not
-    # from a fixed text: facts already told in this conversation are skipped, so a repeat brings new
-    # information. With a language model, the facts go into the prompt and the model writes the answer;
-    # without one, responses.facts_reply frames them. University-reported claims are attributed.
-    if intent == "WHY_CHOOSE_SRU_QUERY" and history and _BARE_WHY.match(message or ""):
-        intent = "GENERAL"   # "why?" after an answer asks about that answer, not "why choose SRU?"
-    fact_aspects = fact_service.detect_aspects(message)
-    # (A step that is waiting for marks or a board does not stop this: "is SRU NBA accredited?" in the middle
-    # of the scholarship steps is a new question; the transactional check keeps answers like "85%" out.)
-    about_university = not step_answer and (intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") or (
-        intent == "GENERAL" and not _TRANSACTIONAL_WORDS.search(message or "")
-        and (set(fact_aspects) & _UNIVERSITY_FACT_ASPECTS
-             or (responses._CHALLENGE.search(message or "") and _NAMES_SRU.search(message or "")))))
-    facts_note = None
-    if about_university:
-        shown_facts = list(conv_state.get("facts_shown") or [])
-        # A challenge ("is SRU bad?", "is X better?") is answered with SRU's strongest distinctions first.
-        lookup_aspects = fact_aspects or (["rankings", "placements", "accreditation"]
-                                          if responses._CHALLENGE.search(message or "") else [])
-        picked = fact_service.retrieve(message, k=4, exclude=shown_facts, aspects=lookup_aspects)
-        recap = bool(picked) and all(f.fact_id in shown_facts for f in picked)
-        # Asked "why SRU?" again: the new facts are framed as "a few more things".
-        repeat = not recap and bool(shown_facts) and intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY")
-        new_ids = [f.fact_id for f in picked if f.fact_id not in shown_facts]
-        await set_state(facts_shown=(shown_facts + new_ids)[-30:])
-        from app.services.card_service import get_session_shown_cards, record_session_card
-        scope = f"{session_id}:{conversation_id or ''}"
-        cards_to_show = []
-        if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") and "why_sru_video" not in get_session_shown_cards(scope):
-            from app.services.video_service import get_relevant_videos, get_keyword_videos, create_video_card
-            vids = get_relevant_videos(message, limit=2) or get_keyword_videos(message, limit=2, prefer_campus=True)
-            vid_card = create_video_card(vids) if vids else None
-            if vid_card:
-                cards_to_show = [vid_card]
-                record_session_card(scope, "why_sru_video")
-        if client is None or _is_mock_or_test_client(client):
-            text_to_say, fact_chips = responses.facts_reply(
-                message, picked, f"{session_id}{len(history)}{message}", lookup_aspects, repeat=repeat, recap=recap)
-            async for ev in _reply(text_to_say, message, session_id, conversation_id, cards=cards_to_show,
-                                 suggestions=fact_chips, exact_chips=True, client=client, history=history, profile=profile, conv_state=conv_state,
-                                 facts=(fact_service.format_facts_for_prompt(picked) if picked else None),
-                                 note=("The student asked about SRU again: give the new facts, not a repeat of earlier "
-                                       "points." if repeat else None)):
-                yield ev
-            return
-        cards.extend(c for c in cards_to_show if c not in cards)
-        facts_note = fact_service.format_facts_for_prompt(picked)
-
-    is_course_comparison = bool(re.search(r"\b(?:vs|versus|better|easier|compare|difference\s+between)\b", message or "", re.IGNORECASE))
-    if (intent == "BRANCH_GUIDANCE_QUERY" or intents.is_branch_guidance_query(message)) and not is_course_comparison:
-        await set_state(active_topic="career_guidance")
-        if client is None or _is_mock_or_test_client(client):
-            raw_marks = early_details.get("raw_marks") or (profile.get("raw_marks") if profile else None)
-            bg_text = responses.get_branch_guidance_text(raw_marks, session_id=session_id)
-            async for ev in _reply(bg_text, message, session_id, conversation_id,
-                                 suggestions=responses._BRANCH_GUIDANCE_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "FEE_TREE_QUERY":
-        if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step="category")
-            flow_card = fee_flow.build_school_selection_card()
-            async for ev in _say(_FEE_TREE_TEXT, message, session_id, conversation_id,
-                                 cards=[flow_card],
-                                 suggestions=["B.Tech Engineering", "Management (BBA / MBA)",
-                                              "B.Sc (Hons) Agriculture", "Computer Applications (BCA / MCA)"]):
-                yield ev
-            return
-
-    if intent == "BTECH_TREE_QUERY":
-        if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step="btech_branch")
-            flow_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level="ug")
-            async for ev in _say(_BTECH_TREE_TEXT, message, session_id, conversation_id,
-                                 cards=[flow_card],
-                                 suggestions=["B.Tech CSE & Allied", "B.Tech AI & Robotics",
-                                              "B.Tech ECE", "B.Tech Core Engineering"]):
-                yield ev
-            return
-
-    if intent == "BTECH_CSE_FEE_QUERY":
-        if profile is not None:
-            profile["program_interest"] = "btech_cse"
-        await memory.update_profile(session_id, program_interest="btech_cse")
-        await set_state(fee_tree_step=None, active_program="btech_cse", fee_flow_prog="btech_cse")
-        if client is None or _is_mock_or_test_client(client):
-            cse_prog = fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0]
-            spec = fee_flow.detect_specialization(message, cse_prog)
-            fee_card = fee_flow.build_detailed_fee_card(cse_prog, fee_flow.SCHOOLS_DATA[0], "2027-28", spec=spec, user_text=message)
-            fee_text = get_btech_cse_fee_text(specialization=spec, user_msg=message)
-            async for ev in _reply(fee_text, message, session_id, conversation_id,
-                                 cards=[fee_card],
-                                 suggestions=["Calculate my scholarship", "Hostel details",
-                                              "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "BTECH_AI_ROBOTICS_FEE_QUERY":
-        if profile is not None:
-            profile["program_interest"] = "btech_ai_robotics"
-        await memory.update_profile(session_id, program_interest="btech_ai_robotics")
-        await set_state(fee_tree_step=None, active_program="btech_ai_robotics", fee_flow_prog="btech_ai_robotics")
-        if client is None or _is_mock_or_test_client(client):
-            fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[0], "2027-28")
-            async for ev in _reply(_BTECH_AI_ROBOTICS_FEE_TEXT, message, session_id, conversation_id,
-                                 cards=[fee_card],
-                                 suggestions=["Calculate my scholarship", "Hostel details",
-                                              "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "BTECH_ECE_FEE_QUERY":
-        if profile is not None:
-            profile["program_interest"] = "btech_ece"
-        await memory.update_profile(session_id, program_interest="btech_ece")
-        await set_state(fee_tree_step=None, active_program="btech_ece", fee_flow_prog="btech_ece")
-        if client is None or _is_mock_or_test_client(client):
-            fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[1], "2027-28")
-            async for ev in _reply(_BTECH_ECE_FEE_TEXT, message, session_id, conversation_id,
-                                 cards=[fee_card],
-                                 suggestions=["Calculate my scholarship", "Hostel details",
-                                              "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "BTECH_CORE_FEE_QUERY":
-        if profile is not None:
-            profile["program_interest"] = "btech_mech"
-        await memory.update_profile(session_id, program_interest="btech_mech")
-        await set_state(fee_tree_step=None, active_program="btech_mech", fee_flow_prog="btech_mech")
-        if client is None or _is_mock_or_test_client(client):
-            fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[1], "2027-28")
-            async for ev in _reply(_BTECH_CORE_FEE_TEXT, message, session_id, conversation_id,
-                                 cards=[fee_card],
-                                 suggestions=["Calculate my scholarship", "Hostel details",
-                                              "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "MANAGEMENT_FEE_QUERY":
-        if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step=None)
-            lvl = "ug" if "bba" in message.lower() else ("pg" if "mba" in message.lower() else None)
-            course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[3], level=lvl)
-            async for ev in _reply(_MANAGEMENT_FEE_TEXT, message, session_id, conversation_id,
-                                 cards=[course_card],
-                                 suggestions=["Calculate my fee with scholarship", "MBA specializations",
-                                              "Hostel details", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "AGRICULTURE_FEE_QUERY":
-        if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step=None)
-            lvl = "ug" if ("bsc" in message.lower() or "b.sc" in message.lower() or "agri" in message.lower()) else ("pg" if "msc" in message.lower() else None)
-            course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2], level=lvl)
-            async for ev in _reply(_AGRICULTURE_FEE_TEXT, message, session_id, conversation_id,
-                                 cards=[course_card],
-                                 suggestions=["Calculate my scholarship", "Hostel details",
-                                              "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "COMP_APP_FEE_QUERY":
-        if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step=None)
-            lvl = "ug" if "bca" in message.lower() else ("pg" if "mca" in message.lower() else None)
-            course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level=lvl)
-            async for ev in _reply(_COMP_APP_FEE_TEXT, message, session_id, conversation_id,
-                                 cards=[course_card],
-                                 suggestions=["Calculate my scholarship", "Hostel details",
-                                              "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "DESIGN_FEE_QUERY":
-        if client is None or _is_mock_or_test_client(client):
-            await set_state(fee_tree_step=None)
-            course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5], level="ug")
-            async for ev in _reply(_DESIGN_FEE_TEXT, message, session_id, conversation_id,
-                                 cards=[course_card],
-                                 suggestions=["Calculate my scholarship", "Hostel details",
-                                              "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "BTECH_PROGRAMS_QUERY":
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._BTECH_PROGRAMS_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._BTECH_PROGRAMS_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "PROGRAM_AI_ROBOTICS_QUERY":
-        if profile is not None:
-            profile["program_interest"] = "btech_ai_robotics"
-        await memory.update_profile(session_id, program_interest="btech_ai_robotics")
-        await set_state(fee_tree_step=None, active_program="btech_ai_robotics", fee_flow_prog="btech_ai_robotics")
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._BTECH_AI_ROBOTICS_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._BTECH_AI_ROBOTICS_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "PROGRAM_CSE_QUERY":
-        if profile is not None:
-            profile["program_interest"] = "btech_cse"
-        await memory.update_profile(session_id, program_interest="btech_cse")
-        await set_state(fee_tree_step=None, active_program="btech_cse", fee_flow_prog="btech_cse")
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._BTECH_CSE_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._BTECH_CSE_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "PROGRAM_ECE_QUERY":
-        if profile is not None:
-            profile["program_interest"] = "btech_ece"
-        await memory.update_profile(session_id, program_interest="btech_ece")
-        await set_state(fee_tree_step=None, active_program="btech_ece", fee_flow_prog="btech_ece")
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._BTECH_ECE_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._BTECH_ECE_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "PROGRAM_CORE_QUERY":
-        if profile is not None:
-            profile["program_interest"] = "btech_core"
-        await memory.update_profile(session_id, program_interest="btech_core")
-        await set_state(fee_tree_step=None, active_program="btech_core", fee_flow_prog="btech_core")
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._BTECH_CORE_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._BTECH_CORE_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "PROGRAM_MANAGEMENT_QUERY":
-        await set_state(fee_tree_step=None, active_program="mba", fee_flow_prog="mba")
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._PROGRAM_MANAGEMENT_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._PROGRAM_MANAGEMENT_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "PROGRAM_AGRICULTURE_QUERY":
-        if profile is not None:
-            profile["program_interest"] = "bsc_agri"
-        await memory.update_profile(session_id, program_interest="bsc_agri")
-        await set_state(fee_tree_step=None, active_program="bsc_agri", fee_flow_prog="bsc_agri")
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._PROGRAM_AGRICULTURE_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._PROGRAM_AGRICULTURE_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "PROGRAM_COMP_APP_QUERY":
-        await set_state(fee_tree_step=None, active_program="bca", fee_flow_prog="bca")
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._PROGRAM_COMP_APP_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._PROGRAM_COMP_APP_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "PROGRAM_DESIGN_QUERY":
-        await set_state(fee_tree_step=None, active_program="bdes", fee_flow_prog="bdes")
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._PROGRAM_DESIGN_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._PROGRAM_DESIGN_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "ELIGIBILITY_QUERY":
-        if client is None or _is_mock_or_test_client(client):
-            async for ev in _reply(responses._ELIGIBILITY_TEXT, message, session_id, conversation_id,
-                                 suggestions=responses._ELIGIBILITY_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "HOSTEL_INFO_QUERY":
-        from app.services.card_service import HOSTEL_FACILITIES_CARD
-        if HOSTEL_FACILITIES_CARD not in cards:
-            cards.append(HOSTEL_FACILITIES_CARD)
-
-    elif intent == "HOSTEL_FEE_QUERY":
-        from app.services.card_service import HOSTEL_FEE_CARD
-        if HOSTEL_FEE_CARD not in cards:
-            cards.append(HOSTEL_FEE_CARD)
-
-    elif intent == "COMBINED_FEE_HOSTEL_QUERY":
-        from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
-        if BTECH_CSE_WITH_HOSTEL_FEE_CARD not in cards:
-            cards.append(BTECH_CSE_WITH_HOSTEL_FEE_CARD)
-
-    if intent == "CAMPUS_CANTEEN_QUERY":
-        if client is None:
-            async for ev in _reply(_CAMPUS_CANTEEN_TEXT, message, session_id, conversation_id,
-                                 suggestions=_CAMPUS_CANTEEN_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "ACADEMIC_EVALUATION_QUERY":
-        if client is None:
-            async for ev in _reply(_ACADEMIC_EVALUATION_TEXT, message, session_id, conversation_id,
-                                 suggestions=_ACADEMIC_EVALUATION_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    if intent == "LAB_FACILITIES_QUERY":
-        if client is None:
-            async for ev in _reply(_LAB_FACILITIES_TEXT, message, session_id, conversation_id,
-                                 suggestions=_LAB_FACILITIES_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
-                yield ev
-            return
-
-    # First interaction direct question name collection:
-    has_replied = any(h.get("role") in ("model", "assistant") for h in history)
-    if not has_replied and client is None and not profile.get("name") and not conv_state.get("name_asked"):
-        if extracted_name:
+        # Extract name if user provided one
+        awaiting_name = bool(conv_state.get("awaiting_name"))
+        extracted_name = intents.extract_name(message, bare_ok=awaiting_name)
+        if extracted_name and not profile.get("name"):
+            profile["name"] = extracted_name
+            await memory.update_profile(session_id, name=extracted_name)
             await set_state(name_asked=True, awaiting_name=False)
-        elif _is_first_interaction_name_query(message) and not intents.is_cancel_contact(message) and not intents.is_number_update(message) and not intents.is_visit_request(message) and intent != "CAMPUS_VISIT_INFO":
-            await set_state(pending_user_question=message, awaiting_name=True, name_asked=True)
-            async for ev in _small_talk_reply("ask_name_first", message, session_id, conversation_id, client=client,
-                                              history=history, profile=profile, conv_state=conv_state,
-                                              suggestions=_SMALL_TALK_CHIPS):
+
+        # ---- Handle Turn 2 after name was requested ----
+        if awaiting_name:
+            if extracted_name:
+                await set_state(awaiting_name=False)
+                pending_q = conv_state.get("pending_user_question")
+                if pending_q:
+                    # Answer the question asked in Turn 1 immediately
+                    await set_state(pending_user_question=None)
+                    message = pending_q
+                    intent = intents.classify_agent_intent(message, conv_state)
+                else:
+                    # User had only sent a greeting in Turn 1
+                    async for ev in _small_talk_reply("name_given", message, session_id, conversation_id, client=client,
+                                                      history=history, profile=profile, conv_state=conv_state,
+                                                      suggestions=_SMALL_TALK_CHIPS,
+                                                      name=_first_name(extracted_name)):
+                        yield ev
+                    return
+            else:
+                # User declined, skipped, or asked another question
+                await set_state(awaiting_name=False)
+                pending_q = conv_state.get("pending_user_question")
+                if pending_q and intents.is_refusal_or_skip(message):
+                    await set_state(pending_user_question=None)
+                    message = pending_q
+                    intent = intents.classify_agent_intent(message, conv_state)
+                elif pending_q:
+                    await set_state(pending_user_question=None)
+
+        # ---- 1. Things the code can answer by itself ------------------------------------------
+        if intent == "DATE_QUERY":
+            async for ev in _say(f"Today is {date.today():%B %d, %Y}.", message, session_id, conversation_id,
+                                 suggestions=["Plan a campus visit", "What are the B.Tech CSE fees?",
+                                              "Hostel rules & curfew"]):
                 yield ev
             return
 
-    # ---- 2. "Don't call me" / "cancel my visit": run the cancel tool, report what really happened
-    pending = conv_state.get("pending_action")
-    has_open_request = bool(profile.get("last_lead_id"))
-    if intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO") and \
-            intents.is_cancel_contact(message, has_open_request or bool(pending)):
-        result = await _run_action("cancel_contact_request", {"reason": message[:200]}, ctx, used, cards)
-        for ev in _tool_events("cancel_contact_request", result):
-            yield ev
-        if pending and result.get("status") == "nothing_to_cancel":
-            text = ("No problem, I will not arrange it. Nothing was saved, so nobody will call you. "
-                    "Is there anything else about SR University I can help you with?")
-        else:
-            text = _cancel_text(result)
-        await clear_pending()
-        await set_state(awaiting_date_confirmation=False, pending_visit_date=None)
-        async for ev in _say(text, message, session_id, conversation_id, used, cards,
-                             ["B.Tech CSE fees", "Scholarship slabs", "Hostel details"]):
-            yield ev
-        return
-
-    # ---- 2b. "Change my number" / "my number is ...": one place for the number, everywhere ------
-    phone = tools.find_phone(message)
-    asked_for_call = intents.is_callback_request(message)
-    wants_update = intents.is_number_update(message) or (pending == "update_number" and bool(phone))
-    if wants_update and not asked_for_call and intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO"):
-        if phone:
-            result = await _run_action("update_contact_details", {"phone": phone}, ctx, used, cards)
-            for ev in _tool_events("update_contact_details", result):
+        if intent == "CONFUSION_QUERY":
+            async for ev in _reply("Sorry for the confusion! I'm here to help clarify. Could you share what specific details you're looking for? "
+                                   "I can help with B.Tech & PG programs, fee structure, scholarships, placements, or visiting the campus.",
+                                   message, session_id, conversation_id,
+                                   suggestions=["B.Tech CSE fees", "Scholarship slabs", "Placements at SRU", "Plan a campus visit"],
+                                   client=client, history=history, profile=profile, conv_state=conv_state,
+                                   note="The student is confused: use the conversation to see what about, clear it up in "
+                                        "one or two sentences, and ask one specific question only if still needed."):
                 yield ev
+            return
+
+        if intent == "JOIN_SRU_QUERY":
+            flow_card = fee_flow.build_school_selection_card()
+            async for ev in _reply(
+                "That's great! Which course or degree are you interested in pursuing at SR University?\n\n"
+                "We offer diverse undergraduate and postgraduate programs across Engineering, Management, "
+                "Agriculture, Computer Applications, and Sciences. Choose an academic area below or tell me your preferred course:",
+                message,
+                session_id,
+                conversation_id,
+                cards=[flow_card],
+                suggestions=["B.Tech Engineering", "MBA", "BBA", "B.Sc (Hons) Agriculture", "Explore all programs"],
+                client=client, history=history, profile=profile, conv_state=conv_state,
+                note="Ask which course they want (one question); never assume a course.",
+            ):
+                yield ev
+            return
+
+        # Greetings and small talk: written by the model for this conversation (v4.13.0: no greeting bank).
+        chat = intents.small_talk(message) if intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO") else None
+        if chat:
+            if chat == "greeting" and not profile.get("name"):
+                # No name on file (the widget's contact form normally collects it): the next message is read as the name.
+                await set_state(awaiting_name=True, name_asked=True)
+            kind = chat if chat in _SMALL_TALK_BRIEFS else "greeting"
+            if chat == "greeting" and not profile.get("name"):
+                kind = "greeting_ask_name"
+            step = _open_step(profile, conv_state) if chat in ("greeting", "how_are_you") and profile.get("name") else None
+            if step:
+                # A greeting in the middle of the fee steps: say hello, then the same question again (nothing reset).
+                first = _first_name(profile.get("name")) if profile.get("address_by_name") is not False else ""
+                name_bit = f", {first}" if first else ""
+                hello = (_vary(["I'm doing well, thanks for asking!", "All good here, thank you!",
+                                "Doing great, thanks!"], session_id, message, len(history or []))
+                         if chat == "how_are_you" else
+                         _vary([f"Hi{name_bit}!", f"Hello{name_bit}!", f"Hey{name_bit}!"],
+                               session_id, message, len(history or [])))
+                if _use_model(client):   # the hello is written for this conversation; the step itself stays exact
+                    words = await _model_words(
+                        "REPLY BRIEF: The student said hello (or asked how you are) in the middle of their fee estimate. "
+                        "Reply warmly in ONE short sentence (use their first name if known) and say you'll carry on with "
+                        "the estimate. Do not ask any question and do not mention amounts.", message, session_id,
+                        history=history, profile=profile, conv_state=conv_state, client=client)
+                    if words and "?" not in words and len(words) < 200:
+                        hello = words.strip()
+                if step.get("fee_state"):
+                    await set_state(**{fee_journey.KEY: step["fee_state"]})
+                joined = hello if re.search(r"carry on|continue|pick up", hello, re.I) else \
+                    f"{hello} " + _vary(["Let's carry on with your fee estimate.", "Let's pick up your fee estimate.",
+                                         "We were in the middle of your fee estimate, so let's continue."],
+                                        session_id, len(history or []))
+                async for ev in _say(f"{joined}\n\n{step['text']}", message,
+                                     session_id, conversation_id, cards=step["cards"], suggestions=step["chips"],
+                                     exact_chips=True, profile=profile, resume=False):
+                    yield ev
+                return
+            # Starting points after a greeting; nothing after "thanks" / "bye" (the student is wrapping up).
+            chips = [] if chat in ("thanks", "bye") else _SMALL_TALK_CHIPS
+            async for ev in _small_talk_reply(kind, message, session_id, conversation_id, client=client, history=history,
+                                              profile=profile, conv_state=conv_state, suggestions=chips):
+                yield ev
+            return
+
+        # ---- 1b. Deterministic quick responses (placement assistance, special concessions, next-gen tech, fee tree, all programs) ----
+        # "Change my academic details / marks": forget them for this chat and ask again, one step at a time.
+        _has_marks = any(fee_intake.parse_details(message).get(k) is not None for k in ("raw_marks", "percent"))
+        if _CHANGE_ACADEMIC.search(message) and not tools.find_phone(message) and not _has_marks:
+            keys = [k for k in fee_intake._ACADEMIC_FIELDS if profile.get(k) not in (None, "")]
+            if keys or (conv_state.get("fee_intake") or {}).get("ineligible"):
+                profile = await memory.remove_profile_keys(session_id, *keys) if keys else profile
+                ctx["profile"] = profile
+                prog = active_program or (conv_state.get("fee_intake") or {}).get("program")
+                fresh_intake = {"counsellor_mode": True, **({"program": prog} if prog else {})}
+                step = fee_intake.decide("Calculate my scholarship", profile, fresh_intake)
+                if step and step.get("action") == "ask":
+                    await set_state(fee_intake=step["state"])
+                    async for ev in _say("No problem, let's update them. " + step["text"].replace("Sure! ", "").replace(
+                            "Sure, ", ""), message, session_id, conversation_id, cards=step.get("cards") or [],
+                            suggestions=step.get("chips") or [], exact_chips=True):
+                        yield ev
+                    return
+
+        # (v4.11.0) A concession picked or asked for ("add the sibling concession to my fee") is handled by the fee
+        # evaluation agent above (fee_journey): it is evaluated, never applied straight away.
+
+        # The complete first-year fee chart (asked for, or "yes" to the offer made after a fee with hostel or
+        # transport): every line from the official fee data, with a Share button on the card.
+        offer = conv_state.get("offer")
+        wants_chart = bool(_FEE_CHART_REQUEST.search(message or "")) or (
+            offer in ("fee_chart", "fee_chart_program") and bool(_AFFIRM.match(message or "")))
+        if offer == "fee_chart_program" and fees.find_program(message):
+            wants_chart = True
+        if offer and not wants_chart:
+            await set_state(offer=None)
+            if offer == "fee_chart" and _DECLINE.match(message or ""):
+                async for ev in _say("No problem! What else would you like to know?", message, session_id,
+                                     conversation_id):
+                    yield ev
+                return
+        if wants_chart:
+            last = conv_state.get("last_fee_args") or {}
+            program = fees.find_program(message) or last.get("program") or active_program
+            if not program:
+                await set_state(offer="fee_chart_program")
+                async for ev in _say("Sure! Which programme should the fee chart be for?", message, session_id,
+                                     conversation_id, suggestions=["B.Tech CSE", "B.Tech ECE", "B.Tech AI & Robotics", "BBA"],
+                                     exact_chips=True):
+                    yield ev
+                return
+            said = _fee_args_from_message(message, profile) or {}
+            hostel = said.get("hostel") or (last.get("hostel") if last.get("program") == program else None) or "none"
+            transport = bool(said.get("transport") or (last.get("transport") if last.get("program") == program else False))
+            chart = fee_plan.full_fee_chart(program, profile, hostel=hostel, transport=transport,
+                                            concession=conv_state.get("selected_concession"))
+            if chart:
+                chart["share_text"] = fee_plan.chart_share_text(chart)
+                await set_state(offer=None, active_program=program)
+                chips = ["How is the fee paid each semester?", "How do I apply for 2027-28?"]
+                if not conv_state.get("selected_concession"):
+                    chips.insert(0, "Special category concessions")
+                if hostel == "none":
+                    chips.insert(0, f"Add hostel to my {fees.short_name(program)} fee")
+                async for ev in _say(f"Here's your complete {chart['academic_year']} fee chart for **{chart['program']}**. "
+                                     "Tap **Share** to send it to your family.", message, session_id, conversation_id,
+                                     cards=[{"type": "fee_plan", "data": chart}], suggestions=chips[:3], exact_chips=True):
+                    yield ev
+                return
+
+        if intent in ("PLACEMENT_GUARANTEE_QUERY", "PLACEMENT_INFO_QUERY"):
+            # A short answer to the aspect asked (record, recruiters, training, internships, guarantee); the
+            # placement card once per conversation, under the record / recruiters answers.
+            from app.services.card_service import PLACEMENT_EXCELLENCE_CARD, get_session_shown_cards, record_session_card
+            reply, chips, aspect = responses.placement_reply(message, f"{session_id}{len(history)}{message}")
+            scope = f"{session_id}:{conversation_id or ''}"
+            cards_to_show = []
+            if aspect in ("record", "recruiters", "guarantee") and "placement_highlights" not in get_session_shown_cards(scope):
+                cards_to_show = [PLACEMENT_EXCELLENCE_CARD]
+                record_session_card(scope, "placement_highlights")
+            await set_state(placement_seen=True)
+            async for ev in _reply(reply, message, session_id, conversation_id,
+                                 cards=cards_to_show, suggestions=chips, client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+
+        if intent == "ADMISSION_GUARANTEE_QUERY":
+            await set_state(fee_intake=None)
+            async for ev in _reply(_ADMISSION_GUARANTEE_TEXT, message, session_id, conversation_id,
+                                 suggestions=_ADMISSION_GUARANTEE_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+
+        if intent == "FUTURE_YEAR_FEE_QUERY":
+            await set_state(fee_intake=None)
+            text = _FUTURE_YEAR_FEE_TEXT
+            named = fees.find_program(message)
+            if named:
+                # The programme asked about: its latest verified figure, clearly labelled as 2027-28.
+                prog = fees.load_data()["programs"][named]
+                text = text.replace(
+                    "\n\nWould you like the 2027-28 fees for a particular programme?",
+                    f"\n\nThe latest verified figure for **{fees.clean_program_name(named)}** is the "
+                    f"{config.ADMISSION_YEAR} tuition of **{fees.inr(prog['tuition_per_year'])} per year** "
+                    f"(yearly increase for students admitted in {config.ADMISSION_YEAR}: "
+                    f"{fees.inr(prog.get('yearly_increase', 0))}). Would you like the full {config.ADMISSION_YEAR} "
+                    f"fee breakdown for it?")
+            async for ev in _reply(text, message, session_id, conversation_id,
+                                 suggestions=_FUTURE_YEAR_FEE_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+
+        # A cut-off / closing-rank question asks for a figure SRU doesn't publish: say so (never the scholarship steps).
+        if _CUTOFF_FACT.search(message or "") and not (conv_state.get("fee_intake") or {}).get("waiting_for"):
+            async for ev in _reply(_CUTOFF_TEXT, message, session_id, conversation_id,
+                                   suggestions=["Eligibility for B.Tech CSE", "Calculate my scholarship", "How do I apply?"],
+                                   client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+
+        # A student describing a special category ("my brother studies at SRU, any discount?"): the concessions, with
+        # that category named, not the scholarship steps (v4.13.0, docs/36 rule 1: the meaning before the keyword).
+        asks_discount = bool(_DISCOUNT_ASK.search(message or ""))
+        group = fee_plan.concessions_for_group(message) if asks_discount and not fee_plan.find_concession(message) else []
+        described = fee_plan.infer_concession(message) if asks_discount and not group else None
+        if intent == "SPECIAL_CONCESSIONS_QUERY" or described or group:
+            # The answer IS the table (pick a row to apply it to your fee), so it is shown every time it is asked,
+            # with a one-line lead instead of the list in text.
+            data = fees.special_concessions()
+            lead = responses.special_concessions_lead(data, active_program)
+            if group:
+                lead = ("These official concessions may fit:\n\n"
+                        + "\n".join(f"• **{g['label']}**: {fees.inr(g['amount'])} a year" for g in group)
+                        + "\n\nEach is applied only after the Admissions Office verifies the proof: pick the one that "
+                          "applies below to see what it would mean for your fee.")
+            elif described:
+                lead = (f"The **{described['label']}** concession (**{fees.inr(described['amount'])} a year**) looks like "
+                        "it fits. It is applied only after the Admissions Office verifies the proof: pick it below to see "
+                        "what it would mean for your fee.")
+            async for ev in _reply(lead, message,
+                                   session_id, conversation_id,
+                                   used=[{"name": "get_special_concessions", "status": "ok", "is_action": False}],
+                                   cards=[fee_plan.concession_card(active_program, in_evaluation=False)],
+                                   suggestions=["Calculate my scholarship", "Documents needed for the concession"],
+                                   exact_chips=True, client=client, history=history, profile=profile,
+                                   conv_state=conv_state):
+                yield ev
+            return
+
+        if intent == "NEXT_GEN_TECH_QUERY":
+            async for ev in _reply(_NEXT_GEN_TECH_TEXT, message, session_id, conversation_id,
+                                 suggestions=["Fee for AI & Robotics", "B.Tech CSE fee structure",
+                                              "Calculate my scholarship", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+
+        if intent == "ALL_PROGRAMS_QUERY":
+            async for ev in _reply(_ALL_PROGRAMS_TEXT, message, session_id, conversation_id,
+                                 suggestions=["Fee Structure 2027-28", "Next-Gen Tech Programs",
+                                              "Special Concessions", "Calculate my scholarship"], client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+
+        if intent == "OTHER_FEES_QUERY" and (_is_mock_or_test_client(client) or client is None):
+            from app.services.card_service import OTHER_FEES_CARD, get_session_shown_cards, record_session_card
+            cards_to_show = []
+            if "fee_breakdown" not in get_session_shown_cards(f"{session_id}:{conversation_id or ''}"):
+                cards_to_show = [OTHER_FEES_CARD]
+                record_session_card(f"{session_id}:{conversation_id or ''}", "fee_breakdown")
+            async for ev in _reply(responses._OTHER_FEES_TEXT, message, session_id, conversation_id,
+                                 cards=cards_to_show,
+                                 suggestions=responses._OTHER_FEES_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                yield ev
+            return
+
+        if bool(tools.find_phone(message) or intents.is_callback_request(message)):
+            canned_intents = (
+                "FEE_TREE_QUERY", "BTECH_TREE_QUERY", "BTECH_CSE_FEE_QUERY", "BTECH_AI_ROBOTICS_FEE_QUERY",
+                "BTECH_ECE_FEE_QUERY", "BTECH_CORE_FEE_QUERY", "MANAGEMENT_FEE_QUERY", "AGRICULTURE_FEE_QUERY",
+                "COMP_APP_FEE_QUERY", "DESIGN_FEE_QUERY", "HOSTEL_INFO_QUERY", "HOSTEL_MESS_QUERY",
+                "HOSTEL_CURFEW_RULES_QUERY", "HOSTEL_SAFETY_QUERY", "HOSTEL_FEE_QUERY", "COMBINED_FEE_HOSTEL_QUERY",
+                "CAMPUS_CANTEEN_QUERY", "ACADEMIC_EVALUATION_QUERY", "ALL_PROGRAMS_QUERY", "OTHER_FEES_QUERY",
+                "LAB_FACILITIES_QUERY", "WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY", "ADMISSION_GUARANTEE_QUERY",
+                "FUTURE_YEAR_FEE_QUERY", "BTECH_PROGRAMS_QUERY", "PROGRAM_AI_ROBOTICS_QUERY", "PROGRAM_CSE_QUERY",
+                "PROGRAM_ECE_QUERY", "PROGRAM_CORE_QUERY", "PROGRAM_MANAGEMENT_QUERY", "PROGRAM_AGRICULTURE_QUERY",
+                "PROGRAM_COMP_APP_QUERY", "PROGRAM_DESIGN_QUERY", "ELIGIBILITY_QUERY",
+            )
+            if intent in canned_intents:
+                intent = "GENERAL"
+        # The scholarship steps asked "which programme?": the programme named is the answer to that question,
+        # not a request for the programme's overview.
+        if (conv_state.get("fee_intake") or {}).get("waiting_for") == "program" and intent.startswith("PROGRAM_"):
+            intent = "GENERAL"
+
+        _SPECIFIC_SUBTOPIC_KEYWORDS = (
+            "cyber", "cybersecurity", "security", "cloud", "data science",
+            "robotics", "ece", "vlsi", "eee", "civil", "mechanical", "biotech", "agriculture",
+            "bba", "mba", "bca", "mca", "b.des", "design", "fee", "fees", "cost", "price",
+            "scholarship", "eligibility", "hostel", "cutoff", "sports",
+            "library", "canteen", "mess", "curfew", "timing", "bus", "transport", "syllabus",
+            "curriculum", "available", "offered", "how to apply",
+        )
+        # Short words are matched as whole words: "ai" must not match "detail", nor "cs" "physics".
+        _SPECIFIC_SUBTOPIC_WORDS = re.compile(
+            r"\b(?:vs|versus|compare|comparison|difference|better|easier|cse|cs|aiml|ai|artificial\s+intelligence|"
+            r"machine\s+learning)\b",
+            re.IGNORECASE,
+        )
+        if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") and (
+            any(k in (message or "").lower() for k in _SPECIFIC_SUBTOPIC_KEYWORDS)
+            or _SPECIFIC_SUBTOPIC_WORDS.search(message or "")
+        ):
+            intent = "GENERAL"
+
+        # ---- Questions about the university itself: why SRU, about SRU, rankings, accreditation, research,
+        # startups, international links, campus life, and challenges ("is SRU bad?", "is X better?").
+        # The answer is built from the verified facts retrieved for THIS question (fact_service.retrieve), not
+        # from a fixed text: facts already told in this conversation are skipped, so a repeat brings new
+        # information. With a language model, the facts go into the prompt and the model writes the answer;
+        # without one, responses.facts_reply frames them. University-reported claims are attributed.
+        if intent == "WHY_CHOOSE_SRU_QUERY" and history and _BARE_WHY.match(message or ""):
+            intent = "GENERAL"   # "why?" after an answer asks about that answer, not "why choose SRU?"
+        fact_aspects = fact_service.detect_aspects(message)
+        # (A step that is waiting for marks or a board does not stop this: "is SRU NBA accredited?" in the middle
+        # of the scholarship steps is a new question; the transactional check keeps answers like "85%" out.)
+        about_university = not step_answer and (intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") or (
+            intent == "GENERAL" and not _TRANSACTIONAL_WORDS.search(message or "")
+            and (set(fact_aspects) & _UNIVERSITY_FACT_ASPECTS
+                 or (responses._CHALLENGE.search(message or "") and _NAMES_SRU.search(message or "")))))
+        facts_note = None
+        if about_university:
+            shown_facts = list(conv_state.get("facts_shown") or [])
+            # A challenge ("is SRU bad?", "is X better?") is answered with SRU's strongest distinctions first.
+            lookup_aspects = fact_aspects or (["rankings", "placements", "accreditation"]
+                                              if responses._CHALLENGE.search(message or "") else [])
+            picked = fact_service.retrieve(message, k=4, exclude=shown_facts, aspects=lookup_aspects)
+            recap = bool(picked) and all(f.fact_id in shown_facts for f in picked)
+            # Asked "why SRU?" again: the new facts are framed as "a few more things".
+            repeat = not recap and bool(shown_facts) and intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY")
+            new_ids = [f.fact_id for f in picked if f.fact_id not in shown_facts]
+            await set_state(facts_shown=(shown_facts + new_ids)[-30:])
+            from app.services.card_service import get_session_shown_cards, record_session_card
+            scope = f"{session_id}:{conversation_id or ''}"
+            cards_to_show = []
+            if intent in ("WHY_CHOOSE_SRU_QUERY", "ABOUT_SRU_QUERY") and "why_sru_video" not in get_session_shown_cards(scope):
+                from app.services.video_service import get_relevant_videos, get_keyword_videos, create_video_card
+                vids = get_relevant_videos(message, limit=2) or get_keyword_videos(message, limit=2, prefer_campus=True)
+                vid_card = create_video_card(vids) if vids else None
+                if vid_card:
+                    cards_to_show = [vid_card]
+                    record_session_card(scope, "why_sru_video")
+            if client is None or _is_mock_or_test_client(client):
+                text_to_say, fact_chips = responses.facts_reply(
+                    message, picked, f"{session_id}{len(history)}{message}", lookup_aspects, repeat=repeat, recap=recap)
+                async for ev in _reply(text_to_say, message, session_id, conversation_id, cards=cards_to_show,
+                                     suggestions=fact_chips, exact_chips=True, client=client, history=history, profile=profile, conv_state=conv_state,
+                                     facts=(fact_service.format_facts_for_prompt(picked) if picked else None),
+                                     note=("The student asked about SRU again: give the new facts, not a repeat of earlier "
+                                           "points." if repeat else None)):
+                    yield ev
+                return
+            cards.extend(c for c in cards_to_show if c not in cards)
+            facts_note = fact_service.format_facts_for_prompt(picked)
+
+        is_course_comparison = bool(re.search(r"\b(?:vs|versus|better|easier|compare|difference\s+between)\b", message or "", re.IGNORECASE))
+        if (intent == "BRANCH_GUIDANCE_QUERY" or intents.is_branch_guidance_query(message)) and not is_course_comparison:
+            await set_state(active_topic="career_guidance")
+            if client is None or _is_mock_or_test_client(client):
+                raw_marks = early_details.get("raw_marks") or (profile.get("raw_marks") if profile else None)
+                bg_text = responses.get_branch_guidance_text(raw_marks, session_id=session_id)
+                async for ev in _reply(bg_text, message, session_id, conversation_id,
+                                     suggestions=responses._BRANCH_GUIDANCE_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "FEE_TREE_QUERY":
+            if client is None or _is_mock_or_test_client(client):
+                await set_state(fee_tree_step="category")
+                flow_card = fee_flow.build_school_selection_card()
+                async for ev in _say(_FEE_TREE_TEXT, message, session_id, conversation_id,
+                                     cards=[flow_card],
+                                     suggestions=["B.Tech Engineering", "Management (BBA / MBA)",
+                                                  "B.Sc (Hons) Agriculture", "Computer Applications (BCA / MCA)"]):
+                    yield ev
+                return
+
+        if intent == "BTECH_TREE_QUERY":
+            if client is None or _is_mock_or_test_client(client):
+                await set_state(fee_tree_step="btech_branch")
+                flow_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level="ug")
+                async for ev in _say(_BTECH_TREE_TEXT, message, session_id, conversation_id,
+                                     cards=[flow_card],
+                                     suggestions=["B.Tech CSE & Allied", "B.Tech AI & Robotics",
+                                                  "B.Tech ECE", "B.Tech Core Engineering"]):
+                    yield ev
+                return
+
+        if intent == "BTECH_CSE_FEE_QUERY":
+            if profile is not None:
+                profile["program_interest"] = "btech_cse"
+            await memory.update_profile(session_id, program_interest="btech_cse")
+            await set_state(fee_tree_step=None, active_program="btech_cse", fee_flow_prog="btech_cse")
+            if client is None or _is_mock_or_test_client(client):
+                cse_prog = fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][0]
+                spec = fee_flow.detect_specialization(message, cse_prog)
+                fee_card = fee_flow.build_detailed_fee_card(cse_prog, fee_flow.SCHOOLS_DATA[0], "2027-28", spec=spec, user_text=message)
+                fee_text = get_btech_cse_fee_text(specialization=spec, user_msg=message)
+                async for ev in _reply(fee_text, message, session_id, conversation_id,
+                                     cards=[fee_card],
+                                     suggestions=["Calculate my scholarship", "Hostel details",
+                                                  "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "BTECH_AI_ROBOTICS_FEE_QUERY":
+            if profile is not None:
+                profile["program_interest"] = "btech_ai_robotics"
+            await memory.update_profile(session_id, program_interest="btech_ai_robotics")
+            await set_state(fee_tree_step=None, active_program="btech_ai_robotics", fee_flow_prog="btech_ai_robotics")
+            if client is None or _is_mock_or_test_client(client):
+                fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[0]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[0], "2027-28")
+                async for ev in _reply(_BTECH_AI_ROBOTICS_FEE_TEXT, message, session_id, conversation_id,
+                                     cards=[fee_card],
+                                     suggestions=["Calculate my scholarship", "Hostel details",
+                                                  "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "BTECH_ECE_FEE_QUERY":
+            if profile is not None:
+                profile["program_interest"] = "btech_ece"
+            await memory.update_profile(session_id, program_interest="btech_ece")
+            await set_state(fee_tree_step=None, active_program="btech_ece", fee_flow_prog="btech_ece")
+            if client is None or _is_mock_or_test_client(client):
+                fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][0], fee_flow.SCHOOLS_DATA[1], "2027-28")
+                async for ev in _reply(_BTECH_ECE_FEE_TEXT, message, session_id, conversation_id,
+                                     cards=[fee_card],
+                                     suggestions=["Calculate my scholarship", "Hostel details",
+                                                  "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "BTECH_CORE_FEE_QUERY":
+            if profile is not None:
+                profile["program_interest"] = "btech_mech"
+            await memory.update_profile(session_id, program_interest="btech_mech")
+            await set_state(fee_tree_step=None, active_program="btech_mech", fee_flow_prog="btech_mech")
+            if client is None or _is_mock_or_test_client(client):
+                fee_card = fee_flow.build_detailed_fee_card(fee_flow.SCHOOLS_DATA[1]["programs"]["ug"][1], fee_flow.SCHOOLS_DATA[1], "2027-28")
+                async for ev in _reply(_BTECH_CORE_FEE_TEXT, message, session_id, conversation_id,
+                                     cards=[fee_card],
+                                     suggestions=["Calculate my scholarship", "Hostel details",
+                                                  "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "MANAGEMENT_FEE_QUERY":
+            if client is None or _is_mock_or_test_client(client):
+                await set_state(fee_tree_step=None)
+                lvl = "ug" if "bba" in message.lower() else ("pg" if "mba" in message.lower() else None)
+                course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[3], level=lvl)
+                async for ev in _reply(_MANAGEMENT_FEE_TEXT, message, session_id, conversation_id,
+                                     cards=[course_card],
+                                     suggestions=["Calculate my fee with scholarship", "MBA specializations",
+                                                  "Hostel details", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "AGRICULTURE_FEE_QUERY":
+            if client is None or _is_mock_or_test_client(client):
+                await set_state(fee_tree_step=None)
+                lvl = "ug" if ("bsc" in message.lower() or "b.sc" in message.lower() or "agri" in message.lower()) else ("pg" if "msc" in message.lower() else None)
+                course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[2], level=lvl)
+                async for ev in _reply(_AGRICULTURE_FEE_TEXT, message, session_id, conversation_id,
+                                     cards=[course_card],
+                                     suggestions=["Calculate my scholarship", "Hostel details",
+                                                  "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "COMP_APP_FEE_QUERY":
+            if client is None or _is_mock_or_test_client(client):
+                await set_state(fee_tree_step=None)
+                lvl = "ug" if "bca" in message.lower() else ("pg" if "mca" in message.lower() else None)
+                course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[0], level=lvl)
+                async for ev in _reply(_COMP_APP_FEE_TEXT, message, session_id, conversation_id,
+                                     cards=[course_card],
+                                     suggestions=["Calculate my scholarship", "Hostel details",
+                                                  "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "DESIGN_FEE_QUERY":
+            if client is None or _is_mock_or_test_client(client):
+                await set_state(fee_tree_step=None)
+                course_card = fee_flow.build_course_selection_card(fee_flow.SCHOOLS_DATA[5], level="ug")
+                async for ev in _reply(_DESIGN_FEE_TEXT, message, session_id, conversation_id,
+                                     cards=[course_card],
+                                     suggestions=["Calculate my scholarship", "Hostel details",
+                                                  "Special category concessions", "How do I apply?"], client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "BTECH_PROGRAMS_QUERY":
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._BTECH_PROGRAMS_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_PROGRAMS_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "PROGRAM_AI_ROBOTICS_QUERY":
+            if profile is not None:
+                profile["program_interest"] = "btech_ai_robotics"
+            await memory.update_profile(session_id, program_interest="btech_ai_robotics")
+            await set_state(fee_tree_step=None, active_program="btech_ai_robotics", fee_flow_prog="btech_ai_robotics")
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._BTECH_AI_ROBOTICS_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_AI_ROBOTICS_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "PROGRAM_CSE_QUERY":
+            if profile is not None:
+                profile["program_interest"] = "btech_cse"
+            await memory.update_profile(session_id, program_interest="btech_cse")
+            await set_state(fee_tree_step=None, active_program="btech_cse", fee_flow_prog="btech_cse")
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._BTECH_CSE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_CSE_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "PROGRAM_ECE_QUERY":
+            if profile is not None:
+                profile["program_interest"] = "btech_ece"
+            await memory.update_profile(session_id, program_interest="btech_ece")
+            await set_state(fee_tree_step=None, active_program="btech_ece", fee_flow_prog="btech_ece")
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._BTECH_ECE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_ECE_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "PROGRAM_CORE_QUERY":
+            if profile is not None:
+                profile["program_interest"] = "btech_core"
+            await memory.update_profile(session_id, program_interest="btech_core")
+            await set_state(fee_tree_step=None, active_program="btech_core", fee_flow_prog="btech_core")
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._BTECH_CORE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._BTECH_CORE_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "PROGRAM_MANAGEMENT_QUERY":
+            await set_state(fee_tree_step=None, active_program="mba", fee_flow_prog="mba")
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._PROGRAM_MANAGEMENT_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._PROGRAM_MANAGEMENT_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "PROGRAM_AGRICULTURE_QUERY":
+            if profile is not None:
+                profile["program_interest"] = "bsc_agri"
+            await memory.update_profile(session_id, program_interest="bsc_agri")
+            await set_state(fee_tree_step=None, active_program="bsc_agri", fee_flow_prog="bsc_agri")
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._PROGRAM_AGRICULTURE_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._PROGRAM_AGRICULTURE_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "PROGRAM_COMP_APP_QUERY":
+            await set_state(fee_tree_step=None, active_program="bca", fee_flow_prog="bca")
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._PROGRAM_COMP_APP_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._PROGRAM_COMP_APP_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "PROGRAM_DESIGN_QUERY":
+            await set_state(fee_tree_step=None, active_program="bdes", fee_flow_prog="bdes")
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._PROGRAM_DESIGN_OVERVIEW_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._PROGRAM_DESIGN_OVERVIEW_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "ELIGIBILITY_QUERY":
+            if client is None or _is_mock_or_test_client(client):
+                async for ev in _reply(responses._ELIGIBILITY_TEXT, message, session_id, conversation_id,
+                                     suggestions=responses._ELIGIBILITY_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "HOSTEL_INFO_QUERY":
+            from app.services.card_service import HOSTEL_FACILITIES_CARD
+            if HOSTEL_FACILITIES_CARD not in cards:
+                cards.append(HOSTEL_FACILITIES_CARD)
+
+        elif intent == "HOSTEL_FEE_QUERY":
+            from app.services.card_service import HOSTEL_FEE_CARD
+            if HOSTEL_FEE_CARD not in cards:
+                cards.append(HOSTEL_FEE_CARD)
+
+        elif intent == "COMBINED_FEE_HOSTEL_QUERY":
+            from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
+            if BTECH_CSE_WITH_HOSTEL_FEE_CARD not in cards:
+                cards.append(BTECH_CSE_WITH_HOSTEL_FEE_CARD)
+
+        if intent == "CAMPUS_CANTEEN_QUERY":
+            if client is None:
+                async for ev in _reply(_CAMPUS_CANTEEN_TEXT, message, session_id, conversation_id,
+                                     suggestions=_CAMPUS_CANTEEN_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "ACADEMIC_EVALUATION_QUERY":
+            if client is None:
+                async for ev in _reply(_ACADEMIC_EVALUATION_TEXT, message, session_id, conversation_id,
+                                     suggestions=_ACADEMIC_EVALUATION_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        if intent == "LAB_FACILITIES_QUERY":
+            if client is None:
+                async for ev in _reply(_LAB_FACILITIES_TEXT, message, session_id, conversation_id,
+                                     suggestions=_LAB_FACILITIES_CHIPS, client=client, history=history, profile=profile, conv_state=conv_state):
+                    yield ev
+                return
+
+        # First interaction direct question name collection:
+        has_replied = any(h.get("role") in ("model", "assistant") for h in history)
+        if not has_replied and client is None and not profile.get("name") and not conv_state.get("name_asked"):
+            if extracted_name:
+                await set_state(name_asked=True, awaiting_name=False)
+            elif _is_first_interaction_name_query(message) and not intents.is_cancel_contact(message) and not intents.is_number_update(message) and not intents.is_visit_request(message) and intent != "CAMPUS_VISIT_INFO":
+                await set_state(pending_user_question=message, awaiting_name=True, name_asked=True)
+                async for ev in _small_talk_reply("ask_name_first", message, session_id, conversation_id, client=client,
+                                                  history=history, profile=profile, conv_state=conv_state,
+                                                  suggestions=_SMALL_TALK_CHIPS):
+                    yield ev
+                return
+
+        # ---- 2. "Don't call me" / "cancel my visit": run the cancel tool, report what really happened
+        pending = conv_state.get("pending_action")
+        has_open_request = bool(profile.get("last_lead_id"))
+        if intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO") and \
+                intents.is_cancel_contact(message, has_open_request or bool(pending)):
+            result = await _run_action("cancel_contact_request", {"reason": message[:200]}, ctx, used, cards)
+            for ev in _tool_events("cancel_contact_request", result):
+                yield ev
+            if pending and result.get("status") == "nothing_to_cancel":
+                text = ("No problem, I will not arrange it. Nothing was saved, so nobody will call you. "
+                        "Is there anything else about SR University I can help you with?")
+            else:
+                text = _cancel_text(result)
             await clear_pending()
-            last4 = result.get("phone_last4")
-            if result.get("status") == "updated":
-                text = f"Done. Your mobile number is now the one ending {last4}."
-                if result.get("saved_request_updated"):
-                    text += " Your saved request has the new number too."
-                text += " You can see or change it any time from the menu under My details."
-            elif result.get("status") == "unchanged":
-                text = f"That is already the number I have for you (ending {last4}). Nothing needed to change."
-            else:
-                text = (f"Sorry, I could not update your number just now. Please try again in a minute or call "
-                        f"the Admissions Office at {config.ADMISSIONS_PHONE}.")
-        else:
-            wrong = tools.find_bad_phone(message, min_digits=5)
-            await set_state(pending_action="update_number", pending_turns=0)
-            text = (f"\"{wrong}\" does not look like a valid 10-digit mobile number. Please type the correct one."
-                    if wrong else
-                    "Sure. Please type your new 10-digit mobile number here and I will update it. You can also "
-                    "change it yourself from the menu under My details.")
-        async for ev in _say(text, message, session_id, conversation_id, used, cards,
-                             ["B.Tech CSE fees", "Scholarship slabs", "Hostel details"]):
-            yield ev
-        return
-    if not phone and not asked_for_call and profile.get("phone") and _ASKS_OWN_NUMBER.search(message):
-        # "What is my number?": answered here from the student's own profile, so the full number never
-        # has to be in the model's prompt (it sees only the last four digits).
-        saved = str(profile["phone"])
-        text = (f"The mobile number saved for you is **{saved[:5]} {saved[5:]}**. To change it, say "
-                f"\"change my number\" or open My details from the menu.")
-        async for ev in _say(text, message, session_id, conversation_id, used, cards,
-                             ["B.Tech CSE fees", "Scholarship slabs", "Hostel details"]):
-            yield ev
-        return
-    if phone and intents.is_number_statement(message) and not asked_for_call:
-        # "my mobile number is ...": remember it (and fix a saved request) before answering
-        await _run_action("update_contact_details", {"phone": phone}, ctx, used, cards)
-        profile = ctx["profile"]
-
-    # ---- 3. Callback / campus visit requests: save them as soon as name + number are known ----
-    bad_phone = None if phone else tools.find_bad_phone(message, min_digits=5 if asked_for_call else 8)
-    # A bare "Ravi Kumar" counts as a name only when the agent has just asked for one.
-    last_reply = next((h.get("text", "") for h in reversed(history) if h.get("role") in ("model", "assistant")), "")
-    name_known = bool(profile.get("name") or conv_state.get("pending_name"))
-    awaiting_name = bool(pending and not name_known and (
-        conv_state.get("pending_phone") or re.search(r"\bname\b", last_reply, re.IGNORECASE)))
-    name = intents.extract_name(message, bare_ok=awaiting_name)
-    visit_words = intent in ("CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_BOOKING_WITH_DATE") or intents.is_visit_request(message)
-
-    action = None
-    if pending == "campus_visit" and not visit_words and not phone and not bad_phone and not asked_for_call:
-        await set_state(pending_action=None, active_topic=None)
-        pending = None
-
-    if asked_for_call:
-        # "Ask counsellor to call me" / "Ask admissions to call me" right after visit guidance is a visit callback.
-        action = "campus_visit" if (pending == "campus_visit" or visit_words) else "callback"
-    elif visit_words and (phone or bad_phone or pending == "campus_visit"):
-        action = "campus_visit"
-    elif pending in ("callback", "campus_visit") and intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO") and \
-            (phone or bad_phone or name or (pending == "campus_visit" and intent == "CAMPUS_VISIT_BOOKING_WITH_DATE")):
-        action = pending
-    elif phone:
-        action = _pending_from_history(history)  # the agent had asked for the number
-
-    action_note = None
-    if action:
-        # A number the student gave earlier (in the chat or in My details) is used as it is: they
-        # are not asked for it again. The reply names its last four digits so a wrong one is noticed.
-        use_phone = phone or conv_state.get("pending_phone") or tools.clean_phone(profile.get("phone") or "")
-        use_name = name or profile.get("name") or conv_state.get("pending_name")
-        visit = tools.resolve_campus_visit_date(message, today=date.today()) if action == "campus_visit" else None
-        what = "campus visit callback" if action == "campus_visit" else "callback"
-        await set_state(pending_action=action, pending_phone=use_phone, pending_name=use_name, pending_turns=0)
-        if action == "campus_visit":
-            await set_state(active_topic="campus_visit")
-
-        text = None
-        if bad_phone and not use_phone:
-            text = (f"\"{bad_phone}\" does not look like a valid 10-digit mobile number. Please send the correct "
-                    f"number and I will arrange the {what}.")
-        elif use_phone and not use_name:
-            text = "Thank you. May I have your full name, so the admissions team knows whom to ask for?"
-        elif action == "campus_visit" and asked_for_call and not use_phone and not use_name and not bad_phone:
-            text = (f"Sure. Please share your full name and 10-digit mobile number, and I will ask the admissions "
-                    f"team to call you{' about visiting the campus' if action == 'campus_visit' else ''}.")
-        elif name and not use_phone and len(message.split()) <= 6:
-            text = (f"Thank you, {_first_name(name)}. Please send your 10-digit mobile number so the "
-                    f"admissions team can reach you about the {what}.")
-        elif use_phone and use_name:
-            if action == "campus_visit":
-                args = {"name": use_name, "phone": use_phone, "consent": True,
-                        "preferred_date": (visit or {}).get("human") if (visit or {}).get("date") and
-                                          not (visit or {}).get("is_past") else "",
-                        "visitors": intents.extract_visitors(message) or 1}
-                tool_name = "request_campus_visit_callback"
-            else:
-                args = {"name": use_name, "phone": use_phone, "consent": True,
-                        "preferred_time": intents.extract_preferred_time(message)}
-                tool_name = "request_counsellor_callback"
-            result = await _run_action(tool_name, args, ctx, used, cards)
-            for ev in _tool_events(tool_name, result):
-                yield ev
-            text = _saved_text(action, result, args.get("preferred_time"))
-            if result.get("status") == "saved":
-                await clear_pending()
-                await set_state(awaiting_date_confirmation=False, pending_visit_date=None, confirmed_visit_date=None, active_topic=None)
-                if _has_other_question(message, name):
-                    # The request is saved; let the model answer the rest of the message too.
-                    action_note = (f"The system has ALREADY saved this student's {what} request in this turn: "
-                                   f"name {result.get('name')}, phone ending "
-                                   f"{result.get('phone_last4')}. Confirm that in one line, then "
-                                   f"answer their other question. Do not call the {tool_name} tool again.")
-        if text and not action_note:
+            await set_state(awaiting_date_confirmation=False, pending_visit_date=None)
             async for ev in _say(text, message, session_id, conversation_id, used, cards,
-                                 ["How to reach the campus", "B.Tech CSE fees", "Hostel details"]
-                                 if action == "campus_visit" else
                                  ["B.Tech CSE fees", "Scholarship slabs", "Hostel details"]):
                 yield ev
             return
-        canned_action_text = text
-        if not text:
-            action = None  # nothing to do yet: the guided visit flow / the model takes it from here
-    else:
-        canned_action_text = None
 
-    # ---- 4. Campus tour dispatch & in-person visit guidance -----------------
-    if conv_state.get("awaiting_date_confirmation") or conv_state.get("pending_visit_date"):
-        await set_state(awaiting_date_confirmation=False, pending_visit_date=None, confirmed_visit_date=None)
+        # ---- 2b. "Change my number" / "my number is ...": one place for the number, everywhere ------
+        phone = tools.find_phone(message)
+        asked_for_call = intents.is_callback_request(message)
+        wants_update = intents.is_number_update(message) or (pending == "update_number" and bool(phone))
+        if wants_update and not asked_for_call and intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO"):
+            if phone:
+                result = await _run_action("update_contact_details", {"phone": phone}, ctx, used, cards)
+                for ev in _tool_events("update_contact_details", result):
+                    yield ev
+                await clear_pending()
+                last4 = result.get("phone_last4")
+                if result.get("status") == "updated":
+                    text = f"Done. Your mobile number is now the one ending {last4}."
+                    if result.get("saved_request_updated"):
+                        text += " Your saved request has the new number too."
+                    text += " You can see or change it any time from the menu under My details."
+                elif result.get("status") == "unchanged":
+                    text = f"That is already the number I have for you (ending {last4}). Nothing needed to change."
+                else:
+                    text = (f"Sorry, I could not update your number just now. Please try again in a minute or call "
+                            f"the Admissions Office at {config.ADMISSIONS_PHONE}.")
+            else:
+                wrong = tools.find_bad_phone(message, min_digits=5)
+                await set_state(pending_action="update_number", pending_turns=0)
+                text = (f"\"{wrong}\" does not look like a valid 10-digit mobile number. Please type the correct one."
+                        if wrong else
+                        "Sure. Please type your new 10-digit mobile number here and I will update it. You can also "
+                        "change it yourself from the menu under My details.")
+            async for ev in _say(text, message, session_id, conversation_id, used, cards,
+                                 ["B.Tech CSE fees", "Scholarship slabs", "Hostel details"]):
+                yield ev
+            return
+        if not phone and not asked_for_call and profile.get("phone") and _ASKS_OWN_NUMBER.search(message):
+            # "What is my number?": answered here from the student's own profile, so the full number never
+            # has to be in the model's prompt (it sees only the last four digits).
+            saved = str(profile["phone"])
+            text = (f"The mobile number saved for you is **{saved[:5]} {saved[5:]}**. To change it, say "
+                    f"\"change my number\" or open My details from the menu.")
+            async for ev in _say(text, message, session_id, conversation_id, used, cards,
+                                 ["B.Tech CSE fees", "Scholarship slabs", "Hostel details"]):
+                yield ev
+            return
+        if phone and intents.is_number_statement(message) and not asked_for_call:
+            # "my mobile number is ...": remember it (and fix a saved request) before answering
+            await _run_action("update_contact_details", {"phone": phone}, ctx, used, cards)
+            profile = ctx["profile"]
 
-    # 4a. Ambiguous / General Campus Tour -> Directly offer the two options
-    if intent == "CAMPUS_TOUR_DISPATCH" and not action:
-        await set_state(active_topic="campus_tour")
-        async for ev in _say(_CAMPUS_TOUR_CHOICE_TEXT, message, session_id, conversation_id,
-                             used, cards, _CAMPUS_TOUR_CHOICE_CHIPS):
-            yield ev
-        return
+        # ---- 3. Callback / campus visit requests: save them as soon as name + number are known ----
+        bad_phone = None if phone else tools.find_bad_phone(message, min_digits=5 if asked_for_call else 8)
+        # A bare "Ravi Kumar" counts as a name only when the agent has just asked for one.
+        last_reply = next((h.get("text", "") for h in reversed(history) if h.get("role") in ("model", "assistant")), "")
+        name_known = bool(profile.get("name") or conv_state.get("pending_name"))
+        awaiting_name = bool(pending and not name_known and (
+            conv_state.get("pending_phone") or re.search(r"\bname\b", last_reply, re.IGNORECASE)))
+        name = intents.extract_name(message, bare_ok=awaiting_name)
+        visit_words = intent in ("CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_BOOKING_WITH_DATE") or intents.is_visit_request(message)
 
-    # 4b. Explicit Virtual Tour / Videos & Info
-    if intent == "CAMPUS_TOUR_VIRTUAL" and not action:
-        await set_state(active_topic="campus_tour_virtual")
-        video_result = await _run_action("get_university_videos", {"topic": "campus tour"}, ctx, used, cards)
-        for ev in _tool_events("get_university_videos", video_result):
-            yield ev
-        async for ev in _say(_VIRTUAL_TOUR_TEXT, message, session_id, conversation_id,
-                             used, cards, _VIRTUAL_TOUR_CHIPS):
-            yield ev
-        return
+        action = None
+        if pending == "campus_visit" and not visit_words and not phone and not bad_phone and not asked_for_call:
+            await set_state(pending_action=None, active_topic=None)
+            pending = None
 
-    # 4c. In-Person Campus Visit
-    asks_to_visit = intents.is_visit_request(message)
-    visit = (tools.resolve_campus_visit_date(message, today=date.today())
-             if intent.startswith("CAMPUS_VISIT") or asks_to_visit else {})
-    detail_question = bool(_VISIT_DETAIL.search(message))
-    wants_visit = not detail_question and (
-        intent == "CAMPUS_VISIT_BOOKING" or asks_to_visit
-        or (intent == "CAMPUS_VISIT_BOOKING_WITH_DATE" and visit.get("date"))
-        or (intent == "CAMPUS_VISIT_INFO" and len(message.split()) <= 4))
-    if wants_visit and not action:
-        await set_state(active_topic="campus_visit", pending_action="campus_visit", pending_turns=0)
-        contact = await _run_action("get_contact_and_apply_links", {"topic": "campus visit"}, ctx, used, cards)
-        for ev in _tool_events("get_contact_and_apply_links", contact):
-            yield ev
-        async for ev in _say(_visit_guide(visit.get("human") if visit.get("date") else None), message,
-                             session_id, conversation_id, used, cards, _VISIT_CHIPS):
-            yield ev
-        return
-    if intent in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO"):
-        intent = "GENERAL"  # an old chat that was waiting for a visit date: answer normally
+        if asked_for_call:
+            # "Ask counsellor to call me" / "Ask admissions to call me" right after visit guidance is a visit callback.
+            action = "campus_visit" if (pending == "campus_visit" or visit_words) else "callback"
+        elif visit_words and (phone or bad_phone or pending == "campus_visit"):
+            action = "campus_visit"
+        elif pending in ("callback", "campus_visit") and intent not in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO") and \
+                (phone or bad_phone or name or (pending == "campus_visit" and intent == "CAMPUS_VISIT_BOOKING_WITH_DATE")):
+            action = pending
+        elif phone:
+            action = _pending_from_history(history)  # the agent had asked for the number
 
-    # ---- 4b. Course Selection & Fee Enquiry Flow ----------------
-    intake_decision = None
-    # Read again in the fallback below when the model fails: it must exist even when this block is skipped
-    # (a pending callback / campus visit), or that fallback crashes (v4.15.1).
-    is_other_fee_inquiry = False
-    if not action_note and not action and conv_state.get("pending_action") not in ("callback", "campus_visit") \
-            and intent not in ("CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_BOOKING_WITH_DATE", "DATE_CONFIRMATION_YES",
-                               "DATE_CONFIRMATION_NO"):
-        intake_state = dict(conv_state.get("fee_intake") or {})
-        if not intake_state.get("program"):
-            candidate_p = conv_state.get("fee_flow_prog") or conv_state.get("active_program") or (profile.get("program_interest") if profile else None)
-            if candidate_p:
-                intake_state["program"] = candidate_p
+        action_note = None
+        if action:
+            # A number the student gave earlier (in the chat or in My details) is used as it is: they
+            # are not asked for it again. The reply names its last four digits so a wrong one is noticed.
+            use_phone = phone or conv_state.get("pending_phone") or tools.clean_phone(profile.get("phone") or "")
+            use_name = name or profile.get("name") or conv_state.get("pending_name")
+            visit = tools.resolve_campus_visit_date(message, today=date.today()) if action == "campus_visit" else None
+            what = "campus visit callback" if action == "campus_visit" else "callback"
+            await set_state(pending_action=action, pending_phone=use_phone, pending_name=use_name, pending_turns=0)
+            if action == "campus_visit":
+                await set_state(active_topic="campus_visit")
 
-        async def _apply_intake_updates(state_dict: dict):
-            await set_state(fee_intake=state_dict)
-            for k in ("program", "board", "board_label", "board_key", "academic_stage", "stage_label",
-                      "raw_marks", "max_marks", "percent", "admission_route", "route_label",
-                      "eapcet_rank", "jee_percentile", "stream"):
-                val = state_dict.get(k)
-                if val is not None:
-                    if k == "program":
-                        if profile is not None:
-                            profile["program_interest"] = val
-                        await memory.update_profile(session_id, program_interest=val)
-                        await set_state(active_program=val, fee_flow_prog=val)
-                    else:
-                        if profile is not None:
-                            profile[k] = val
-                        await memory.update_profile(session_id, **{k: val})
-
-        # 0. Check affordability and concession multi-step flow
-        if conv_state.get("affordability_flow") or affordability.is_affordability_query(message):
-            afford_res = affordability.process_affordability_flow(message, profile, conv_state)
-            if afford_res is not None:
-                await set_state(**afford_res["new_state"])
-                async for ev in _say(afford_res["text"], message, session_id, conversation_id,
-                                     cards=afford_res.get("cards", []),
-                                     suggestions=afford_res.get("suggestions", [])):
+            text = None
+            if bad_phone and not use_phone:
+                text = (f"\"{bad_phone}\" does not look like a valid 10-digit mobile number. Please send the correct "
+                        f"number and I will arrange the {what}.")
+            elif use_phone and not use_name:
+                text = "Thank you. May I have your full name, so the admissions team knows whom to ask for?"
+            elif action == "campus_visit" and asked_for_call and not use_phone and not use_name and not bad_phone:
+                text = (f"Sure. Please share your full name and 10-digit mobile number, and I will ask the admissions "
+                        f"team to call you{' about visiting the campus' if action == 'campus_visit' else ''}.")
+            elif name and not use_phone and len(message.split()) <= 6:
+                text = (f"Thank you, {_first_name(name)}. Please send your 10-digit mobile number so the "
+                        f"admissions team can reach you about the {what}.")
+            elif use_phone and use_name:
+                if action == "campus_visit":
+                    args = {"name": use_name, "phone": use_phone, "consent": True,
+                            "preferred_date": (visit or {}).get("human") if (visit or {}).get("date") and
+                                              not (visit or {}).get("is_past") else "",
+                            "visitors": intents.extract_visitors(message) or 1}
+                    tool_name = "request_campus_visit_callback"
+                else:
+                    args = {"name": use_name, "phone": use_phone, "consent": True,
+                            "preferred_time": intents.extract_preferred_time(message)}
+                    tool_name = "request_counsellor_callback"
+                result = await _run_action(tool_name, args, ctx, used, cards)
+                for ev in _tool_events(tool_name, result):
+                    yield ev
+                text = _saved_text(action, result, args.get("preferred_time"))
+                if result.get("status") == "saved":
+                    await clear_pending()
+                    await set_state(awaiting_date_confirmation=False, pending_visit_date=None, confirmed_visit_date=None, active_topic=None)
+                    if _has_other_question(message, name):
+                        # The request is saved; let the model answer the rest of the message too.
+                        action_note = (f"The system has ALREADY saved this student's {what} request in this turn: "
+                                       f"name {result.get('name')}, phone ending "
+                                       f"{result.get('phone_last4')}. Confirm that in one line, then "
+                                       f"answer their other question. Do not call the {tool_name} tool again.")
+            if text and not action_note:
+                async for ev in _say(text, message, session_id, conversation_id, used, cards,
+                                     ["How to reach the campus", "B.Tech CSE fees", "Hostel details"]
+                                     if action == "campus_visit" else
+                                     ["B.Tech CSE fees", "Scholarship slabs", "Hostel details"]):
                     yield ev
                 return
+            canned_action_text = text
+            if not text:
+                action = None  # nothing to do yet: the guided visit flow / the model takes it from here
+        else:
+            canned_action_text = None
 
-        # 1. If fee intake is active, or user asks specifically about scholarship/calculation, prioritize fee intake
-        low_msg = (message or "").lower()
-        is_other_fee_inquiry = bool(re.search(
-            r"\b(?:other\s+fees?|other\s+academic(?:\s*/\s*university|\s+university)?\s+charges?|other\s+charges?|annual\s+charges?|"
-            r"university\s+charges?|additional\s+fees?|additional\s+charges?|enrolment\s+fee|enrollment\s+fee|application\s+form\s+fee|"
-            r"specialisation\s+fee|specialization\s+fee|phd\s+fee|"
-            r"fees?\s+(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee)|"
-            r"(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee))\b",
-            low_msg,
-        ))
+        # ---- 4. Campus tour dispatch & in-person visit guidance -----------------
+        if conv_state.get("awaiting_date_confirmation") or conv_state.get("pending_visit_date"):
+            await set_state(awaiting_date_confirmation=False, pending_visit_date=None, confirmed_visit_date=None)
 
-        is_scholarship_calc_q = not is_other_fee_inquiry and bool(re.search(
-            r"\b(?:(?:schol\w*|s[ck]?h?o[lr]+[ae]?r?s+h?i*p+\w*)|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
-            r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee|expected\s+scholarship|"
-            r"scholarship\s+counsell?or|fee\s+counsell?or)\b",
-            low_msg,
-        ))
-        is_multi_q = len(semantic_router.decompose_multi_questions(message)) > 1
-        is_general_scholarship = bool(re.search(
-            r"\b(?:what\s+(?:are\s+the\s+)?scholarships|which\s+scholarships|scholarships\s+available|"
-            r"are\s+there\s+scholarships|any\s+scholarships|do\s+you\s+(?:have|offer|provide)\s+scholarships|"
-            r"scholarship\s+options|list\s+of\s+scholarships|details\s+about\s+scholarships)\b",
-            low_msg,
-        ))
-        if is_multi_q or is_general_scholarship:
-            is_scholarship_calc_q = False
+        # 4a. Ambiguous / General Campus Tour -> Directly offer the two options
+        if intent == "CAMPUS_TOUR_DISPATCH" and not action:
+            await set_state(active_topic="campus_tour")
+            async for ev in _say(_CAMPUS_TOUR_CHOICE_TEXT, message, session_id, conversation_id,
+                                 used, cards, _CAMPUS_TOUR_CHOICE_CHIPS):
+                yield ev
+            return
 
-        if is_other_fee_inquiry and conv_state.get("fee_intake"):
-            await set_state(fee_intake=None)
-            intake_state = {}
-        is_bare_score_msg = bool(re.match(
-            r"^\s*(?:i\s+(?:got|scored|have|secured|obtained)\s+)?\d{2,4}(?:\.\d+)?\s*(?:marks?|%|percent)?\s*$",
-            low_msg,
-        )) or bool(re.fullmatch(r"\s*\d{2,4}(?:\.\d+)?\s*%?\s*", low_msg))
-        is_branch_guidance = (intent == "BRANCH_GUIDANCE_QUERY") or intents.is_branch_guidance_query(message)
-        is_seat_guarantee = (intent == "ADMISSION_GUARANTEE_QUERY") or bool(intents._ADMISSION_GUARANTEE_PATTERN.search(message))
-        is_future_year = (intent == "FUTURE_YEAR_FEE_QUERY") or bool(intents._FUTURE_YEAR_FEE_PATTERN.search(message))
-        if is_seat_guarantee or is_future_year:
-            is_scholarship_calc_q = False
-            if conv_state.get("fee_intake"):
+        # 4b. Explicit Virtual Tour / Videos & Info
+        if intent == "CAMPUS_TOUR_VIRTUAL" and not action:
+            await set_state(active_topic="campus_tour_virtual")
+            video_result = await _run_action("get_university_videos", {"topic": "campus tour"}, ctx, used, cards)
+            for ev in _tool_events("get_university_videos", video_result):
+                yield ev
+            async for ev in _say(_VIRTUAL_TOUR_TEXT, message, session_id, conversation_id,
+                                 used, cards, _VIRTUAL_TOUR_CHIPS):
+                yield ev
+            return
+
+        # 4c. In-Person Campus Visit
+        asks_to_visit = intents.is_visit_request(message)
+        visit = (tools.resolve_campus_visit_date(message, today=date.today())
+                 if intent.startswith("CAMPUS_VISIT") or asks_to_visit else {})
+        detail_question = bool(_VISIT_DETAIL.search(message))
+        wants_visit = not detail_question and (
+            intent == "CAMPUS_VISIT_BOOKING" or asks_to_visit
+            or (intent == "CAMPUS_VISIT_BOOKING_WITH_DATE" and visit.get("date"))
+            or (intent == "CAMPUS_VISIT_INFO" and len(message.split()) <= 4))
+        if wants_visit and not action:
+            await set_state(active_topic="campus_visit", pending_action="campus_visit", pending_turns=0)
+            contact = await _run_action("get_contact_and_apply_links", {"topic": "campus visit"}, ctx, used, cards)
+            for ev in _tool_events("get_contact_and_apply_links", contact):
+                yield ev
+            async for ev in _say(_visit_guide(visit.get("human") if visit.get("date") else None), message,
+                                 session_id, conversation_id, used, cards, _VISIT_CHIPS):
+                yield ev
+            return
+        if intent in ("DATE_CONFIRMATION_YES", "DATE_CONFIRMATION_NO"):
+            intent = "GENERAL"  # an old chat that was waiting for a visit date: answer normally
+
+        # ---- 4b. Course Selection & Fee Enquiry Flow ----------------
+        intake_decision = None
+        # Read again in the fallback below when the model fails: it must exist even when this block is skipped
+        # (a pending callback / campus visit), or that fallback crashes (v4.15.1).
+        is_other_fee_inquiry = False
+        if not action_note and not action and conv_state.get("pending_action") not in ("callback", "campus_visit") \
+                and intent not in ("CAMPUS_VISIT_BOOKING", "CAMPUS_VISIT_BOOKING_WITH_DATE", "DATE_CONFIRMATION_YES",
+                                   "DATE_CONFIRMATION_NO"):
+            intake_state = dict(conv_state.get("fee_intake") or {})
+            if not intake_state.get("program"):
+                candidate_p = conv_state.get("fee_flow_prog") or conv_state.get("active_program") or (profile.get("program_interest") if profile else None)
+                if candidate_p:
+                    intake_state["program"] = candidate_p
+
+            async def _apply_intake_updates(state_dict: dict):
+                await set_state(fee_intake=state_dict)
+                for k in ("program", "board", "board_label", "board_key", "academic_stage", "stage_label",
+                          "raw_marks", "max_marks", "percent", "admission_route", "route_label",
+                          "eapcet_rank", "jee_percentile", "stream"):
+                    val = state_dict.get(k)
+                    if val is not None:
+                        if k == "program":
+                            if profile is not None:
+                                profile["program_interest"] = val
+                            await memory.update_profile(session_id, program_interest=val)
+                            await set_state(active_program=val, fee_flow_prog=val)
+                        else:
+                            if profile is not None:
+                                profile[k] = val
+                            await memory.update_profile(session_id, **{k: val})
+
+            # 0. Check affordability and concession multi-step flow
+            if conv_state.get("affordability_flow") or affordability.is_affordability_query(message):
+                afford_res = affordability.process_affordability_flow(message, profile, conv_state)
+                if afford_res is not None:
+                    await set_state(**afford_res["new_state"])
+                    async for ev in _say(afford_res["text"], message, session_id, conversation_id,
+                                         cards=afford_res.get("cards", []),
+                                         suggestions=afford_res.get("suggestions", [])):
+                        yield ev
+                    return
+
+            # 1. If fee intake is active, or user asks specifically about scholarship/calculation, prioritize fee intake
+            low_msg = (message or "").lower()
+            is_other_fee_inquiry = bool(re.search(
+                r"\b(?:other\s+fees?|other\s+academic(?:\s*/\s*university|\s+university)?\s+charges?|other\s+charges?|annual\s+charges?|"
+                r"university\s+charges?|additional\s+fees?|additional\s+charges?|enrolment\s+fee|enrollment\s+fee|application\s+form\s+fee|"
+                r"specialisation\s+fee|specialization\s+fee|phd\s+fee|"
+                r"fees?\s+(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee)|"
+                r"(?:other\s+than|apart\s+from|besides|excluding|except)\s+(?:sem(?:ester)?\s+fee|tuition(?:\s+fee)?|course\s+fee))\b",
+                low_msg,
+            ))
+
+            is_scholarship_calc_q = not is_other_fee_inquiry and bool(re.search(
+                r"\b(?:(?:schol\w*|s[ck]?h?o[lr]+[ae]?r?s+h?i*p+\w*)|waiver|concession|discount|fee\s+assessment|scholarship\s+assessment|assessment\s+form|"
+                r"calculate\s+(?:[\w\s]+\s+)?(?:fee|tuition|scholarship)|fee\s+calculation|my\s+fee|expected\s+scholarship|"
+                r"scholarship\s+counsell?or|fee\s+counsell?or)\b",
+                low_msg,
+            ))
+            is_multi_q = len(semantic_router.decompose_multi_questions(message)) > 1
+            is_general_scholarship = bool(re.search(
+                r"\b(?:what\s+(?:are\s+the\s+)?scholarships|which\s+scholarships|scholarships\s+available|"
+                r"are\s+there\s+scholarships|any\s+scholarships|do\s+you\s+(?:have|offer|provide)\s+scholarships|"
+                r"scholarship\s+options|list\s+of\s+scholarships|details\s+about\s+scholarships)\b",
+                low_msg,
+            ))
+            if is_multi_q or is_general_scholarship:
+                is_scholarship_calc_q = False
+
+            if is_other_fee_inquiry and conv_state.get("fee_intake"):
                 await set_state(fee_intake=None)
                 intake_state = {}
+            is_bare_score_msg = bool(re.match(
+                r"^\s*(?:i\s+(?:got|scored|have|secured|obtained)\s+)?\d{2,4}(?:\.\d+)?\s*(?:marks?|%|percent)?\s*$",
+                low_msg,
+            )) or bool(re.fullmatch(r"\s*\d{2,4}(?:\.\d+)?\s*%?\s*", low_msg))
+            is_branch_guidance = (intent == "BRANCH_GUIDANCE_QUERY") or intents.is_branch_guidance_query(message)
+            is_seat_guarantee = (intent == "ADMISSION_GUARANTEE_QUERY") or bool(intents._ADMISSION_GUARANTEE_PATTERN.search(message))
+            is_future_year = (intent == "FUTURE_YEAR_FEE_QUERY") or bool(intents._FUTURE_YEAR_FEE_PATTERN.search(message))
+            if is_seat_guarantee or is_future_year:
+                is_scholarship_calc_q = False
+                if conv_state.get("fee_intake"):
+                    await set_state(fee_intake=None)
+                    intake_state = {}
 
-        intake_in_progress = bool((conv_state.get("fee_intake") or {}).get("waiting_for")) and not is_multi_q \
-            and not side_q
-        if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (intake_in_progress or is_scholarship_calc_q or (is_bare_score_msg and client is None)):
-            intake_decision = fee_intake.decide(message, profile, intake_state, first_name=natural_name)
-            if intake_decision and intake_decision["action"] == "ineligible":
-                await set_state(fee_intake={k: v for k, v in intake_decision["state"].items()
-                                            if k in ("program", "ineligible", "counsellor_mode")})
-                # v4.15.0: the marks given are still the student's marks (other programmes, a later question)
-                kept = {k: intake_decision["state"].get(k) for k in ("percent", "raw_marks", "max_marks", "board",
-                                                                     "board_key", "board_label", "academic_stage")
-                        if intake_decision["state"].get(k) not in (None, "")}
-                if kept.get("percent") is not None:
-                    profile = await memory.update_profile(session_id, **kept)
-                    ctx["profile"] = profile
-                async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
-                                     cards=[],
-                                     suggestions=intake_decision.get("chips", []),
-                                     eligible=False, exact_chips=True):
-                    yield ev
-                return
-            elif intake_decision and intake_decision["action"] == "ask":
-                if intake_decision.get("profile_clear"):
-                    # "Change my details" / an impossible percentage: the old values must not come back
-                    profile = await memory.remove_profile_keys(session_id, *intake_decision["profile_clear"])
-                    ctx["profile"] = profile
-                await _apply_intake_updates(intake_decision["state"])
-                async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
-                                     cards=intake_decision.get("cards", []),
-                                     suggestions=intake_decision["chips"], exact_chips=True):
-                    yield ev
-                return
-            elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
-                await _apply_intake_updates(intake_decision["state"])
-                fee_args = dict(intake_decision["args"])
-                fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
-                if fee_result.get("status") == "ok":
-                    c_text = format_counsellor_assessment(fee_result, intake_decision.get("counsellor_details", {}))
-                    c_det = intake_decision.get("counsellor_details", {})
-                    if c_det.get("uses_entrance") and not c_det.get("has_entrance_score"):
-                        chips = ["Add my EAPCET rank", "Add my JEE Main percentile", "Hostel fee details", "How do I apply?"]
-                    else:
-                        chips = ["Hostel fee details", "How do I apply?", "Talk to an admission counsellor", "Campus visit"]
-                    for ev in _tool_events("calculate_fee", fee_result):
-                        yield ev
-                    async for ev in _counsellor_result(fee_result, c_det, c_text, chips, message, session_id,
-                                                       conversation_id, conv_state, ctx, set_state):
-                        yield ev
-                    return
-
-        # 2. Check exploratory school & course browsing flow ONLY when user is actively in selection or asked to explore schools
-        in_selection_flow = conv_state.get("fee_flow_state") in ("awaiting_school_selection", "awaiting_course_selection")
-        wants_course_explore = any(k in low_msg for k in ("explore programs", "explore schools", "browse courses", "browse schools", "change school", "different course", "change programme"))
-        if not is_branch_guidance and (in_selection_flow or wants_course_explore or _is_mock_or_test_client(client)):
-            flow_result = fee_flow.process_fee_flow(message, session_id, profile, conv_state)
-            if flow_result is not None:
-                await set_state(**flow_result["new_state"])
-                async for ev in _say(flow_result["text"], message, session_id, conversation_id,
-                                     cards=flow_result.get("cards", []),
-                                     suggestions=flow_result.get("suggestions", [])):
-                    yield ev
-                return
-
-        # 3. Fallback check for fee intake ONLY if user wants to calculate fee
-        if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (is_scholarship_calc_q or intake_in_progress):
-            if not intake_decision:
+            intake_in_progress = _intake_open(conv_state, message) and not is_multi_q and not side_q
+            if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (intake_in_progress or is_scholarship_calc_q or (is_bare_score_msg and client is None)):
                 intake_decision = fee_intake.decide(message, profile, intake_state, first_name=natural_name)
-            if intake_decision and intake_decision["action"] == "ineligible":
-                await set_state(fee_intake={k: v for k, v in intake_decision["state"].items()
-                                            if k in ("program", "ineligible", "counsellor_mode")})
-                async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
-                                     cards=[],
-                                     suggestions=intake_decision.get("chips", []),
-                                     eligible=False, exact_chips=True):
-                    yield ev
-                return
-            elif intake_decision and intake_decision["action"] == "ask":
-                if intake_decision.get("profile_clear"):
-                    # "Change my details" / an impossible percentage: the old values must not come back
-                    profile = await memory.remove_profile_keys(session_id, *intake_decision["profile_clear"])
-                    ctx["profile"] = profile
-                await _apply_intake_updates(intake_decision["state"])
-                async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
-                                     cards=intake_decision.get("cards", []),
-                                     suggestions=intake_decision["chips"], exact_chips=True):
-                    yield ev
-                return
-            elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
-                await _apply_intake_updates(intake_decision["state"])
-                fee_args = dict(intake_decision["args"])
-                fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
-                if fee_result.get("status") == "ok":
-                    c_text = format_counsellor_assessment(fee_result, intake_decision.get("counsellor_details", {}))
-                    c_det = intake_decision.get("counsellor_details", {})
-                    if c_det.get("uses_entrance") and not c_det.get("has_entrance_score"):
-                        chips = ["Add my EAPCET rank", "Add my JEE Main percentile", "Hostel fee details", "How do I apply?"]
-                    else:
-                        chips = ["Hostel fee details", "How do I apply?", "Talk to an admission counsellor", "Campus visit"]
-                    for ev in _tool_events("calculate_fee", fee_result):
+                if intake_decision and intake_decision["action"] == "ineligible":
+                    await set_state(fee_intake={k: v for k, v in intake_decision["state"].items()
+                                                if k in ("program", "ineligible", "counsellor_mode")})
+                    # v4.15.0: the marks given are still the student's marks (other programmes, a later question)
+                    kept = {k: intake_decision["state"].get(k) for k in ("percent", "raw_marks", "max_marks", "board",
+                                                                         "board_key", "board_label", "academic_stage")
+                            if intake_decision["state"].get(k) not in (None, "")}
+                    if kept.get("percent") is not None:
+                        profile = await memory.update_profile(session_id, **kept)
+                        ctx["profile"] = profile
+                    async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                         cards=[],
+                                         suggestions=intake_decision.get("chips", []),
+                                         eligible=False, exact_chips=True):
                         yield ev
-                    async for ev in _counsellor_result(fee_result, c_det, c_text, chips, message, session_id,
-                                                       conversation_id, conv_state, ctx, set_state):
+                    return
+                elif intake_decision and intake_decision["action"] == "ask":
+                    if intake_decision.get("profile_clear"):
+                        # "Change my details" / an impossible percentage: the old values must not come back
+                        profile = await memory.remove_profile_keys(session_id, *intake_decision["profile_clear"])
+                        ctx["profile"] = profile
+                    await _apply_intake_updates(intake_decision["state"])
+                    async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                         cards=intake_decision.get("cards", []),
+                                         suggestions=intake_decision["chips"], exact_chips=True):
+                        yield ev
+                    return
+                elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
+                    await _apply_intake_updates(intake_decision["state"])
+                    fee_args = dict(intake_decision["args"])
+                    fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
+                    if fee_result.get("status") == "ok":
+                        c_text = format_counsellor_assessment(fee_result, intake_decision.get("counsellor_details", {}))
+                        c_det = intake_decision.get("counsellor_details", {})
+                        if c_det.get("uses_entrance") and not c_det.get("has_entrance_score"):
+                            chips = ["Add my EAPCET rank", "Add my JEE Main percentile", "Hostel fee details", "How do I apply?"]
+                        else:
+                            chips = ["Hostel fee details", "How do I apply?", "Talk to an admission counsellor", "Campus visit"]
+                        for ev in _tool_events("calculate_fee", fee_result):
+                            yield ev
+                        async for ev in _counsellor_result(fee_result, c_det, c_text, chips, message, session_id,
+                                                           conversation_id, conv_state, ctx, set_state):
+                            yield ev
+                        return
+
+            # 2. Check exploratory school & course browsing flow ONLY when user is actively in selection or asked to explore schools
+            in_selection_flow = conv_state.get("fee_flow_state") in ("awaiting_school_selection", "awaiting_course_selection")
+            wants_course_explore = any(k in low_msg for k in ("explore programs", "explore schools", "browse courses", "browse schools", "change school", "different course", "change programme"))
+            if not is_branch_guidance and (in_selection_flow or wants_course_explore or _is_mock_or_test_client(client)):
+                flow_result = fee_flow.process_fee_flow(message, session_id, profile, conv_state)
+                if flow_result is not None:
+                    await set_state(**flow_result["new_state"])
+                    async for ev in _say(flow_result["text"], message, session_id, conversation_id,
+                                         cards=flow_result.get("cards", []),
+                                         suggestions=flow_result.get("suggestions", [])):
                         yield ev
                     return
 
-        if intake_decision and not intake_decision.get("counsellor"):
-            await set_state(fee_intake=None)
+            # 3. Fallback check for fee intake ONLY if user wants to calculate fee
+            if not is_other_fee_inquiry and not is_branch_guidance and not is_seat_guarantee and not is_future_year and (is_scholarship_calc_q or intake_in_progress):
+                if not intake_decision:
+                    intake_decision = fee_intake.decide(message, profile, intake_state, first_name=natural_name)
+                if intake_decision and intake_decision["action"] == "ineligible":
+                    await set_state(fee_intake={k: v for k, v in intake_decision["state"].items()
+                                                if k in ("program", "ineligible", "counsellor_mode")})
+                    async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                         cards=[],
+                                         suggestions=intake_decision.get("chips", []),
+                                         eligible=False, exact_chips=True):
+                        yield ev
+                    return
+                elif intake_decision and intake_decision["action"] == "ask":
+                    if intake_decision.get("profile_clear"):
+                        # "Change my details" / an impossible percentage: the old values must not come back
+                        profile = await memory.remove_profile_keys(session_id, *intake_decision["profile_clear"])
+                        ctx["profile"] = profile
+                    await _apply_intake_updates(intake_decision["state"])
+                    async for ev in _say(intake_decision["text"], message, session_id, conversation_id,
+                                         cards=intake_decision.get("cards", []),
+                                         suggestions=intake_decision["chips"], exact_chips=True):
+                        yield ev
+                    return
+                elif intake_decision and intake_decision["action"] == "calculate" and intake_decision.get("counsellor") and not _is_mock_or_test_client(client):
+                    await _apply_intake_updates(intake_decision["state"])
+                    fee_args = dict(intake_decision["args"])
+                    fee_result = await tools.run_tool("calculate_fee", fee_args, ctx)
+                    if fee_result.get("status") == "ok":
+                        c_text = format_counsellor_assessment(fee_result, intake_decision.get("counsellor_details", {}))
+                        c_det = intake_decision.get("counsellor_details", {})
+                        if c_det.get("uses_entrance") and not c_det.get("has_entrance_score"):
+                            chips = ["Add my EAPCET rank", "Add my JEE Main percentile", "Hostel fee details", "How do I apply?"]
+                        else:
+                            chips = ["Hostel fee details", "How do I apply?", "Talk to an admission counsellor", "Campus visit"]
+                        for ev in _tool_events("calculate_fee", fee_result):
+                            yield ev
+                        async for ev in _counsellor_result(fee_result, c_det, c_text, chips, message, session_id,
+                                                           conversation_id, conv_state, ctx, set_state):
+                            yield ev
+                        return
+
+            if intake_decision and not intake_decision.get("counsellor"):
+                await set_state(fee_intake=None)
 
     # ---- 5. Everything else: the model, with tools --------------------------------------------
     contents = [types.Content(role=h["role"], parts=[types.Part.from_text(text=h["text"])])
@@ -3875,7 +3937,7 @@ async def run_agent(
     # No answer cache: an answer is always built for this question from the current data. (A cache keyed
     # by the message text served the same reply to every student for hours and outlived data updates.)
 
-    if is_about_sru_query(message):
+    if not model_first and is_about_sru_query(message):
         from app.services.card_service import generate_cards
         why_cards = generate_cards(message, "", session_id=session_id)
         for wc in why_cards:
@@ -3890,6 +3952,8 @@ async def run_agent(
         hostel_args = _fee_args_from_message(message, profile) or {}
         if hostel_args.get("hostel"):
             fee_args["hostel"] = hostel_args["hostel"]
+    elif model_first:
+        fee_args = None   # the model asks the fee engine itself (calculate_fee) when the question needs a fee
     else:
         fee_args = _fee_args_from_message(message, profile) if not action_note else None
     if fee_args:
@@ -3908,7 +3972,7 @@ async def run_agent(
             fee_note += "\nThe student has no JEE Main / EAPCET score."
         fee_note += (f"\nOfficial fee & scholarship calculator to mention: {fee_intake.FEE_PORTAL_URL}")
     prefetched_faculty = None
-    if not prefetched_fee and not action_note and faculty.is_faculty_question(message):
+    if not model_first and not prefetched_fee and not action_note and faculty.is_faculty_question(message):
         fac = await tools.run_tool("find_faculty", {"query": message}, ctx)
         if fac.get("status") == "ok":
             prefetched_faculty = fac
@@ -4035,141 +4099,23 @@ async def run_agent(
             async for ev in _say(canned_action_text, message, session_id, conversation_id, used, cards):
                 yield ev
             return
-        if not used:
-            if intent in ("PLACEMENT_GUARANTEE_QUERY", "PLACEMENT_INFO_QUERY"):
-                from app.services.card_service import PLACEMENT_EXCELLENCE_CARD
-                reply, chips, _aspect = responses.placement_reply(message, f"{session_id}{len(history)}")
-                async for ev in _say(reply, message, session_id, conversation_id,
-                                     cards=[PLACEMENT_EXCELLENCE_CARD], suggestions=chips):
-                    yield ev
-                return
-            if intent == "HOSTEL_INFO_QUERY":
-                from app.services.card_service import HOSTEL_FACILITIES_CARD
-                hostel_text = responses.get_hostel_info_text(session_id, message)
-                async for ev in _say(hostel_text, message, session_id, conversation_id,
-                                     cards=[HOSTEL_FACILITIES_CARD],
-                                     suggestions=_HOSTEL_INFO_CHIPS):
-                    yield ev
-                return
-            if intent == "HOSTEL_MESS_QUERY":
-                async for ev in _say(_HOSTEL_MESS_TEXT, message, session_id, conversation_id,
-                                     suggestions=_HOSTEL_MESS_CHIPS):
-                    yield ev
-                return
-            if intent == "HOSTEL_CURFEW_RULES_QUERY":
-                async for ev in _say(_HOSTEL_CURFEW_RULES_TEXT, message, session_id, conversation_id,
-                                     suggestions=_HOSTEL_CURFEW_CHIPS):
-                    yield ev
-                return
-            if intent == "HOSTEL_SAFETY_QUERY":
-                async for ev in _say(responses._HOSTEL_SAFETY_TEXT, message, session_id, conversation_id,
-                                     suggestions=_HOSTEL_SAFETY_CHIPS):
-                    yield ev
-                return
-            if intent == "HOSTEL_FEE_QUERY":
-                from app.services.card_service import HOSTEL_FEE_CARD
-                async for ev in _say(_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
-                                     cards=[HOSTEL_FEE_CARD],
-                                     suggestions=_HOSTEL_FEE_CHIPS):
-                    yield ev
-                return
-            if intent == "COMBINED_FEE_HOSTEL_QUERY":
-                from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
-                async for ev in _say(_COMBINED_HOSTEL_FEE_TEXT, message, session_id, conversation_id,
-                                     cards=[BTECH_CSE_WITH_HOSTEL_FEE_CARD],
-                                     suggestions=_COMBINED_HOSTEL_FEE_CHIPS):
-                    yield ev
-                return
-            if is_other_fee_inquiry:
-                from app.services.card_service import OTHER_FEES_CARD
-                async for ev in _say(responses._OTHER_FEES_TEXT, message, session_id, conversation_id,
-                                     cards=[OTHER_FEES_CARD],
-                                     suggestions=responses._OTHER_FEES_CHIPS):
-                    yield ev
-                return
-            if is_about_sru_query(message):
-                from app.services.card_service import generate_cards
-                why_text = responses.get_why_choose_sru_text(variant_id=variant_id, session_id=session_id)
-                why_cards = generate_cards(message, why_text, session_id=session_id)
-                async for ev in _say(why_text, message, session_id, conversation_id,
-                                     cards=why_cards,
-                                     suggestions=responses._WHY_CHOOSE_SRU_CHIPS):
-                    yield ev
-            if intent == "BRANCH_GUIDANCE_QUERY" or intents.is_branch_guidance_query(message):
-                raw_marks = profile.get("raw_marks") or early_details.get("raw_marks")
-                bg_text = responses.get_branch_guidance_text(raw_marks, session_id=session_id)
-                async for ev in _say(bg_text, message, session_id, conversation_id,
-                                     suggestions=responses._BRANCH_GUIDANCE_CHIPS):
-                    yield ev
-                return
-            if intent == "BTECH_PROGRAMS_QUERY":
-                async for ev in _say(responses._BTECH_PROGRAMS_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._BTECH_PROGRAMS_OVERVIEW_CHIPS):
-                    yield ev
-                return
-            if intent == "PROGRAM_AI_ROBOTICS_QUERY":
-                async for ev in _say(responses._BTECH_AI_ROBOTICS_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._BTECH_AI_ROBOTICS_OVERVIEW_CHIPS):
-                    yield ev
-                return
-            if intent == "PROGRAM_CSE_QUERY":
-                async for ev in _say(responses._BTECH_CSE_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._BTECH_CSE_OVERVIEW_CHIPS):
-                    yield ev
-                return
-            if intent == "PROGRAM_ECE_QUERY":
-                async for ev in _say(responses._BTECH_ECE_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._BTECH_ECE_OVERVIEW_CHIPS):
-                    yield ev
-                return
-            if intent == "PROGRAM_CORE_QUERY":
-                async for ev in _say(responses._BTECH_CORE_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._BTECH_CORE_OVERVIEW_CHIPS):
-                    yield ev
-                return
-            if intent == "PROGRAM_MANAGEMENT_QUERY":
-                async for ev in _say(responses._PROGRAM_MANAGEMENT_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._PROGRAM_MANAGEMENT_OVERVIEW_CHIPS):
-                    yield ev
-                return
-            if intent == "PROGRAM_AGRICULTURE_QUERY":
-                async for ev in _say(responses._PROGRAM_AGRICULTURE_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._PROGRAM_AGRICULTURE_OVERVIEW_CHIPS):
-                    yield ev
-                return
-            if intent == "PROGRAM_COMP_APP_QUERY":
-                async for ev in _say(responses._PROGRAM_COMP_APP_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._PROGRAM_COMP_APP_OVERVIEW_CHIPS):
-                    yield ev
-                return
-            if intent == "PROGRAM_DESIGN_QUERY":
-                async for ev in _say(responses._PROGRAM_DESIGN_OVERVIEW_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._PROGRAM_DESIGN_OVERVIEW_CHIPS):
-                    yield ev
-                return
-            if intent == "ELIGIBILITY_QUERY":
-                async for ev in _say(responses._ELIGIBILITY_TEXT, message, session_id, conversation_id,
-                                     suggestions=responses._ELIGIBILITY_CHIPS):
-                    yield ev
-                return
-
-            offline = _offline_fee_reply(message, ctx, prefetched_fee)
-            if offline:
-                text, fee = offline
-                for ev in _tool_events("calculate_fee", fee):
-                    yield ev
-                async for ev in _say(text, message, session_id, conversation_id,
-                                     [{"name": "calculate_fee", "status": "ok", "is_action": False}],
-                                     [{"type": "calculate_fee", "data": fee}],
-                                     eligible=True if _is_personal_eligibility(fee) else None):
-                    yield ev
-                return
-
+        # v4.17.0: no keyword-matched answer when the model can't be reached. A canned text picked from the
+        # words of the question was often about something else; the student is told plainly that the assistant
+        # is busy, with buttons that work without the model (each one runs its own fixed flow).
+        if not used and prefetched_fee:
+            # A button / step whose fee the engine already calculated for this turn: that calculation is shown
+            # as it is (exact engine figures, nothing read from the words of a typed question).
+            for ev in _tool_events("calculate_fee", prefetched_fee):
+                yield ev
+            async for ev in _say(_offline_fee_text(prefetched_fee), message, session_id, conversation_id,
+                                 [{"name": "calculate_fee", "status": "ok", "is_action": False}],
+                                 [{"type": "calculate_fee", "data": prefetched_fee}],
+                                 eligible=True if _is_personal_eligibility(prefetched_fee) else None):
+                yield ev
+            return
         if link.get("error_kind") in ("rate", "busy"):
-            # When model is unavailable (quota, rate limit, or sandbox network): give handbook passage if one fits, else say what still works.
-            text = (None if used else (_offline_knowledge_reply(search_q, session_id) or _offline_knowledge_reply(message, session_id))) or get_limit_reply(session_id)
-            async for ev in _say(text, message, session_id, conversation_id, used, cards,
-                                 ["CSE fee with 85%", "Call me", "Plan a campus visit"]):
+            async for ev in _say(get_limit_reply(session_id), message, session_id, conversation_id, used, cards,
+                                 list(_BUSY_CHIPS), exact_chips=True, plain=True):
                 yield ev
             return
         yield {"type": "error", "detail": get_fallback_text(session_id)}

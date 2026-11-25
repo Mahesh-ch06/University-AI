@@ -17,6 +17,9 @@ from functools import lru_cache
 from . import config, fees
 
 _RUPEES = re.compile(r"(?:₹|rs\.?|inr)\s?(\d[\d,]*(?:\.\d+)?)", re.IGNORECASE)
+# Salaries, stipends and funding ("₹44 LPA", "₹1.25L/month", "₹76+ Cr") are not fees: never checked as fee amounts.
+_NOT_A_FEE = re.compile(r"\s*\+?\s*(?:lpa\b|l\b|lakhs?\b|lacs?\b|cr\b|crores?\b|k\b|/\s*(?:month|mo)\b|per\s+month\b)",
+                        re.IGNORECASE)
 _PCT_SCHOLARSHIP = re.compile(r"(\d{1,2})\s?%\s*(?:merit\s+)?(?:scholarship|waiver|fee\s+waiver)", re.IGNORECASE)
 NOTE = ("\n\n_I couldn't verify every amount above against the official fee data; please confirm with the "
         "Admissions Office ({phone})._")
@@ -25,6 +28,8 @@ NOTE = ("\n\n_I couldn't verify every amount above against the official fee data
 def _amounts(text: str) -> set[int]:
     out = set()
     for m in _RUPEES.finditer(text or ""):
+        if _NOT_A_FEE.match(text, m.end()):
+            continue
         digits = m.group(1).replace(",", "").split(".")[0]
         if digits.isdigit():
             out.add(int(digits))

@@ -14,7 +14,7 @@ Verifies that:
 import pytest
 from app.sru_agent.intents import classify_agent_intent
 from app.sru_agent.agent import run_agent
-from app.sru_agent import memory
+from app.sru_agent import agent, memory
 
 
 class DummyClient:
@@ -152,8 +152,9 @@ async def test_laboratories_facilities_response():
     events = [e async for e in run_agent(prompt, "test-labs-session", client=DummyClient())]
     done = [e for e in events if e["type"] == "done"][0]
     answer = done["answer"]
-
-    assert "Laboratories" in answer or "Research Labs" in answer
+    # v4.17.0: the model returned nothing (DummyClient), so the student is told honestly; no keyword-matched
+    # overview text is sent in its place.
+    assert "Research Labs" not in answer and done["suggestions"] == list(agent._BUSY_CHIPS)
 
 
 @pytest.mark.asyncio

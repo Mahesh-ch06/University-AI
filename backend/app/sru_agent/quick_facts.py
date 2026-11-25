@@ -379,7 +379,11 @@ _RULES += [
     (re.compile(r"\b(?:courses?|programmes?|programs?|options|what\s+can\s+i\s+(?:do|study|join))\b.{0,30}\b(?:after|for|with)\b"
                 r".{0,15}\b(?:mpc|bipc|pcb|pcm|mec|cec|hec|commerce|arts)\b|\b(?:mpc|bipc|mec|cec|hec)\s+(?:students?|courses?)\b|"
                 r"\b(?:can|could)\s+(?:a|an)?\s*(?:mpc|bipc|pcb|mec|cec|hec|commerce|arts)\s+(?:student|students|stream)?\b.{0,25}"
-                r"\b(?:join|do|take|study|get)\b", re.I),
+                r"\b(?:join|do|take|study|get)\b|"
+                # "im from bipc, can I join CSE?", "I have BiPC, am I eligible for B.Tech?"
+                r"\b(?:mpc|bipc|pcb|pcm|mec|cec|hec)\b.{0,40}\b(?:can\s+i|could\s+i|am\s+i\s+eligible|eligible|allowed)\b|"
+                # "can I join CSE with BiPC?"
+                r"\b(?:can|could)\s+i\b.{0,40}\b(?:with|from|after|having|in)\s+(?:mpc|bipc|pcb|pcm|mec|cec|hec)\b", re.I),
      _after_stream),
 ]
 
@@ -853,11 +857,69 @@ _RULES += [
 ]
 
 
-def answer(message: str) -> QuickAnswer | None:
+_SCHOLARSHIP_WORD = re.compile(r"\b(?:schol\w*|s[ck]h?ol[ae]?r?s?h?i?p\w*|merit\s+waiver|fee\s+waiver)\b", re.I)
+
+
+def _scholarship_for_score(message: str) -> QuickAnswer | None:
+    """'eapcet rank 15000 scholarship', 'i have 95% in cbse what scholarship': the merit slab for the score given,
+    from the fee policy (the UG slabs are the same for every programme). Asks nothing it doesn't need."""
+    if not _SCHOLARSHIP_WORD.search(message or "") or fees.find_program(message or ""):
+        return None
+    from . import fee_intake
+    d = fee_intake.parse_details(message)
+    rank, jee, ib = d.get("eapcet_rank"), d.get("jee_percentile"), d.get("ib_score")
+    pct = None if (jee is not None or rank is not None or ib is not None) else d.get("percent")
+    if pct is None and rank is None and jee is None and ib is None:
+        return None                       # raw marks without the total, or no score: the steps ask for it
+    key = "btech_cse"                     # every UG programme uses the same slab table
+    base = fees.load_data()["programs"][key]["tuition_per_year"]
+
+    def slab(**score):
+        return fees.scholarship_for(key, **score)["percent"]
+
+    projected = " This is an estimate from your first-year marks; your final marks decide the slab." \
+        if d.get("is_projected") else ""
+    if rank is not None:
+        what, got = f"EAPCET rank **{int(rank):,}**", slab(eapcet_rank=rank)
+    elif jee is not None:
+        what, got = f"JEE Main **{jee:g} percentile**", slab(jee_percentile=jee)
+    elif ib is not None:
+        what, got = f"IB score **{ib:g}**", slab(ib_score=ib)
+    else:
+        board = d.get("board")
+        state, cbse = slab(percent=pct, board="state_board"), slab(percent=pct, board="cbse")
+        if board == "cbse" or (board is None and state == cbse):
+            what, got = f"**{pct:g}%**" + (" in CBSE / ICSE" if board == "cbse" else ""), cbse
+        elif board == "state_board":
+            what, got = f"**{pct:g}%** in Intermediate", state
+        else:                             # board not given and the two tables differ: show both, never guess
+            text = (f"With **{pct:g}%** the merit scholarship on tuition (2027-28 fee circular) is **{state}%** if it's "
+                    f"Intermediate (state board) or **{cbse}%** if it's CBSE / ICSE.{projected} Which board was it, and "
+                    f"which programme are you considering? I'll work out your semester-wise fee.")
+            return QuickAnswer(text, ["Intermediate (state board)", "CBSE / ICSE", "Calculate my fee"])
+    if got:
+        text = (f"With {what} you'd get a **{got}% merit scholarship** on tuition (2027-28 fee circular). For example, "
+                f"B.Tech CSE tuition comes to **{fees.inr(base * (100 - got) / 100)} a year** instead of "
+                f"{fees.inr(base)}.{projected} Which programme are you considering? I'll work out your semester-wise fee.")
+    else:
+        text = (f"{what[0].upper() + what[1:]} doesn't reach a merit scholarship slab on the 2027-28 fee circular, so "
+                f"the standard fee applies.{projected} Another score (Intermediate %, JEE Main or EAPCET) may still "
+                f"qualify. Which programme are you considering?")
+    return QuickAnswer(text, ["Calculate my fee", "Special concessions"])
+
+
+def answer(message: str, profile: dict | None = None) -> QuickAnswer | None:
+    """profile: the student's saved details. When marks or a programme are on file, a "what scholarship for this
+    score?" question is left to the full calculation (which uses everything known), not answered for one score."""
     na = _not_offered(message) if re.search(r"\b(?:do\s+you|is\s+there|does\s+sru|offer|available|have|course|"
                                              r"programme|program|admission)\b", message or "", re.I) else None
     if na:
         return na
+    known = profile or {}
+    sch = None if (known.get("percent") not in (None, "") or known.get("program_interest")) \
+        else _scholarship_for_score(message)
+    if sch:
+        return sch
     for rx, fn in _RULES:
         if rx.search(message or ""):
             got = fn(message)
