@@ -816,7 +816,27 @@ def _overview_text(progs: dict) -> QuickAnswer | None:
     return QuickAnswer(text, ["Check my eligibility", "Calculate my fee", "Placements"], [card] if card else [])
 
 
+def _day_scholar(message: str) -> QuickAnswer | None:
+    routes = " ".join(_lines("01_campus_life_and_facilities.md", "**Routes**")[:1])
+    towns = _num(r"tri-cities \(([^)]+)\)", routes)
+    more = _num(r"neighboring towns:\s*([^.]+)\.", routes)
+    bus = fees.load_data().get("transport_per_year")
+    if not (towns and bus):
+        return None
+    return QuickAnswer(
+        "Yes, you can be a **day scholar**; the hostel is your choice. University buses run Monday to Friday across "
+        f"the tri-cities ({towns})" + (f" and nearby towns like {more}" if more else "") +
+        f", for about **{fees.inr(int(bus))} a year** (it depends on the distance of your stop).",
+        ["Transport", "Hostel life", "Hostel fees"])
+
+
 _RULES += [
+    (re.compile(r"\b(?:stay|live)\s+(?:outside|off)[- ]?(?:the\s+)?campus\b|"
+                r"\b(?:can|could|may)\s+i\s+be\s+a\s+day\s*scholar\b|\bday\s*scholars?\s+(?:allowed|possible|option)\b|"
+                r"\b(?:is|are)\s+(?:there\s+)?day\s*scholars?\b|"
+                r"\b(?:is|are)\s+(?:the\s+)?hostels?\s+(?:compulsory|mandatory|required|necessary|a\s+must)\b|"
+                r"\b(?:must|have\s+to|should)\s+i\s+stay\s+in\s+(?:the\s+)?hostel\b|\bcommute\s+from\s+home\b", re.I),
+     _day_scholar),
     (re.compile(r"\bexplore\s+(?:all\s+)?(?:the\s+)?(?:programs?|programmes?|courses?)\b|"
                 r"\b(?:programs?|programmes?|courses?|degrees?)\s+(?:offered|available)\b(?!\s+(?:after|for|with))|"
                 r"\bwhat\s+(?:all\s+)?(?:courses?|programs?|programmes?|degrees?)\s+(?:do|does|are|can)\b|"

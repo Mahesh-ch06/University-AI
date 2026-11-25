@@ -171,3 +171,21 @@ def test_programme_overview_comes_from_the_fee_card():
     a = quick_facts.answer("Explore programs offered at SR University")
     assert a and "21 undergraduate" in a.text and "B.Sc in Hospitality and Event Management" in a.text and a.cards
     assert quick_facts.answer("courses for bipc students").text.startswith("With **BiPC**")
+
+
+@pytest.mark.parametrize("question,expected", [
+    ("can i stay outside the campus", True), ("is hostel compulsory", True), ("can i be a day scholar", True),
+    ("No hostel, I'm a day scholar", False),          # the fee-step chip, not a question
+])
+def test_day_scholar_question_vs_the_hostel_step_answer(question, expected):
+    from app.sru_agent import quick_facts
+    a = quick_facts.answer(question)
+    assert bool(a) is expected
+    if a:
+        assert "day scholar" in a.text and "₹30,000" in a.text and "required to stay" not in a.text
+
+
+def test_music_band_is_the_sangeetam_club():
+    from app.sru_agent import campus_life
+    assert campus_life.topic("is there a music band") == "clubs"
+    assert "Sangeetam" in campus_life.answer("clubs", "is there a music band").text

@@ -197,6 +197,10 @@ def topic(message: str, waiting: bool = False) -> str | None:
         return "food"
     if _CLUBS.search(text) or (find_club(text) and re.search(r"\bclub", text, re.I)):
         return "clubs"
+    # v4.15.1 (real-Gemini test): "is there a music band?" -> the Sangeetam club, not the model's guess
+    if find_club(text) and re.search(r"^\W*(?:is\s+there|are\s+there|do\s+you\s+have|does\s+sru\s+have|any)\b", text, re.I) \
+            and not re.search(r"\b(?:course|programme|program|degree|b\.?\s?tech|fees?)\b", text, re.I):
+        return "clubs"
     if _EVENTS.search(text):
         return "events"
     if _SPORTS.search(text):
