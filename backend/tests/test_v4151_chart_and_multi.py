@@ -166,10 +166,39 @@ def test_why_sru_videos_are_not_programme_specific():
     assert video_service.get_keyword_videos("why choose agriculture at sru", limit=2)[0]["category"] == "School of Agriculture"
 
 
-def test_programme_overview_comes_from_the_fee_card():
-    from app.sru_agent import quick_facts
-    a = quick_facts.answer("Explore programs offered at SR University")
-    assert a and "21 undergraduate" in a.text and "B.Sc in Hospitality and Event Management" in a.text and a.cards
+async def test_programme_overview_asks_ug_or_pg_and_lists_pdf_courses(model):
+    out1 = await _chat(["Explore programs offered at SR University"])
+    assert out1[0]["cards"] and out1[0]["cards"][0]["type"] == "counsellor_choice"
+    labels = [opt["label"] for opt in out1[0]["cards"][0]["options"]]
+    assert labels == ["Undergraduate (UG)", "Postgraduate (PG)"]
+
+    from app.sru_agent import dialogue, quick_facts
+
+    out_ug = await _chat(["Explore programs offered at SR University", "Undergraduate (UG)"])
+    ug_text = out_ug[-1]["answer"]
+    assert "Undergraduate (UG) Programmes" in ug_text
+    assert "BTech CSE (AIML, Data Science, Cyber Security, Robotics and Automation, Quantum AI)" in ug_text
+    assert "B.Tech IEP" in ug_text
+    assert "BSc in Hospitality and Event Management" in ug_text
+    assert "B.Des (Design)" in ug_text
+    assert "₹" not in ug_text
+    assert "MTech" not in ug_text
+
+    out_pg = await _chat(["Explore programs offered at SR University", "Postgraduate (PG)"])
+    pg_text = out_pg[-1]["answer"]
+    assert "Postgraduate (PG) Programmes" in pg_text
+    assert "MBA (Finance, Operations, HR, Business Analytics, Marketing)" in pg_text
+    assert "MCA" in pg_text
+    assert "MTech (" in pg_text
+    assert "MSc (" in pg_text
+    assert "MBA in Agri Business Management" in pg_text
+    assert "₹" not in pg_text
+    assert "BTech" not in pg_text
+
+    # Switching directly via chip also works without restarting
+    switch = dialogue.decide("View PG programmes", {"dialogue": {}}, {})
+    assert switch and "MBA in Agri Business Management" in switch["text"] and "₹" not in switch["text"]
+
     assert quick_facts.answer("courses for bipc students").text.startswith("With **BiPC**")
 
 

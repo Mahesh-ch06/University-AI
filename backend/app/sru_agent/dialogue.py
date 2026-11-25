@@ -793,6 +793,144 @@ _RESULTS = re.compile(
     r"scores?|percentile|scorecard|memo)\b|\b(?:results?|rank|scorecard|marks)\s+(?:came|is|are|has\s+been)\s+"
     r"(?:out|released|announced|declared)\b", re.IGNORECASE)
 
+_EXPLORE_PROGRAMS = re.compile(
+    r"\bexplore\s+(?:all\s+)?(?:the\s+)?(?:ug|pg|undergrad(?:uate)?|postgrad(?:uate)?\s+)?(?:programs?|programmes?|courses?)\b"
+    r"|\b(?:programs?|programmes?|courses?|degrees?)\s+(?:offered|available)\b(?!\s+(?:after|for|with))"
+    r"|\bwhat\s+(?:all\s+)?(?:ug|pg|undergrad(?:uate)?|postgrad(?:uate)?\s+)?(?:courses?|programs?|programmes?|degrees?)\s+(?:do|does|are|can)\b"
+    r"|\b(?:list\s+of|all)\s+(?:the\s+)?(?:ug|pg|undergrad(?:uate)?|postgrad(?:uate)?\s+)?(?:courses?|programs?|programmes?)\b"
+    r"|\bwhich\s+(?:courses?|programs?|programmes?)\s+(?:do|are|does|can)\b",
+    re.IGNORECASE,
+)
+_EXPLORE_FAMILY_WORDS = re.compile(
+    r"\bb\.?\s?tech|\bengineering\b|\bmba\b|\bbba\b|\bb\.?\s?sc|\bm\.?\s?tech|\bm\.?\s?sc|"
+    r"\bbca\b|\bmca\b|\bb\.?\s?des|\bb\.?\s?com|\bagri|\bph\.?\s?d|\bmpc\b|\bbipc\b|\bmec\b",
+    re.IGNORECASE,
+)
+_EXPLORE_LEVEL_UG = re.compile(r"\b(?:ug|undergrad(?:uate)?|bachelor(?:'?s)?)\b", re.IGNORECASE)
+_EXPLORE_LEVEL_PG = re.compile(r"\b(?:pg|postgrad(?:uate)?|master(?:'?s)?)\b", re.IGNORECASE)
+_DIRECT_LEVEL_VIEW = re.compile(
+    r"^\s*(?:view\s+(?:ug|pg)\s+(?:program(?:me)?s?|courses?)"
+    r"|(?:undergraduate\s*\(ug\)|postgraduate\s*\(pg\)|ug\s+program(?:me)?s?|pg\s+program(?:me)?s?))\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+# Exact UG and PG course names sourced strictly from the official fee circular PDF.
+_UG_PDF_PROGRAMS = (
+    ("Engineering (B.Tech)", (
+        "BTech CSE (AIML, Data Science, Cyber Security, Robotics and Automation, Quantum AI)",
+        "BTech in AI and Robotics",
+        "BTech in ECE (AIML, VLSI, Robotics and Automation)",
+        "BTech in Biotechnology with AI",
+        "BTech in Mechanical Engineering (Robotics and Automation, Smart Manufacturing)",
+        "BTech in Electrical and Electronics Engg (Electrical Vehicles, Renewable Energy)",
+        "BTech in Civil Engineering",
+        "BTech in Engineering Physics with AI, Robotics & Space",
+        "BTech in Applied Chemistry with AI, Robotics & Drug Discovery",
+        "BTech Food Technology",
+        "B.Tech IEP",
+    )),
+    ("Computing & Sciences", (
+        "BCA Hons",
+        "B.Sc CS Hons",
+        "BSc Physics",
+        "BSc Chemistry",
+        "BSc Hons in Mathematics and AI",
+    )),
+    ("Agriculture", (
+        "B.Sc Agriculture",
+    )),
+    ("Business, Hospitality & Commerce", (
+        "BBA",
+        "BBA (Finance, Operations, HR, Business Analytics, Marketing)",
+        "BSc in Hospitality and Event Management",
+        "B.Com",
+    )),
+    ("Design", (
+        "B.Des (Design)",
+    )),
+)
+
+_PG_PDF_PROGRAMS = (
+    ("Engineering & Technology", (
+        "MTech (CSE, Data Science, AIML, Electronic Design Technology, VLSI, Embedded Systems, "
+        "Advance Manufacturing Systems, Thermal Engineering, Construction Technology & Management, Power Electronics)",
+    )),
+    ("Computer Applications", (
+        "MCA",
+    )),
+    ("Management", (
+        "MBA (Finance, Operations, HR, Business Analytics, Marketing)",
+        "MBA in Agri Business Management",
+    )),
+    ("Sciences & Agriculture", (
+        "MSc (CS, Agronomy, Genetics & Plant Breeding, Horticulture, Agriculture Extension Education, "
+        "Agriculture Economics, Plant Pathology, Soil Science)",
+    )),
+)
+
+
+def _parse_explore_level(message: str, allow_numeric: bool = False) -> str | None:
+    low = _norm(message)
+    if allow_numeric:
+        if low in ("1", "option 1"):
+            return "ug"
+        if low in ("2", "option 2"):
+            return "pg"
+    has_ug = bool(_EXPLORE_LEVEL_UG.search(message or ""))
+    has_pg = bool(_EXPLORE_LEVEL_PG.search(message or ""))
+    if has_ug and not has_pg:
+        return "ug"
+    if has_pg and not has_ug:
+        return "pg"
+    return None
+
+
+def _ask_explore_level(state: dict, name: str | None = None) -> dict:
+    """Ask the user to choose Undergraduate (UG) or Postgraduate (PG) before listing programmes."""
+    next_state = {k: v for k, v in state.items() if k not in ("program", "topic", "goal")}
+    next_state["step"] = "explore_level"
+    card = {
+        "type": "counsellor_choice",
+        "step_label": "Explore Programmes",
+        "title": "Which study level are you looking for?",
+        "subtitle": "Choose Undergraduate (UG) or Postgraduate (PG) to view the programmes offered at SR University.",
+        "options": [
+            {
+                "key": "ug",
+                "label": "Undergraduate (UG)",
+                "desc": "After 10+2 / Intermediate — Engineering, Computing, Agriculture, Business, Design & Sciences",
+            },
+            {
+                "key": "pg",
+                "label": "Postgraduate (PG)",
+                "desc": "After Graduation — Engineering, Computer Applications, Management & Sciences",
+            },
+        ],
+    }
+    name_bit = f", {name}" if name else ""
+    return _ask(
+        f"Sure{name_bit}! Are you looking for **Undergraduate (UG)** or **Postgraduate (PG)** programmes at SR University?",
+        [],
+        next_state,
+        cards=[card],
+    )
+
+
+def _explore_level_reply(level: str, state: dict) -> dict:
+    """Return a structured course-name-only list for the chosen study level (UG or PG)."""
+    is_ug = level == "ug"
+    groups = _UG_PDF_PROGRAMS if is_ug else _PG_PDF_PROGRAMS
+    heading = "### Undergraduate (UG) Programmes at SR University" if is_ug else "### Postgraduate (PG) Programmes at SR University"
+    sections = [f"**{cat}**\n" + "\n".join(f"- {course}" for course in courses) for cat, courses in groups]
+    text = (
+        f"{heading}\n\n"
+        + "\n\n".join(sections)
+        + "\n\nWhich programme are you interested in? I can share eligibility, curriculum, or fee details for any of them."
+    )
+    other_chip = "View PG programmes" if is_ug else "View UG programmes"
+    clean_state = {k: v for k, v in state.items() if k not in ("step", "intent", "topic", "goal")}
+    return _ask(text, [other_chip, "Check my eligibility", "Calculate my scholarship"], clean_state)
+
 # ------------------------------------------------------------------------------------------- decide()
 def decide(message: str, conv_state: dict, profile: dict, name: str | None = None) -> dict | None:
     """See _decide. Topics already asked about in this conversation are remembered across every step (several
@@ -918,6 +1056,10 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
             stream = eligibility.parse_stream(message)
             if key and marks and stream:
                 return _verdict_reply(key, marks, stream, state)
+        elif step == "explore_level":
+            level = _parse_explore_level(message, allow_numeric=True)
+            if level:
+                return _explore_level_reply(level, state)
         elif step == "interest":
             if program_now:
                 return _ask_aspect(program_now, state)
@@ -948,6 +1090,19 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
 
     if is_incomplete(message):
         return _incomplete_reply(state, conv_state)
+
+    if (_EXPLORE_PROGRAMS.search(message or "") and not _EXPLORE_FAMILY_WORDS.search(message or "")
+            and not _FEE_WORD.search(message or "") and not _ELIGIBILITY_Q.search(message or "")
+            and not _JOIN.search(message or "")
+            and not re.search(r"\bprograms\s+and\s+courses\s+available\b", message or "", re.I)):
+        direct_level = _parse_explore_level(message)
+        if direct_level:
+            return _explore_level_reply(direct_level, state)
+        return _ask_explore_level(state, name)
+    if _DIRECT_LEVEL_VIEW.match(message or ""):
+        direct_level = _parse_explore_level(message)
+        if direct_level:
+            return _explore_level_reply(direct_level, state)
 
     if _RESULTS.search(message or "") and not re.search(r"\d", message or ""):
         key = state.get("program")
