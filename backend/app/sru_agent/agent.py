@@ -1448,6 +1448,8 @@ _shown_offline_titles: dict = {}
 
 # v4.17.0: said when every AI key is resting (rate limit) or the model can't be reached. It never guesses an
 # answer from the words of the question; it says so, and offers buttons that work without the model.
+# A Markdown table in an answer (its header separator row, e.g. "|---|---|").
+_HAS_MD_TABLE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)+\|?\s*$", re.MULTILINE)
 _LIMIT_REPLY_OPTIONS = [
     ("I'm getting a lot of questions right now, so I couldn't read yours properly. Please send it again in a "
      "minute and I'll answer it fully. Meanwhile, the buttons below work straight away, or call the Admissions "
@@ -2133,7 +2135,7 @@ async def run_agent(
         profile = await _sync_marks(message, session_id, conversation_id, profile, conv_state)
     except Exception:
         log.exception("marks sync failed for session %s", (session_id or "")[:8])
-    ctx = {"session_id": session_id, "conversation_id": conversation_id, "profile": profile,
+    ctx = {"session_id": session_id, "conversation_id": conversation_id, "profile": profile, "message": message,
            "conv_state": conv_state, "history": history}   # conv_state / history: for the counsellor's case summary
     natural_name = _natural_first_name(profile, history)
 
@@ -3906,6 +3908,7 @@ async def run_agent(
                 await set_state(fee_intake=None)
 
     # ---- 5. Everything else: the model, with tools --------------------------------------------
+    ctx["message"] = message   # the student's own words: a score the model passes must appear in them (tools)
     contents = [types.Content(role=h["role"], parts=[types.Part.from_text(text=h["text"])])
                 for h in history]
     contents.append(types.Content(role="user", parts=[types.Part.from_text(text=message)]))
@@ -4223,6 +4226,9 @@ async def run_agent(
                 continue  # tool already provided video card; do not duplicate
             if c not in cards:
                 cards.append(c)
+        # v4.17.0: the answer already has its own comparison table: the generic comparison card would repeat it
+        if _HAS_MD_TABLE.search(final or ""):
+            cards[:] = [c for c in cards if not (isinstance(c, dict) and c.get("type") == "comparison")]
         # v4.15.1: the same topic videos as code-written answers (one topic once per chat), when none came above
         if not any(isinstance(c, dict) and c.get("type") in _VIDEO_CARDS for c in cards):
             try:

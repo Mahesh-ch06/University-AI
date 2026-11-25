@@ -360,7 +360,7 @@ async def test_generic_fee_table_still_shown_when_no_fee_tool_ran():
 # ----------------------------------------------------------------- new tools ----
 @pytest.mark.asyncio
 async def test_program_info_concessions_compare_and_share_tools():
-    ctx = {"session_id": "act-tools", "profile": {}}
+    ctx = {"session_id": "act-tools", "profile": {}, "message": "cse vs ece fee with 85%"}   # the score the student gave
     info = await tools.run_tool("get_program_info", {"program": "mba"}, ctx)
     assert info["status"] == "ok" and info["tuition_per_year"] == "₹3,00,000" and "Bachelor" in info["eligibility"]
 

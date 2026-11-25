@@ -54,4 +54,4 @@ def test_system_prompt_has_negative_constraints():
     p = prompt.build_system_prompt({})
     assert "NEVER use canned celebratory hype" in p
     assert "NEVER interrogate students with academic surveys" in p
-    assert len(p) < 9000
+    assert len(p) < 10000   # v4.17.0: +answer layout (was 9,000)

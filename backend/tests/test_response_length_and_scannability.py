@@ -20,19 +20,18 @@ from app.sru_agent import agent
 def test_prompt_version_and_length_guidelines():
     """Verify that the system prompt specifies the target response lengths."""
     prompt = build_system_prompt({})
-    assert PROMPT_VERSION in ("2026-11-21.6", "2026-11-21.7", "2026-11-22.1", "2026-11-22.2", "2026-11-23.1", "2026-11-23.2", "2026-11-23.3", "2026-11-24.1", "2026-11-25.1")
-    assert "15–40 words" in prompt or "15-40 words" in prompt
-    assert "40–80 words" in prompt or "40-80 words" in prompt
-    assert "80–120 words" in prompt or "80-120 words" in prompt
+    assert PROMPT_VERSION in ("2026-11-21.6", "2026-11-21.7", "2026-11-22.1", "2026-11-22.2", "2026-11-23.1", "2026-11-23.2", "2026-11-23.3", "2026-11-24.1", "2026-11-25.1", "2026-11-25.2")
+    # v4.17.0: one answer layout (prompts/answer_layout.md) sets the length for every answer
+    assert "50–130 words" in prompt and "≤170 with a table or steps" in prompt
 
 
 def test_prompt_scannability_and_structure_rules():
     """Verify that prompt requires immediate answers, short paragraphs, and 2-4 clean bullets."""
     prompt = build_system_prompt({})
     assert "answer the actual question immediately" in prompt.lower() or "answer the core question" in prompt.lower()
-    assert "2–4 bullet points" in prompt or "2-4 bullet points" in prompt
+    assert "3–5 bullets" in prompt and "a Markdown table" in prompt and "1. **Step:** detail" in prompt
     assert "at most one" in prompt.lower() or "only one question" in prompt.lower()
-    assert "avoid dense walls of text" in prompt.lower() or "never write dense walls of text" in prompt.lower()
+    assert "never dense walls of text" in prompt.lower()
 
 
 def test_prompt_career_guidance_and_confused_persona():
@@ -40,7 +39,7 @@ def test_prompt_career_guidance_and_confused_persona():
     prompt = build_system_prompt({}, persona="confused")
     assert "the user is confused" in prompt.lower()
     assert "2-3 clear pathways" in prompt.lower() or "2–4 clean bullet points" in prompt.lower()
-    assert "emoji" in prompt.lower()
+    assert "no emoji in headings, bullets or tables" in prompt.lower()
 
 
 def test_static_responses_word_counts():

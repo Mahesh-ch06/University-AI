@@ -35,6 +35,9 @@ def load_prompt(name: str) -> str:
     # (app/sru_agent/fee_policy_2027_28.json) by the fee engine, so a prompt can never carry an outdated fee.
     if "{{FEE_POLICY}}" in content:
         content = content.replace("{{FEE_POLICY}}", fee_policy_block())
+    # The answer layout (how every answer looks in the chat) is written once, in prompts/answer_layout.md.
+    if "{{ANSWER_LAYOUT}}" in content and name != "answer_layout":
+        content = content.replace("{{ANSWER_LAYOUT}}", load_prompt("answer_layout").strip())
 
     _prompt_cache[name] = content
     logger.info("Loaded prompt template: %s", name)

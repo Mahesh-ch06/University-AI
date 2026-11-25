@@ -134,7 +134,13 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
 
       // Bold: **text**
       if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
-        return <strong key={index}>{renderTextWithEmojiIcons(part.slice(2, -2), index)}</strong>;
+        const inner = part.slice(2, -2);
+        // A link or code inside bold ("**[apply.sru.edu.in](https://…)**") is formatted too, not shown raw.
+        return (
+          <strong key={index}>
+            {/\]\(|`/.test(inner) ? formatInline(inner) : renderTextWithEmojiIcons(inner, index)}
+          </strong>
+        );
       }
 
       // Strikethrough: ~~text~~
@@ -165,6 +171,10 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
         const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
         if (linkMatch) {
           const [, linkText, linkUrl] = linkMatch;
+          // Only web, mail and phone links are clickable; anything else is shown as plain text.
+          if (!/^(https?:\/\/|mailto:|tel:)/i.test(linkUrl.trim())) {
+            return renderTextWithEmojiIcons(linkText, index);
+          }
           return (
             <a
               key={index}
@@ -208,8 +218,31 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
   const lines = sanitizedContent.split("\n");
   const renderedBlocks: React.ReactNode[] = [];
   let currentList: React.ReactNode[] = [];
+  // Consecutive "1. ..." lines are one ordered list of steps (semantic <ol>, numbered badges).
+  let currentSteps: { n: string; text: string }[] = [];
+  // Index (in renderedBlocks) of each plain paragraph, so the first can be styled as the lead answer and a
+  // closing question as the follow-up line.
+  const paragraphIdx: number[] = [];
+
+  const flushSteps = () => {
+    if (currentSteps.length > 0) {
+      const start = Number(currentSteps[0].n) || 1;
+      renderedBlocks.push(
+        <ol key={`ol-${renderedBlocks.length}`} className="chat-steps" start={start}>
+          {currentSteps.map((st, sIdx) => (
+            <li key={sIdx} className="chat-step">
+              <span className="chat-step-badge" aria-hidden="true">{st.n}</span>
+              <span className="chat-step-text">{formatInline(st.text)}</span>
+            </li>
+          ))}
+        </ol>
+      );
+      currentSteps = [];
+    }
+  };
 
   const flushList = () => {
+    flushSteps();
     if (currentList.length > 0) {
       renderedBlocks.push(
         <ul key={`ul-${renderedBlocks.length}`} className="chat-bullet-list">
@@ -380,12 +413,20 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
         const contentLines = firstLineRemaining
           ? [firstLineRemaining, ...quoteLines.slice(1)]
           : quoteLines.slice(1);
+        if (!contentLines.some((cl) => cl.trim())) {
+          // "> [!NOTE]" with its text on the next line, outside the quote (seen from the model): take that line.
+          while (i < lines.length && !lines[i].trim()) i++;
+          if (i < lines.length && !/^(#{1,4}\s|\||>)/.test(lines[i].trim())) {
+            contentLines.push(lines[i].trim().replace(/^(?:[-*•]|\d+[.)])\s+/, ""));
+            i++;
+          }
+        }
 
         const calloutMeta: Record<string, { icon: React.ReactNode; title: string }> = {
-          NOTE: { icon: <InfoIcon size={16} />, title: "Official Note" },
-          TIP: { icon: <SparklesIcon size={16} />, title: "Recommendation" },
-          WARNING: { icon: <AlertTriangleIcon size={16} />, title: "Important Notice" },
-          IMPORTANT: { icon: <PinIcon size={16} />, title: "Requirement" },
+          NOTE: { icon: <InfoIcon size={14} />, title: "Note" },
+          TIP: { icon: <SparklesIcon size={14} />, title: "Tip" },
+          WARNING: { icon: <AlertTriangleIcon size={14} />, title: "Important" },
+          IMPORTANT: { icon: <PinIcon size={14} />, title: "Important" },
           CAUTION: { icon: <AlertTriangleIcon size={16} />, title: "Caution" },
         };
         const meta = calloutMeta[calloutType] || { icon: <InfoIcon size={16} />, title: calloutType };
@@ -466,7 +507,7 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
 
       renderedBlocks.push(
         <div key={`table-wrap-${renderedBlocks.length}-${i}`} className="chat-table-wrapper">
-          <table className="chat-markdown-table">
+          <table className={`chat-markdown-table cols-${Math.min(headers.length, 5)}`}>
             <thead>
               <tr>
                 {headers.map((h, hIdx) => (
@@ -485,6 +526,7 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
                   {row.map((cell, cIdx) => (
                     <td
                       key={cIdx}
+                      data-label={headers[cIdx] ? headers[cIdx].replace(/\*\*/g, "") : undefined}
                       className={/^[\s*₹+−\-—–\d,./%]+$/.test(cell) && /\d|—/.test(cell) ? "is-num" : undefined}
                       style={{ textAlign: (alignments[cIdx] || "left") as any }}
                     >
@@ -502,6 +544,7 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
 
     // 8. Bullet List Items (•, - , * )
     if (trimmed.startsWith("•") || trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      flushSteps();
       const itemContent = trimmed.replace(/^[•\-*]\s*/, "");
       currentList.push(
         <li key={`li-${renderedBlocks.length}-${i}`} className="chat-list-item">
@@ -513,15 +556,10 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
     }
 
     // 9. Numbered List Items (e.g. 1. Item)
-    const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+    const numMatch = trimmed.match(/^(\d+)[.)]\s+(.*)/);
     if (numMatch) {
-      flushList();
-      renderedBlocks.push(
-        <div key={`num-${renderedBlocks.length}-${i}`} className="chat-numbered-item">
-          <span className="num-badge">{numMatch[1]}.</span>
-          <span className="num-text">{formatInline(numMatch[2])}</span>
-        </div>
-      );
+      if (currentList.length > 0) flushList();
+      currentSteps.push({ n: numMatch[1], text: numMatch[2] });
       i++;
       continue;
     }
@@ -548,22 +586,57 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
     }
 
     // 10. Empty line / Paragraph
-    flushList();
     if (!trimmed) {
-      renderedBlocks.push(
-        <div key={`empty-${renderedBlocks.length}-${i}`} className="chat-line-break" />
-      );
-    } else {
-      renderedBlocks.push(
-        <p key={`p-${renderedBlocks.length}-${i}`} className="chat-paragraph">
-          {formatInline(rawLine)}
-        </p>
-      );
+      // A blank line inside a list or a run of steps does not end it; between paragraphs the spacing comes
+      // from the stylesheet (one consistent gap), so blank lines render nothing.
+      const next = lines.slice(i + 1).find((l) => l.trim());
+      const nextT = (next || "").trim();
+      const continuesList = currentList.length > 0 && /^(?:•|- |\* )/.test(nextT);
+      const continuesSteps = currentSteps.length > 0 && /^\d+[.)]\s+/.test(nextT);
+      if (!continuesList && !continuesSteps) flushList();
+      i++;
+      continue;
     }
+    flushList();
+    // A short line that is bold from end to end ("**Hostel Facilities**") is a section title: shown as one.
+    const boldTitle = trimmed.match(/^\*\*([^*]{2,48})\*\*:?$/);
+    if (boldTitle && boldTitle[1].trim().split(/\s+/).length <= 7 && !/[.?!]$/.test(boldTitle[1].trim())) {
+      renderedBlocks.push(
+        <h3 key={`bt-${renderedBlocks.length}-${i}`} className="chat-heading chat-h3">
+          {formatInline(boldTitle[1].trim())}
+        </h3>
+      );
+      i++;
+      continue;
+    }
+    paragraphIdx.push(renderedBlocks.length);
+    renderedBlocks.push(
+      <p key={`p-${renderedBlocks.length}-${i}`} className="chat-paragraph">
+        {formatInline(rawLine)}
+      </p>
+    );
     i++;
   }
 
   flushList();
+
+  // The first block, when it is a paragraph followed by more content, is the direct answer (lead); a last
+  // paragraph that asks the student something is the follow-up line, set apart from the answer.
+  if (!isStreaming && renderedBlocks.length > 1) {
+    const first = paragraphIdx[0];
+    if (first === 0) {
+      const el = renderedBlocks[0] as React.ReactElement<{ className?: string }>;
+      renderedBlocks[0] = React.cloneElement(el, { className: "chat-paragraph chat-lead" });
+    }
+    const last = paragraphIdx[paragraphIdx.length - 1];
+    if (last === renderedBlocks.length - 1 && last !== 0) {
+      const el = renderedBlocks[last] as React.ReactElement<{ className?: string; children?: React.ReactNode }>;
+      const lastLine = lines.filter((l) => l.trim()).pop() || "";
+      if (/\?\s*\**\s*$/.test(lastLine.trim())) {
+        renderedBlocks[last] = React.cloneElement(el, { className: "chat-paragraph chat-followup" });
+      }
+    }
+  }
 
   return (
     <div className="markdown-content">

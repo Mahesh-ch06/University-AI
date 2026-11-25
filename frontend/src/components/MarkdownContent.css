@@ -1,38 +1,68 @@
+/* ---- Answer typography (v4.17.0) ------------------------------------------------------------------------
+   One layout for every answer: a lead sentence, then bullets / steps / a table / short sections, then at most one
+   follow-up line. Blocks are spaced by one rhythm (--ans-gap); text keeps a readable measure on wide screens. */
 .markdown-content {
-  line-height: 1.65;
+  --ans-gap: 10px;
+  --ans-brand: var(--o-brand, var(--accent, #194f90));
+  --ans-brand-soft: color-mix(in srgb, var(--ans-brand) 9%, transparent);
+  --ans-line: var(--o-line, var(--border, #e4e6eb));
+  --ans-text: var(--o-text, var(--text-1, #0f0f11));
+  --ans-text-2: var(--o-text-2, var(--text-2, #3a3b45));
+  --ans-muted: var(--o-muted, var(--text-muted, #5d5e6c));
+  --ans-card: var(--surface-1, #ffffff);
+  line-height: 1.6;
   font-size: 0.95rem;
   color: inherit;
-  display: inline-block;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ans-gap);
   width: 100%;
+  max-width: 68ch;
+}
+
+.markdown-content > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
 .chat-paragraph {
-  margin: 0 0 10px 0;
+  margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.chat-paragraph:last-child {
-  margin-bottom: 0;
+/* The direct answer: first line, a touch stronger so the eye lands on it. */
+.chat-paragraph.chat-lead {
+  font-weight: 500;
+  color: var(--ans-text);
+}
+
+/* The one closing question: set apart from the answer by a hairline. */
+.chat-paragraph.chat-followup {
+  padding-top: 10px;
+  border-top: 1px solid var(--ans-line);
+  color: var(--ans-text-2);
 }
 
 .chat-line-break {
-  height: 8px;
+  display: none;
 }
 
 /* Headings (H1 - H4) */
 .chat-heading {
   font-weight: 700;
-  color: var(--text-1, var(--o-text, #0f172a));
-  margin: 16px 0 8px 0;
+  color: var(--ans-text);
+  margin: 0;
   line-height: 1.35;
   display: flex;
   align-items: center;
   gap: 6px;
+  text-wrap: balance;
 }
 
-.chat-heading:first-child {
-  margin-top: 2px;
+/* A section title after other content gets a little more air above it than the normal block gap. */
+.markdown-content > .chat-heading:not(:first-child) {
+  padding-top: 6px;
 }
 
 .chat-h1 {
@@ -47,7 +77,9 @@
 }
 
 .chat-h3 {
-  font-size: 1.05rem;
+  font-size: 0.98rem;
+  color: var(--ans-brand);
+  letter-spacing: 0.005em;
 }
 
 .chat-h4 {
@@ -85,30 +117,93 @@
   border: 1px solid var(--border);
 }
 
-/* Lists */
+/* Lists: brand-coloured dot markers, one item per line of thought. */
 .chat-bullet-list {
-  margin: 6px 0 12px 0;
-  padding-left: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 7px;
 }
 
 .chat-list-item {
+  position: relative;
+  padding-left: 18px;
   line-height: 1.55;
 }
 
+.chat-list-item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.62em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ans-brand);
+}
+
+/* Steps: numbered badges on a thin rail, for processes ("how do I apply"). */
+.chat-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  counter-reset: none;
+}
+
+.chat-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  column-gap: 10px;
+  align-items: start;
+  line-height: 1.55;
+}
+
+.chat-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 10.5px;
+  top: 24px;
+  bottom: -8px;
+  width: 1px;
+  background: var(--ans-line);
+}
+
+.chat-step-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ans-brand);
+  background: var(--ans-brand-soft);
+  margin-top: 1px;
+}
+
+.chat-step-text {
+  min-width: 0;
+}
+
+/* Older stored messages may still contain the previous numbered markup. */
 .chat-numbered-item {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-bottom: 6px;
   line-height: 1.55;
 }
 
 .num-badge {
   font-weight: 700;
-  color: var(--accent);
+  color: var(--ans-brand);
   flex-shrink: 0;
 }
 
@@ -195,44 +290,53 @@
 }
 
 /* Responsive Markdown Tables */
+/* Tables: a white card inside the bubble; scrolls sideways on a narrow phone instead of breaking the layout. */
 .chat-table-wrapper {
-  margin: 14px 0;
+  margin: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 10px;
-  border: 1px solid var(--border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  background: var(--surface-1);
+  border: 1px solid var(--ans-line);
+  background: var(--ans-card);
 }
 
 .chat-markdown-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   text-align: left;
 }
 
 .chat-markdown-table th {
-  background: var(--surface-2);
-  color: var(--text-1);
-  font-weight: 600;
-  padding: 10px 14px;
-  border-bottom: 2px solid var(--border);
+  background: var(--ans-brand-soft);
+  color: var(--ans-brand);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ans-line);
   white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .chat-markdown-table td {
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ans-line);
+  color: var(--ans-text);
   line-height: 1.45;
+  vertical-align: top;
+  min-width: 84px;
+}
+
+/* The first column names the row (the aspect being compared). */
+.chat-markdown-table td:first-child {
+  font-weight: 600;
+  color: var(--ans-text);
 }
 
 .chat-markdown-table tbody tr:nth-child(even) {
-  background: var(--surface-2, rgba(0, 0, 0, 0.02));
-}
-
-.chat-markdown-table tbody tr:hover {
-  background: var(--accent-bg, rgba(2, 132, 199, 0.06));
+  background: color-mix(in srgb, var(--ans-line) 28%, transparent);
 }
 
 .chat-markdown-table tbody tr:last-child td {
@@ -241,40 +345,45 @@
 
 /* Callouts / Blockquotes */
 .chat-callout {
-  margin: 12px 0;
-  border-radius: 8px;
-  padding: 10px 14px;
-  border-left: 4px solid var(--accent);
-  background: var(--surface-2);
+  margin: 0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--ans-brand) 18%, transparent);
+  border-left: 3px solid var(--ans-brand);
+  background: var(--ans-brand-soft);
 }
 
 .callout-header {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-weight: 600;
-  font-size: 0.88rem;
-  margin-bottom: 4px;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ans-brand);
+  margin-bottom: 2px;
 }
 
 .callout-icon {
-  font-size: 1rem;
+  display: inline-flex;
+  font-size: 0.9rem;
 }
 
 .callout-title {
-  color: var(--text-1);
+  color: var(--ans-brand);
 }
 
 .callout-content p {
   margin: 0;
-  font-size: 0.9rem;
-  color: var(--text-2);
+  font-size: 0.88rem;
+  color: var(--ans-text-2);
   line-height: 1.5;
 }
 
 .callout-note {
-  border-left-color: var(--o-action, #0284c7);
-  background: rgba(2, 132, 199, 0.08);
+  border-left-color: var(--ans-brand);
+  background: var(--ans-brand-soft);
 }
 .callout-tip {
   border-left-color: var(--o-ok, #10b981);
@@ -498,11 +607,66 @@
   white-space: nowrap;
 }
 @media (max-width: 480px) {
+  .markdown-content {
+    --ans-gap: 9px;
+    font-size: 0.92rem;
+  }
   .chat-markdown-table {
     font-size: 0.82rem;
   }
   .chat-markdown-table th,
   .chat-markdown-table td {
     padding: 7px 9px;
+  }
+}
+
+/* Tables with 3+ columns on a narrow screen or in the chat widget: each row becomes a small block (the first cell is
+   its title, every other cell shows its column name), so nothing is cut off or needs sideways scrolling. */
+@media (max-width: 480px) {
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5),
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) tbody,
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) tr {
+    display: block;
+    width: 100%;
+  }
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) tr {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--ans-line);
+  }
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) tbody tr:last-child {
+    border-bottom: none;
+  }
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) td {
+    display: grid;
+    grid-template-columns: minmax(88px, 40%) 1fr;
+    gap: 8px;
+    padding: 2px 0;
+    border: none;
+    min-width: 0;
+    text-align: left !important;
+  }
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) td::before {
+    content: attr(data-label);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--ans-muted);
+    padding-top: 2px;
+  }
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) td:first-child {
+    display: block;
+    padding-bottom: 4px;
+    color: var(--ans-brand);
+  }
+  .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) td:first-child::before {
+    content: none;
   }
 }
