@@ -523,3 +523,48 @@ html[data-surface="widget"] .calc-metric-card.savings-card {
 html[data-surface="widget"] :is(.scholarship-modal-card, .lead-modal-card, .share-modal-card) {
   border-radius: 10px;
 }
+
+/* v4.17.0 answer typography: the colours above force every p / span / td / th to the body colour; these parts of an
+   answer keep their own (table header labels, step numbers, the follow-up line, note text). */
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .chat-markdown-table th,
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .chat-step-badge,
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .chat-h3,
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .callout-title {
+  color: var(--o-brand, #194f90) !important;
+}
+
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .chat-followup,
+html[data-surface="widget"] .sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .callout-content p {
+  color: var(--o-text-2, #3a3b45) !important;
+}
+
+/* The widget panel is narrow on every screen: tables with 3+ columns always use the stacked layout (see
+   MarkdownContent.css, the same rules as phones). */
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) thead {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+}
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5),
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) tbody,
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) tr {
+  display: block; width: 100%;
+}
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) tr {
+  padding: 8px 12px; border-bottom: 1px solid var(--o-line, #e4e6eb);
+}
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) tbody tr:last-child {
+  border-bottom: none;
+}
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) td {
+  display: grid; grid-template-columns: minmax(88px, 40%) 1fr; gap: 8px; padding: 2px 0; border: none;
+  min-width: 0; text-align: left !important;
+}
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) td::before {
+  content: attr(data-label); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--o-muted, #5d5e6c); padding-top: 2px;
+}
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) td:first-child {
+  display: block; padding-bottom: 4px; color: var(--o-brand, #194f90) !important;
+}
+html[data-surface="widget"] .sru-widget-body .chat-markdown-table:is(.cols-3, .cols-4, .cols-5) td:first-child::before {
+  content: none;
+}

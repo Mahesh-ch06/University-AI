@@ -309,9 +309,20 @@ def check_eligibility(program: str, percent=None, stream: str | None = None) -> 
     if not key:
         return {"status": "unknown_program", "known_programs": list_programs()["programs"]}
     if percent in (None, "") :
-        return {"status": "need_marks", "program": clean_program_name(key),
-                "ask_student": "Ask for their 10+2 / Intermediate marks (percentage, or marks with the total), "
-                               "or the degree percentage for a PG programme. Do not assume any marks."}
+        prog = load_data()["programs"].get(key) or {}
+        out = {"status": "need_marks", "program": clean_program_name(key),
+               "ask_student": "Ask for their 10+2 / Intermediate marks (percentage, or marks with the total), "
+                              "or the degree percentage for a PG programme. Do not assume any marks."}
+        # v4.17.0: the subject requirement and minimum are known without marks, so a stream question ("I'm from
+        # BiPC, can I join CSE?") is answered from them first; marks are asked only for the marks check.
+        if prog.get("eligibility_note"):
+            out["required_subjects"] = prog["eligibility_note"]
+        if prog.get("min_percent") is not None:
+            out["minimum_percent"] = prog["min_percent"]
+        if out.get("required_subjects"):
+            out["answer_first"] = ("If the student asked about their stream or subjects, answer that from "
+                                   "required_subjects before asking for marks.")
+        return out
     result = eligibility.assess(key, float(percent), stream)
     return {
         "status": "ok",
@@ -680,8 +691,9 @@ def compare_programs(program_a: str, program_b: str, **score) -> dict:
                     "known_programs": list_programs()["programs"]}
         rows.append({k: r.get(k) for k in (
             "program", "scholarship_percent", "tuition_first_year",
-            "tuition_first_year_after_scholarship", "per_semester_after_scholarship",
-            "first_year_total_payable", "yearly_increase", "duration_years", "full_course_total")})
+            "tuition_first_year_after_scholarship", "per_semester_after_scholarship", "sem1_total_payable",
+            "sem2_total_payable", "first_year_total_payable", "yearly_increase", "duration_years",
+            "full_course_total")})
     data = load_data()
     return {"status": "ok", "academic_year": data["academic_year"], "source": data["source"],
             "comparison": rows,

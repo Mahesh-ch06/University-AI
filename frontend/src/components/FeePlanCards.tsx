@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { AwardIcon, CheckIcon, RupeeIcon, ShareIcon, ShieldCheckIcon } from "./Icons";
 import "./FeePlanCards.css";
+import { SemesterFeeTable } from "./SemesterFeeTable";
 
 /**
- * Fee-plan cards (v4.10.0), all filled from the official 2027-28 fee data by the backend
+ * Fee-plan cards, all filled by the ONE fee engine (app/sru_agent/fees.py, the 2027-28 fee circular) via the backend
  * (app/sru_agent/fee_plan.py and fees.special_concessions):
- *  * ConcessionsTableCard: the 19 special concessions as a table; pick one and apply it to your fee;
+ *  * ConcessionsTableCard: the circular's special concessions as a table; pick one and apply it to your fee;
  *  * ConcessionFeeCard: one card with the tuition after the chosen concession and the proof note;
  *  * FeePlanCard: the complete first-year fee chart with a Share button (older chats);
  *  * FeeSummaryCard (v4.11.0): the fee evaluation agent's final card. Confirmed amounts and pending
@@ -67,7 +68,12 @@ export function GroupedConcessionsCard({ card, onSelect }: { card: any; onSelect
       <div className="fp-groups">
         {groups.map((g) => {
           const isOpen = open === g.key;
-          const amounts = Array.from(new Set(g.items.map((i) => i.per_year)));
+          // "₹15,000" or "₹15,000–₹50,000": the group's range, lowest first (never an unordered list).
+          const values = g.items.map((i) => amountValue(i.per_year)).filter((v) => v > 0);
+          const lo = Math.min(...values);
+          const hi = Math.max(...values);
+          const byText = (v: number) => g.items.find((i) => amountValue(i.per_year) === v)?.per_year || "";
+          const range = values.length === 0 ? "" : lo === hi ? byText(lo) : `${byText(lo)}–${byText(hi)}`;
           return (
             <div key={g.key} className={`fp-group${isOpen ? " is-open" : ""}`}>
               <button
@@ -82,7 +88,7 @@ export function GroupedConcessionsCard({ card, onSelect }: { card: any; onSelect
                   <span className="fp-group-hint">{g.hint}</span>
                 </span>
                 <span className="fp-group-meta">
-                  {amounts.join(" / ")}
+                  {range}
                   <svg className="fp-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
@@ -121,6 +127,16 @@ export function GroupedConcessionsCard({ card, onSelect }: { card: any; onSelect
           );
         })}
       </div>
+      {(data.all_categories || []).some((r: any) => r.selectable === false) && (
+        <p className="fp-hint fp-hint-muted">
+          Also on the circular, by recommendation only:{" "}
+          {(data.all_categories || [])
+            .filter((r: any) => r.selectable === false)
+            .map((r: any) => `${r.category} (${r.per_year})`)
+            .join("; ")}
+          .
+        </p>
+      )}
       <div className="agent-card-footer fp-footer">
         {picked && (
           <button type="button" className="agent-card-map-btn fp-apply" onClick={apply} disabled={locked || !onSelect}>
@@ -268,12 +284,13 @@ export function ConcessionFeeCard({ card }: { card: any }) {
         </h4>
       </div>
       <div className="fp-hero">
-        <span className="fp-hero-label">Tuition after concession</span>
-        <span className="fp-hero-amount">
-          {d.tuition_after_concession}
-          <small> / year</small>
-        </span>
-        <span className="fp-hero-sub">{d.per_semester_after_concession} per semester</span>
+        <span className="fp-hero-label">First year with this concession</span>
+        <span className="fp-hero-amount">{d.first_year_total || d.tuition_after_concession}</span>
+        {d.sem1_payable && (
+          <span className="fp-hero-sub">
+            Semester 1 {d.sem1_payable} · Semester 2 {d.sem2_payable}
+          </span>
+        )}
       </div>
       <dl className="fp-lines">
         <div>
@@ -285,10 +302,11 @@ export function ConcessionFeeCard({ card }: { card: any }) {
           <dd>− {d.concession_amount}</dd>
         </div>
         <div className="is-total">
-          <dt>Tuition with concession</dt>
+          <dt>Tuition for the year</dt>
           <dd>{d.tuition_after_concession}</dd>
         </div>
       </dl>
+      {d.semester_note && <p className="fp-hint">{d.semester_note}</p>}
       {d.merit_percent ? (
         <p className="fp-merit">
           Your <strong>{d.merit_percent}% merit scholarship</strong> brings tuition to{" "}
@@ -375,9 +393,18 @@ export function FeePlanCard({ card }: { card: any }) {
           </tfoot>
         </table>
       </div>
+      {Array.isArray(d.semesters) && d.semesters.length > 0 && (
+        <div className="fp-sem-block">
+          <SemesterFeeTable semesters={d.semesters} caption="Semester by semester" compact />
+        </div>
+      )}
       <ul className="fp-foot-notes">
-        {d.per_semester && <li>Regular semester: {d.per_semester}</li>}
-        {d.application_fee && <li>Application fee {d.application_fee}, paid when you apply.</li>}
+        {d.course_total && d.duration_years && (
+          <li>
+            Full course ({d.duration_years} years): {d.course_total}
+          </li>
+        )}
+        {d.application_fee && <li>Application fee {d.application_fee}, paid separately when you apply.</li>}
         {d.not_included?.length > 0 && <li>Not included: {d.not_included.join(", ")}.</li>}
         {d.concession?.note && <li>{d.concession.note}</li>}
       </ul>
@@ -398,7 +425,7 @@ export function FeePlanCard({ card }: { card: any }) {
             Couldn't share. Long-press the chart to copy it.
           </span>
         )}
-        <span className="agent-card-source-tag">Source: official SR University fee card, {d.academic_year}.</span>
+        <span className="agent-card-source-tag">Source: SR University fee circular, {d.academic_year}.</span>
       </div>
     </div>
   );
@@ -469,6 +496,12 @@ export function FeeSummaryCard({ card }: { card: any }) {
         )}
       </div>
 
+      {Array.isArray(d.semesters) && d.semesters.length > 0 && (
+        <div className="fp-sem-block">
+          <SemesterFeeTable semesters={d.semesters} caption="Payable now, semester by semester" compact />
+        </div>
+      )}
+
       <div className="fp-table-wrap">
         <table className="fp-table">
           <thead>
@@ -534,7 +567,13 @@ export function FeeSummaryCard({ card }: { card: any }) {
       )}
       {d.combine_note && <p className="fp-merit">{d.combine_note}</p>}
       <ul className="fp-foot-notes">
-        {d.application_fee && <li>Application fee {d.application_fee}, paid when you apply.</li>}
+        {d.course_total && d.duration_years && (
+          <li>
+            Full course ({d.duration_years} years, as things stand): {d.course_total}
+          </li>
+        )}
+        {d.application_fee && <li>Application fee {d.application_fee}, paid separately when you apply.</li>}
+        {Array.isArray(d.flags) && d.flags.map((f: string) => <li key={f}>{f}</li>)}
         <li>Books and personal expenses are not included.</li>
       </ul>
 
@@ -555,7 +594,7 @@ export function FeeSummaryCard({ card }: { card: any }) {
             Couldn't share. Long-press the summary to copy it.
           </span>
         )}
-        <span className="agent-card-source-tag">Source: official SR University fee card, {d.academic_year}.</span>
+        <span className="agent-card-source-tag">Source: SR University fee circular, {d.academic_year}.</span>
       </div>
     </div>
   );

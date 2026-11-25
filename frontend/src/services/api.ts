@@ -236,7 +236,10 @@ export function sendMessageStream(
     onCard?: (card: { type: string; data: any }) => void;
     onDone?: (data: ChatResponse) => void;
     onError?: (error: Error) => void;
-  }
+  },
+  // "typed": the student typed it (the model understands it); "button": a chip / card option / tile the bot
+  // offered (its fixed flow runs on the server).
+  source: "typed" | "button" = "typed"
 ): () => void {
   const controller = new AbortController();
 
@@ -254,6 +257,7 @@ export function sendMessageStream(
             message,
             conversation_id: conversationId || null,
             channel: CHANNEL,
+            ...(url.includes("/agent/") ? { source } : {}),
             ...(form && url.includes("/agent/") ? { form } : {}),
           }),
           signal: controller.signal,
@@ -270,6 +274,7 @@ export function sendMessageStream(
             message,
             conversation_id: conversationId || null,
             channel: CHANNEL,
+            ...(url.includes("/agent/") ? { source } : {}),
             ...(form && url.includes("/agent/") ? { form } : {}),
           }),
           signal: controller.signal,

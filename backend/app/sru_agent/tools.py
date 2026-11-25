@@ -238,24 +238,52 @@ async def tool_cancel_contact_request(args, ctx):
 
 
 # ---------------------------------------------------------------- tools ----
+_SCORE_KEYS = ("percent", "eapcet_rank", "jee_percentile", "ib_score")
+
+
+def _student_scores(args: dict, ctx: dict) -> dict:
+    """The scores for a fee calculation, each one the student actually gave (v4.17.0).
+
+    A score the model passes is used only when it is on the student's saved details or appears as a number in
+    the student's own messages; otherwise the saved value (or none: the standard fee) is used. A score the model
+    assumed ("say 85%") never changes a fee or the saved details."""
+    p = ctx.get("profile") or {}
+    said = " ".join([ctx.get("message") or ""] + [h.get("text", "") for h in (ctx.get("history") or [])
+                                                    if h.get("role") == "user"])
+    numbers = {float(n.replace(",", "")) for n in re.findall(r"\d[\d,]*(?:\.\d+)?", said)}
+    out = {}
+    for key in _SCORE_KEYS:
+        given, saved = args.get(key), p.get(key)
+        try:
+            ok = given is not None and (
+                (saved not in (None, "") and abs(float(given) - float(saved)) < 0.01) or float(given) in numbers)
+        except (TypeError, ValueError):
+            ok = False
+        out[key] = given if ok else saved
+    return out
+
+
 async def tool_calculate_fee(args, ctx):
     p = ctx.get("profile") or {}
+    scores = _student_scores(args, ctx)
     result = fees.calculate_fee(
         program=args.get("program") or p.get("program_interest") or "",
-        percent=args.get("percent", p.get("percent")),
+        percent=scores["percent"],
         board=args.get("board") or p.get("board") or "state_board",
-        eapcet_rank=args.get("eapcet_rank", p.get("eapcet_rank")),
-        jee_percentile=args.get("jee_percentile", p.get("jee_percentile")),
+        eapcet_rank=scores["eapcet_rank"],
+        jee_percentile=scores["jee_percentile"],
         hostel=args.get("hostel") or "none",
         specialization=bool(args.get("specialization", False)),
-        ib_score=args.get("ib_score", p.get("ib_score")),
+        ib_score=scores["ib_score"],
         transport=bool(args.get("transport", False)),
     )
     if result.get("status") == "ok":
         summary = _fee_summary(result)
         ctx["last_fee"] = summary
         # Remember what the student told us, so "and with hostel?" works without asking again.
-        told = {k: args.get(k) for k in ("percent", "board", "eapcet_rank", "jee_percentile", "ib_score")}
+        told = {k: scores[k] for k in _SCORE_KEYS if scores[k] is not None}
+        if args.get("board"):
+            told["board"] = args["board"]
         if args.get("program"):
             told["program_interest"] = result.get("program_key") or args["program"]
         try:
@@ -293,9 +321,9 @@ def _fee_summary(fee: dict) -> dict:
 
 async def tool_check_eligibility(args, ctx):
     p = ctx.get("profile") or {}
-    percent = args.get("percent")
-    if percent in (None, ""):
-        percent = p.get("percent")  # marks the student already gave; never a made-up default
+    # marks the student gave (saved, or typed in their messages); never a made-up or assumed value (v4.17.0)
+    percent = _student_scores({"percent": args.get("percent") if args.get("percent") not in (None, "") else None},
+                              ctx)["percent"]
     return fees.check_eligibility(args.get("program") or p.get("program_interest") or "", percent,
                                   stream=p.get("stream"))
 
@@ -311,12 +339,13 @@ async def tool_get_special_concessions(args, ctx):
 
 async def tool_compare_programs(args, ctx):
     p = ctx.get("profile") or {}
+    scores = _student_scores(args, ctx)
     return fees.compare_programs(
         args.get("program_a") or "", args.get("program_b") or "",
-        percent=args.get("percent", p.get("percent")),
+        percent=scores["percent"],
         board=args.get("board") or p.get("board") or "state_board",
-        eapcet_rank=args.get("eapcet_rank", p.get("eapcet_rank")),
-        jee_percentile=args.get("jee_percentile", p.get("jee_percentile")))
+        eapcet_rank=scores["eapcet_rank"],
+        jee_percentile=scores["jee_percentile"])
 
 
 async def tool_share_fee_estimate(args, ctx):

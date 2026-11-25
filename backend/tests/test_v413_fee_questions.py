@@ -80,8 +80,8 @@ async def test_marks_already_known_evaluate_at_once():
 @pytest.mark.parametrize("message", ["hostel fees", "prepare my fee chart for B.Tech CSE", "B.Tech CSE fee per semester",
                                      "What will the fees be in 2029-30?"])
 async def test_other_fee_topics_are_not_changed(message):
-    [done] = await _chat([message])
-    assert "Before I give you" not in done["answer"]
+    out = await _chat([message])
+    assert all("Before I give you" not in d["answer"] for d in out)
 
 
 @pytest.mark.asyncio

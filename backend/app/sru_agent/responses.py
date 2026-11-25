@@ -782,7 +782,7 @@ SR University offers generous **merit-based tuition fee waivers (10% to 40%)** t
   - High rankers in EAPCET and JEE Main receive top merit slabs; the best applicable scholarship is granted automatically.
   - Only the highest eligible scholarship slab applies (no stacking).
 
-• **Special Category Concessions (19 categories)**:
+• **Special Category Concessions (20 categories)**:
   - Additional concessions for siblings, defense personnel wards, single-parent/orphan students, NCC cadets, and sports achievers.
 
 *Share your 10+2 marks or entrance rank to calculate your exact scholarship savings!*"""

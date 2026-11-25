@@ -1,7 +1,7 @@
 """Tests verifying resolutions for QA findings (SRU-001, SRU-003, SRU-004)."""
 import pytest
 from app.sru_agent import intents, memory
-from app.sru_agent.agent import run_agent, _offline_knowledge_reply
+from app.sru_agent.agent import run_agent
 
 
 @pytest.mark.asyncio
@@ -58,14 +58,3 @@ async def test_future_year_fee_intent_and_response():
     assert "₹9,000 per year" not in answer
     cards = [c.get("type") for c in events[-1].get("cards", []) if isinstance(c, dict)]
     assert "counsellor_board_selection" not in cards
-
-
-@pytest.mark.asyncio
-async def test_offline_knowledge_reply_rotation():
-    session_id = "test-session-rotation"
-    reply1 = _offline_knowledge_reply("hostel living rules", session_id)
-    reply2 = _offline_knowledge_reply("hostel living rules", session_id)
-    assert reply1 is not None
-    # If multiple passages match, titles should rotate
-    # Verify reply is non-empty and well-formed
-    assert "matching part of the SR University handbook" in reply1

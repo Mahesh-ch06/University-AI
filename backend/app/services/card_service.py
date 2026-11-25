@@ -101,9 +101,14 @@ def _build_cse_semester_card(hostel: str | None = None) -> dict:
             f"{f.inr(plan['application_fee'])} is paid separately.")
     if hostel:
         note += " Hostel fees are not on the fee circular and are confirmed by the Admissions Office."
+    y1 = plan["years"][0]
+    semesters = [{"semester": s["semester"], "total": f.inr(s["total"]),
+                  "items": [{"item": i["label"], "amount": f.inr(i["amount"]), "kind": i["kind"]} for i in s["items"]]}
+                 for s in y1["semesters"]]
     return {"type": "fee_breakdown",
             "title": f"B.Tech CSE{with_h}: Semester-wise Fee, Year 1 ({data['academic_year']})",
-            "currency": "INR", "items": items, "scholarship_note": note}
+            "currency": "INR", "items": items, "semesters": semesters, "first_year_total": f.inr(y1["total"]),
+            "scholarship_note": note, "note_label": "Note"}
 
 
 def _build_merit_scholarship_card() -> dict:
@@ -477,7 +482,7 @@ SRU_ADVANTAGE_CARD = {
         {
             "category": "Merit Scholarships",
             "icon": "💰",
-            "sru_highlight": "Up to 40% tuition fee waiver based on board/entrance scores. 19 special category concessions up to Rs.50,000/year for girl students, defence personnel, differently-abled, sports achievers, and more.",
+            "sru_highlight": "Up to 40% tuition fee waiver based on board/entrance scores. 20 special category concessions up to Rs.50,000/year for girl students, defence personnel, differently-abled, sports achievers, and more.",
             "standout": "Up to 40% Scholarship",
         },
     ],
@@ -898,9 +903,10 @@ def generate_cards(
             record_session_card(session_id, card_type)
 
     # 0. Branch comparison card (Shown at most once per session)
-    if any(k in msg_lower for k in ("vs", "compare", "comparison", "difference")) and (
-        "cse" in msg_lower or "ai" in msg_lower or "aiml" in msg_lower or "machine learning" in msg_lower
-    ):
+    # Only for CSE (core) vs CSE (AI & ML): "cse vs ece" or a fee comparison must not get this card.
+    if any(k in msg_lower for k in ("vs", "compare", "comparison", "difference")) and "cse" in msg_lower and re.search(
+        r"\b(?:aiml|ai\s*&\s*ml|ai\s+and\s+ml|ai\s*/\s*ml|machine\s+learning)\b", msg_lower
+    ) and not re.search(r"\b(?:fee|fees|cost|tuition)\b", msg_lower):
         if _can_show("comparison"):
             cards.append(COMPARISON_CSE_AIML)
             _mark_shown("comparison")
@@ -944,6 +950,8 @@ def generate_cards(
         any(k in msg_lower for k in ("cse", "computer science")) and any(
             k in msg_lower for k in ("fee", "fees", "tuition", "cost", "charge", "how much", "breakdown", "per sem", "semester", "sem fee")
         ) and not any(k in msg_lower for k in ("all branches", "complete fee", "other branches", "overall", "fee structure"))
+        # a comparison with another programme ("cse vs ece fees") never gets a CSE-only card
+        and not re.search(r"\b(?:vs|versus|compar\w*|difference)\b", msg_lower)
     ))
 
     is_ad_query = any(k in msg_lower for k in (

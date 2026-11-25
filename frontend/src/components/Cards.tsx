@@ -23,6 +23,7 @@ import {
 import { ConcessionFeeCard, ConcessionsCard, FeePlanCard, FeeSummaryCard } from "./FeePlanCards";
 import { AgentPlanCard, CounsellorConnectCard } from "./AgentCards";
 import "./Cards.css";
+import { SemesterFeeTable } from "./SemesterFeeTable";
 import "./ChatCards.css";
 
 interface CardProps {
@@ -77,6 +78,7 @@ export function ComparisonCard({ card }: CardProps) {
 
 export function FeeBreakdownCard({ card }: CardProps) {
   const items = card.items || [];
+  const hasSemesters = Array.isArray(card.semesters) && card.semesters.length > 0;
 
   return (
     <div className="rich-card fee-card">
@@ -86,6 +88,19 @@ export function FeeBreakdownCard({ card }: CardProps) {
         </span>
         <h4 className="card-title">{card.title}</h4>
       </div>
+      {hasSemesters ? (
+        <>
+          {card.first_year_total && (
+            <div className="afc-hero">
+              <div className="afc-hero-main">
+                <span className="afc-hero-label">First-year payable</span>
+                <span className="afc-hero-amount">{card.first_year_total}</span>
+              </div>
+            </div>
+          )}
+          <SemesterFeeTable semesters={card.semesters} />
+        </>
+      ) : (
       <div className="fee-table-wrapper">
         <table className="fee-table">
           <thead>
@@ -108,6 +123,7 @@ export function FeeBreakdownCard({ card }: CardProps) {
           </tbody>
         </table>
       </div>
+      )}
       {card.scholarship_note && (
         <div className="card-callout scholarship-callout">
           <span className="callout-icon">
@@ -545,76 +561,89 @@ export function AgentFeeCard({ card }: CardProps) {
   const d = card.data || {};
   const rawProgName = d.program_name || d.program || "Academic Program";
   const progName = cleanDisplayProgramName(rawProgName, d.specialization);
-  const semTuition = d.net_tuition_per_sem ?? d.base_tuition_per_sem ?? (d.per_semester_after_scholarship || "—");
-  const waiver = d.scholarship_percent || 0;
-  const hasHostel = Boolean(d.has_hostel || (d.hostel && d.hostel.per_year));
-  const hostelPerSem = d.hostel?.per_semester || (d.hostel?.per_year ? `₹${Math.round(parseInt(String(d.hostel.per_year).replace(/[^\d]/g, ""), 10) / 2).toLocaleString("en-IN")}` : null);
-  // No built-in amounts: if the backend did not send a figure, show a dash, never a guess.
-  const totalPerSem = d.total_per_semester || "—";
-  const sem1Total = d.sem1_total_payable || "—";
+  const waiver = Number(d.scholarship_percent) || 0;
+  const year = d.academic_year || d.admission_year || "2027-28";
+  const hasHostel = Boolean(d.has_hostel);
+  const flags: string[] = Array.isArray(d.flags) ? d.flags : [];
+  // Every figure below comes from the fee engine's answer; nothing is computed or guessed here.
+  const semesters = [d.semester_1 && { semester: 1, ...d.semester_1 }, d.semester_2 && { semester: 2, ...d.semester_2 }]
+    .filter(Boolean) as any[];
 
   const handleWhatsApp = () => {
-    const text = `Hello SR University Admissions! I received this fee calculation for ${progName} (${d.admission_year || "2027-28"}). Net Tuition: ${semTuition}/sem, Scholarship: ${waiver}%, Total/sem: ${totalPerSem} ${hasHostel ? "(including hostel)" : "(without hostel)"}. Please assist me with admissions.`;
-    window.open(`https://wa.me/918331003030?text=${encodeURIComponent(text)}`, "_blank");
+    const lines = [
+      `Hello SR University Admissions! My fee estimate for ${progName} (${year}):`,
+      waiver > 0 ? `Merit scholarship: ${waiver}% (${d.scholarship_basis_text || "my marks"})` : "Standard fee",
+      `Semester 1: ${d.sem1_total_payable || "—"} | Semester 2: ${d.sem2_total_payable || "—"}`,
+      `First year: ${d.first_year_total_payable || "—"}${hasHostel ? " (with hostel)" : ""}`,
+      "Please help me with the next admission steps.",
+    ];
+    window.open(`https://wa.me/918331003030?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
   };
 
   return (
     <div className="rich-card fee-card agent-fee-card">
       <div className="card-header">
         <span className="card-badge badge-success">
-          <RupeeIcon size={14} /> Official 2027-28 Fee
+          <RupeeIcon size={14} /> Official {year} fee
         </span>
         <h4 className="card-title">{progName}</h4>
+        <div className="afc-chips">
+          {waiver > 0 ? (
+            <span className="afc-chip afc-chip--ok">{waiver}% merit scholarship</span>
+          ) : (
+            <span className="afc-chip">Standard fee</span>
+          )}
+          {d.scholarship_basis_text && <span className="afc-chip">{d.scholarship_basis_text}</span>}
+          {hasHostel && d.hostel?.type && <span className="afc-chip">Hostel: {d.hostel.type}</span>}
+          {d.transport_per_year && <span className="afc-chip">University bus</span>}
+        </div>
       </div>
-      <div className="agent-fee-stats-grid">
-        <div className="agent-fee-stat">
-          <span className="agent-fee-stat-label">Net Tuition / Sem</span>
-          <span className="agent-fee-stat-val bold-emerald">
-            {typeof semTuition === "number" ? `₹${semTuition.toLocaleString("en-IN")}` : semTuition}
+
+      <div className="afc-hero">
+        <div className="afc-hero-main">
+          <span className="afc-hero-label">First-year payable</span>
+          <span className="afc-hero-amount">{d.first_year_total_payable || "—"}</span>
+        </div>
+        <div className="afc-hero-split">
+          <span>
+            Sem 1 <strong>{d.sem1_total_payable || "—"}</strong>
           </span>
-          <span className="agent-fee-stat-sub">per semester tuition</span>
+          <span>
+            Sem 2 <strong>{d.sem2_total_payable || "—"}</strong>
+          </span>
         </div>
-        <div className="agent-fee-stat">
-          <span className="agent-fee-stat-label">Merit Scholarship</span>
-          <span className="agent-fee-stat-val bold-blue">{waiver > 0 ? `${waiver}% Waiver` : "Standard Slabs"}</span>
-          <span className="agent-fee-stat-sub">official merit waiver</span>
-        </div>
-        {hasHostel ? (
-          <>
-            <div className="agent-fee-stat">
-              <span className="agent-fee-stat-label">Hostel & Mess / Sem</span>
-              <span className="agent-fee-stat-val bold-blue">{hostelPerSem}</span>
-              <span className="agent-fee-stat-sub">{d.hostel?.type || "AC 4-Sharing"} (4 meals/day)</span>
-            </div>
-            <div className="agent-fee-stat">
-              <span className="agent-fee-stat-label">Combined Total / Sem</span>
-              <span className="agent-fee-stat-val bold-emerald">{totalPerSem}</span>
-              <span className="agent-fee-stat-sub">Tuition + Other + Hostel</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="agent-fee-stat">
-              <span className="agent-fee-stat-label">Total / Sem (Academic)</span>
-              <span className="agent-fee-stat-val bold-emerald">{totalPerSem}</span>
-              <span className="agent-fee-stat-sub">Tuition + Other/Exam Fees</span>
-            </div>
-            <div className="agent-fee-stat">
-              <span className="agent-fee-stat-label">1st Sem Total</span>
-              <span className="agent-fee-stat-val">{sem1Total}</span>
-              <span className="agent-fee-stat-sub">includes ₹5k enrollment</span>
-            </div>
-          </>
+        {waiver > 0 && d.saving_first_year && (
+          <span className="afc-hero-save">You save {d.saving_first_year} on tuition this year</span>
         )}
       </div>
+
+      <SemesterFeeTable semesters={semesters} />
+
+      {flags.length > 0 && (
+        <div className="afc-flags" role="note">
+          {flags.map((f) => (
+            <p key={f}>{f}</p>
+          ))}
+        </div>
+      )}
+
+      <ul className="afc-notes">
+        <li>Only tuition is split between the semesters; other charges sit where the fee circular places them.</li>
+        {d.full_course_total && d.duration_years && (
+          <li>
+            Full course ({d.duration_years} years): <strong>{d.full_course_total}</strong>, with tuition rising{" "}
+            {d.yearly_increase} a year.
+          </li>
+        )}
+        {d.application_fee && <li>Application form {d.application_fee} is paid separately when you apply.</li>}
+        {!hasHostel && <li>Hostel and bus are optional and not included.</li>}
+        {hasHostel && d.hostel?.status && <li>{d.hostel.status}</li>}
+      </ul>
+
       <div className="agent-card-footer">
-        <span className="agent-card-source-tag">
-          {hasHostel
-            ? "🏠 Hostel & Dining included in total per semester."
-            : "ℹ️ Hostel fee NOT included (separate & optional: ₹1.15L – ₹1.35L/yr)."}
-        </span>
+        <span className="agent-card-source-tag">Source: SR University fee circular, {year}</span>
         <button type="button" className="agent-card-wa-btn" onClick={handleWhatsApp}>
-          💬 WhatsApp Admissions
+          WhatsApp Admissions
         </button>
       </div>
     </div>
@@ -1146,33 +1175,29 @@ export function DetailedFeeStructureCard({ card, onSelect }: { card: any; onSele
 
       {activeTab === "tuition" && (
         <div className="fee-tab-pane">
-          <div className="fee-breakdown-row highlight">
-            <span className="fee-row-label">Annual Tuition Fee</span>
-            <span className="fee-row-value">{card.tuition?.formatted_annual}</span>
-          </div>
-          <div className="fee-breakdown-row sub">
-            <span className="fee-row-label">Per Semester Tuition</span>
-            <span className="fee-row-value">{card.tuition?.formatted_semester}</span>
-          </div>
-
-          <div className="fee-section-divider">One-Time & Academic Charges</div>
-          {(card.one_time_charges || []).map((c: any, i: number) => (
-            <div key={i} className="fee-breakdown-row">
-              <span className="fee-row-label">{c.label}</span>
-              <span className="fee-row-value">{c.formatted}</span>
+          <div className="afc-hero">
+            <div className="afc-hero-main">
+              <span className="afc-hero-label">First year (standard fee)</span>
+              <span className="afc-hero-amount">{card.formatted_first_year_total || "—"}</span>
             </div>
-          ))}
-          {(card.annual_academic_charges || []).map((c: any, i: number) => (
-            <div key={i} className="fee-breakdown-row">
-              <span className="fee-row-label">{c.label}</span>
-              <span className="fee-row-value">{c.formatted}</span>
+            <div className="afc-hero-split">
+              <span>
+                Tuition <strong>{card.tuition?.formatted_annual}</strong>/yr
+              </span>
+              {card.tuition?.yearly_increase && <span>+{card.tuition.yearly_increase}/yr from Year 2</span>}
             </div>
-          ))}
-
-          <div className="fee-total-box">
-            <div className="fee-total-label">Total First Year Academic:</div>
-            <div className="fee-total-amount">{card.formatted_first_year_academic}</div>
           </div>
+          <SemesterFeeTable semesters={card.semesters} />
+          <ul className="afc-notes">
+            <li>Before any merit scholarship. Only tuition is split between the two semesters.</li>
+            {card.formatted_course_total && card.duration_years && (
+              <li>
+                Full course ({card.duration_years} years): <strong>{card.formatted_course_total}</strong>
+              </li>
+            )}
+            {card.application_fee && <li>Application form {card.application_fee} is paid separately.</li>}
+            {card.specialization_fee && <li>Specialisation fee {card.specialization_fee} a year from Year 2, where it applies.</li>}
+          </ul>
         </div>
       )}
 
@@ -1188,16 +1213,17 @@ export function DetailedFeeStructureCard({ card, onSelect }: { card: any; onSele
           </div>
           <div className="dining-highlight-box">
             <SparklesIcon size={14} />
-            <span>{card.dining_info || "Central multi-cuisine mess included in residential fee with 4,000-seat central dining facility."}</span>
+            <span>{card.dining_info || "Meals are included in the hostel fee."}</span>
           </div>
+          {card.hostel_note && <p className="afc-notes afc-notes--plain">{card.hostel_note}</p>}
         </div>
       )}
 
       {activeTab === "other" && (
         <div className="fee-tab-pane">
           <div className="fee-breakdown-row">
-            <span className="fee-row-label">Tri-Cities Bus Transport (Annual)</span>
-            <span className="fee-row-value">{card.formatted_transport || "₹30,000"}</span>
+            <span className="fee-row-label">University bus (optional, per year)</span>
+            <span className="fee-row-value">{card.formatted_transport || "—"}</span>
           </div>
           {(card.hostel_deposits || []).map((d: any, i: number) => (
             <div key={i} className="fee-breakdown-row">
@@ -1323,22 +1349,8 @@ export function HostelFacilitiesCard({ card, onSelect }: { card: any; onSelect?:
 
 export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
   const isPg = card.level === "pg";
-  const rawPrograms = card.programs || [
-    { key: "btech_cse", name: "B.Tech Computer Science & Engineering (CSE)", level: "ug", annual_tuition: 340000 },
-    { key: "btech_ai_robotics", name: "B.Tech in Artificial Intelligence & Robotics", level: "ug", annual_tuition: 400000 },
-    { key: "btech_ece", name: "B.Tech Electronics & Communication (ECE)", level: "ug", annual_tuition: 270000 },
-    { key: "btech_mech", name: "B.Tech Mechanical Engineering", level: "ug", annual_tuition: 200000 },
-    { key: "btech_civil", name: "B.Tech Civil Engineering", level: "ug", annual_tuition: 200000 },
-    { key: "btech_eee", name: "B.Tech Electrical & Electronics (EEE)", level: "ug", annual_tuition: 200000 },
-    { key: "bsc_agri", name: "B.Sc (Hons.) Agriculture (ICAR Accredited)", level: "ug", annual_tuition: 200000 },
-    { key: "bba", name: "BBA (Bachelor of Business Administration)", level: "ug", annual_tuition: 150000 },
-    { key: "bca", name: "BCA (Bachelor of Computer Applications)", level: "ug", annual_tuition: 150000 },
-    { key: "bdes", name: "B.Des (School of Design)", level: "ug", annual_tuition: 210000 },
-    { key: "bcom", name: "B.Com (Bachelor of Commerce)", level: "ug", annual_tuition: 100000 },
-    { key: "mba", name: "MBA (Master of Business Administration)", level: "pg", annual_tuition: 300000 },
-    { key: "mca", name: "MCA (Master of Computer Applications)", level: "pg", annual_tuition: 150000 },
-    { key: "mtech", name: "M.Tech CSE", level: "pg", annual_tuition: 100000 },
-  ];
+  // Programmes and their tuition come from the backend (fee policy); never a built-in list.
+  const rawPrograms = card.programs || [];
 
   // Filter programs strictly: if only_selected, keep only selected. Else scope strictly to level.
   const filtered = card.only_selected && card.selected_program
@@ -1370,39 +1382,6 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
   const selectedBoard = boards.find((b: any) => b.key === selectedBoardKey) || boards[0];
   const isEngineeringOrAgri = !isPg && (selectedProgKey.startsWith("btech_") || selectedProgKey === "bsc_agri");
   const isSingleLockedProg = Boolean(card.only_selected || programs.length === 1);
-
-  // Calculate live scholarship slab
-  const getScholarshipPct = (): number => {
-    const isCbseFamily = selectedBoard.slab_key === "cbse";
-    if (activeScoreType === "marks" && scoreInput) {
-      const raw = parseFloat(scoreInput.replace(/[^\d.]/g, ""));
-      const pct = raw > 100 && raw <= 1000 ? raw / 10 : raw;
-      if (pct >= (isCbseFamily ? 95 : 98)) return 40;
-      if (pct >= (isCbseFamily ? 90 : 92)) return 30;
-      if (pct >= 80) return 25;
-      if (pct >= 70) return 20;
-      if (pct >= 65) return 15;
-      if (pct >= 60) return 10;
-    } else if (activeScoreType === "jee" && scoreInput) {
-      const p = parseFloat(scoreInput.replace(/[^\d.]/g, ""));
-      if (p >= 95) return 40;
-      if (p >= 90) return 30;
-      if (p >= 80) return 25;
-      if (p >= 70) return 20;
-      if (p >= 60) return 15;
-      if (p >= 50) return 10;
-    } else if (activeScoreType === "eapcet" && rankInput) {
-      const r = parseInt(rankInput.replace(/[^\d]/g, ""), 10);
-      if (r >= 1 && r <= 2000) return 40;
-      if (r > 2000 && r <= 8000) return 30;
-      if (r > 8000 && r <= 20000) return 25;
-    }
-    return 0;
-  };
-
-  const previewWaiver = getScholarshipPct();
-  const baseTuition = selectedProg?.annual_tuition || 340000;
-  const netTuition = Math.round(baseTuition * (1 - previewWaiver / 100));
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -1449,7 +1428,9 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
               <span className="selected-course-icon">🎓</span>
               <div className="selected-course-details">
                 <span className="selected-course-name">{selectedProg.name}</span>
-                <span className="selected-course-fee">Annual Tuition: ₹{(selectedProg.annual_tuition || 340000).toLocaleString("en-IN")}</span>
+                {selectedProg.annual_tuition ? (
+                  <span className="selected-course-fee">Annual Tuition: ₹{Number(selectedProg.annual_tuition).toLocaleString("en-IN")}</span>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -1563,20 +1544,6 @@ export function FeeScholarshipFormCard({ card, onSelect }: { card: any; onSelect
 
           {errorMsg && <div className="fee-form-error">{errorMsg}</div>}
         </div>
-
-        {/* Live Scholarship Preview */}
-        {previewWaiver > 0 && (
-          <div className="fee-form-live-preview">
-            <div className="preview-badge">
-              <SparklesIcon size={13} /> {previewWaiver}% Merit Scholarship Qualified!
-            </div>
-            <div className="preview-amounts">
-              <span>Net Annual Tuition:</span>
-              <strong>₹{netTuition.toLocaleString("en-IN")}</strong>
-              <small>(₹{Math.round(netTuition / 2).toLocaleString("en-IN")}/sem)</small>
-            </div>
-          </div>
-        )}
 
         {/* Submit Button */}
         <div className="fee-form-actions">

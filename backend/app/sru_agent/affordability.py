@@ -4,14 +4,14 @@ When a student mentions financial difficulty or high fees (e.g. "i can't afford 
 "too expensive", "financial problem"):
 1. Reassures the student warmly by name ({user_name}).
 2. Explains that SR University offers up to 40% merit scholarships, 20 special-category concessions,
-   and on-campus bank education loan support.
+   and semester-wise payment.
 3. Promises: "I will be asking you some questions, answer them, and at last I will let you know your
    final net fee after all concessions and deductions."
 4. Guides the student through:
    - Step 1: Course & Academic Score (10+2 marks % or entrance rank).
    - Step 2: Checking the official special-category concessions.
    - Step 3: Consolidated net fee calculation (merit + special concessions deduction),
-     explaining semester installment options and on-campus SBI / Union Bank loan support.
+     explaining semester-wise payment; loans are referred to the Admissions Office (not on the fee circular).
 """
 
 from __future__ import annotations
@@ -28,10 +28,13 @@ def _concession_count() -> int:
 
 
 def _concession_lines() -> str:
-    """The main special-category concessions, from the fee policy (never typed here)."""
-    items = [c for c in fees.load_data().get("special_concessions", []) if c.get("selectable", True)]
-    items.sort(key=lambda c: -int(c["amount"]))
-    return "\n".join(f"• **{c['label']}**: {fees.inr(c['amount'])} a year" for c in items[:10])
+    """Every concession a student can claim, from the fee policy, grouped by yearly amount (never a partial list)."""
+    groups: dict[int, list[str]] = {}
+    for c in fees.load_data().get("special_concessions", []):
+        if c.get("selectable", True):
+            groups.setdefault(int(c["amount"]), []).append(c["label"])
+    return "\n".join(f"• **{fees.inr(a)} a year:** " + "; ".join(labels)
+                      for a, labels in sorted(groups.items(), reverse=True))
 
 
 AFFORDABILITY_REGEX = re.compile(
@@ -103,6 +106,14 @@ def match_all_special_concessions(message: str) -> list[dict]:
 
     matched = []
     seen_keys = set()
+    cats = {c["key"]: c for c in _official_categories()}
+    # where the student lives: "I'm from Delhi" -> students from outside TG and AP; "from AP" -> Andhra Pradesh
+    from . import compound
+    if re.search(r"\b(?:from|in|live\s+in)\s+(?:ap|a\.p\.?|andhra(?:\s+pradesh)?)\b", low) and "andhra_pradesh" in cats:
+        matched.append(cats["andhra_pradesh"]); seen_keys.add("andhra_pradesh")
+    elif (compound.from_other_state(message) or re.search(r"\banother\s+state\b|\bother\s+state\b", low)) \
+            and "non_local" in cats:
+        matched.append(cats["non_local"]); seen_keys.add("non_local")
     for cat in _official_categories():
         if cat["key"] in seen_keys:
             continue
@@ -161,10 +172,6 @@ def process_affordability_flow(
     """
     user_name = profile.get("name") or conv_state.get("user_name") or ""
     greeting_lead = f"I understand your concern, {user_name}!" if user_name else "I completely understand your concern!"
-    promise_statement = (
-        "I will be asking you some questions, answer them, and at last I will let you know "
-        "your final net fee after all concessions and deductions."
-    )
 
     flow_state = conv_state.get("affordability_flow")
 
@@ -188,12 +195,11 @@ def process_affordability_flow(
             reply_text = (
                 f"{greeting_lead} At SR University, no deserving student is held back by financial constraints. "
                 f"We offer extensive merit scholarships (up to 40% tuition waiver) as well as {_concession_count()} special-category "
-                f"concessions and on-campus bank education loan support.\n\n"
-                f"{promise_statement}\n\n"
-                f"Great news! Based on your academic score, you qualify for a **{sch_pct}% Merit Scholarship** on **{prog_name}**, "
+                f"concessions, and fees are paid semester by semester.\n\n"
+                f"Based on your academic score, you qualify for a **{sch_pct}% Merit Scholarship** on **{prog_name}**, "
                 f"saving **{saving}/year** on tuition!\n\n"
-                f"**Step 2: Special-Category Concessions**\n"
-                f"Do you or your family qualify under any of SR University's official concession categories below?\n"
+                f"**Could a special concession lower it further?** Tell me if any of these applies to you "
+                f"(each is approved once your proof is verified):\n"
                 + _concession_lines()
             )
             chips = [
@@ -201,7 +207,7 @@ def process_affordability_flow(
                 "Lost both parents (Orphan)",
                 "Child of Defence / CRPF",
                 "Sibling at SR University",
-                "Girl student (non-TS)",
+                "From another state",
                 "From Andhra Pradesh",
                 "None of these",
             ]
@@ -228,8 +234,7 @@ def process_affordability_flow(
         reply_text = (
             f"{greeting_lead} At SR University, no deserving student is held back by financial constraints. "
             f"We offer generous merit scholarships (up to 40% tuition fee waiver) along with {_concession_count()} special-category "
-            f"concessions and full on-campus bank education loan support.\n\n"
-            f"{promise_statement}\n\n"
+            f"concessions, and fees are paid semester by semester.\n\n"
             f"**Step 1 of 2: Academic Programme & Marks**\n"
             f"Please select or tell me:\n"
             f"1. Which **course / programme** are you planning to study (e.g. B.Tech CSE, BBA, BCA, MBA)?\n"
@@ -290,8 +295,8 @@ def process_affordability_flow(
         text = (
             f"Great news{', ' + user_name if user_name else ''}! Based on your {detected_percent}% score, "
             f"you qualify for a **{sch_pct}% Merit Scholarship** on **{prog_name}**, saving **{saving}/year** on tuition!\n\n"
-            f"**Step 2 of 2: Special-Category Concessions**\n"
-            f"SR University provides an additional {_concession_count()} special-category annual concessions. Do any of these apply to you or your family?\n\n"
+            f"**Could a special concession lower it further?** Tell me if any of these applies to you "
+            f"(each is approved once your proof is verified):\n\n"
             + _concession_lines()
         )
         chips = [
@@ -299,7 +304,7 @@ def process_affordability_flow(
             "Lost both parents (Orphan)",
             "Child of Defence / CRPF",
             "Sibling at SR University",
-            "Girl student (non-TS)",
+            "From another state",
             "From Andhra Pradesh",
             "None of these",
         ]
@@ -369,11 +374,11 @@ def process_affordability_flow(
             f"• **First-year total**: **{with_conc['first_year_total_payable']}** *(application form {with_conc['application_fee']} paid separately)*\n"
             f"• **Total Annual Savings**: **{fees.inr(total_savings_int)}**\n\n"
             f"---\n\n"
-            f"### 💡 Flexible Payment & On-Campus Financial Aid Options\n"
-            f"1. **Semester-wise Instalment Plan**: You do not have to pay the entire year's tuition upfront. Fees are collected per semester (Semester 1 {with_conc['sem1_total_payable']}, Semester 2 {with_conc['sem2_total_payable']}).\n"
-            f"2. **On-Campus Bank Education Loans**: SR University has full-fledged on-campus branches and counters of **State Bank of India (SBI)** and **Union Bank of India**. They provide priority education loans covering tuition, hostel, and laptops under Central Government schemes (such as Vidya Lakshmi) with repayment starting after graduation.\n"
-            f"3. **Admissions Financial Aid Desk**: Our team assists you with immediate provisional admission and loan estimate letters required by banks for swift sanction.\n\n"
-            f"Would you like assistance connecting with our admissions financial aid desk or booking a campus visit?"
+            f"**Paying it:** fees are paid semester by semester, so you never pay the whole year at once "
+            f"(Semester 1 {with_conc['sem1_total_payable']}, Semester 2 {with_conc['sem2_total_payable']}). Education "
+            f"loans and any other instalment arrangement aren't on the fee circular, so the Admissions Office "
+            f"(833 100 3030) can guide you on them.\n\n"
+            f"Would you like me to connect you with an admissions counsellor?"
         )
 
         fee_card_data = dict(with_conc)

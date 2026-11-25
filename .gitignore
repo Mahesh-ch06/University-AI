@@ -23,6 +23,8 @@ env/
 # Uploads
 uploads/*
 !uploads/.gitkeep
+# runtime uploads written by the backend when run from backend/ (never committed)
+backend/uploads/
 
 # Node & Neon
 .neon

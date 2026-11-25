@@ -70,7 +70,8 @@ async def lifespan(fastapi_app: FastAPI):
 
     # Verify or auto-seed ChromaDB documents in background
     import asyncio
-    from app.services.auto_seed import ensure_documents_seeded, refresh_handbook_if_changed
+    from app.services.auto_seed import (ensure_documents_seeded, refresh_handbook_if_changed,
+                                        retire_obsolete_fee_knowledge)
 
     async def _prepare_knowledge():
         # The agent's own handbook search reads the files directly: ready at once, no AI calls.
@@ -80,6 +81,7 @@ async def lifespan(fastapi_app: FastAPI):
         except Exception as err:
             logger.warning("Handbook keyword index could not be built: %s", err)
         await ensure_documents_seeded()        # vector index, only when it is empty
+        await retire_obsolete_fee_knowledge()  # never serve a fee from the retired policy
         await refresh_handbook_if_changed()    # vector index, when handbook files were edited
 
     asyncio.create_task(_prepare_knowledge())
@@ -127,7 +129,7 @@ async def lifespan(fastapi_app: FastAPI):
 app = FastAPI(
     title="University AI Companion",
     description="Conversational AI with RAG and Function-Calling Agent for university knowledge",
-    version="4.15.1",
+    version="4.17.0",
     lifespan=lifespan,
     docs_url="/docs" if security.docs_enabled() else None,
     redoc_url="/redoc" if security.docs_enabled() else None,

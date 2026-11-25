@@ -77,15 +77,23 @@ _ROUTE_NOT_DECIDED = re.compile(
     r"\binter(?:mediate)?\s+alone\b|\bmarks\s+alone\b|\bnone\b",
     re.IGNORECASE,
 )
+# "95% in inter": Intermediate is the Telangana / AP state board's name for 10+2. Used only with a percentage;
+# raw marks ("850 in Intermediate") still ask the board, because the maximum marks differ between boards.
+_INTER_HINT = re.compile(r"\b(?:in|from|my)\s+(?:inter|intermediate|ipe)\b|\b(?:inter|intermediate|ipe)\s+"
+                         r"(?:marks|percentage|score|result)\b", re.IGNORECASE)
+
 _ROUTE_OTHER = re.compile(r"\bother(?:\s+(?:entrance|exam|route))?\b", re.IGNORECASE)
 
 _STATE_BOARD = re.compile(
     r"\b(?:state\s*board|tsbie|bieap|biets|board\s+of\s+intermediate|intermediate\s+board|inter\s+board|ssc\s+inter(?:mediate)?|"
     r"(?:ts|tg|ap|telangana|andhra(?:\s+pradesh)?)\s*(?:state\s*)?(?:board|inter(?:mediate)?)|"
-    r"(?:maharashtra|msbshse|karnataka|puc?|tamil\s*nadu|tndge|kerala|dhse|up\s*board|uttar\s*pradesh|"
-    r"bihar|bseb|mp\s*board|madhya\s*pradesh|rajasthan|rbse|delhi|punjab|pseb|haryana|hbse|"
-    r"west\s*bengal|wbchse|gujarat|gseb|odisha|chse|assam|ahsec|jharkhand|jac|chhattisgarh|cgbse|"
-    r"other\s*state\s*board)\s*(?:state\s*)?(?:board|inter(?:mediate)?|hsc|puc?|12th)?)\b",
+    # board abbreviations name a board by themselves; a state's name needs "board", "inter", "hsc"... after it
+    # ("I'm from Delhi" is where the student lives, not their board).
+    r"(?:msbshse|puc|tndge|dhse|up\s*board|bseb|mp\s*board|rbse|pseb|hbse|wbchse|gseb|chse|ahsec|cgbse|"
+    r"other\s*state\s*board)|"
+    r"(?:maharashtra|karnataka|tamil\s*nadu|kerala|uttar\s*pradesh|bihar|madhya\s*pradesh|rajasthan|delhi|punjab|"
+    r"haryana|west\s*bengal|gujarat|odisha|assam|jharkhand|jac|chhattisgarh)\s*(?:state\s*)?"
+    r"(?:board|inter(?:mediate)?|hsc|12th))\b",
     re.IGNORECASE,
 )
 # v4.15.0: the short answers students type to "which board?": "telangana", "ts", "AP", "andhra", "state".
@@ -393,7 +401,8 @@ def parse_details(message: str) -> dict:
             out["board_label"] = "CBSE"
             out["board_key"] = "cbse"
     elif _STATE_BOARD.search(re.sub(r"\b(?:borad|bord|baord)\b", "board", message or "", flags=re.I)) \
-            or _BARE_STATE.fullmatch(message or ""):
+            or _BARE_STATE.fullmatch(message or "") \
+            or (_INTER_HINT.search(message or "") and re.search(r"\d\s*%", message or "")):
         out["board"] = "state_board"
         if re.search(r"\b(?:ts|tg|telangana|telengana|telagana|tsbie|biets)\b", low):
             out["board_label"] = "Telangana Intermediate (TSBIE)"
@@ -401,7 +410,9 @@ def parse_details(message: str) -> dict:
         elif re.search(r"\b(?:ap|andhra|bieap)\b", low):
             out["board_label"] = "Andhra Pradesh Intermediate (BIEAP)"
             out["board_key"] = "ap_state_board"
-        elif re.search(r"\b(?:other|maharashtra|karnataka|tamil|kerala|up|bihar|mp|rajasthan|delhi|punjab|haryana|bengal|gujarat)\b", low):
+        elif re.search(r"\b(?:other|maharashtra|msbshse|karnataka|puc|tamil|tndge|kerala|dhse|up|bihar|bseb|mp|rajasthan|rbse|"
+                       r"delhi|punjab|pseb|haryana|hbse|bengal|wbchse|gujarat|gseb|odisha|chse|assam|ahsec|jharkhand|jac|"
+                       r"chhattisgarh|cgbse)\b", low):
             out["board_label"] = "Other State Board"
             out["board_key"] = "other_state_board"
         else:

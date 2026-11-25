@@ -120,11 +120,11 @@ async def test_agent_hostel_deterministic_replies():
     events_info = [ev async for ev in agent.run_agent("tell me about hostel facilities", "test_hostel_sess_1")]
     tokens_info = "".join(ev.get("delta", "") for ev in events_info if ev.get("type") == "token")
     cards_info = [ev.get("card", {}).get("type") for ev in events_info if ev.get("type") == "card"]
-    assert "Residential Living & Campus Hostels" in tokens_info or "Residential" in tokens_info
-    assert "3-sharing" in tokens_info.lower() or "sharing" in tokens_info.lower()
-    assert "Sarvepalli" not in tokens_info
-    assert "Kalpana Chawla" not in tokens_info
-    assert "hostel_facilities" in cards_info
+    # v4.17.0: no model is reachable here, and the canned "hostel facilities" overview used to be matched from the
+    # words as a fallback. It no longer is: the student is told plainly instead (nothing guessed).
+    assert "Residential Living & Campus Hostels" not in tokens_info
+    assert "Sarvepalli" not in tokens_info and "Kalpana Chawla" not in tokens_info
+    assert events_info[-1]["type"] in ("error", "done") and "hostel_facilities" not in cards_info
 
     # Food questions (v4.14.0): the approved food facts (campus_life.py), timings included
     events_mess = [ev async for ev in agent.run_agent("how is the mess food?", "test_hostel_sess_2")]
@@ -137,17 +137,13 @@ async def test_agent_hostel_deterministic_replies():
     # Test HOSTEL_CURFEW_RULES_QUERY
     events_curfew = [ev async for ev in agent.run_agent("what is the in time curfew?", "test_hostel_sess_3")]
     tokens_curfew = "".join(ev.get("delta", "") for ev in events_curfew if ev.get("type") == "token")
-    assert "8:30 PM" in tokens_curfew                 # first-year students (the hostel rules)
-    assert "9:00 PM" in tokens_curfew
-    assert "9:30 PM" in tokens_curfew
-    assert "biometric roll call" in tokens_curfew.lower()
-    assert "Sruniv portal" in tokens_curfew
+    # v4.17.0: the curfew text was a keyword fallback for when the model failed; with no model it is not guessed
+    assert "biometric roll call" not in tokens_curfew.lower()
 
     # Test HOSTEL_SAFETY_QUERY
     events_safety = [ev async for ev in agent.run_agent("is hostel safe for girls and who is the warden?", "test_hostel_sess_4")]
     tokens_safety = "".join(ev.get("delta", "") for ev in events_safety if ev.get("type") == "token")
-    assert "Round-the-Clock Security" in tokens_safety
-    assert "Aaditya Hospital" in tokens_safety
+    # (v4.17.0: the safety overview was a keyword fallback when the model failed; it is not guessed any more)
     assert "Rupesh Mishra" not in tokens_safety
     assert "Anitha GP" not in tokens_safety
 
@@ -155,6 +151,5 @@ async def test_agent_hostel_deterministic_replies():
     events_fee = [ev async for ev in agent.run_agent("what is the hostel fee?", "test_hostel_sess_5")]
     tokens_fee = "".join(ev.get("delta", "") for ev in events_fee if ev.get("type") == "token")
     cards_fee = [ev.get("card", {}).get("type") for ev in events_fee if ev.get("type") == "card"]
-    assert "₹1,15,000" in tokens_fee
-    assert "₹1,35,000" in tokens_fee
-    assert "fee_breakdown" in cards_fee
+    # (v4.17.0: the hostel fee text was a keyword fallback when the model failed; with no model nothing is guessed)
+    assert events_fee[-1]["type"] in ("error", "done")

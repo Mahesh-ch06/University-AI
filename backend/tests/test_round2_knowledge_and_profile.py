@@ -218,12 +218,14 @@ async def test_daily_limit_is_not_retried_and_gets_a_useful_reply(monkeypatch):
     monkeypatch.setattr(agent, "_ring", ring)
     monkeypatch.setattr(agent.asyncio, "sleep", no_sleep)
     events = [e async for e in run_agent("what is the grade improvement policy", "r2-daily")]
-    assert events[-1]["type"] == "done" and "handbook" in events[-1]["answer"]
+    # v4.17.0: an honest "busy" reply with buttons that work without the model (no keyword-matched passage)
+    assert events[-1]["type"] == "done" and "handbook" not in events[-1]["answer"]
+    assert events[-1]["suggestions"] == list(agent._BUSY_CHIPS)
     assert slept == []                                             # no pointless waiting on a per-day limit
     assert ring.all_resting()
     # the next student is answered at once, without even trying the exhausted key
     events = [e async for e in run_agent("zzz qqq", "r2-daily-2")]
-    assert events[-1]["type"] == "done" and "free AI limit" in events[-1]["answer"]
+    assert events[-1]["type"] == "done" and events[-1]["answer"] in agent._LIMIT_REPLY_OPTIONS
 
 
 # ------------------------------------------------- profile, number, Settings ----

@@ -17,6 +17,9 @@ from functools import lru_cache
 from . import config, fees
 
 _RUPEES = re.compile(r"(?:₹|rs\.?|inr)\s?(\d[\d,]*(?:\.\d+)?)", re.IGNORECASE)
+# Salaries, stipends and funding ("₹44 LPA", "₹1.25L/month", "₹76+ Cr") are not fees: never checked as fee amounts.
+_NOT_A_FEE = re.compile(r"\s*\+?\s*(?:lpa\b|l\b|lakhs?\b|lacs?\b|cr\b|crores?\b|k\b|/\s*(?:month|mo)\b|per\s+month\b)",
+                        re.IGNORECASE)
 _PCT_SCHOLARSHIP = re.compile(r"(\d{1,2})\s?%\s*(?:merit\s+)?(?:scholarship|waiver|fee\s+waiver)", re.IGNORECASE)
 NOTE = ("\n\n_I couldn't verify every amount above against the official fee data; please confirm with the "
         "Admissions Office ({phone})._")
@@ -25,6 +28,8 @@ NOTE = ("\n\n_I couldn't verify every amount above against the official fee data
 def _amounts(text: str) -> set[int]:
     out = set()
     for m in _RUPEES.finditer(text or ""):
+        if _NOT_A_FEE.match(text, m.end()):
+            continue
         digits = m.group(1).replace(",", "").split(".")[0]
         if digits.isdigit():
             out.add(int(digits))
@@ -52,7 +57,29 @@ def _fee_data_amounts() -> frozenset[int]:
             found.update(_amounts(v))
 
     walk(fees.load_data())
+    found |= _engine_amounts()
     return frozenset(found)
+
+
+def _engine_amounts() -> set[int]:
+    """Every total the ONE fee engine can produce for a programme, slab and option (semester and year payables,
+    course totals, per-year tuition): figures computed from the policy are verified figures."""
+    found: set[int] = set()
+    data = fees.load_data()
+    pcts = sorted({0} | {s["percent"] for sets in data["slab_sets"].values() for t in sets.values() for s in t})
+    for key in data["programs"]:
+        for pct in pcts:
+            for hostel in [None] + list(fees.hostel_per_year()):
+                for bus in (False, True):
+                    plan = fees.fee_schedule(key, pct, hostel=hostel, transport=bus)
+                    for y in plan["years"]:
+                        found.update({y["total"], y["annual_tuition"], y["scholarship"], y["tuition_before_scholarship"]})
+                        for sem in y["semesters"]:
+                            found.add(sem["total"])
+                            found.update(abs(i["amount"]) for i in sem["items"])
+                    if plan["course_total"]:
+                        found.add(plan["course_total"])
+    return {a for a in found if a >= 1000}
 
 
 def check(text: str, *, fee_result: dict | None = None, sources: list | None = None) -> tuple[str, list[str]]:

@@ -63,7 +63,7 @@ async function main() {
   for (const m of ['Calculate my scholarship', 'B.Tech CSE', 'Telangana State Board', 'Completed', '870']) await send(page, m);
   let row = await send(page, 'MPC');
   let t = await row.innerText();
-  check('2 eligibility: qualification confirmed', /Congratulations|eligible/.test(t), t.split('\n')[0]);
+  check('2 eligibility: meets the minimum (never promised admission)', /minimum/.test(t) && !/qualify for this programme/.test(t), t.split('\n')[0]);
   check('3 concessions introduced before the fee', /Before we finalise your fee/.test(t) && (await row.locator('.fp-concessions').count()) === 1);
   check('4 no fee card yet', (await row.locator('.fp-summary, .agent-fee-card, .fee-card').count()) === 0);
   check('5 options: none apply / show my final fee', JSON.stringify(await chips(row)) === JSON.stringify(['None of these apply', 'Show my final fee']), JSON.stringify(await chips(row)));
@@ -89,10 +89,10 @@ async function main() {
   const card = row.locator('.fp-summary');
   t = await row.innerText();
   check('11 final fee card shown', (await card.count()) === 1);
-  check('12 confirmed payable 4,05,000 (2,55,000 + 20,000 + 5,000 + 1,25,000)', /4,05,000/.test(await card.locator('.fp-total-main').innerText()));
-  check('13 after approval 3,90,000 shown apart, as an estimate', /3,90,000/.test(await card.locator('.fp-total-after').innerText()));
+  check('12 confirmed payable 4,15,000 (2,55,000 + 5,000 + 15,000 + 5,000 + 1,25,000 + 10,000 deposit)', /4,15,000/.test(await card.locator('.fp-total-main').innerText()));
+  check('13 after approval 4,00,000 shown apart, as an estimate', /4,00,000/.test(await card.locator('.fp-total-after').innerText()));
   check('14 concession row marked pending, scholarship row applied', (await card.locator('tr.is-pending .fp-pill--pending').count()) === 1 && (await card.locator('tr.is-discount .fp-pill--ok').count()) === 1);
-  check('15 approved concessions = scholarship only (85,000)', /Approved concessions\s*₹85,000/.test((await card.locator('tfoot').innerText()).replace(/\n/g, ' ')));
+  check('15 approved concessions = scholarship only (85,000)', /Approved concessions\s*₹85,000/.test((await card.locator('.fp-table tfoot').innerText()).replace(/\n/g, ' ')));
   check('16 share and WhatsApp', (await card.locator('button', { hasText: 'Share' }).count()) === 1 && (await card.locator('a.agent-card-wa-btn').count()) === 1);
   await card.screenshot({ path: `${outdir}/2-final-fee-card.png` });
   row = await send(page, 'how much will I pay after the scholarship?');

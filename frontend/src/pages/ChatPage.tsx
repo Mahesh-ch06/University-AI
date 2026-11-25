@@ -664,7 +664,11 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     }
   };
 
-  async function handleSendMessage(text: string, form?: AcademicFormPayload) {
+  async function handleSendMessage(
+    text: string,
+    form?: AcademicFormPayload,
+    source: "typed" | "button" = "typed"
+  ) {
     const trimmed = text.trim();
     if (!trimmed) return;
 
@@ -742,10 +746,15 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       return;
     }
 
-    await executeSendMessage(trimmed, false, form);
+    await executeSendMessage(trimmed, false, form, source);
   }
 
-  async function executeSendMessage(text: string, skipAppendUserMsg = false, form?: AcademicFormPayload) {
+  async function executeSendMessage(
+    text: string,
+    skipAppendUserMsg = false,
+    form?: AcademicFormPayload,
+    source: "typed" | "button" = "typed"
+  ) {
     if (isLoading && cancelStreamRef.current) {
       cancelStreamRef.current();
       cancelStreamRef.current = null;
@@ -927,7 +936,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
           prev.filter((m) => m.id !== assistantMsgId || accumulatedContent.length > 0)
         );
       },
-    });
+    }, source);
 
     if (stale()) {
       cancelFn(); // the chat was replaced before the request even started
@@ -1100,7 +1109,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   conversationId={activeConvId}
                   sessionId={sessionId}
                   isStreaming={msg.id === streamingMsgId}
-                  onSuggestionClick={(prompt, form) => handleSendMessage(prompt, form)}
+                  onSuggestionClick={(prompt, form) => handleSendMessage(prompt, form, "button")}
                 />
                 {resumeDivider && msg.id === resumeDivider.afterId && (
                   <div className="wb-resume-divider" role="note">{resumeDivider.text}</div>
@@ -1240,7 +1249,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
               onClose={() => setIsCalculatorOpen(false)}
               onAskBuddy={(prompt) => {
                 setIsCalculatorOpen(false);
-                handleSendMessage(prompt);
+                handleSendMessage(prompt, undefined, "button");
               }}
             />
           )}
@@ -1608,7 +1617,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                       conversationId={activeConvId}
                       sessionId={sessionId}
                       isStreaming={msg.id === streamingMsgId}
-                      onSuggestionClick={(prompt, form) => handleSendMessage(prompt, form)}
+                      onSuggestionClick={(prompt, form) => handleSendMessage(prompt, form, "button")}
                     />
                     {resumeDivider && msg.id === resumeDivider.afterId && (
                       <div className="wb-resume-divider" role="note">{resumeDivider.text}</div>
@@ -1751,7 +1760,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
             onClose={() => setIsCalculatorOpen(false)}
             onAskBuddy={(prompt) => {
               setIsCalculatorOpen(false);
-              handleSendMessage(prompt);
+              handleSendMessage(prompt, undefined, "button");
             }}
           />
         )}

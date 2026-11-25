@@ -101,6 +101,9 @@ class AgentRequest(BaseModel):
     channel: Optional[str] = Field(default=None, max_length=12, pattern=r"^[a-z]+$")
     # Present only when the student submits the academic details form.
     form: Optional[AcademicForm] = None
+    # "typed": the student typed the message (the model understands it). "button": the text of a chip, card
+    # option or tile the bot offered (its fixed flow runs). Default "typed".
+    source: Literal["typed", "button"] = "typed"
 
 
 class FeeRequest(BaseModel):
@@ -113,6 +116,8 @@ class FeeRequest(BaseModel):
     specialization: bool = False
     ib_score: Optional[int] = Field(default=None, ge=0, le=45)
     transport: bool = False
+    # Special-category concession keys from the fee policy (e.g. "sibling"); applied as annual deductions.
+    concessions: list[str] = Field(default_factory=list, max_length=5)
 
 
 def _sse(event: dict) -> str:
@@ -151,6 +156,7 @@ async def agent_stream(req: AgentRequest, request: Request = None):
             conv_id,
             require_contact_details=True,
             form=req.form.model_dump() if req.form else None,
+            source=req.source,
         ):
             if event["type"] == "token" and first_token_perf is None:
                 first_token_perf = time.perf_counter()

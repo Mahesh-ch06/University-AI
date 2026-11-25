@@ -225,3 +225,19 @@ def test_every_consumer_uses_the_same_engine():
     assert std["sem1_total_payable"] in responses._BTECH_CSE_FEE_TEXT
     cfg = next(p for p in fees.fee_config()["programs"] if p["id"] == "btech_cse")
     assert next(s for s in cfg["slabs"] if s["scholarship_percent"] == 30)["first_year_total"] == 263000
+
+
+@pytest.mark.parametrize("message, overview", [
+    ("B.Tech fee structure for all branches", True), ("what is the fee for BBA and MBA programmes", True),
+    ("compare cse vs ece fees", True), ("fees for cse", False), ("mba fee", False),
+])
+def test_overview_fee_questions_do_not_start_the_step_by_step_evaluation(message, overview):
+    from app.sru_agent import agent
+    assert agent._fee_overview_question(message) is overview
+
+
+def test_a_fee_comparison_never_gets_a_single_programme_or_cse_vs_aiml_card():
+    from app.services.card_service import generate_cards
+    assert generate_cards(user_message="compare cse vs ece fees", answer="") == []
+    titles = [c.get("title") for c in generate_cards(user_message="difference between cse and cse aiml", answer="")]
+    assert titles == ["Branch Comparison: CSE vs CSE (AI & ML)"]

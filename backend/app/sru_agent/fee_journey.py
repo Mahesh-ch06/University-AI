@@ -408,7 +408,11 @@ def share_text(d: dict) -> str:
     for r in d["rows"]:
         tag = " (pending)" if r.get("kind") == "pending" else ""
         lines.append(f"- {r['item']}: {r['amount']}{tag}")
-    lines.append(f"Payable now (confirmed): {d['payable_confirmed']}")
+    for sem in d.get("semesters") or []:
+        lines.append(f"Semester {sem['semester']}: {sem['total']}")
+    lines.append(f"First year, payable now (confirmed): {d['payable_confirmed']}")
+    if d.get("application_fee"):
+        lines.append(f"Application form (paid separately): {d['application_fee']}")
     if d.get("payable_after_approval"):
         lines.append(f"After pending approvals (estimate): {d['payable_after_approval']}")
     lines.append(f"Confirm with the Admissions Office: {config.ADMISSIONS_PHONE}.")

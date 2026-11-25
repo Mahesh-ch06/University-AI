@@ -168,8 +168,9 @@ async def test_chat_food_has_the_official_food_video():
 
 @pytest.mark.asyncio
 async def test_chat_hostel_fee_is_not_taken_over():
-    [fee] = await _chat(["hostel fees"])
-    assert "₹" in fee["answer"] and "Hostel life at SR University" not in fee["answer"]
+    # v4.17.0: with no model, no canned hostel text is matched from the words (it used to be); nothing is guessed
+    out = await _chat(["hostel fees"])
+    assert all("Hostel life at SR University" not in f["answer"] for f in out)
 
 
 # ------------------------------------------------------------------ v4.14.0 (cont.): random videos, ads, admin lists

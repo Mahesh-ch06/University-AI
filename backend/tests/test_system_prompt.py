@@ -15,7 +15,7 @@ def test_system_prompt_contains_all_core_sections():
     assert "## 6. Admission Guidance Flow" in prompt
     assert "## 7. Specialist Workflows & Domain Standards" in prompt
     assert "## 8. Out-of-Scope & Privacy Boundaries" in prompt
-    assert "## 9. Response Style & Markdown Standards" in prompt
+    assert "## 9. Answer Layout (how every answer looks in the chat)" in prompt
     assert "## 10. Final Quality Checklist" in prompt
 
 

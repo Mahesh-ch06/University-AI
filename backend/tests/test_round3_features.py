@@ -198,11 +198,11 @@ async def test_faculty_question_is_answered_with_one_model_call_and_a_card():
 def test_prompt_has_strengths_formatting_and_visit_rules_and_stays_small():
     text = build_system_prompt({})
     for phrase in ("WHY SRU", "VERIFIED FACTS FOR THIS QUESTION", "ICAR accreditation",
-                   "FORMAT (shape follows content)", "short bullets", "1-2 short paragraphs",
+                   "FORMAT (shape follows content)", "3–5 bullets", "paragraphs ≤2 sentences",
                    "never book, schedule, approve or confirm", "never quote visiting hours", "find_faculty"):
         assert phrase in text, phrase
     assert "9:30 AM" not in text and "book_campus_visit" not in text
-    assert len(text) < 9000
+    assert len(text) < 10000   # v4.17.0: +answer layout (was 9,000)
 
 
 # --------------------------------------------------------------- 7. visits ----

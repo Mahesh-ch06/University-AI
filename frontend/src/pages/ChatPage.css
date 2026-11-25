@@ -2894,3 +2894,16 @@
 [data-theme="dark"] .sru-response-disclaimer {
   color: var(--o-faint, #94a3b8);
 }
+
+/* v4.17.0 answer typography (see MarkdownContent.css): keep the accent colours inside answers. */
+.sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .chat-markdown-table th,
+.sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .chat-step-badge,
+.sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .chat-h3,
+.sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .callout-title {
+  color: var(--o-brand, #194f90) !important;
+}
+
+.sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .chat-followup,
+.sru-widget-body .message-bubble-row.assistant .message-text-bubble.assistant .callout-content p {
+  color: var(--o-text-2, #3a3b45) !important;
+}
