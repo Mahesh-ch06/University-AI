@@ -90,3 +90,13 @@ def test_academic_form_validation_rejects_total_over_2000():
         {},
     )
     assert problems and not updates.get("percent")
+
+
+def test_with_marks_form_resolves_board_max_dynamically_from_profile():
+    text = "Sure! What were your Intermediate (10+2) marks? A percentage like 78%, or marks with the total like 850 out of 1000."
+    unknown = agent._with_marks_form(text, [])
+    assert unknown[0]["type"] == "counsellor_marks_input" and unknown[0]["max_marks"] is None
+    ts_completed = agent._with_marks_form(text, [], profile={"board_key": "ts_state_board", "academic_stage": "completed"})
+    assert ts_completed[0]["max_marks"] == 1000 and ts_completed[0]["board_key"] == "ts_state_board"
+    ts_2nd = agent._with_marks_form(text, [], profile={"board_key": "ts_state_board", "academic_stage": "2nd_year"})
+    assert ts_2nd[0]["max_marks"] == 470
