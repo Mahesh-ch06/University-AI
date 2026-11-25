@@ -150,8 +150,12 @@ async function main() {
   check('D12 one fee card (no generic table as well)', (await row.locator('.rich-card').count()) === 1, await row.locator('.rich-card').count());
   row = await chip(page, 'Yes, prepare my fee chart');
   t = await row.innerText();
+  // v4.15.1: the chart collects what it still needs first (marks and hostel are known here: the concessions)
+  check('D12b chart asks the special concessions before showing the chart', /special concession/i.test(t) && !/Payable now/.test(t), t.split('\n')[0]);
+  row = await send(page, 'None of these apply');
+  t = await row.innerText();
   check('D13 summary includes hostel and the merit scholarship', /Hostel \(AC, 4-sharing\)/.test(t) && /Academic scholarship \(25%\)/.test(t));
-  check('D14 chart total 4,05,000 = 2,55,000 + 20,000 + 5,000 + 1,25,000 (concession shown separately)', /4,05,000/.test(t), t.replace(/\n/g, ' | ').slice(0, 400));
+  check('D14 chart total 4,05,000 = 2,55,000 + 20,000 + 5,000 + 1,25,000', /4,05,000/.test(t), t.replace(/\n/g, ' | ').slice(0, 400));
   row = await send(page, 'please ask a counsellor to call me');
   const callbackChips = await chipsOf(row);
   t = await row.innerText();

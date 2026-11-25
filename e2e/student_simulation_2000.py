@@ -51,6 +51,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import student_simulation as base  # noqa: E402
 import student_simulation_1000 as k1  # noqa: E402
 
+NOT_ELIGIBLE = re.compile(r"can't show you a fee", re.IGNORECASE)   # v4.15.1: marks below the programme minimum
 MODEL_TEXT = re.compile(r"Review model: no Gemini key", re.I)
 ADMIN_KEY = "change-me-in-production"
 PLACEHOLDER = re.compile(r"\b(?:unknown|undefined|null|none|student|user)\b", re.I)
@@ -373,8 +374,8 @@ class Student:
         called once, the first time that step is asked (side question, greeting, correction, switch...)."""
         hooks = dict(hooks or {})
         for _ in range(max_turns):
-            if card(reply, "fee_summary"):
-                return reply
+            if card(reply, "fee_summary") or NOT_ELIGIBLE.search(reply.get("answer") or ""):
+                return reply        # the fee, or (v4.15.1) the honest "you can't join this programme" answer
             step = asked(reply)
             if step is None:
                 if MODEL_TEXT.search(reply.get("answer") or ""):
@@ -400,7 +401,13 @@ class Student:
 
     async def check_final(self, reply: dict, prog_key: str, btech: bool, label: str = "fee") -> None:
         fs = card(reply, "fee_summary")
-        self.metric("fee_workflow_completion", bool(fs), f"{label}: last reply {(reply.get('answer') or '')[:160]!r}")
+        # v4.15.1: marks below the programme's minimum must end in an honest "not eligible" answer and NO fee
+        refused = bool(NOT_ELIGIBLE.search(reply.get("answer") or ""))
+        below = self.expected_pct is not None and self.expected_pct < 50
+        self.metric("fee_workflow_completion", (bool(fs) and not below) or (refused and below and not fs),
+                    f"{label}: last reply {(reply.get('answer') or '')[:160]!r}")
+        if refused:
+            return
         prof = await self.profile()
         if self.expected_pct is not None:
             got = prof.get("percent")

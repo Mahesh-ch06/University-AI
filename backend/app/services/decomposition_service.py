@@ -64,7 +64,7 @@ _TOPIC_KEYWORD_PATTERN = re.compile(
 # Minimum meaningful sub-query length (tokens)
 _MIN_SUB_QUERY_WORDS = 2
 # Maximum sub-queries to process (avoid runaway fan-out)
-MAX_SUB_QUERIES = 4
+MAX_SUB_QUERIES = 6  # v4.15.1: 5-6 questions in one message are answered too
 
 
 def _is_compound_query(message: str) -> bool:

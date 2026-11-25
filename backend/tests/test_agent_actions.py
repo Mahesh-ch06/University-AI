@@ -407,7 +407,7 @@ def no_waiting(monkeypatch):
 async def test_busy_server_is_retried(no_waiting):
     client = ScriptedClient([_ApiError(503, "503 UNAVAILABLE: the model is overloaded"),
                              _text("SR University is in Warangal.")])
-    _, done = await _run("where is sru?", "act-retry", client)
+    _, done = await _run("what is the library like at sru?", "act-retry", client)
     assert done["type"] == "done" and done["answer"] == "SR University is in Warangal."
     assert len(client.requests) == 2
 
@@ -433,11 +433,11 @@ async def test_rate_limited_key_rotates_to_the_next_key(no_waiting, monkeypatch)
     monkeypatch.setattr(ring, "client", lambda key: KeyClient(key))
     monkeypatch.setattr(agent, "_ring", ring)
 
-    events = [e async for e in run_agent("where is sru?", "act-rotate")]
+    events = [e async for e in run_agent("what is the library like at sru?", "act-rotate")]
     assert events[-1]["type"] == "done" and events[-1]["answer"] == "Answered on the second key."
     assert calls == ["key-A", "key-B"]
     # the next student starts on a healthy key, not the rate-limited one
-    events = [e async for e in run_agent("where is sru?", "act-rotate-2")]
+    events = [e async for e in run_agent("what is the library like at sru?", "act-rotate-2")]
     assert calls[-1] == "key-B" and len(calls) == 3
 
 
@@ -519,7 +519,7 @@ async def test_twenty_students_at_once_are_all_answered(monkeypatch):
     monkeypatch.setattr(agent, "_gates", {})  # a fresh concurrency gate with the limit set above
 
     async def one_student(i):
-        events = [e async for e in run_agent("which courses are there?", f"act-load-{i}")]
+        events = [e async for e in run_agent("what is the library like at sru?", f"act-load-{i}")]
         return events[-1]["type"]
 
     results = await asyncio.gather(*(one_student(i) for i in range(20)))

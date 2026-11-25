@@ -271,7 +271,9 @@ def _broad_program(message: str) -> tuple[str | None, bool]:
     if key:
         aliases = sorted(fees.load_data()["programs"][key]["aliases"] + [short_name(key).lower()], key=len, reverse=True)
         for alias in aliases:
-            rest = re.sub(rf"(?<![a-z]){re.escape(alias.lower())}(?![a-z])", " ", rest)
+            for form in {alias.lower(), _norm(alias)}:          # "B.Des" is "b des" once the message is normalised
+                if form:
+                    rest = re.sub(rf"(?<![a-z]){re.escape(form)}(?![a-z])", " ", rest)
     rest = _DEGREE_WORDS.sub(" ", rest)
     rest = re.sub(r"\b(?:b\s?sc|bsc|hons|bachelor|degree|engineering|school|department|dept)\b", " ", rest)
     rest = _strip_filler(rest)

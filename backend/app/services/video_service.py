@@ -602,6 +602,8 @@ _VIDEO_STOP = frozenset("a an the of in on at to for from with and or is are me 
                         # question words are never a video's name (v4.15.1: "how is the classroom" is not
                         # "How is SRU Hostel Life?")
                         "how what why when where which who whom whose there this that these those does did have has "
+                        # "why choose SRU": the reason words are not a video's name either
+                        "choose chose choosing pick join reasons reason should would best good "
                         "had good best nice great like know more need would could should get your their our its "
                         "was were will much many very really also just only even ever".split())
 
@@ -622,6 +624,10 @@ def _rare(word: str) -> bool:
         _DF_CACHE.clear()
         _DF_CACHE[key] = df
     return len(word) >= 3 and word not in _VIDEO_STOP and 0 < df.get(word, 0) <= 4
+
+
+# Videos about one programme: shown only when that programme (or its topic) is asked about.
+_PROGRAMME_CATEGORIES = {"School of Agriculture", "MBA & Business", "CS, AI & Technology"}
 
 
 def get_keyword_videos(text: str, limit: int = 2, prefer_campus: bool = False,
@@ -660,6 +666,8 @@ def get_keyword_videos(text: str, limit: int = 2, prefer_campus: bool = False,
             score -= 0.5          # prefer full videos over shorts when equally relevant
         if wanted and not prefer_campus and not (in_topic or named_hit):
             continue            # a clear topic was asked: only its videos (or one named in the question)
+        if not topic and category in _PROGRAMME_CATEGORIES and not named_hit:
+            continue            # v4.15.1: "why choose SRU" is general, not an Agriculture / MBA / CS video
         if score >= 2:
             scored.append((-score, order, video))
     scored.sort(key=lambda item: item[:2])

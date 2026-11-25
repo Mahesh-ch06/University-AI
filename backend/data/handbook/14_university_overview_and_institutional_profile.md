@@ -11,7 +11,7 @@
 A campus where every step connects with nature and every breath brings a spark of inspiration.
 
 * **Campus Philosophy**: **SR University – A Next-Generation Living & Learning Campus**.
-* **Green Campus & Scale**: Stands as the largest lush green campus for the next generation of innovators in Telangana, spread across 150 acres of environmentally conscious, green infrastructure.
+* **Green Campus & Scale**: Stands as the largest lush green campus for the next generation of innovators in Telangana, spread across 170+ acres of environmentally conscious, green infrastructure.
 * **Student Body**: 10,000+ active students representing states across India and diverse international nationalities.
 * **Faculty Excellence**: World-class faculty holding doctoral (Ph.D.) and postdoctoral qualifications from prestigious institutions in India and abroad, including IITs, NITs, and premier international universities.
 

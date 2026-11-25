@@ -103,3 +103,34 @@ laundry details, parent visits, attendance rule, exam pattern, Sunday campus vis
   248 unexpected questions with no errors; 2,000-student simulation (seed 4242): 93.1% of students passed every
   check, all critical metrics 100%, 1.3% of replies repeated earlier wording; frontend build clean.
 * Not tested here: answers written by the AI model, for lack of API quota (free tier).
+
+## 7. Real-Gemini test fixes (25 Nov 2026)
+
+Tested with a real Gemini key (gemini-3.5-flash-lite): 99 AI-answered questions, the student's own chat, and
+multi-question messages. No crashes or empty replies; about 10 answers were wrong or not in the sources. Fixed:
+
+* **Wrong / unverified answers** now answered exactly (`quick_facts.py`, from the fee card or a handbook line):
+  hotel management (B.Sc Hospitality and Event Management is offered), robotics programmes (B.Tech in AI and
+  Robotics + specialisations), design interest (B.Des), no invented entrance test ("SRSAT"), applying without
+  EAPCET, student-teacher ratio and age limit (not published), university type (State Private University; not
+  deemed; "autonomous" was SR Engineering College), parent hostel visits (not in the rules), and everyday campus
+  facts: location and distances (29 km from Warangal station), attendance and condonation, exam pattern, class
+  start date (not published), Wi-Fi, vehicles, ATM, ragging, library hours and size, campus size (170+ acres,
+  confirmed by the university; handbook 14 aligned from 150).
+* **Prompt 2026-11-25.1:** no guessed tests, ratios, limits, rules, dates or NAAC grade; NBA Tier-I programmes named;
+  check the programme list before saying one is not offered (prompt kept under 9,000 characters).
+* **Fee chart asks first:** "Yes, prepare my fee chart" (or "prepare my fee chart") collects what the chart needs
+  before showing it: marks (board, year, marks, group), special concessions, hostel room type. A room type is used
+  only if the student chose one, never one the model assumed. Known details are not asked again.
+* **Several questions in one message** (2 to 6): each part is answered in order. The splitter keeps up to 6 parts
+  (was 4). Counts ("2 reasons") and durations ("4 years") no longer block the split; "I am from Delhi" is context,
+  not a question. Each part uses a verified answer (topic, quick fact or campus-life answer); "N reasons" gives
+  exactly N from the verified facts registry. A student from another state is told about the ₹15,000 concession.
+  A message the code can't fully split goes to the model whole, with the list of its parts to answer each one (no
+  single-topic answer takes only one part).
+* Questions for the university (sources disagree or are silent): number of student clubs (20+ / 37 / 39), NAAC
+  grade, scholarship renewal, instalments, education loans, admission dates and documents, lateral-entry
+  eligibility, parent visiting hours, Sunday campus visits.
+* Checks: backend 1,366 passed; browser journeys v410 33/33, v411 27/27, v412 19/19, memory 26/26, memory flow
+  16/16, upload and video card passed; 248 questions with no errors (176 answered from verified code, was 149);
+  real Gemini replay of the student's chat and multi-question messages with no errors.
