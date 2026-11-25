@@ -589,7 +589,8 @@ _RULES += [
                 r"\bevent\s+management\b(?!.{0,15}\bfees?\b)", re.I), _hospitality),
     (re.compile(r"\bwhat\s+is\s+(?:the\s+)?robotics\b|\brobotics\s+(?:course|courses|programmes?|programs?|branch(?:es)?|"
                 r"degree)\b(?!.{0,15}\bfees?\b)|\b(?:courses?|programmes?|degree)\s+(?:in|on|for)\s+robotics\b|"
-                r"\b(?:is\s+there|do\s+you\s+(?:have|offer))\s+(?:a\s+|any\s+)?robotics\b", re.I), _robotics),
+                r"\b(?:is\s+there|do\s+you\s+(?:have|offer))\s+(?:a\s+|any\s+)?robotics\b(?!\s+(?:club|society|team|lab|"
+                r"competition|event))", re.I), _robotics),       # "is there a robotics club" is the clubs answer
     (re.compile(r"\b(?:i\s+)?(?:like|love|enjoy|interested\s+in|passion\s+for|want\s+to\s+do|into)\s+(?:design|designing|"
                 r"drawing|art|fashion|interior)\b", re.I), _design_interest),
     (re.compile(r"\bsrsat\b|\bsru\s+(?:entrance|admission)\s+(?:test|exam)\b|\bentrance\s+(?:test|exam)\b.{0,30}"

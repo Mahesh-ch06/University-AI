@@ -123,3 +123,15 @@ async def test_the_chart_asks_the_room_type_when_the_student_never_chose_one(mod
 async def test_wifi_part_gets_the_wifi_answer(model):
     (o,) = await _chat(["is wifi there in hostel, can i bring a bike, and is there an atm"])
     assert "on Wi-Fi" in o["answer"] and "bicycle is fine" in o["answer"] and "Canara Bank ATM" in o["answer"]
+
+
+def test_robotics_club_is_not_the_degree_answer():
+    from app.sru_agent import quick_facts
+    assert quick_facts.answer("is there a robotics club") is None
+    assert quick_facts.answer("is there a robotics course")
+
+
+async def test_a_concession_question_during_the_fee_steps_is_answered_first(model):
+    out = await _chat(["B.Tech Civil fee", "any fee concession for single parent"])
+    assert "single living parent" in out[-1]["answer"].lower() or "single parent" in out[-1]["answer"].lower()
+    assert "Almost there" not in out[-1]["answer"]

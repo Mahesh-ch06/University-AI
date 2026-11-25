@@ -1717,6 +1717,8 @@ def _side_question(message: str, conv_state: dict) -> bool:
     text = (message or "").strip()
     if not text or fee_journey._CONTINUE.search(text) or _STEP_ANSWER.search(text) or _FEE_STANDARD_ONLY.search(text):
         return False
+    if _DISCOUNT_ASK.search(text) and (fee_plan.infer_concession(text) or fee_plan.concessions_for_group(text)):
+        return True      # "any fee concession for single parent?": that concession is answered first (v4.15.1)
     if fee_intake.is_fee_enquiry(text) and not re.search(r"\b(?:hostel|room|mess|bus|transport)\b", text, re.I):
         return False                                     # a fee question continues the fee steps
     # A programme's own label is an answer, even when it has words like "ICAR Accredited" in brackets (v4.15.0)
