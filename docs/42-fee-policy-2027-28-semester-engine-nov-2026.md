@@ -74,8 +74,15 @@ one concession selected (combination decided by the Admissions Office).
   (old FAQ fees, 60% cutoff, "970+" scholarship bands, caution deposit, stale fee-page chunks) and archives the
   retired "University FAQ — Fee" document (`status = inactive`, version `active = false`; nothing is deleted).
 * RAG answer cache keys include a fingerprint of the policy and handbook: any fee change invalidates them.
-* The FAQ DOCX (`data/SRU Agentic AI.docx`) answers were rewritten from the policy. Re-ingest it when embeddings are
-  available: `python scripts/ingest_university_doc.py --file "data/SRU Agentic AI.docx" --clear`.
+* The FAQ DOCX (`data/SRU Agentic AI.docx`) answers were rewritten from the policy and indexed on 25 Nov 2026 with
+  the additive mode, which deletes no database row:
+  `python scripts/ingest_university_doc.py --file "data/SRU Agentic AI.docx" --add-missing`.
+  * It indexes only missing or changed answers (matched by section and question) and never the retired Fee section.
+  * A second run adds nothing.
+  * The index now holds 74 FAQ answers (the 78 in the document minus the 4 Fee ones) and no retired fee text.
+* The vector index was re-built from the current handbook once embeddings were available (187 handbook chunks).
+* The start-up clean-up checks only the answer of a Q&A chunk for retired phrases, so a question such as "Is it 60%
+  and above?" keeps its corrected answer.
 
 ## 7. Open questions for the Admissions Office
 
