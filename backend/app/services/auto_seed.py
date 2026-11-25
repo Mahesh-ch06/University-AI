@@ -50,6 +50,13 @@ def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9₹%]+", " ", (text or "").lower()).strip()
 
 
+def _answer_part(text: str) -> str:
+    """The answer of a Q&A chunk ("Q: Is it 60% and above?\nA: Not quite: ..."): a retired phrase in the student's
+    QUESTION does not make a corrected answer obsolete. Other chunks are checked whole."""
+    text = text or ""
+    return text.split("\nA:", 1)[1] if "\nQ:" in "\n" + text and "\nA:" in text else text
+
+
 def _current_fee_pages() -> dict:
     """{handbook title: normalised current text} for the generated fee pages (08 and 09)."""
     try:
@@ -88,7 +95,7 @@ async def retire_obsolete_fee_knowledge() -> int:
         current = _current_fee_pages()
         stale = [cid for cid, text, meta in zip(got["ids"], got["documents"], got["metadatas"])
                  if (meta or {}).get("title") in _RETIRED_DOCUMENT_TITLES
-                 or any(m in (text or "") for m in _OBSOLETE_FEE_MARKERS)
+                 or any(m in _answer_part(text) for m in _OBSOLETE_FEE_MARKERS)
                  or _outdated_fee_page_chunk((meta or {}).get("title"), text, current)]
         if stale:
             collection.delete(ids=stale)

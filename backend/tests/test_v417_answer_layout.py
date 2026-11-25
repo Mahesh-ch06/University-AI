@@ -96,3 +96,27 @@ async def test_a_score_the_student_typed_or_saved_is_used():
     elig = await tools.run_tool("check_eligibility", {"program": "btech_cse", "percent": 40},
                                 {**ctx2, "message": "can i join cse?"})
     assert "40" not in str(elig.get("percent", ""))                               # the saved 92%, not 40
+
+
+@pytest.mark.asyncio
+async def test_standard_fee_ignores_saved_marks_and_keeps_them():
+    from app.sru_agent import fees, tools
+    sid = f"v417s-{uuid.uuid4().hex[:10]}"
+    await memory.update_profile(sid, percent=93.1)
+    ctx = {"session_id": sid, "conversation_id": None, "profile": {"percent": 93.1}, "history": [],
+           "message": "standard fee of cse"}
+    fee = await tools.run_tool("calculate_fee", {"program": "btech_cse", "standard_fee": True}, ctx)
+    assert fee["scholarship_percent"] == 0
+    assert fee["first_year_total_payable"] == fees.calculate_fee(program="btech_cse")["first_year_total_payable"]
+    assert (await memory.get_profile(sid))["percent"] == 93.1                     # the saved marks stay
+
+
+@pytest.mark.asyncio
+async def test_placement_record_button_is_not_asked_back_as_a_topic():
+    sid = f"v417p-{uuid.uuid4().hex[:10]}"
+    await memory.update_profile(sid, name="Ravi Kumar", phone="9876543210", welcome_actions_shown=True)
+    events = [e async for e in run_agent("Placement record", sid, source="button")]
+    done = events[-1]
+    assert done["type"] in ("done", "error")
+    if done["type"] == "done":
+        assert "What would you like to know about placements" not in done["answer"]

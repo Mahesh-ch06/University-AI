@@ -43,7 +43,7 @@ TOPICS = {
         ],
     },
     "placements": {
-        "words": r"placements?|placments?|placemnts?|placement\s+(?:cell|record|details)",
+        "words": r"placements?|placments?|placemnts?|placement\s+(?:cell|details)",
         "question": "Sure! What would you like to know about placements at SR University?",
         "aspects": [
             ("Packages & record", r"package|record|salary|lpa|highest|average|stat", "What is SR University's placement record: highest and average packages?"),

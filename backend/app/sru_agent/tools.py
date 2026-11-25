@@ -265,7 +265,8 @@ def _student_scores(args: dict, ctx: dict) -> dict:
 
 async def tool_calculate_fee(args, ctx):
     p = ctx.get("profile") or {}
-    scores = _student_scores(args, ctx)
+    # "standard fee of CSE": the fee before any scholarship, even when the student's marks are on file
+    scores = dict.fromkeys(_SCORE_KEYS) if args.get("standard_fee") else _student_scores(args, ctx)
     result = fees.calculate_fee(
         program=args.get("program") or p.get("program_interest") or "",
         percent=scores["percent"],
@@ -281,7 +282,7 @@ async def tool_calculate_fee(args, ctx):
         summary = _fee_summary(result)
         ctx["last_fee"] = summary
         # Remember what the student told us, so "and with hostel?" works without asking again.
-        told = {k: scores[k] for k in _SCORE_KEYS if scores[k] is not None}
+        told = {} if args.get("standard_fee") else {k: scores[k] for k in _SCORE_KEYS if scores[k] is not None}
         if args.get("board"):
             told["board"] = args["board"]
         if args.get("program"):
@@ -718,6 +719,7 @@ TOOLS = {
             "transport": {"type": "boolean", "description": "true only if the student asked for the university bus."},
             "hostel": {"type": "string", "enum": ["none", "non_ac_4", "non_ac_3", "ac_4", "ac_3"], "description": "Pass ONLY if student explicitly requested hostel. Default is 'none'."},
             "specialization": {"type": "boolean", "description": "true only if the student chose a specialisation that carries the specialisation fee (from Year 2)."},
+            "standard_fee": {"type": "boolean", "description": "true when the student asks for the standard / regular fee (no scholarship), even if their marks are known."},
         }, ["program"])}),
 
     "check_eligibility": (tool_check_eligibility, "Checking eligibility", {

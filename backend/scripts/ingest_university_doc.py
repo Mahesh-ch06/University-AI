@@ -76,6 +76,58 @@ async def _clear_existing_inline_docs(db, collection) -> None:
     logger.info("Cleared %d existing inline docx records from database", len(doc_ids))
 
 
+def _retired_sections() -> set[str]:
+    """FAQ sections that are never indexed again (their answers come from elsewhere, e.g. fees from the fee
+    engine): the titles auto_seed retires at start-up."""
+    from app.services.auto_seed import _RETIRED_DOCUMENT_TITLES
+    return {t.split("—", 1)[1].strip() for t in _RETIRED_DOCUMENT_TITLES if "—" in t}
+
+
+def _norm(text: str) -> str:
+    import re
+    return re.sub(r"\s+", " ", text or "").strip().lower()
+
+
+def _missing_or_changed(entries: list[ParsedEntry], collection) -> tuple[list[ParsedEntry], list[str]]:
+    """Entries not in the index yet, or whose indexed text differs from the document now, and the ids of the
+    outdated index chunks they replace. Retired sections are left out. (Additive: nothing in the database is
+    deleted; only outdated chunks of the derived search index are replaced.)"""
+    existing = collection.get(where={"document_type": "faq"}, include=["metadatas", "documents"])
+    # keyed by (section, question): the same question can be asked in two sections with different answers
+    by_question: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    for cid, meta, doc in zip(existing.get("ids", []), existing.get("metadatas", []), existing.get("documents", [])):
+        key = (_norm((meta or {}).get(CHROMA_SECTION_KEY, "")), _norm((meta or {}).get(CHROMA_QUESTION_KEY, "")))
+        by_question.setdefault(key, []).append((cid, _norm(doc)))
+    retired = _retired_sections()
+    to_add, stale = [], []
+    for entry in entries:
+        if entry.section in retired:
+            continue
+        indexed = by_question.get((_norm(entry.section), _norm(entry.question[:200])), [])
+        if any(text == _norm(entry.chunk_text) for _, text in indexed):
+            continue
+        to_add.append(entry)
+        stale.extend(cid for cid, _ in indexed)
+    return to_add, stale
+
+
+async def _add_missing(entries: list[ParsedEntry], department_override: str | None) -> None:
+    from app.db.chroma import get_chroma_client
+    from app.services.rag_service import COLLECTION_NAME
+    collection = get_chroma_client().get_or_create_collection(name=COLLECTION_NAME,
+                                                               metadata={"hnsw:space": "cosine"})
+    to_add, stale = _missing_or_changed(entries, collection)
+    print(f"{len(to_add)} entries to add or update; {len(stale)} outdated index chunks to replace; "
+          f"retired sections skipped: {sorted(_retired_sections())}")
+    for e in to_add:
+        print(f"  + [{e.section}] {e.question[:80]}")
+    if not to_add:
+        return
+    if stale:
+        collection.delete(ids=stale)
+    await _ingest_entries(to_add, department_override)
+
+
 async def _ingest_entries(
     entries: list[ParsedEntry],
     department_override: str | None,
@@ -229,6 +281,11 @@ def main() -> None:
         "--clear-existing", action="store_true",
         help="Clear existing inline:docx records from DB and Chroma before ingestion.",
     )
+    parser.add_argument(
+        "--add-missing", action="store_true",
+        help="Additive update: index only the entries missing from (or changed in) the search index; retired "
+             "sections (e.g. Fee) are skipped; no database rows are deleted.",
+    )
     args = parser.parse_args()
 
     file_path = Path(args.file)
@@ -262,7 +319,13 @@ def main() -> None:
         print("[dry-run] Skipping DB/ChromaDB ingestion.")
         return
 
+    if args.add_missing:
+        print("Adding missing / changed entries to the knowledge base...")
+        asyncio.run(_add_missing(entries, args.department))
+        return
     print("Ingesting into knowledge base...")
+    retired = _retired_sections()
+    entries = [e for e in entries if e.section not in retired]   # never re-index a retired section
     asyncio.run(_ingest_entries(entries, args.department, clear_existing=args.clear_existing))
     print("\n[OK] University data ingested successfully!")
 
