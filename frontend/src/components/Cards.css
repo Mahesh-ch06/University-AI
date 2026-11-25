@@ -4949,13 +4949,6 @@
 
 /* ---- v4.15.0: marks entry form ---- */
 .cm-marks-form { display: flex; flex-direction: column; gap: 10px; }
-.cm-marks-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
-.cm-preset-btn { border: 1px solid var(--border, #e4e6eb); background: var(--surface-1, #fff); color: var(--text-2, #3a3b45); font: inherit; font-size: 0.76rem; font-weight: 600; padding: 5px 10px; border-radius: 999px; cursor: pointer; transition: all 0.15s ease; }
-.cm-preset-btn:hover { border-color: var(--primary, #194f90); color: var(--primary, #194f90); }
-.cm-preset-btn.on { background: var(--primary, #194f90); border-color: var(--primary, #194f90); color: #fff; }
-[data-theme="dark"] .cm-preset-btn { background: #1e2430; border-color: #2d3340; color: #cbd5e1; }
-[data-theme="dark"] .cm-preset-btn:hover { border-color: #818cf8; color: #818cf8; }
-[data-theme="dark"] .cm-preset-btn.on { background: var(--primary, #3b82f6); border-color: var(--primary, #3b82f6); color: #fff; }
 .cm-marks-mode { display: inline-flex; align-self: flex-start; border: 1px solid var(--border, #e4e6eb); border-radius: 8px; overflow: hidden; }
 .cm-marks-mode button { border: 0; background: var(--surface-1, #fff); color: var(--text-2, #3a3b45); font: inherit; font-size: 0.8rem; font-weight: 600; padding: 6px 14px; cursor: pointer; min-height: 34px; }
 .cm-marks-mode button + button { border-left: 1px solid var(--border, #e4e6eb); }
