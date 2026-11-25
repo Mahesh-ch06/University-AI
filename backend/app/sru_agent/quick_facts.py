@@ -462,6 +462,151 @@ _RULES += [
 ]
 
 
+# v4.15.1 (real-model audit): questions the AI answered wrongly or with facts not in the sources. Each answer is
+# built from the fee card (programme names, tuition, eligibility notes) or a handbook line, never typed in by hand.
+def _programme_line(key: str) -> str:
+    p = _data()["programs"].get(key) or {}
+    tuition = p.get("tuition_per_year") or p.get("annual_tuition")
+    fee = f", {fees.inr(int(tuition))} a year" if tuition else ""
+    note = f"; eligibility: {p['eligibility_note']}" if p.get("eligibility_note") else ""
+    return f"**{p.get('name', key)}** (2027-28 fee card{fee}{note})"
+
+
+def _hospitality(message: str) -> QuickAnswer | None:
+    if "bsc_hospitality" not in _data()["programs"]:
+        return None
+    return QuickAnswer(
+        "Yes. SR University's hospitality programme is " + _programme_line("bsc_hospitality") + ". A degree "
+        "named \"hotel management\" isn't on the fee card; this is the programme for hospitality and events.\n\n"
+        "Would you like its fees with your marks, or the programmes open to your stream?",
+        ["B.Sc Hospitality fees", "Check my eligibility", "Programmes offered"])
+
+
+def _robotics(message: str) -> QuickAnswer | None:
+    keys = [k for k, p in _data()["programs"].items() if "robot" in (p.get("name") or "").lower()]
+    if not keys:
+        return None
+    dedicated = [k for k in keys if "and robotics" in (_data()["programs"][k].get("name") or "").lower()]
+    lead = (f"SR University has a dedicated **{_data()['programs'][dedicated[0]]['name']}** programme, and robotics "
+            "is also a specialisation in other B.Tech branches. " if dedicated else "")
+    text = (lead + "On the 2027-28 fee card:\n\n• " + "\n• ".join(_programme_line(k) for k in keys) +
+            "\n\nWould you like the fees with your marks or the curriculum of one of them?")
+    return QuickAnswer(text, ["Calculate my fee", "Check my eligibility", "Placements"])
+
+
+def _design_interest(message: str) -> QuickAnswer | None:
+    if "bdes" not in _data()["programs"]:
+        return None
+    return QuickAnswer(
+        "If design is what you enjoy, SR University has a **School of Design** with " + _programme_line("bdes") +
+        ". It's a 4-year design degree, separate from engineering.\n\nIf your family would like you to look at "
+        "engineering too, a counsellor can talk you and your parents through both options.",
+        ["B.Des fees", "Check my eligibility", "Talk to a counsellor"])
+
+
+def _entrance_test(message: str) -> QuickAnswer:
+    lines = []
+    try:
+        text = (_HANDBOOK / "03_phd_and_research_regulations.md").read_text(encoding="utf-8")
+        if "SRU Written Eligibility Test" in text and "UGC-NET" in text:
+            lines.append("For the **Ph.D.**, SRU holds a written eligibility test (50% research methodology, 50% "
+                         "subject); candidates with UGC-NET, UGC-CSIR NET, GATE, CEED or SET are exempt.")
+    except OSError:
+        pass
+    named = re.search(r"\bsrsat\b", message or "", re.I)
+    text = (("I can't find \"SRSAT\" in SR University's official sources, so I can't describe it. " if named else "") +
+            "The official admission page and the 2027-28 fee card don't list an SRU entrance test for undergraduate "
+            "admission: eligibility is your 10+2 / Intermediate with the subjects each programme needs, and the merit "
+            "scholarship uses the best of your Intermediate marks, EAPCET rank or JEE Main percentile." +
+            ("\n\n" + lines[0] if lines else "") +
+            f"\n\nThe Admissions Office confirms the current process ({_phone()}, info@sru.edu.in).")
+    return QuickAnswer(text, ["How do I apply?", "Check my eligibility", "Scholarships"])
+
+
+def _without_entrance(message: str) -> QuickAnswer | None:
+    if re.search(r"\d|%|\bfees?\b|\bscholarship", message or "", re.I):
+        return None          # "cse fee with 85%, no JEE or EAPCET": a fee / scholarship calculation, not this
+    return QuickAnswer(
+        "Yes, you can still apply. The 2027-28 fee card's eligibility for each programme is your 10+2 / Intermediate "
+        "with the required subjects (B.Tech: Maths, Physics, Chemistry); it doesn't list an EAPCET or JEE rank as a "
+        "requirement. A rank only helps the merit scholarship, which also counts your Intermediate marks: the best "
+        f"one applies.\n\nThe Admissions Office confirms the process for your programme ({_phone()}).",
+        ["Check my eligibility", "Scholarships", "How do I apply?"])
+
+
+def _ratio(message: str) -> QuickAnswer:
+    try:
+        text = (_HANDBOOK / "12_strengths_faculty_and_visits_nov2026.md").read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    facts = [ln.strip()[2:] for ln in text.splitlines()
+             if ln.strip().startswith("- ") and ("340 faculty" in ln or "316 of the 340" in ln)]
+    text = "SR University doesn't publish a student-teacher ratio in the official sources I use, so I can't give one."
+    if facts:
+        text += " What its website shows:\n\n• " + "\n• ".join(facts)
+    return QuickAnswer(text, ["Faculty", "Labs", "Talk to a counsellor"])
+
+
+def _age_limit(message: str) -> QuickAnswer:
+    return QuickAnswer(
+        "The 2027-28 fee card's eligibility notes don't mention an age limit, so I can't confirm one either way. "
+        f"The Admissions Office can tell you ({_phone()}, info@sru.edu.in).",
+        ["Check my eligibility", "How do I apply?"])
+
+
+def _university_type(message: str) -> QuickAnswer | None:
+    facts = _section("11_official_website_facts_nov2026.md", "1. University identity")
+    if not facts:
+        return None
+    low = (message or "").lower()
+    if "autonomous" in low:
+        lead = ("\"Autonomous\" was the status of **SR Engineering College**, SRU's predecessor, from 2014. Today SR "
+                "University is a **State Private University**, which runs its own programmes and examinations.")
+    elif "deemed" in low:
+        lead = "No, SR University is not a deemed-to-be university: it is a **State Private University**."
+    else:
+        lead = "SR University is a **State Private University**, not a government university."
+    text = (lead + "\n\n• " + "\n• ".join(facts[:2]) + "\n• It was established under the Telangana State Private "
+            "Universities Act. Accreditation: **NBA Tier-I** for B.Tech CSE, ECE, EEE, Mechanical and Civil; **ICAR** "
+            "for the School of Agriculture.")
+    return QuickAnswer(text, ["Rankings", "Why choose SRU?", "Programmes offered"])
+
+
+def _parent_visits(message: str) -> QuickAnswer:
+    return QuickAnswer(
+        "The hostel rules I have don't give visiting hours for parents, so I can't confirm them; the hostel office "
+        f"can ({_phone()}). What the rules do say: students and visitors may not enter a hostel of the opposite "
+        "gender, and daily attendance and mid-term marks are sent to parents by SMS.",
+        ["Hostel rules", "Hostel safety", "Hostel fees"])
+
+
+_RULES += [
+    (re.compile(r"\bhotel\s+management\b|\bhospitality\b(?!.{0,15}\bfees?\b)|\bcatering\s+(?:course|technology)\b|"
+                r"\bevent\s+management\b(?!.{0,15}\bfees?\b)", re.I), _hospitality),
+    (re.compile(r"\bwhat\s+is\s+(?:the\s+)?robotics\b|\brobotics\s+(?:course|courses|programmes?|programs?|branch(?:es)?|"
+                r"degree)\b(?!.{0,15}\bfees?\b)|\b(?:courses?|programmes?|degree)\s+(?:in|on|for)\s+robotics\b|"
+                r"\b(?:is\s+there|do\s+you\s+(?:have|offer))\s+(?:a\s+|any\s+)?robotics\b", re.I), _robotics),
+    (re.compile(r"\b(?:i\s+)?(?:like|love|enjoy|interested\s+in|passion\s+for|want\s+to\s+do|into)\s+(?:design|designing|"
+                r"drawing|art|fashion|interior)\b", re.I), _design_interest),
+    (re.compile(r"\bsrsat\b|\bsru\s+(?:entrance|admission)\s+(?:test|exam)\b|\bentrance\s+(?:test|exam)\b.{0,30}"
+                r"\b(?:sru|conducted|by\s+(?:the\s+)?(?:university|college))\b|\b(?:own|separate)\s+entrance\b", re.I),
+     _entrance_test),
+    (re.compile(r"\b(?:missed|without|no|not\s+written|didn'?t\s+(?:write|take|attempt|appear))\b.{0,20}"
+                r"\b(?:eapcet|eamcet|ts\s*eapcet|ap\s*eapcet|jee)\b(?!.{0,20}\b(?:rank|percentile|score)\s*\d)", re.I),
+     _without_entrance),
+    (re.compile(r"\b(?:student|students)[- ](?:teacher|faculty)\s+ratio\b|\b(?:faculty|teacher)[- ]students?\s+ratio\b", re.I),
+     _ratio),
+    (re.compile(r"\bage\s+(?:limit|bar|criteria|restriction)s?\b|\b(?:maximum|minimum)\s+age\b|"
+                r"\bhow\s+old\s+(?:should|must|do)\s+i\b", re.I), _age_limit),
+    (re.compile(r"\bdeemed\b|\b(?:private|government|govt)\s+or\s+(?:private|government|govt)\b|"
+                r"\bis\s+(?:sru|it|this|sr\s+university)\s+(?:a\s+)?(?:private|government|govt|autonomous|state)\b|"
+                r"\bautonomous\b", re.I), _university_type),
+    (re.compile(r"\bparents?\b.{0,25}\b(?:visit|meet|come|allowed|enter|stay)\b.{0,20}\b(?:hostels?|rooms?)\b|"
+                r"\bhostel\s+visiting\s+(?:hours|timings?|time)\b|\bvisiting\s+(?:hours|timings?)\b.{0,15}\bhostels?\b",
+                re.I), _parent_visits),       # a campus visit with parents is the visit flow, not this
+]
+
+
 def answer(message: str) -> QuickAnswer | None:
     na = _not_offered(message) if re.search(r"\b(?:do\s+you|is\s+there|does\s+sru|offer|available|have|course|"
                                              r"programme|program|admission)\b", message or "", re.I) else None

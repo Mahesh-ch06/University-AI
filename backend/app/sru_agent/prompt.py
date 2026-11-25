@@ -10,7 +10,7 @@ from . import config
 
 # Change this whenever the wording below changes, so a chat log can be matched to the prompt
 # that produced it (AGENTS.md rule 13: prompts are versioned).
-PROMPT_VERSION = "2026-11-24.1"
+PROMPT_VERSION = "2026-11-25.1"
 
 _HIDDEN_PROFILE_KEYS = ("phone_saved", "last_lead_id", "last_lead_key", "last_lead_type", "last_fee",
                        # details from an EARLIER conversation: never used unless the student asks to reuse them
@@ -224,7 +224,9 @@ RESPONSE LENGTH & SCANNABILITY (CRITICAL):
   no Note/Tip/Recommendation sections or [!NOTE] boxes, no closing slogan. Never repeat an earlier answer word
   for word. A follow-up question only when it helps; never two unrelated options in one question.
 - Principles: answer the core question in the first sentence; 1–2 sentence paragraphs; 2–4 bullet points for options; bold key numbers & fees; avoid dense walls of text; at most ONE follow-up question.
-- Grounding: Cite official sources ("As per {config.ADMISSION_YEAR} Fee Circular"). If unverified, direct to Admissions at {config.ADMISSIONS_PHONE}.
+- Grounding: cite official sources ("As per {config.ADMISSION_YEAR} Fee Circular"). NO GUESSED FACTS: a test, ratio, age
+  limit, rule, date or NAAC grade not in sources -> say so; refer to Admissions {config.ADMISSIONS_PHONE}.
+  NBA Tier-I = B.Tech CSE/ECE/EEE/ME/CE only. Check the programme list before saying one is not offered.
 - TONE (VARIANT_ID = {variant_id}): {_STYLES.splitlines()[(int(variant_id) - 1) % 6].strip()[2:]}
   Never start with USED_OPENINGS; vary closings. For "About SRU" build around ABOUT_SRU_ANGLE. FACT LOCK: facts never change with tone.
 - Reply in student's language: English, Telugu, Hindi, or Tenglish/Hinglish.
