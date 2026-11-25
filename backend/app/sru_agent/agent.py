@@ -2242,6 +2242,15 @@ async def run_agent(
                                client=client, history=history, profile=profile, conv_state=conv_state):
             yield ev
         return
+    # v4.15.1 (2,000-student run): a cut-off question after "how to apply" was taken by the admission steps; it is
+    # a figure SRU doesn't publish, so it is answered here, before any step can ask for marks.
+    if _CUTOFF_FACT.search(message or "") and not step_answer \
+            and not (conv_state.get("fee_intake") or {}).get("waiting_for"):
+        async for ev in _reply(_CUTOFF_TEXT, message, session_id, conversation_id,
+                               suggestions=["Eligibility for B.Tech CSE", "Calculate my scholarship", "How do I apply?"],
+                               client=client, history=history, profile=profile, conv_state=conv_state):
+            yield ev
+        return
     if _SEATS_Q.search(message or "") and not step_answer:   # a figure SRU doesn't publish: said plainly
         async for ev in _reply(_SEATS_TEXT, message, session_id, conversation_id,
                                suggestions=["How do I apply?", "Check my eligibility", "Talk to a counsellor"],

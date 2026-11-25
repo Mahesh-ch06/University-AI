@@ -135,3 +135,8 @@ async def test_a_concession_question_during_the_fee_steps_is_answered_first(mode
     out = await _chat(["B.Tech Civil fee", "any fee concession for single parent"])
     assert "single living parent" in out[-1]["answer"].lower() or "single parent" in out[-1]["answer"].lower()
     assert "Almost there" not in out[-1]["answer"]
+
+
+async def test_cutoff_question_after_how_to_apply_says_it_is_not_published(model):
+    out = await _chat(["how to get admission in sru", "what was the cutoff rank for CSE last year?"])
+    assert "does not publish" in out[-1]["answer"] and "What were your" not in out[-1]["answer"]
