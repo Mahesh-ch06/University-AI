@@ -497,13 +497,13 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
                 <div className="slabs-table-header">
                   <span>Merit Waiver</span>
                   <span>{exam.label}</span>
-                  <span>Payable Tuition</span>
+                  <span>Tuition / semester</span>
                 </div>
                 {program.slabs.map((slab) => (
                   <div key={slab.scholarship_percent} className="slabs-table-row">
                     <span className="slab-badge-min">{slab.scholarship_percent}% Waiver</span>
                     <span className="slab-criteria-min">{slab.ranges[exam.key] || "Not applicable"}</span>
-                    <span className="slab-payable-min">{inr(slab.payable_per_semester)}/sem</span>
+                    <span className="slab-payable-min">{inr(slab.tuition_per_semester)}/sem</span>
                   </div>
                 ))}
               </div>
