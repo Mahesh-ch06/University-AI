@@ -1858,8 +1858,8 @@ def _read_academic_form(form: dict, profile: dict) -> tuple[dict, list[str], str
             updates.update(ib_score=int(raw), raw_marks=raw, max_marks=45.0, marks_confirmed=True)
         else:
             problems.append("enter your IB Diploma points (out of 45)")
-    elif raw is None or total is None or total <= 0 or raw <= 0 or raw > total:
-        problems.append("enter your marks and the total they are out of (the marks cannot be more than the total)")
+    elif raw is None or total is None or total <= 0 or total > 2000 or raw <= 0 or raw > total:
+        problems.append("enter your marks and the total they are out of (up to 2000; marks cannot exceed the total)")
     else:
         updates.update(raw_marks=raw, max_marks=total, percent=round(raw / total * 100, 2), marks_confirmed=True)
 

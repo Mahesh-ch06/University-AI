@@ -1656,19 +1656,71 @@ export function AcademicDetailsFormCard({
   const [raw, setRaw] = useState<string>(v.raw_marks != null ? String(Number(v.raw_marks)) : "");
   const [maxMarks, setMaxMarks] = useState<string>(v.max_marks != null ? String(Number(v.max_marks)) : "");
   const [maxTouched, setMaxTouched] = useState<boolean>(v.max_marks != null);
+  const [rawLimitError, setRawLimitError] = useState<string | null>(null);
   const [stream, setStream] = useState<string | null>(v.stream || null);
   const [entrance, setEntrance] = useState<string>(v.entrance_type || "none");
   const [entranceValue, setEntranceValue] = useState<string>(v.entrance_value != null ? String(v.entrance_value) : "");
   const [submitted, setSubmitted] = useState(false);
 
   const isIb = board === "ib";
-  // The usual total for the chosen board and status, unless the student typed their own.
+  // The usual total for the chosen board and status, unless the student typed their own (for Other boards).
   const suggestedMax = board && stage ? maxTable[board]?.[stage] : undefined;
-  const effectiveMax = maxTouched ? maxMarks : suggestedMax ? String(suggestedMax) : maxMarks;
+  const hasDynamicFixedMax = Boolean(
+    board && stage && suggestedMax && board !== "other_state_board" && board !== "nios"
+  );
+  const effectiveMax = hasDynamicFixedMax
+    ? String(suggestedMax)
+    : maxTouched
+      ? maxMarks
+      : suggestedMax
+        ? String(suggestedMax)
+        : maxMarks;
 
   const rawNum = raw.trim() === "" ? NaN : Number(raw);
   const maxNum = isIb ? 45 : effectiveMax.trim() === "" ? NaN : Number(effectiveMax);
+  const rawCap = Number.isFinite(maxNum) && maxNum > 0 ? Math.min(2000, maxNum) : 2000;
   const entranceNum = entranceValue.trim() === "" ? NaN : Number(entranceValue);
+
+  const handleRawChange = (val: string) => {
+    if (val === "") {
+      setRaw("");
+      setRawLimitError(null);
+      return;
+    }
+    if (!/^\d*(?:\.\d{0,2})?$/.test(val) || val.replace(".", "").length > 6) {
+      setRawLimitError(`Please enter a valid score up to ${rawCap}.`);
+      return;
+    }
+    const parsed = Number(val);
+    if (!Number.isFinite(parsed) || parsed < 0) return;
+    if (parsed > rawCap) {
+      setRawLimitError(
+        rawCap === 100 && !isIb
+          ? "Percentage cannot exceed 100%."
+          : `Marks obtained cannot exceed ${rawCap}.`
+      );
+      return;
+    }
+    setRaw(val);
+    setRawLimitError(null);
+  };
+
+  const handleMaxChange = (val: string) => {
+    setMaxTouched(true);
+    if (val === "") {
+      setMaxMarks("");
+      setRawLimitError(null);
+      return;
+    }
+    if (!/^\d*$/.test(val) || val.length > 4) return;
+    const parsed = Number(val);
+    if (parsed > 2000) {
+      setRawLimitError("Maximum marks cannot exceed 2000.");
+      return;
+    }
+    setMaxMarks(val);
+    setRawLimitError(null);
+  };
 
   const problems: string[] = [];
   if (!board) problems.push("Select your education board");
@@ -1764,7 +1816,11 @@ export function AcademicDetailsFormCard({
                 type="button"
                 aria-pressed={board === b.key}
                 className={`counsellor-opt-btn ${board === b.key ? "selected" : ""}`}
-                onClick={() => setBoard(b.key)}
+                onClick={() => {
+                  setBoard(b.key);
+                  setMaxTouched(false);
+                  setRawLimitError(null);
+                }}
               >
                 <span className="counsellor-opt-label">{b.label}</span>
                 {board === b.key && <span className="counsellor-check">✓</span>}
@@ -1782,7 +1838,11 @@ export function AcademicDetailsFormCard({
                 type="button"
                 aria-pressed={stage === st.key}
                 className={`counsellor-opt-btn acad-stage-btn ${stage === st.key ? "selected" : ""}`}
-                onClick={() => setStage(st.key)}
+                onClick={() => {
+                  setStage(st.key);
+                  setMaxTouched(false);
+                  setRawLimitError(null);
+                }}
               >
                 <span className="counsellor-opt-label">{st.label}</span>
                 {stage === st.key && <span className="counsellor-check">✓</span>}
@@ -1797,16 +1857,26 @@ export function AcademicDetailsFormCard({
           <div className="acad-marks-row">
             <input
               id={`acad-raw-${card.mode}`}
-              className="counsellor-marks-input-field acad-input"
+              className={`counsellor-marks-input-field acad-input ${rawLimitError ? "error" : ""}`}
               type="number"
               inputMode="decimal"
-              min={0}
+              min={1}
+              max={rawCap}
               step="any"
-              placeholder={isIb ? "e.g. 36" : "Marks"}
+              placeholder={isIb ? "e.g. 36" : hasDynamicFixedMax && suggestedMax === 100 ? "e.g. 87.5" : "Marks"}
               value={raw}
-              onChange={(e) => setRaw(e.target.value)}
+              onKeyDown={(e) => {
+                if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault();
+              }}
+              onChange={(e) => handleRawChange(e.target.value)}
             />
-            {!isIb && (
+            {isIb ? (
+              <span className="acad-outof">out of 45</span>
+            ) : hasDynamicFixedMax ? (
+              <span className="acad-outof">
+                {suggestedMax === 100 ? "% (out of 100)" : `out of ${suggestedMax}`}
+              </span>
+            ) : (
               <>
                 <span className="acad-outof">out of</span>
                 <input
@@ -1814,18 +1884,19 @@ export function AcademicDetailsFormCard({
                   className="counsellor-marks-input-field acad-input acad-input-max"
                   type="number"
                   inputMode="numeric"
-                  min={1}
+                  min={100}
+                  max={2000}
                   placeholder="Total"
                   value={effectiveMax}
-                  onChange={(e) => {
-                    setMaxTouched(true);
-                    setMaxMarks(e.target.value);
+                  onKeyDown={(e) => {
+                    if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault();
                   }}
+                  onChange={(e) => handleMaxChange(e.target.value)}
                 />
               </>
             )}
-            {isIb && <span className="acad-outof">out of 45</span>}
           </div>
+          {rawLimitError && <div className="counsellor-inline-error" role="alert">{rawLimitError}</div>}
         </fieldset>
 
         {card.show_stream && (
@@ -1989,12 +2060,15 @@ export function CounsellorStageCard({ card, onSelect }: { card: any; onSelect?: 
  */
 export function CounsellorMarksCard({ card, onSelect }: { card: any; onSelect?: (text: string) => void }) {
   const fixedMax: number | null = card.max_marks ? Number(card.max_marks) : null;
-  const [mode, setMode] = useState<"marks" | "percent">(fixedMax && fixedMax <= 100 ? "percent" : "marks");
+  const isIb = card.board_key === "ib" || fixedMax === 45;
+  const hasFixedTotal = fixedMax !== null && fixedMax > 0;
+  const isFixedPercent = hasFixedTotal && !isIb && fixedMax <= 100;
+  const [mode, setMode] = useState<"marks" | "percent">(isFixedPercent ? "percent" : "marks");
   const [got, setGot] = useState<string>(card.default_val ? String(card.default_val) : "");
-  const [total, setTotal] = useState<string>(fixedMax && fixedMax > 100 ? String(fixedMax) : "");
+  const [total, setTotal] = useState<string>(hasFixedTotal && !isFixedPercent ? String(fixedMax) : "");
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const flexible = !fixedMax;
+  const flexible = !hasFixedTotal;
   const uid = useState(() => Math.random().toString(36).slice(2, 8))[0];
 
   const num = (v: string) => {
@@ -2002,10 +2076,72 @@ export function CounsellorMarksCard({ card, onSelect }: { card: any; onSelect?: 
     return Number.isFinite(n) ? n : NaN;
   };
 
+  const totalNum = num(total);
+  const activeCap =
+    mode === "percent" || isFixedPercent
+      ? 100
+      : hasFixedTotal
+        ? fixedMax!
+        : !isNaN(totalNum) && totalNum >= 100 && totalNum <= 2000
+          ? totalNum
+          : 2000;
+
+  const handleGotChange = (val: string) => {
+    if (val === "") {
+      setGot("");
+      setError(null);
+      return;
+    }
+    if (!/^\d*(?:\.\d{0,2})?$/.test(val) || val.replace(".", "").length > 6) {
+      setError(
+        mode === "percent" || isFixedPercent
+          ? "Enter a valid percentage between 1 and 100."
+          : `Enter valid marks up to ${activeCap}.`
+      );
+      return;
+    }
+    const parsed = Number(val);
+    if (!Number.isFinite(parsed) || parsed < 0) return;
+    if (parsed > activeCap) {
+      setError(
+        mode === "percent" || isFixedPercent
+          ? "Percentage cannot exceed 100%."
+          : `Marks obtained cannot exceed ${activeCap}.`
+      );
+      return;
+    }
+    setGot(val);
+    setError(null);
+  };
+
+  const handleTotalChange = (val: string) => {
+    if (val === "") {
+      setTotal("");
+      setError(null);
+      return;
+    }
+    if (!/^\d*$/.test(val) || val.length > 4) return;
+    const parsed = Number(val);
+    if (parsed > 2000) {
+      setError("Maximum marks cannot exceed 2000.");
+      return;
+    }
+    setTotal(val);
+    setError(null);
+  };
+
+  const gNum = num(got);
+  const isValidToSubmit =
+    got.trim().length > 0 &&
+    !isNaN(gNum) &&
+    gNum > 0 &&
+    gNum <= activeCap &&
+    !(flexible && mode === "marks" && (isNaN(totalNum) || totalNum < 100 || totalNum > 2000 || gNum > totalNum));
+
   const submit = () => {
     if (submitted) return;
     const g = num(got);
-    if (mode === "percent") {
+    if (mode === "percent" || isFixedPercent) {
       if (isNaN(g) || g <= 0 || g > 100) {
         setError("Enter your percentage as a number between 1 and 100, for example 87.5.");
         return;
@@ -2016,13 +2152,13 @@ export function CounsellorMarksCard({ card, onSelect }: { card: any; onSelect?: 
       onSelect?.(text);
       return;
     }
-    const t = fixedMax && fixedMax > 100 ? fixedMax : num(total);
-    if (isNaN(t) || t < 100 || t > 2000) {
+    const t = hasFixedTotal ? fixedMax! : num(total);
+    if (isNaN(t) || (!hasFixedTotal && (t < 100 || t > 2000)) || t <= 0) {
       setError("Enter the maximum marks for your exam, for example 1000 or 600.");
       return;
     }
     if (isNaN(g) || g <= 0) {
-      setError("Enter the marks you obtained as a number, for example 870.");
+      setError(isIb ? "Enter your IB points as a number up to 45." : "Enter the marks you obtained as a number, for example 870.");
       return;
     }
     if (g > t) {
@@ -2036,6 +2172,10 @@ export function CounsellorMarksCard({ card, onSelect }: { card: any; onSelect?: 
   };
 
   const onKey = (e: React.KeyboardEvent) => {
+    if (["-", "+", "e", "E"].includes(e.key)) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       submit();
@@ -2059,44 +2199,55 @@ export function CounsellorMarksCard({ card, onSelect }: { card: any; onSelect?: 
           {flexible && (
             <div className="cm-marks-mode" role="radiogroup" aria-label="How do you want to enter your marks?">
               <button type="button" role="radio" aria-checked={mode === "marks"} className={mode === "marks" ? "on" : ""}
-                      onClick={() => { setMode("marks"); setError(null); }}>Marks</button>
+                      onClick={() => { setMode("marks"); setGot(""); setError(null); }}>Marks</button>
               <button type="button" role="radio" aria-checked={mode === "percent"} className={mode === "percent" ? "on" : ""}
-                      onClick={() => { setMode("percent"); setError(null); }}>Percentage</button>
+                      onClick={() => { setMode("percent"); setGot(""); setError(null); }}>Percentage</button>
             </div>
           )}
-          {mode === "percent" ? (
+          {mode === "percent" || isFixedPercent ? (
             <label className="cm-marks-field" htmlFor={`pct-${uid}`}>
               <span className="cm-marks-label">Your percentage</span>
               <span className="counsellor-input-wrapper">
                 <input id={`pct-${uid}`} type="number" inputMode="decimal" min={1} max={100} step="0.01"
                        className={`counsellor-marks-input-field ${error ? "error" : ""}`} placeholder="e.g. 87.5"
-                       value={got} onChange={(e) => { setGot(e.target.value); setError(null); }} onKeyDown={onKey}
+                       value={got} onChange={(e) => handleGotChange(e.target.value)} onKeyDown={onKey}
                        aria-invalid={!!error} />
                 <span className="counsellor-marks-unit">%</span>
+              </span>
+            </label>
+          ) : hasFixedTotal ? (
+            <label className="cm-marks-field" htmlFor={`got-${uid}`}>
+              <span className="cm-marks-label">{isIb ? "IB Diploma points" : "Marks obtained"}</span>
+              <span className="counsellor-input-wrapper">
+                <input id={`got-${uid}`} type="number" inputMode="numeric" min={1} max={fixedMax!} step="any"
+                       className={`counsellor-marks-input-field cm-marks-fixed-input ${error ? "error" : ""}`}
+                       placeholder={isIb ? "e.g. 38" : `e.g. ${Math.round(fixedMax! * 0.87)}`}
+                       value={got} onChange={(e) => handleGotChange(e.target.value)} onKeyDown={onKey}
+                       aria-invalid={!!error} />
+                <span className="counsellor-marks-unit">/ {fixedMax}</span>
               </span>
             </label>
           ) : (
             <div className="cm-marks-pair">
               <label className="cm-marks-field" htmlFor={`got-${uid}`}>
                 <span className="cm-marks-label">Marks obtained</span>
-                <input id={`got-${uid}`} type="number" inputMode="numeric" min={1}
+                <input id={`got-${uid}`} type="number" inputMode="numeric" min={1} max={activeCap}
                        className={`counsellor-marks-input-field ${error ? "error" : ""}`}
-                       placeholder={fixedMax && fixedMax > 100 ? `e.g. ${Math.round(fixedMax * 0.87)}` : "e.g. 870"}
-                       value={got} onChange={(e) => { setGot(e.target.value); setError(null); }} onKeyDown={onKey}
+                       placeholder="e.g. 870"
+                       value={got} onChange={(e) => handleGotChange(e.target.value)} onKeyDown={onKey}
                        aria-invalid={!!error} />
               </label>
               <span className="cm-marks-slash" aria-hidden="true">/</span>
               <label className="cm-marks-field" htmlFor={`max-${uid}`}>
                 <span className="cm-marks-label">Maximum marks</span>
-                <input id={`max-${uid}`} type="number" inputMode="numeric" min={100}
+                <input id={`max-${uid}`} type="number" inputMode="numeric" min={100} max={2000}
                        className="counsellor-marks-input-field" placeholder="e.g. 1000" value={total}
-                       readOnly={!!(fixedMax && fixedMax > 100)} aria-readonly={!!(fixedMax && fixedMax > 100)}
-                       onChange={(e) => { setTotal(e.target.value); setError(null); }} onKeyDown={onKey} />
+                       onChange={(e) => handleTotalChange(e.target.value)} onKeyDown={onKey} />
               </label>
             </div>
           )}
           {error && <div className="counsellor-inline-error" role="alert">{error}</div>}
-          <button type="button" className="counsellor-submit-btn cm-marks-submit" onClick={submit} disabled={!got.trim()}>
+          <button type="button" className="counsellor-submit-btn cm-marks-submit" onClick={submit} disabled={!isValidToSubmit}>
             Continue
           </button>
           {card.hint && <p className="cm-marks-hint">{card.hint}</p>}

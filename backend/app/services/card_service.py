@@ -1338,19 +1338,32 @@ def build_counsellor_marks_card(
     step_label: str = "Step 3: Academic Marks",
 ) -> dict:
     """Builds interactive marks input card with inline validation and continue button."""
-    unit = "%" if max_marks <= 100 else f"/ {max_marks}"
+    is_ib = board_key == "ib" or max_marks == 45
+    unit = "/ 45" if is_ib else ("%" if max_marks <= 100 else f"/ {max_marks}")
     stage_name = "Intermediate 1st Year" if stage_key in ("1st_year", "2nd_year") else "Intermediate"
+    default_title = (
+        "What is your IB Diploma score (out of 45)?" if is_ib else f"What marks have you scored in {stage_name}?"
+    )
+    default_subtitle = (
+        f"Enter your IB Diploma points out of 45 under {board_label or 'International Baccalaureate (IB)'}."
+        if is_ib
+        else (
+            f"Enter your marks scored out of {max_marks} under {board_label or 'your board'}."
+            if max_marks > 100
+            else f"Enter your percentage scored under {board_label or 'your board'}."
+        )
+    )
     return {
         "type": "counsellor_marks_input",
         "step_label": step_label,
-        "title": title or f"What marks have you scored in {stage_name}?",
-        "subtitle": subtitle or (f"Enter your marks scored out of {max_marks} under {board_label or 'your board'}." if max_marks > 100 else f"Enter your percentage scored under {board_label or 'your board'}."),
+        "title": title or default_title,
+        "subtitle": subtitle or default_subtitle,
         "board_key": board_key or "ts_state_board",
         "stage_key": stage_key or "completed",
         "max_marks": max_marks,
         "board_label": board_label,
         "unit": unit,
-        "placeholder": f"e.g. {int(max_marks * 0.88)}" if max_marks > 100 else "e.g. 88%",
+        "placeholder": "e.g. 38" if is_ib else (f"e.g. {int(max_marks * 0.88)}" if max_marks > 100 else "e.g. 88%"),
         "default_val": default_val,
     }
 

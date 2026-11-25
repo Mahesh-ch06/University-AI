@@ -80,7 +80,7 @@ _ROUTE_NOT_DECIDED = re.compile(
 _ROUTE_OTHER = re.compile(r"\bother(?:\s+(?:entrance|exam|route))?\b", re.IGNORECASE)
 
 _STATE_BOARD = re.compile(
-    r"\b(?:state\s*board|tsbie|bieap|biets|board\s+of\s+intermediate|intermediate\s+board|inter\s+board|"
+    r"\b(?:state\s*board|tsbie|bieap|biets|board\s+of\s+intermediate|intermediate\s+board|inter\s+board|ssc\s+inter(?:mediate)?|"
     r"(?:ts|tg|ap|telangana|andhra(?:\s+pradesh)?)\s*(?:state\s*)?(?:board|inter(?:mediate)?)|"
     r"(?:maharashtra|msbshse|karnataka|puc?|tamil\s*nadu|tndge|kerala|dhse|up\s*board|uttar\s*pradesh|"
     r"bihar|bseb|mp\s*board|madhya\s*pradesh|rajasthan|rbse|delhi|punjab|pseb|haryana|hbse|"
@@ -561,9 +561,10 @@ def _marks_problem(message: str, said: dict, number, known: dict, waiting: str |
     low = (message or "").lower().strip()
     b_key, s_key = known.get("board_key"), known.get("academic_stage") or "completed"
     # Only boards with a known total are checked against it (another state's board has none: the student is
-    # asked "out of how many?"); CBSE / ICSE final marks are a percentage.
+    # asked "out of how many?"); CBSE / ICSE final marks are a percentage; IB is out of 45.
     fixed_total = b_key in ("ts_state_board", "ap_state_board", "cbse", "icse", "ib")
-    percent_only = waiting == "degree_percent" or (fixed_total and get_max_marks(b_key, s_key) <= 100)
+    is_ib = b_key == "ib"
+    percent_only = waiting == "degree_percent" or (fixed_total and not is_ib and get_max_marks(b_key, s_key) <= 100)
     max_m = 100 if percent_only else (get_max_marks(b_key, s_key) if fixed_total else None)
     frac = re.search(r"(-?\d+(?:\.\d+)?)\s*(?:marks\s+)?(?:/|out\s+of)\s*(\d+(?:\.\d+)?)", low)
     if frac:
@@ -583,18 +584,29 @@ def _marks_problem(message: str, said: dict, number, known: dict, waiting: str |
             return "A percentage can't be more than 100."
         return None
     raw = said.get("raw_marks") if said.get("raw_marks") is not None else number
-    if raw is not None and max_m:
+    if raw is None and waiting in ("marks", "marks_max", "percent", "degree_percent"):
+        # Catch oversized numbers in sentences like "my marks are 9000000" even when parse_details ignores >1000.
+        big = re.findall(r"(?<![\d.])\d+(?:\.\d+)?(?![\d.])", low)
+        if len(big) == 1 and float(big[0]) > 1000:
+            raw = float(big[0])
+    if raw is not None:
         raw = float(raw)
         if raw <= 0:
             return "Marks can't be zero or negative."
-        if max_m > 100 and raw < 35:
-            return (f"**{_num_text(raw)}** looks too low. Please enter your marks out of {max_m} (for example "
-                    f"{int(max_m * 0.87)}) or your percentage (for example 87%).")
-        if max_m > 100 and raw > max_m and not (35 <= raw <= 100):
-            return f"**{_num_text(raw)}** is more than the maximum of {max_m} marks, so it can't be right."
-        if max_m <= 100 and raw > 100:
-            return ("That looks like marks, not a percentage. Please enter your percentage (for example 87.5), or "
-                    "your marks with the total (for example 435 out of 500).")
+        if max_m:
+            if max_m > 100 and raw < 35:
+                return (f"**{_num_text(raw)}** looks too low. Please enter your marks out of {max_m} (for example "
+                        f"{int(max_m * 0.87)}) or your percentage (for example 87%).")
+            if is_ib and raw > max_m:
+                return f"**{_num_text(raw)}** is more than the maximum of {max_m} IB points, so it can't be right."
+            if max_m > 100 and raw > max_m and not (35 <= raw <= 100):
+                return f"**{_num_text(raw)}** is more than the maximum of {max_m} marks, so it can't be right."
+            if max_m <= 100 and not is_ib and raw > 100:
+                return ("That looks like marks, not a percentage. Please enter your percentage (for example 87.5), or "
+                        "your marks with the total (for example 435 out of 500).")
+        elif raw > 2000:
+            return (f"**{_num_text(raw)}** is more than any valid board total, so it can't be right. Please enter your "
+                    f"marks out of your board's total (for example 435 out of 500) or your percentage (for example 87%).")
         return None
     if _NOT_KNOWN.search(low):
         return ("No problem. An approximate figure is fine for an estimate (you can correct it any time), or tap "
@@ -605,7 +617,7 @@ def _marks_problem(message: str, said: dict, number, known: dict, waiting: str |
 
 
 def _bare_number(message: str):
-    m = re.fullmatch(r"\s*(\d{1,6}(?:\.\d+)?)\s*%?\s*", message or "")
+    m = re.fullmatch(r"\s*(\d{1,12}(?:\.\d+)?)\s*%?\s*", message or "")
     return float(m.group(1)) if m else None
 
 
@@ -788,7 +800,7 @@ def _decide(message: str, profile: dict, intake: dict | None, first_name: str | 
 
     if number is None and active and intake.get("waiting_for") in ("marks", "percent", "degree_percent") \
             and said.get("percent") is None and said.get("max_marks") is None:
-        nums = re.findall(r"(?<![\d.])\d{2,4}(?:\.\d+)?(?![\d.])", message or "")
+        nums = re.findall(r"(?<![\d.])\d{2,12}(?:\.\d+)?(?![\d.])", message or "")
         if len(nums) == 1 and not (said.keys() - {"raw_marks", "needs_marks_confirmation", "generic_btech"}):
             number = float(nums[0])
     if not is_fee_enquiry(message):
@@ -895,6 +907,11 @@ def _decide(message: str, profile: dict, intake: dict | None, first_name: str | 
                     elif 35 <= number <= 100:
                         known["percent"] = number
                         known["raw_marks"] = number
+                elif b_key == "ib" and 0 < number <= 45:
+                    known["ib_score"] = int(number)
+                    known["raw_marks"] = number
+                    known["max_marks"] = 45.0
+                    known["percent"] = round((number / 45.0) * 100, 2)
                 else:
                     known["percent"] = number
                     known["raw_marks"] = number
