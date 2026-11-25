@@ -849,11 +849,6 @@ _RULES += [
                 r"\b(?:is|are)\s+(?:the\s+)?hostels?\s+(?:compulsory|mandatory|required|necessary|a\s+must)\b|"
                 r"\b(?:must|have\s+to|should)\s+i\s+stay\s+in\s+(?:the\s+)?hostel\b|\bcommute\s+from\s+home\b", re.I),
      _day_scholar),
-    (re.compile(r"\bexplore\s+(?:all\s+)?(?:the\s+)?(?:programs?|programmes?|courses?)\b|"
-                r"\b(?:programs?|programmes?|courses?|degrees?)\s+(?:offered|available)\b(?!\s+(?:after|for|with))|"
-                r"\bwhat\s+(?:all\s+)?(?:courses?|programs?|programmes?|degrees?)\s+(?:do|does|are|can)\b|"
-                r"\b(?:list\s+of|all)\s+(?:the\s+)?(?:courses?|programs?|programmes?)\b|\bwhich\s+courses\s+(?:do|are|does)\b",
-                re.I), _programmes_overview),
 ]
 
 

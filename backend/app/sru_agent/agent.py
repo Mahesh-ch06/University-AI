@@ -706,7 +706,7 @@ _ASKS_MARKS = re.compile(
 _MARKS_CARD_TYPES = {"counsellor_marks_input", "academic_details_form", "fee_scholarship_form"}
 
 
-def _with_marks_form(text: str, cards: list, session_id: str = "") -> list:
+def _with_marks_form(text: str, cards: list, session_id: str = "", profile: dict | None = None) -> list:
     if any(isinstance(c, dict) and c.get("type") in _MARKS_CARD_TYPES for c in cards):
         return cards
     if not _ASKS_MARKS.search(text or "") or re.search(r"\b(?:rank|percentile)\b[^?\n]*\?\s*$", text or "", re.I) \
@@ -715,13 +715,19 @@ def _with_marks_form(text: str, cards: list, session_id: str = "") -> list:
     if re.search(r"which\s+board|where\s+are\s+you\s+in\s+intermediate|which\s+group", text or "", re.I):
         return cards                                   # a different step is being asked
     mx = None
+    b_key = (profile or {}).get("board_key")
     m = re.search(r"\(out\s+of\s+(\d{3,4})\)", text or "")
     if m:
         mx = int(m.group(1))
+    elif b_key:
+        mx = fee_intake.get_max_marks(b_key, (profile or {}).get("academic_stage") or "completed")
     elif re.search(r"\bpercentage\b", text or "", re.I) and not re.search(r"\bmarks\b", text or "", re.I):
         mx = 100
-    return cards + [{"type": "counsellor_marks_input", "title": "Enter your marks", "max_marks": mx,
-                     "step_label": "Your marks", "hint": "You can also type them, e.g. 870 out of 1000 or 87%."}]
+    card = {"type": "counsellor_marks_input", "title": "Enter your marks", "max_marks": mx,
+            "step_label": "Your marks", "hint": "You can also type them, e.g. 870 out of 1000 or 87%."}
+    if b_key:
+        card["board_key"] = b_key
+    return cards + [card]
 
 
 class _Plain(Exception):
@@ -737,7 +743,7 @@ async def _say(text, message, session_id, conversation_id, used=(), cards=(), su
     programme...) and the chips are the answers to it."""
     from app.services.guardrail_service import normalize_positive_brand_advocacy
     text = normalize_positive_brand_advocacy(text)
-    cards = _with_marks_form(text, list(cards or []), session_id)
+    cards = _with_marks_form(text, list(cards or []), session_id, profile=profile)
     note = _MARKS_NOTE.get()
     if note:
         _MARKS_NOTE.set("")
@@ -1858,6 +1864,8 @@ def _read_academic_form(form: dict, profile: dict) -> tuple[dict, list[str], str
             problems.append("enter your IB Diploma points (out of 45)")
     elif raw is None or total is None or total <= 0 or raw <= 0 or raw > total:
         problems.append("enter your marks and the total they are out of (the marks cannot be more than the total)")
+    elif total > 2000:
+        problems.append("enter a valid maximum marks total up to 2000")
     else:
         updates.update(raw_marks=raw, max_marks=total, percent=round(raw / total * 100, 2), marks_confirmed=True)
 
@@ -2571,7 +2579,7 @@ async def run_agent(
                 if dlg["kind"] == "reply":
                     async for ev in _say(dlg["text"], message, session_id, conversation_id,
                                          cards=dlg.get("cards") or [],
-                                         suggestions=dlg.get("chips") or [], exact_chips=True,
+                                         suggestions=dlg.get("chips") or [], profile=profile, exact_chips=True,
                                          eligible=dlg.get("eligible")):
                         yield ev
                     return

@@ -304,8 +304,11 @@ def _pick(message: str, options: list[tuple], own_topic: str | None = None) -> t
     return None
 
 
-def _ask(text: str, chips: list[str], state: dict) -> dict:
-    return {"kind": "reply", "text": text, "chips": chips[:4], "state": state}
+def _ask(text: str, chips: list[str], state: dict, cards: list | None = None) -> dict:
+    out = {"kind": "reply", "text": text, "chips": chips[:4], "state": state}
+    if cards is not None:
+        out["cards"] = cards
+    return out
 
 
 def _rewrite(message: str, state: dict | None, profile_updates: dict | None = None) -> dict:
@@ -445,14 +448,25 @@ def _read_marks(message: str, state: dict) -> dict:
     if said.get("percent") is not None and said.get("cgpa") is None:
         return {"percent": float(said["percent"])}
     number = fee_intake._bare_number(message)
-    if state.get("pending_raw") is not None and number is not None and number >= state["pending_raw"]:
+    if state.get("pending_raw") is not None and number is not None and number >= state["pending_raw"] and number <= 2000:
         exact = eligibility.percent_from_marks(state["pending_raw"], number)
         if exact is not None:
             return {"percent": exact, "raw": float(state["pending_raw"]), "max": float(number)}
+    b_key = said.get("board_key") or state.get("board_key")
+    s_key = said.get("academic_stage") or state.get("academic_stage")
     raw = said.get("raw_marks") or (number if number is not None and number > 100 else None)
     if raw is not None:
+        if b_key and s_key and state.get("step") == "marks":
+            max_m = fee_intake.get_max_marks(b_key, s_key)
+            if max_m > 100 and 35 <= float(raw) <= max_m:
+                exact = eligibility.percent_from_marks(raw, max_m)
+                if exact is not None:
+                    return {"percent": exact, "raw": float(raw), "max": float(max_m)}
         return {"raw_only": float(raw)}
     if number is not None and 0 <= number <= 100:
+        if b_key == "ib" and 0 < number <= 45:
+            exact = eligibility.percent_from_marks(number, 45)
+            return {"percent": exact, "raw": float(number), "max": 45.0, "ib_score": int(number)}
         return {"percent": float(number)}
     return {}
 
@@ -461,9 +475,14 @@ def _verdict_reply(key: str, marks: dict, stream: str | None, state: dict) -> di
     verdict = eligibility.assess(key, marks["percent"], stream)
     score_text = (f"{fee_intake._num(marks['raw'])} marks out of {fee_intake._num(marks['max'])}"
                   if marks.get("max") and marks["max"] > 100 else None)
-    updates = {"percent": round(marks["percent"], 2), "program_interest": key}
+    updates: dict = {"percent": round(marks["percent"], 2), "program_interest": key}
     if marks.get("raw") is not None:
         updates.update(raw_marks=marks["raw"], max_marks=marks["max"])
+    if marks.get("ib_score") is not None:
+        updates["ib_score"] = marks["ib_score"]
+    for k_b in ("board", "board_key", "board_label", "academic_stage", "stage_label", "is_projected"):
+        if state.get(k_b) is not None:
+            updates[k_b] = state[k_b]
     if verdict["needs_stream"] and verdict["status"] != eligibility.BELOW:
         state.update(step="stream", program=key, marks=marks)
         return {**_ask(eligibility.stream_question(verdict), eligibility.stream_chips(verdict), state),
@@ -484,10 +503,62 @@ def _verdict_reply(key: str, marks: dict, stream: str | None, state: dict) -> di
 
 
 def _eligibility_step(key: str, message: str, state: dict, profile: dict, first_time: bool) -> dict:
-    """Ask for marks, or decide with the marks the student already gave (in this message or earlier)."""
+    """Board -> Academic Status -> Marks -> Group -> Eligibility verdict (same flow as Scholarship so max marks
+    are always known automatically; also handles direct marks / saved details in one step)."""
+    from app.services.card_service import (
+        build_counsellor_board_card,
+        build_counsellor_stage_card,
+        build_counsellor_marks_card,
+    )
+
+    said = fee_intake.parse_details(message)
+    prof_updates: dict = {}
+    for k_b in ("board", "board_key", "board_label", "academic_stage", "stage_label", "is_projected"):
+        if said.get(k_b) is not None:
+            state[k_b] = said[k_b]
+            prof_updates[k_b] = said[k_b]
+
+    board_key = state.get("board_key") or profile.get("board_key")
+    board_label = state.get("board_label") or profile.get("board_label")
+    stage_key = state.get("academic_stage") or profile.get("academic_stage")
+    is_pg = fees.load_data()["programs"][key].get("level") == "pg"
+
+    # Reject impossible or out-of-range marks if the student is currently answering the marks/total step.
+    if not first_time and state.get("step") in ("marks", "total"):
+        num = fee_intake._bare_number(message)
+        prob = fee_intake._marks_problem(
+            message,
+            said,
+            num,
+            {"board_key": board_key, "academic_stage": stage_key or "completed"},
+            "marks",
+        )
+        if prob:
+            if is_pg:
+                card = build_counsellor_marks_card(
+                    board_key=None, stage_key="completed", max_marks=100, board_label="your qualifying degree",
+                    title="What percentage did you score in your degree?",
+                    subtitle="Enter your aggregate percentage in the qualifying degree (final or expected).",
+                    step_label="Degree Percentage",
+                )
+                return _ask(f"{prob}\n\n{_marks_question(key)}", [], state, cards=[card])
+            b_k = board_key or "ts_state_board"
+            s_k = stage_key or "completed"
+            max_m = fee_intake.get_max_marks(b_k, s_k)
+            n_total = 4 if eligibility.stream_requirement(key).get("any_of") else 3
+            step_lbl = f"Step 3 of {n_total}"
+            card = build_counsellor_marks_card(
+                board_key=b_k, stage_key=s_k, max_marks=max_m, board_label=board_label or "your board",
+                step_label=step_lbl,
+            )
+            card["program"] = key
+            which = ("your 1st-year marks" if s_k == "1st_year" else
+                     "your marks so far" if s_k == "2nd_year" else "your final marks")
+            hint = f" (out of {max_m})" if max_m > 100 else (" (out of 45)" if b_k == "ib" else "")
+            return _ask(f"{prob}\n\n{step_lbl}: what are {which}{hint}?", [], state, cards=[card])
+
     marks = _read_marks(message, state)
-    if not marks and first_time and profile.get("percent") is not None and \
-            fees.load_data()["programs"][key].get("level") != "pg":
+    if not marks and first_time and profile.get("percent") is not None and not is_pg:
         marks = {"percent": float(profile["percent"])}
         if profile.get("raw_marks") and profile.get("max_marks"):
             marks.update(raw=float(profile["raw_marks"]), max=float(profile["max_marks"]))
@@ -496,22 +567,70 @@ def _eligibility_step(key: str, message: str, state: dict, profile: dict, first_
     if marks.get("raw_only") is not None:
         raw = fee_intake._num(marks["raw_only"])
         state.update(step="total", program=key, goal="eligibility", pending_raw=marks["raw_only"])
-        return _ask(f"Thanks! Out of how many total marks is **{raw}**? For example, 1000 for TS / AP Intermediate, "
-                    f"or 500 / 600 for some other boards.", [f"{raw} out of 1000", f"{raw} out of 600", f"{raw} out of 500"],
-                    state)
+        return {**_ask(f"Thanks! Out of how many total marks is **{raw}**? For example, 1000 for TS / AP Intermediate, "
+                       f"or 500 / 600 for some other boards.",
+                       [f"{raw} out of 1000", f"{raw} out of 600", f"{raw} out of 500"], state),
+                **({"profile_updates": prof_updates} if prof_updates else {})}
+
     if marks.get("percent") is None:
-        # One question at a time (v4.9.0): marks now; the 10+2 group, when the programme needs one, is asked
-        # next with the verdict step. No large form.
+        if is_pg:
+            state.update(step="marks", program=key, goal="eligibility")
+            card = build_counsellor_marks_card(
+                board_key=None, stage_key="completed", max_marks=100, board_label="your qualifying degree",
+                title="What percentage did you score in your degree?",
+                subtitle="Enter your aggregate percentage in the qualifying degree (final or expected).",
+                step_label="Degree Percentage",
+            )
+            card["program"] = key
+            return _ask(_marks_question(key), [], state, cards=[card])
+
+        n_total = 4 if eligibility.stream_requirement(key).get("any_of") else 3
+        p_short = short_name(key)
+        saved_chips = []
         if profile.get("saved_academic") and first_time:
             from . import journey
             saved = journey.saved_summary(profile)
             if saved:
-                state.update(step="marks", program=key, goal="eligibility")
-                return _ask(_marks_question(key), [f"Use my saved details ({saved})"], state)
-        state.update(step="marks", program=key, goal="eligibility")
-        return _ask(_marks_question(key), [], state)
+                saved_chips = [f"Use my saved details ({saved})"]
+
+        if not board_key:
+            state.update(step="board", program=key, goal="eligibility")
+            step_lbl = f"Step 1 of {n_total}"
+            card = build_counsellor_board_card()
+            card.update(title="Which board did you study under?", subtitle=None, step_label=step_lbl, program=key)
+            opener = f"Sure! Let's check your **{p_short}** eligibility. " if first_time else ""
+            return {**_ask(f"{opener}{step_lbl}: which board did you study under?", saved_chips, state, cards=[card]),
+                    **({"profile_updates": prof_updates} if prof_updates else {})}
+
+        if not stage_key:
+            state.update(step="stage", program=key, goal="eligibility", board_key=board_key, board_label=board_label)
+            step_lbl = f"Step 2 of {n_total}"
+            card = build_counsellor_stage_card(board_label=board_label)
+            card.update(title="Are you still studying, or have you finished Intermediate?", subtitle=None,
+                        step_label=step_lbl, program=key)
+            return {**_ask(f"{step_lbl}: where are you in Intermediate right now?", saved_chips, state, cards=[card]),
+                    **({"profile_updates": prof_updates} if prof_updates else {})}
+
+        max_m = fee_intake.get_max_marks(board_key, stage_key)
+        state.update(step="marks", program=key, goal="eligibility", board_key=board_key,
+                     board_label=board_label, academic_stage=stage_key)
+        step_lbl = f"Step 3 of {n_total}"
+        card = build_counsellor_marks_card(
+            board_key=board_key, stage_key=stage_key, max_marks=max_m,
+            board_label=board_label or "your board", step_label=step_lbl,
+        )
+        card["program"] = key
+        which = ("your 1st-year marks" if stage_key == "1st_year" else
+                 "your marks so far" if stage_key == "2nd_year" else "your final marks")
+        hint = f" (out of {max_m})" if max_m > 100 else (" (out of 45)" if board_key == "ib" else "")
+        return {**_ask(f"{step_lbl}: what are {which}{hint}?", saved_chips, state, cards=[card]),
+                **({"profile_updates": prof_updates} if prof_updates else {})}
+
     stream = eligibility.parse_stream(message) if re.search(r"\b(?:mpc|pcm|bipc|pcb)\b", message.lower()) else None
-    return _verdict_reply(key, marks, stream or profile.get("stream"), state)
+    out = _verdict_reply(key, marks, stream or profile.get("stream"), state)
+    if prof_updates:
+        out["profile_updates"] = {**prof_updates, **out.get("profile_updates", {})}
+    return out
 
 
 def _goal_reply(goal: str, key: str, message: str, state: dict, profile: dict) -> dict:
@@ -674,6 +793,144 @@ _RESULTS = re.compile(
     r"scores?|percentile|scorecard|memo)\b|\b(?:results?|rank|scorecard|marks)\s+(?:came|is|are|has\s+been)\s+"
     r"(?:out|released|announced|declared)\b", re.IGNORECASE)
 
+_EXPLORE_PROGRAMS = re.compile(
+    r"\bexplore\s+(?:all\s+)?(?:the\s+)?(?:ug|pg|undergrad(?:uate)?|postgrad(?:uate)?\s+)?(?:programs?|programmes?|courses?)\b"
+    r"|\b(?:programs?|programmes?|courses?|degrees?)\s+(?:offered|available)\b(?!\s+(?:after|for|with))"
+    r"|\bwhat\s+(?:all\s+)?(?:ug|pg|undergrad(?:uate)?|postgrad(?:uate)?\s+)?(?:courses?|programs?|programmes?|degrees?)\s+(?:do|does|are|can)\b"
+    r"|\b(?:list\s+of|all)\s+(?:the\s+)?(?:ug|pg|undergrad(?:uate)?|postgrad(?:uate)?\s+)?(?:courses?|programs?|programmes?)\b"
+    r"|\bwhich\s+(?:courses?|programs?|programmes?)\s+(?:do|are|does|can)\b",
+    re.IGNORECASE,
+)
+_EXPLORE_FAMILY_WORDS = re.compile(
+    r"\bb\.?\s?tech|\bengineering\b|\bmba\b|\bbba\b|\bb\.?\s?sc|\bm\.?\s?tech|\bm\.?\s?sc|"
+    r"\bbca\b|\bmca\b|\bb\.?\s?des|\bb\.?\s?com|\bagri|\bph\.?\s?d|\bmpc\b|\bbipc\b|\bmec\b",
+    re.IGNORECASE,
+)
+_EXPLORE_LEVEL_UG = re.compile(r"\b(?:ug|undergrad(?:uate)?|bachelor(?:'?s)?)\b", re.IGNORECASE)
+_EXPLORE_LEVEL_PG = re.compile(r"\b(?:pg|postgrad(?:uate)?|master(?:'?s)?)\b", re.IGNORECASE)
+_DIRECT_LEVEL_VIEW = re.compile(
+    r"^\s*(?:view\s+(?:ug|pg)\s+(?:program(?:me)?s?|courses?)"
+    r"|(?:undergraduate\s*\(ug\)|postgraduate\s*\(pg\)|ug\s+program(?:me)?s?|pg\s+program(?:me)?s?))\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+# Exact UG and PG course names sourced strictly from the official fee circular PDF.
+_UG_PDF_PROGRAMS = (
+    ("Engineering (B.Tech)", (
+        "BTech CSE (AIML, Data Science, Cyber Security, Robotics and Automation, Quantum AI)",
+        "BTech in AI and Robotics",
+        "BTech in ECE (AIML, VLSI, Robotics and Automation)",
+        "BTech in Biotechnology with AI",
+        "BTech in Mechanical Engineering (Robotics and Automation, Smart Manufacturing)",
+        "BTech in Electrical and Electronics Engg (Electrical Vehicles, Renewable Energy)",
+        "BTech in Civil Engineering",
+        "BTech in Engineering Physics with AI, Robotics & Space",
+        "BTech in Applied Chemistry with AI, Robotics & Drug Discovery",
+        "BTech Food Technology",
+        "B.Tech IEP",
+    )),
+    ("Computing & Sciences", (
+        "BCA Hons",
+        "B.Sc CS Hons",
+        "BSc Physics",
+        "BSc Chemistry",
+        "BSc Hons in Mathematics and AI",
+    )),
+    ("Agriculture", (
+        "B.Sc Agriculture",
+    )),
+    ("Business, Hospitality & Commerce", (
+        "BBA",
+        "BBA (Finance, Operations, HR, Business Analytics, Marketing)",
+        "BSc in Hospitality and Event Management",
+        "B.Com",
+    )),
+    ("Design", (
+        "B.Des (Design)",
+    )),
+)
+
+_PG_PDF_PROGRAMS = (
+    ("Engineering & Technology", (
+        "MTech (CSE, Data Science, AIML, Electronic Design Technology, VLSI, Embedded Systems, "
+        "Advance Manufacturing Systems, Thermal Engineering, Construction Technology & Management, Power Electronics)",
+    )),
+    ("Computer Applications", (
+        "MCA",
+    )),
+    ("Management", (
+        "MBA (Finance, Operations, HR, Business Analytics, Marketing)",
+        "MBA in Agri Business Management",
+    )),
+    ("Sciences & Agriculture", (
+        "MSc (CS, Agronomy, Genetics & Plant Breeding, Horticulture, Agriculture Extension Education, "
+        "Agriculture Economics, Plant Pathology, Soil Science)",
+    )),
+)
+
+
+def _parse_explore_level(message: str, allow_numeric: bool = False) -> str | None:
+    low = _norm(message)
+    if allow_numeric:
+        if low in ("1", "option 1"):
+            return "ug"
+        if low in ("2", "option 2"):
+            return "pg"
+    has_ug = bool(_EXPLORE_LEVEL_UG.search(message or ""))
+    has_pg = bool(_EXPLORE_LEVEL_PG.search(message or ""))
+    if has_ug and not has_pg:
+        return "ug"
+    if has_pg and not has_ug:
+        return "pg"
+    return None
+
+
+def _ask_explore_level(state: dict, name: str | None = None) -> dict:
+    """Ask the user to choose Undergraduate (UG) or Postgraduate (PG) before listing programmes."""
+    next_state = {k: v for k, v in state.items() if k not in ("program", "topic", "goal")}
+    next_state["step"] = "explore_level"
+    card = {
+        "type": "counsellor_choice",
+        "step_label": "Explore Programmes",
+        "title": "Which study level are you looking for?",
+        "subtitle": "Choose Undergraduate (UG) or Postgraduate (PG) to view the programmes offered at SR University.",
+        "options": [
+            {
+                "key": "ug",
+                "label": "Undergraduate (UG)",
+                "desc": "After 10+2 / Intermediate — Engineering, Computing, Agriculture, Business, Design & Sciences",
+            },
+            {
+                "key": "pg",
+                "label": "Postgraduate (PG)",
+                "desc": "After Graduation — Engineering, Computer Applications, Management & Sciences",
+            },
+        ],
+    }
+    name_bit = f", {name}" if name else ""
+    return _ask(
+        f"Sure{name_bit}! Are you looking for **Undergraduate (UG)** or **Postgraduate (PG)** programmes at SR University?",
+        [],
+        next_state,
+        cards=[card],
+    )
+
+
+def _explore_level_reply(level: str, state: dict) -> dict:
+    """Return a structured course-name-only list for the chosen study level (UG or PG)."""
+    is_ug = level == "ug"
+    groups = _UG_PDF_PROGRAMS if is_ug else _PG_PDF_PROGRAMS
+    heading = "### Undergraduate (UG) Programmes at SR University" if is_ug else "### Postgraduate (PG) Programmes at SR University"
+    sections = [f"**{cat}**\n" + "\n".join(f"- {course}" for course in courses) for cat, courses in groups]
+    text = (
+        f"{heading}\n\n"
+        + "\n\n".join(sections)
+        + "\n\nWhich programme are you interested in? I can share eligibility, curriculum, or fee details for any of them."
+    )
+    other_chip = "View PG programmes" if is_ug else "View UG programmes"
+    clean_state = {k: v for k, v in state.items() if k not in ("step", "intent", "topic", "goal")}
+    return _ask(text, [other_chip, "Check my eligibility", "Calculate my scholarship"], clean_state)
+
 # ------------------------------------------------------------------------------------------- decide()
 def decide(message: str, conv_state: dict, profile: dict, name: str | None = None) -> dict | None:
     """See _decide. Topics already asked about in this conversation are remembered across every step (several
@@ -718,12 +975,12 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
 
     # ---- 1. An answer to our own last question -------------------------------------------------------
     if step:
-        if step in ("goal", "marks", "total", "form", "stream") and program_now and program_now != state.get("program") \
+        if step in ("goal", "board", "stage", "marks", "total", "form", "stream") and program_now and program_now != state.get("program") \
                 and not _broad_fee(message):
             # The student changed the programme midway: switch, keep the marks already given, redo the check.
             state.update(program=program_now, eligibility=None)
             p = short_name(program_now)
-            if state.get("goal") == "eligibility" or step in ("marks", "total", "form", "stream"):
+            if state.get("goal") == "eligibility" or step in ("board", "stage", "marks", "total", "form", "stream"):
                 out = _eligibility_step(program_now, message, state, profile, first_time=True)
                 out["text"] = f"Got it, switching to **{p}**. " + out["text"]
                 return out
@@ -775,16 +1032,34 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
             goal = next((g for g, pat in _GOALS if re.search(pat, low)), None)
             if key and goal:
                 return _goal_reply(goal, key, message, state, profile)
-        elif step in ("marks", "total", "form"):
+        elif step in ("board", "stage", "marks", "total", "form"):
             key = state.get("program")
+            said = fee_intake.parse_details(message)
             marks = _read_marks(message, state)
-            if key and (marks.get("percent") is not None or marks.get("raw_only") is not None):
+            if key and (
+                (step == "board" and (said.get("board_key") or marks.get("percent") is not None or marks.get("raw_only") is not None))
+                or (step == "stage" and (said.get("academic_stage") or marks.get("percent") is not None or marks.get("raw_only") is not None))
+                or (step in ("marks", "total", "form") and (
+                    marks.get("percent") is not None
+                    or marks.get("raw_only") is not None
+                    or fee_intake._bare_number(message) is not None
+                    or fee_intake._marks_problem(
+                        message, said, fee_intake._bare_number(message),
+                        {"board_key": state.get("board_key"), "academic_stage": state.get("academic_stage") or "completed"},
+                        "marks",
+                    ) is not None
+                ))
+            ):
                 return _eligibility_step(key, message, state, profile, first_time=False)
         elif step == "stream":
             key, marks = state.get("program"), state.get("marks")
             stream = eligibility.parse_stream(message)
             if key and marks and stream:
                 return _verdict_reply(key, marks, stream, state)
+        elif step == "explore_level":
+            level = _parse_explore_level(message, allow_numeric=True)
+            if level:
+                return _explore_level_reply(level, state)
         elif step == "interest":
             if program_now:
                 return _ask_aspect(program_now, state)
@@ -815,6 +1090,19 @@ def _decide(message: str, conv_state: dict, profile: dict, name: str | None = No
 
     if is_incomplete(message):
         return _incomplete_reply(state, conv_state)
+
+    if (_EXPLORE_PROGRAMS.search(message or "") and not _EXPLORE_FAMILY_WORDS.search(message or "")
+            and not _FEE_WORD.search(message or "") and not _ELIGIBILITY_Q.search(message or "")
+            and not _JOIN.search(message or "")
+            and not re.search(r"\bprograms\s+and\s+courses\s+available\b", message or "", re.I)):
+        direct_level = _parse_explore_level(message)
+        if direct_level:
+            return _explore_level_reply(direct_level, state)
+        return _ask_explore_level(state, name)
+    if _DIRECT_LEVEL_VIEW.match(message or ""):
+        direct_level = _parse_explore_level(message)
+        if direct_level:
+            return _explore_level_reply(direct_level, state)
 
     if _RESULTS.search(message or "") and not re.search(r"\d", message or ""):
         key = state.get("program")

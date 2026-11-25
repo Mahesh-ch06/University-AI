@@ -4958,6 +4958,7 @@
 .cm-marks-label { font-size: 0.75rem; font-weight: 600; color: var(--text-2, #3a3b45); }
 .cm-marks-slash { padding-bottom: 10px; color: var(--text-3, #5d5e6c); font-weight: 600; }
 .cm-marks-field .counsellor-marks-input-field { width: 100%; box-sizing: border-box; min-height: 40px; }
+.cm-marks-field .counsellor-marks-input-field.cm-marks-fixed-input { padding-right: 72px; }
 .cm-marks-field .counsellor-marks-input-field[readonly] { background: var(--surface-2, #f7f8fa); color: var(--text-2, #3a3b45); }
 .cm-marks-submit { align-self: flex-start; min-height: 38px; padding: 0 18px; }
 .cm-marks-hint { margin: 0; font-size: 0.72rem; color: var(--text-3, #5d5e6c); }
