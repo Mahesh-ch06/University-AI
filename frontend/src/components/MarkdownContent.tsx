@@ -485,6 +485,7 @@ export default function MarkdownContent({ content, isStreaming }: Props) {
                   {row.map((cell, cIdx) => (
                     <td
                       key={cIdx}
+                      className={/^[\s*₹+−\-—–\d,./%]+$/.test(cell) && /\d|—/.test(cell) ? "is-num" : undefined}
                       style={{ textAlign: (alignments[cIdx] || "left") as any }}
                     >
                       {formatInline(cell)}

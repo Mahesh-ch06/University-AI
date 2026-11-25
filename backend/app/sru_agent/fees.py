@@ -680,8 +680,9 @@ def compare_programs(program_a: str, program_b: str, **score) -> dict:
                     "known_programs": list_programs()["programs"]}
         rows.append({k: r.get(k) for k in (
             "program", "scholarship_percent", "tuition_first_year",
-            "tuition_first_year_after_scholarship", "per_semester_after_scholarship",
-            "first_year_total_payable", "yearly_increase", "duration_years", "full_course_total")})
+            "tuition_first_year_after_scholarship", "per_semester_after_scholarship", "sem1_total_payable",
+            "sem2_total_payable", "first_year_total_payable", "yearly_increase", "duration_years",
+            "full_course_total")})
     data = load_data()
     return {"status": "ok", "academic_year": data["academic_year"], "source": data["source"],
             "comparison": rows,

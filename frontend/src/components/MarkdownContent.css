@@ -491,3 +491,18 @@
   letter-spacing: 0.01em;
 }
 
+
+/* Money and other numeric cells line up (tabular figures, no wrapping). */
+.chat-markdown-table td.is-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .chat-markdown-table {
+    font-size: 0.82rem;
+  }
+  .chat-markdown-table th,
+  .chat-markdown-table td {
+    padding: 7px 9px;
+  }
+}

@@ -1736,6 +1736,8 @@ def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
     if _FEE_CHART_REQUEST.search(text) or _concession_requested(text) or tools.find_phone(text) \
             or intents.is_callback_request(text):
         return False
+    if _fee_overview_question(text):
+        return False   # "fees for all branches", "BBA and MBA fees": show the fees, don't start the steps
     if _DISCOUNT_ASK.search(text) and (fee_plan.infer_concession(text) or fee_plan.concessions_for_group(text)):
         return False   # "my brother studies at SRU, any discount?": that concession is the answer (v4.15.0)
     intake = conv_state.get("fee_intake") or {}
@@ -1743,6 +1745,21 @@ def _starts_fee_evaluation(message: str, conv_state: dict) -> bool:
     if intake.get("waiting_for") not in (None, "done") or (evaluation.get("active") and not evaluation.get("final_shown")):
         return False   # an evaluation is already running: its own steps answer
     return True
+
+
+_FEE_OVERVIEW = re.compile(
+    r"\b(?:all|every|each|different|various)\s+(?:the\s+)?(?:b\.?\s?tech\s+)?(?:branch(?:es)?|programm?es?|programs?|"
+    r"courses?|streams?)\b|\bbranch[- ]?wise\b|\bcompar\w*\b|\bvs\.?\b|\bversus\b|\bdifference\b|\bcheape?st\b",
+    re.IGNORECASE)
+
+
+def _fee_overview_question(text: str) -> bool:
+    """An overview or several programmes in one fee question: answered with the fees, not an evaluation."""
+    if _FEE_OVERVIEW.search(text or ""):
+        return True
+    parts = [p for p in re.split(r"\band\b|,|&|/|\bor\b", text or "", flags=re.IGNORECASE) if p.strip()]
+    named = {fees.find_program(p) for p in parts} - {None}
+    return len(named) >= 2
 
 
 _DISCOUNT_ASK = re.compile(r"\b(?:discounts?|concessions?|reductions?|waivers?|fee\s+relief|less\s+fee|benefits?|"

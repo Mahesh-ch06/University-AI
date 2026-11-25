@@ -113,6 +113,8 @@ class FeeRequest(BaseModel):
     specialization: bool = False
     ib_score: Optional[int] = Field(default=None, ge=0, le=45)
     transport: bool = False
+    # Special-category concession keys from the fee policy (e.g. "sibling"); applied as annual deductions.
+    concessions: list[str] = Field(default_factory=list, max_length=5)
 
 
 def _sse(event: dict) -> str:

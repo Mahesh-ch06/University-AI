@@ -903,9 +903,10 @@ def generate_cards(
             record_session_card(session_id, card_type)
 
     # 0. Branch comparison card (Shown at most once per session)
-    if any(k in msg_lower for k in ("vs", "compare", "comparison", "difference")) and (
-        "cse" in msg_lower or "ai" in msg_lower or "aiml" in msg_lower or "machine learning" in msg_lower
-    ):
+    # Only for CSE (core) vs CSE (AI & ML): "cse vs ece" or a fee comparison must not get this card.
+    if any(k in msg_lower for k in ("vs", "compare", "comparison", "difference")) and "cse" in msg_lower and re.search(
+        r"\b(?:aiml|ai\s*&\s*ml|ai\s+and\s+ml|ai\s*/\s*ml|machine\s+learning)\b", msg_lower
+    ) and not re.search(r"\b(?:fee|fees|cost|tuition)\b", msg_lower):
         if _can_show("comparison"):
             cards.append(COMPARISON_CSE_AIML)
             _mark_shown("comparison")
@@ -949,6 +950,8 @@ def generate_cards(
         any(k in msg_lower for k in ("cse", "computer science")) and any(
             k in msg_lower for k in ("fee", "fees", "tuition", "cost", "charge", "how much", "breakdown", "per sem", "semester", "sem fee")
         ) and not any(k in msg_lower for k in ("all branches", "complete fee", "other branches", "overall", "fee structure"))
+        # a comparison with another programme ("cse vs ece fees") never gets a CSE-only card
+        and not re.search(r"\b(?:vs|versus|compar\w*|difference)\b", msg_lower)
     ))
 
     is_ad_query = any(k in msg_lower for k in (

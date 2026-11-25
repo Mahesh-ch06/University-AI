@@ -643,7 +643,7 @@ export function AgentFeeCard({ card }: CardProps) {
       <div className="agent-card-footer">
         <span className="agent-card-source-tag">Source: SR University fee circular, {year}</span>
         <button type="button" className="agent-card-wa-btn" onClick={handleWhatsApp}>
-          💬 WhatsApp Admissions
+          WhatsApp Admissions
         </button>
       </div>
     </div>

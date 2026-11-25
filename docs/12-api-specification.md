@@ -221,7 +221,34 @@ saved; a valid form is stored as this conversation's academic details and evalua
 
 `POST /api/v1/agent/calculate` body: `program` (required), `percent`, `board`
 (`state_board` | `cbse`), `eapcet_rank`, `jee_percentile`, `ib_score`, `hostel`
-(`none` | `non_ac_4` | `non_ac_3` | `ac_4` | `ac_3`), `specialization`, `transport`.
+(`none` | `non_ac_4` | `non_ac_3` | `ac_4` | `ac_3`), `specialization`, `transport`, `concessions`
+(list of concession keys from the fee policy, at most 5; v4.16.0).
+
+Response (v4.16.0, the ONE fee engine `app/sru_agent/fees.py`, policy `fee_policy_2027_28.json`): besides
+`scholarship_percent`, `tuition_first_year`, `tuition_first_year_after_scholarship`, `per_semester_after_scholarship`
+(tuition only), `saving_first_year`, `first_year_total_payable`, `full_course_total`, `year_by_year[]`
+(`tuition`, `after_scholarship`, `per_semester`, `total_payable`) and `next_scholarship_slab`, it returns:
+
+| Field | Meaning |
+|---|---|
+| `semester_1`, `semester_2` | `{items: [{key, item, amount, kind}], total}` for Year 1; `kind` is `tuition`, `charge`, `optional` or `concession` |
+| `sem1_total_payable`, `sem2_total_payable` | the two semester payables (Year 1) |
+| `schedule[]` | every year: `{year, annual_tuition, semesters: [...], total}` |
+| `application_fee` | shown separately; never part of a semester |
+| `one_time_enrollment_fee`, `exam_fee_first_year`, `other_fee_per_year`, `specialization_fee_per_year` | the circular's charges |
+| `concessions_applied[]` | `{category, per_year}` |
+| `flags[]` | points the Admissions Office must verify (marks below the minimum, PG minimum, JEE 94.5-95 gap, IB overlap, combined concessions) |
+| `admission_eligibility` | `{status, eligible, explanation}` when a percentage was given |
+
+Removed in v4.16.0: `other_yearly_fees`, `other_fees_per_semester`, `one_time_application_fee`, `one_time_total`,
+`per_sem_breakdown`, `hostel.per_semester` (the old "annual payable / 2" figures). `total_per_semester` now means
+the Year 1, Semester 2 payable.
+
+`GET /api/v1/agent/fee-config` (v4.16.0): `charges`, `schedule` (the configurable assumptions), `hostel_per_year`,
+`hostel_status`, `special_concessions` (claimable ones only), `terms` and `programs[]`; each programme's `slabs[]`
+carries the engine's own figures per scholarship slab (`annual_tuition`, `saving_per_year`, `tuition_per_semester`,
+`semesters[]`, `first_year_total`, `course_total`, `years[]`). The website calculator displays these and never
+computes a fee. Removed: `one_time`, `yearly_other`, `transport_per_year`, `hostel_deposits`, `payable_per_semester`.
 
 `POST /api/v1/leads` is limited to 30 requests per minute per address (HTTP 429 above that).
 Admin routes return HTTP 503 while `ADMIN_API_KEY` is the placeholder and `APP_DEBUG=false`.
