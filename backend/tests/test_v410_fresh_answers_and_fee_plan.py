@@ -150,7 +150,7 @@ async def test_concessions_table_is_shown_every_time_with_a_short_lead(model):
     one, two = await _chat(["what special concessions are there?", "special concessions please"])
     for done in (one, two):
         (card,) = _cards(done, "get_special_concessions")
-        assert len(card["data"]["all_categories"]) == 19
+        assert len(card["data"]["all_categories"]) == 20
         assert len(done["answer"]) < 220 and "•" not in done["answer"]
 
 
@@ -158,15 +158,15 @@ def test_exact_category_wins_over_a_similar_one():
     assert fee_plan.find_concession('Apply the "Students from Andhra Pradesh" concession')["label"] == \
         "Students from Andhra Pradesh"
     assert fee_plan.find_concession(
-        'Apply the "Students from states other than Telangana and Andhra Pradesh" concession')["label"] == \
-        "Students from states other than Telangana and Andhra Pradesh"
+        'Apply the "Student from outside TG and AP" concession')["label"] == \
+        "Student from outside TG and AP"
 
 
 async def test_picked_concession_asks_programme_and_is_evaluated_not_applied(model):
     # v4.11.0: a picked concession goes into the fee evaluation (fee_journey) as PENDING; no instant discount card.
     _, ask, done = await _chat([
         "what special concessions are there?",
-        'Apply the "SRU alumni, their children and siblings" concession to my fee',
+        'Apply the "SRU old student or child of old student or Sibling of Old Student" concession to my fee',
         "B.Tech CSE"])
     assert "Which programme" in ask["answer"] and "isn't applied yet" in ask["answer"]
     assert not _cards(done, "concession_fee") and not _cards(done, "fee_summary")
@@ -215,7 +215,7 @@ async def test_declining_the_chart_offer_is_respected(model):
 async def test_chart_includes_a_selected_concession_as_if_approved(model):
     sid = f"v410-{uuid.uuid4().hex[:10]}"
     await memory.update_profile(sid, percent=70, board="state_board")   # v4.15.1: the chart needs the marks first
-    out = await _chat(['Apply the "SRU alumni, their children and siblings" concession to my B.Tech ECE fee',
+    out = await _chat(['Apply the "SRU old student or child of old student or Sibling of Old Student" concession to my B.Tech ECE fee',
                        "📋 Prepare my full fee chart"], sid)
     d = _cards(out[1], "fee_summary")[0]["data"]
     assert d["program"] == fees.short_name("btech_ece")

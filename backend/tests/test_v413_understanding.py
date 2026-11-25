@@ -21,10 +21,10 @@ async def _chat(messages):
 
 
 @pytest.mark.parametrize("message, label", [
-    ("my elder brother is studying at SRU, any discount for me?", "Sibling"),
-    ("my father works at SRU any concession", "Children of regular SR University employees"),
-    ("i studied in SR junior college, discount?", "Students of SR Junior College"),
-    ("my dad is in the army, any fee concession", "Children of Defence personnel"),
+    ("my elder brother is studying at SRU, any discount for me?", "Real brother or sister"),
+    ("my father works at SRU any concession", "Children of Regular SRU Staff"),
+    ("i studied in SR junior college, discount?", "SR Junior College student"),
+    ("my dad is in the army, any fee concession", "Defence / CRPF / martyr family"),
 ])
 def test_described_category_maps_to_the_official_concession(message, label):
     found = fee_plan.infer_concession(message)
@@ -41,7 +41,7 @@ def test_no_category_described_no_guess():
 @pytest.mark.asyncio
 async def test_family_link_discount_question_opens_the_concessions_not_the_scholarship_steps():
     [done] = await _chat(["my elder brother is studying at SRU, any discount for me?"])
-    assert "Sibling" in done["answer"] and "₹15,000" in done["answer"]
+    assert "Real brother or sister" in done["answer"] and "₹15,000" in done["answer"]
     assert any(c.get("type") == "get_special_concessions" for c in done.get("cards") or [])
     assert "Which programme" not in done["answer"]
 

@@ -1,14 +1,14 @@
 # SR University: strengths, faculty and campus visits (checked 17 November 2026)
 
 > Every line below was read on the official pages named in brackets on 17 November 2026.
-> Fees and scholarships are NOT on this page: they come only from the 2027-28 fee card.
+> Fees and scholarships are NOT on this page: they come only from the 2027-28 fee circular.
 
 ## 1. Why SR University: rankings and recognition
 
-- NIRF 2025: 91st in the Engineering category (up from 98th); 101-150 band in the University category. [2027-28 fee card; sru.edu.in]
-- THE World University Rankings 2027: 801-1000 band worldwide; 7th among private universities in India. [2027-28 fee card]
-- QS World University Rankings: Asia 2027: 701-710 band; 19th among private universities in India. [2027-28 fee card; sru.edu.in news]
-- ICAR: the first private university in Telangana and Andhra Pradesh to achieve ICAR accreditation (School of Agriculture). [2027-28 fee card]
+- NIRF 2025: 91st in the Engineering category (up from 98th); 101-150 band in the University category. [2027-28 admissions fee card (rankings section); sru.edu.in]
+- THE World University Rankings 2027: 801-1000 band worldwide; 7th among private universities in India. [2027-28 admissions fee card (rankings section)]
+- QS World University Rankings: Asia 2027: 701-710 band; 19th among private universities in India. [2027-28 admissions fee card (rankings section); sru.edu.in news]
+- ICAR: the first private university in Telangana and Andhra Pradesh to achieve ICAR accreditation (School of Agriculture). [2027-28 admissions fee card (rankings section)]
 - These ranks place SR University among the top-ranked private universities of Telangana and Andhra Pradesh. When saying so, always give the rank behind it.
 - UGC recognised under Section 2(f); established under the Telangana State Private Universities Act. [sru.edu.in]
 
@@ -56,5 +56,5 @@
 
 ## 8. Fee and scholarship calculator [sru.edu.in/fee-scholarship]
 
-- The official Fee & Scholarship page (https://sru.edu.in/fee-scholarship/) has a scholarship calculator and the 2027-28 fee tables. Its tuition figures match the 2027-28 fee card.
-- The page also shows an "extra 10% scholarship on all PG programmes" and a "first arrival admission benefit" (Rs 25,000 admission fee waived before 12 April 2026). Neither is on the 2027-28 fee card, so SRU Buddy does not apply them until the Admissions Office confirms them.
+- The official Fee & Scholarship page (https://sru.edu.in/fee-scholarship/) has a scholarship calculator and the 2027-28 fee tables. Its tuition figures match the 2027-28 fee circular.
+- The page also shows an "extra 10% scholarship on all PG programmes" and a "first arrival admission benefit" (Rs 25,000 admission fee waived before 12 April 2026). Neither is on the 2027-28 fee circular, so SRU Buddy does not apply them until the Admissions Office confirms them.

@@ -154,11 +154,11 @@ def test_conversation_note_lists_what_is_known():
     note = agent._conversation_note(
         {"active_program": "btech_cse", "fee_intake": {"board_label": "Telangana State Board", "raw_marks": 870,
                                                        "max_marks": 1000, "stream": "MPC"},
-         "selected_concession": {"label": "Students of SR Junior College"}, "active_topic": "placements"},
+         "selected_concession": {"label": "SR Junior College student"}, "active_topic": "placements"},
         {}, [{"role": "user", "text": "hi"}, {"role": "model", "text": "Hello"}])
     assert "B.Tech" in note and "870/1000" in note and "MPC" in note
     assert "never ask for these again" in note
-    assert "Students of SR Junior College" in note and "pending verification" in note
+    assert "SR Junior College student" in note and "pending verification" in note
     assert "placements" in note and "already replied 1 time" in note
 
 

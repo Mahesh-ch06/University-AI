@@ -11,7 +11,7 @@ Method: STRIDE per trust boundary, plus the OWASP Top 10 for LLM Applications 20
 | Academic details (marks, board, entrance rank) and chat transcripts | Personal data; may reveal minors' circumstances |
 | Admin key | Full access to every lead and transcript, exports, deletes, knowledge-base writes |
 | Knowledge base (ChromaDB) and verified exemplars | Integrity of fee / eligibility answers given to students |
-| Official data files (`fees_2027_28.json`, policies) | Fee and eligibility answers must match official sources |
+| Official data files (`fee_policy_2027_28.json`, policies) | Fee and eligibility answers must match official sources |
 | Gemini API keys and quota | Cost (denial of wallet) and availability |
 | System prompt and tool design | Not secret by itself, but leaking it helps attackers tune prompt injection |
 | Availability of the chat | Admissions season traffic |

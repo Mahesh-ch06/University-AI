@@ -1,5 +1,5 @@
 """Run: pytest -q     (no API key needed)
-These numbers match the CURRENT fees_2027_28.json. Update both together."""
+These numbers match the CURRENT fee_policy_2027_28.json. Update both together."""
 from app.sru_agent import fees
 from app.sru_agent.tools import clean_phone
 
@@ -15,8 +15,9 @@ def test_cse_92_percent_gets_30_percent():
 def test_cse_no_marks_full_course_total():
     r = fees.calculate_fee("B.Tech CSE")
     # tuition 3,40,000 + 3,49,000 + 3,58,000 + 3,67,000 = 14,14,000
-    # + enrollment 5,000 + other/exam 20,000 x 4 = 14,99,000
-    assert r["full_course_total"] == "₹14,99,000"
+    # + enrollment 5,000 + Year-1 exam 5,000 + other fee 15,000 x 4 = 14,84,000 (application fee shown separately)
+    assert r["full_course_total"] == "₹14,84,000"
+    assert r["application_fee"] == "₹1,100"
 
 
 def test_mech_75_percent():
@@ -24,9 +25,10 @@ def test_mech_75_percent():
 
 
 def test_hostel_added_to_first_year():
-    r = fees.calculate_fee("ece", percent=50, hostel="ac_3")
+    r = fees.calculate_fee("ece", percent=56, hostel="ac_3")
     assert r["hostel"]["per_year"] == "₹1,35,000"
-    assert r["first_year_total_payable"] == "₹4,30,000"  # 2,70,000 + 5,000 + 20,000 + 1,35,000
+    # 2,70,000 tuition + 5,000 enrollment + 15,000 other + 5,000 exam + 1,35,000 hostel + 10,000 AC deposit
+    assert r["first_year_total_payable"] == "₹4,40,000"
 
 
 def test_eapcet_rank_scholarship():
@@ -37,10 +39,17 @@ def test_eapcet_rank_scholarship():
 
 
 def test_jee_main_percentile_scholarship():
-    # 94.7 percentile falls in 90.0–94.99 slab which gets 30% scholarship
-    r = fees.calculate_fee("cse", jee_percentile=94.7)
+    # The circular prints 90–94.5 percentile for 30% and 95+ for 40%
+    r = fees.calculate_fee("cse", jee_percentile=94.5)
     assert r["scholarship_percent"] == 30
-    assert r["scholarship_basis"] == "jee percentile 94.7"
+    assert r["scholarship_basis"] == "jee percentile 94.5"
+    assert fees.calculate_fee("cse", jee_percentile=95)["scholarship_percent"] == 40
+
+
+def test_jee_gap_between_94_5_and_95_is_flagged_not_guessed():
+    r = fees.calculate_fee("cse", jee_percentile=94.7)
+    assert r["scholarship_percent"] == 0
+    assert any("94.5" in f and "Admissions Office" in f for f in r["flags"])
 
 
 def test_score_without_table_is_not_guessed():
@@ -50,15 +59,22 @@ def test_score_without_table_is_not_guessed():
     assert any("eapcet_rank" in n for n in r["notes"])
 
 
-def test_eligibility_uses_every_documented_minimum():
-    # B.Tech CSE: fee card 50% (fee band 55%), programme page 60% -> 58% is disputed, not "eligible"
-    r58 = fees.check_eligibility("cse", 58)
-    assert r58["eligibility_status"] == "needs_confirmation" and r58["eligible"] is None
-    assert r58["sources_disagree"] is True
-    assert fees.check_eligibility("cse", 45)["eligible"] is False
-    assert fees.check_eligibility("cse", 60, stream="MPC")["eligible"] is True
-    # BBA: fee card and programme page both say 50%
-    assert fees.check_eligibility("bba", 58)["eligible"] is True
+def test_eligibility_uses_the_circular_minimum():
+    # 2027-28 circular: 55% for B.Tech CSE / ECE (and their specialisations), 50% for other UG, 50% PG
+    r58 = fees.check_eligibility("cse", 58, stream="MPC")
+    assert r58["eligibility_status"] == "meets_minimum" and r58["eligible"] is True
+    assert r58["sources_disagree"] is False
+    assert fees.check_eligibility("cse", 54.99)["eligible"] is False
+    assert fees.check_eligibility("cse ai ml", 55, stream="MPC")["eligible"] is True
+    assert fees.check_eligibility("ece", 54.9)["eligible"] is False
+    assert fees.check_eligibility("ece vlsi", 55, stream="MPC")["eligible"] is True
+    assert fees.check_eligibility("mech", 50, stream="MPC")["eligible"] is True
+    assert fees.check_eligibility("mech", 49.99)["eligible"] is False
+    assert fees.check_eligibility("bba", 50)["eligible"] is True
+    assert fees.check_eligibility("bba", 49.9)["eligible"] is False
+    mba = fees.check_eligibility("mba", 50)
+    assert mba["eligible"] is True and "subject to confirmation" in mba["explanation"]
+    assert fees.check_eligibility("mba", 49.9)["eligible"] is False
     # No marks given: ask, never assume 0%
     assert fees.check_eligibility("cse")["status"] == "need_marks"
 

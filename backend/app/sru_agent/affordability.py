@@ -3,13 +3,13 @@
 When a student mentions financial difficulty or high fees (e.g. "i can't afford that much fee",
 "too expensive", "financial problem"):
 1. Reassures the student warmly by name ({user_name}).
-2. Explains that SR University offers up to 40% merit scholarships, 19 special-category concessions,
+2. Explains that SR University offers up to 40% merit scholarships, 20 special-category concessions,
    and on-campus bank education loan support.
 3. Promises: "I will be asking you some questions, answer them, and at last I will let you know your
    final net fee after all concessions and deductions."
 4. Guides the student through:
    - Step 1: Course & Academic Score (10+2 marks % or entrance rank).
-   - Step 2: Checking official 19 special-category concessions.
+   - Step 2: Checking the official special-category concessions.
    - Step 3: Consolidated net fee calculation (merit + special concessions deduction),
      explaining semester installment options and on-campus SBI / Union Bank loan support.
 """
@@ -21,6 +21,17 @@ from app.services.card_service import build_counsellor_program_card
 from typing import Any
 
 from . import fees
+
+
+def _concession_count() -> int:
+    return len(fees.load_data().get("special_concessions", []))
+
+
+def _concession_lines() -> str:
+    """The main special-category concessions, from the fee policy (never typed here)."""
+    items = [c for c in fees.load_data().get("special_concessions", []) if c.get("selectable", True)]
+    items.sort(key=lambda c: -int(c["amount"]))
+    return "\n".join(f"• **{c['label']}**: {fees.inr(c['amount'])} a year" for c in items[:10])
 
 
 AFFORDABILITY_REGEX = re.compile(
@@ -42,122 +53,39 @@ AFFORDABILITY_REGEX = re.compile(
 )
 
 
-SPECIAL_CONCESSION_CATEGORIES = [
-    {
-        "key": "orphan",
-        "label": "Lost both parents (Orphan)",
-        "amount": 50000,
-        "keywords": ["orphan", "lost both parents", "lost parents", "no parents", "both parents passed"],
-    },
-    {
-        "key": "sports_international",
-        "label": "International-level sports achiever",
-        "amount": 50000,
-        "keywords": ["international sports", "international player", "sports international"],
-    },
-    {
-        "key": "staff_child",
-        "label": "Child of regular SR University employee",
-        "amount": 50000,
-        "keywords": ["staff child", "employee child", "faculty child", "sru employee"],
-    },
-    {
-        "key": "disability",
-        "label": "Students with 50% or above disability (PwD)",
-        "amount": 20000,
-        "keywords": ["disability", "pwd", "handicap", "handicapped", "differently abled", "physical disability"],
-    },
-    {
-        "key": "single_parent",
-        "label": "Single living parent / Divorced mother",
-        "amount": 15000,
-        "keywords": ["single parent", "divorce", "divorced", "single mother", "single father", "only mother", "only father"],
-    },
-    {
-        "key": "defence",
-        "label": "Child of Defence / CRPF personnel & martyrs",
-        "amount": 15000,
-        "keywords": ["defence", "defense", "crpf", "martyr", "army", "navy", "air force", "paramilitary", "soldier", "armed forces"],
-    },
-    {
-        "key": "sibling",
-        "label": "Sibling currently enrolled at SR University",
-        "amount": 15000,
-        "keywords": ["sibling", "brother", "sister", "sibling at sru", "studying at sru"],
-    },
-    {
-        "key": "andhra_pradesh",
-        "label": "Students from Andhra Pradesh",
-        "amount": 15000,
-        "keywords": ["andhra", "ap resident", "andhra pradesh", "from ap", "from andhra"],
-    },
-    {
-        "key": "girl_child_outside_telangana",
-        "label": "Girl student from outside Telangana",
-        "amount": 15000,
-        "keywords": ["girl outside telangana", "girl student outside", "girl non ts", "non-ts girl"],
-    },
-    {
-        "key": "only_girl_child_telangana",
-        "label": "Only girl child from Telangana",
-        "amount": 15000,
-        "keywords": ["only girl child", "girl child telangana", "girl child ts", "single girl child"],
-    },
-    {
-        "key": "sports_national",
-        "label": "National-level sports achiever",
-        "amount": 15000,
-        "keywords": ["national sports", "sports national", "national level", "state sports", "athlete", "sports"],
-    },
-    {
-        "key": "state_police",
-        "label": "Child of State Police personnel",
-        "amount": 15000,
-        "keywords": ["police", "state police", "police personnel", "cop"],
-    },
-    {
-        "key": "sr_junior_college",
-        "label": "Student of SR Junior College",
-        "amount": 15000,
-        "keywords": ["sr junior college", "sr college", "sr junior"],
-    },
-    {
-        "key": "alumni",
-        "label": "SRU alumni, their children or siblings",
-        "amount": 15000,
-        "keywords": ["alumni", "alumnus"],
-    },
-    {
-        "key": "ncc_c",
-        "label": "NCC 'C' certificate holder",
-        "amount": 15000,
-        "keywords": ["ncc", "ncc c", "ncc 'c'"],
-    },
-    {
-        "key": "padma_gallantry",
-        "label": "Child of Padma / Gallantry awardee or J&K migrant",
-        "amount": 15000,
-        "keywords": ["padma", "gallantry", "j&k migrant", "kashmiri migrant", "migrant"],
-    },
-    {
-        "key": "non_local",
-        "label": "Student from outside TS & AP",
-        "amount": 15000,
-        "keywords": ["other states", "outside telangana and andhra", "non local", "north india", "other state"],
-    },
-    {
-        "key": "lateral_entry",
-        "label": "Lateral entry student",
-        "amount": 15000,
-        "keywords": ["lateral entry", "ecet", "diploma"],
-    },
-    {
-        "key": "international",
-        "label": "International student",
-        "amount": 15000,
-        "keywords": ["international student", "foreign student", "nri"],
-    },
-]
+# How students describe each official category (keyword lists only). Labels and amounts always come
+# from the fee policy (fees.load_data()["special_concessions"]), never from this file.
+_CONCESSION_KEYWORDS = {
+    'orphan': ['orphan', 'lost both parents', 'lost parents', 'no parents', 'both parents passed'],
+    'sports_international': ['international sports', 'international player', 'sports international'],
+    'staff_child': ['staff child', 'employee child', 'faculty child', 'sru employee'],
+    'disability': ['disability', 'pwd', 'handicap', 'handicapped', 'differently abled', 'physical disability'],
+    'single_parent': ['single parent', 'divorce', 'divorced', 'single mother', 'single father', 'only mother', 'only father'],
+    'defence': ['defence', 'defense', 'crpf', 'martyr', 'army', 'navy', 'air force', 'paramilitary', 'soldier', 'armed forces'],
+    'sibling': ['sibling', 'brother', 'sister', 'sibling at sru', 'studying at sru'],
+    'andhra_pradesh': ['andhra', 'ap resident', 'andhra pradesh', 'from ap', 'from andhra'],
+    'girl_child_outside_telangana': ['girl outside telangana', 'girl student outside', 'girl non ts', 'non-ts girl'],
+    'only_girl_child_telangana': ['only girl child', 'girl child telangana', 'girl child ts', 'single girl child'],
+    'sports_national': ['national sports', 'sports national', 'national level', 'state sports', 'athlete', 'sports'],
+    'state_police': ['police', 'state police', 'police personnel', 'cop'],
+    'sr_junior_college': ['sr junior college', 'sr college', 'sr junior'],
+    'alumni': ['alumni', 'alumnus'],
+    'ncc_c': ['ncc', 'ncc c', "ncc 'c'"],
+    'padma_gallantry': ['padma', 'gallantry', 'j&k migrant', 'kashmiri migrant', 'migrant'],
+    'non_local': ['other states', 'outside telangana and andhra', 'non local', 'north india', 'other state'],
+    'lateral_entry': ['lateral entry', 'ecet', 'diploma'],
+    'international': ['international student', 'foreign student', 'nri'],
+}
+
+
+def _official_categories() -> list[dict]:
+    """The circular's concessions a student can claim, with the keywords students use for them."""
+    out = []
+    for c in fees.load_data().get("special_concessions", []):
+        if c.get("selectable", True):
+            out.append({"key": c["key"], "label": c["label"], "amount": int(c["amount"]),
+                        "keywords": _CONCESSION_KEYWORDS.get(c["key"], [c["label"].lower()])})
+    return out
 
 
 def is_affordability_query(message: str) -> bool:
@@ -168,14 +96,14 @@ def is_affordability_query(message: str) -> bool:
 
 
 def match_all_special_concessions(message: str) -> list[dict]:
-    """Matches a user message against all applicable categories from SR University's 19 official special concessions."""
+    """Matches a user message against all applicable categories from SR University's official special concessions."""
     low = (message or "").lower()
     if re.search(r"\b(?:none|no|neither|na|n/?a|not\s+applicable|none\s+of\s+these|nothing)\b", low):
         return []
 
     matched = []
     seen_keys = set()
-    for cat in SPECIAL_CONCESSION_CATEGORIES:
+    for cat in _official_categories():
         if cat["key"] in seen_keys:
             continue
         for kw in cat["keywords"]:
@@ -187,7 +115,7 @@ def match_all_special_concessions(message: str) -> list[dict]:
 
 
 def match_special_concession(message: str) -> dict | None:
-    """Matches a user message against SR University's 19 official special concessions, returning the highest concession."""
+    """Matches a user message against SR University's official special concessions, returning the highest concession."""
     all_matched = match_all_special_concessions(message)
     if not all_matched:
         return None
@@ -259,23 +187,14 @@ def process_affordability_flow(
 
             reply_text = (
                 f"{greeting_lead} At SR University, no deserving student is held back by financial constraints. "
-                f"We offer extensive merit scholarships (up to 40% tuition waiver) as well as 19 special-category "
+                f"We offer extensive merit scholarships (up to 40% tuition waiver) as well as {_concession_count()} special-category "
                 f"concessions and on-campus bank education loan support.\n\n"
                 f"{promise_statement}\n\n"
                 f"Great news! Based on your academic score, you qualify for a **{sch_pct}% Merit Scholarship** on **{prog_name}**, "
                 f"saving **{saving}/year** on tuition!\n\n"
                 f"**Step 2: Special-Category Concessions**\n"
                 f"Do you or your family qualify under any of SR University's official concession categories below?\n"
-                f"• **Single living parent / Divorced mother**: ₹15,000 concession\n"
-                f"• **Orphan (Lost both parents)**: ₹50,000 concession\n"
-                f"• **Child of Defence / CRPF personnel & martyrs**: ₹15,000 concession\n"
-                f"• **Sibling currently studying at SR University**: ₹15,000 concession\n"
-                f"• **Girl student from outside Telangana**: ₹15,000 concession\n"
-                f"• **Only girl child from Telangana**: ₹15,000 concession\n"
-                f"• **Resident of Andhra Pradesh**: ₹15,000 concession\n"
-                f"• **Differently Abled / 50%+ Disability**: ₹20,000 concession\n"
-                f"• **National/International Sports achievers**: ₹15,000 – ₹50,000 concession\n"
-                f"• **Child of State Police / NCC 'C' / SR Junior College**: ₹15,000 concession"
+                + _concession_lines()
             )
             chips = [
                 "Single parent / Divorced",
@@ -308,7 +227,7 @@ def process_affordability_flow(
 
         reply_text = (
             f"{greeting_lead} At SR University, no deserving student is held back by financial constraints. "
-            f"We offer generous merit scholarships (up to 40% tuition fee waiver) along with 19 special-category "
+            f"We offer generous merit scholarships (up to 40% tuition fee waiver) along with {_concession_count()} special-category "
             f"concessions and full on-campus bank education loan support.\n\n"
             f"{promise_statement}\n\n"
             f"**Step 1 of 2: Academic Programme & Marks**\n"
@@ -372,17 +291,8 @@ def process_affordability_flow(
             f"Great news{', ' + user_name if user_name else ''}! Based on your {detected_percent}% score, "
             f"you qualify for a **{sch_pct}% Merit Scholarship** on **{prog_name}**, saving **{saving}/year** on tuition!\n\n"
             f"**Step 2 of 2: Special-Category Concessions**\n"
-            f"SR University provides an additional 19 special-category annual concessions. Do any of these apply to you or your family?\n\n"
-            f"• **Single living parent / Divorced mother**: ₹15,000 concession\n"
-            f"• **Orphan (Lost both parents)**: ₹50,000 concession\n"
-            f"• **Child of Defence / CRPF personnel & martyrs**: ₹15,000 concession\n"
-            f"• **Sibling currently enrolled at SR University**: ₹15,000 concession\n"
-            f"• **Girl student from outside Telangana**: ₹15,000 concession\n"
-            f"• **Only girl child from Telangana**: ₹15,000 concession\n"
-            f"• **Resident of Andhra Pradesh**: ₹15,000 concession\n"
-            f"• **Differently Abled / 50%+ Disability**: ₹20,000 concession\n"
-            f"• **National/International Sports achievers**: ₹15,000 – ₹50,000 concession\n"
-            f"• **Child of State Police / NCC 'C' / SR Junior College**: ₹15,000 concession"
+            f"SR University provides an additional {_concession_count()} special-category annual concessions. Do any of these apply to you or your family?\n\n"
+            + _concession_lines()
         )
         chips = [
             "Single parent / Divorced",
@@ -426,8 +336,11 @@ def process_affordability_flow(
         concession_amount = matched_concession["amount"] if matched_concession else 0
         concession_label = matched_concession["label"] if matched_concession else "None"
 
+        # One engine: the concession is deducted by fees.calculate_fee, never by maths here.
+        with_conc = (fees.calculate_fee(program=prog_key, percent=percent, board=board,
+                                        concessions=[matched_concession.get("key") or concession_label])
+                     if matched_concession else calc)
         final_net_annual_int = max(0, tuition_after_merit_int - concession_amount)
-        final_net_sem_int = final_net_annual_int // 2
         total_savings_int = merit_saving_int + concession_amount
         prog_name = calc.get("program", prog_key)
 
@@ -450,22 +363,20 @@ def process_affordability_flow(
             f"• **Standard Annual Tuition**: {fees.inr(base_int)}\n"
             f"• **Merit Scholarship ({sch_pct}%)**: -{fees.inr(merit_saving_int)} ({calc.get('scholarship_basis_text')})\n"
             f"{concession_bullet}"
-            f"• **Final Net Annual Tuition Payable**: **{fees.inr(final_net_annual_int)}**\n"
-            f"• **Payable Per Semester**: **{fees.inr(final_net_sem_int)}** *(in 2 manageable semester instalments)*\n"
+            f"• **Net Annual Tuition**: **{fees.inr(final_net_annual_int)}**\n"
+            f"• **Semester 1 payable**: **{with_conc['sem1_total_payable']}** *(tuition + enrollment, other and Year-1 exam fees)*\n"
+            f"• **Semester 2 payable**: **{with_conc['sem2_total_payable']}** *(tuition only)*\n"
+            f"• **First-year total**: **{with_conc['first_year_total_payable']}** *(application form {with_conc['application_fee']} paid separately)*\n"
             f"• **Total Annual Savings**: **{fees.inr(total_savings_int)}**\n\n"
             f"---\n\n"
             f"### 💡 Flexible Payment & On-Campus Financial Aid Options\n"
-            f"1. **Semester-wise Instalment Plan**: You do not have to pay the entire year's tuition upfront. Fees are collected per semester ({fees.inr(final_net_sem_int)}/sem).\n"
+            f"1. **Semester-wise Instalment Plan**: You do not have to pay the entire year's tuition upfront. Fees are collected per semester (Semester 1 {with_conc['sem1_total_payable']}, Semester 2 {with_conc['sem2_total_payable']}).\n"
             f"2. **On-Campus Bank Education Loans**: SR University has full-fledged on-campus branches and counters of **State Bank of India (SBI)** and **Union Bank of India**. They provide priority education loans covering tuition, hostel, and laptops under Central Government schemes (such as Vidya Lakshmi) with repayment starting after graduation.\n"
             f"3. **Admissions Financial Aid Desk**: Our team assists you with immediate provisional admission and loan estimate letters required by banks for swift sanction.\n\n"
             f"Would you like assistance connecting with our admissions financial aid desk or booking a campus visit?"
         )
 
-        fee_card_data = dict(calc)
-        fee_card_data["net_tuition_per_sem"] = fees.inr(final_net_sem_int)
-        fee_card_data["per_semester_after_scholarship"] = fees.inr(final_net_sem_int)
-        other_sem = 10000
-        fee_card_data["total_per_semester"] = fees.inr(final_net_sem_int + other_sem)
+        fee_card_data = dict(with_conc)
         fee_card_data["special_concession_applied"] = concession_label if matched_concession else None
         fee_card_data["special_concession_amount"] = fees.inr(concession_amount) if concession_amount else None
 

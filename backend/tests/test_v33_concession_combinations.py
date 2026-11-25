@@ -1,23 +1,25 @@
 """Tests for Phase 3: Special Category Concessions and Combination Handling.
 
 Verifies:
-1. All 19 official concession categories have non-zero amounts.
+1. The circular's claimable concession categories (all but the recommendation-only one) have amounts.
 2. match_all_special_concessions matches multiple categories when present in text.
 3. match_special_concession selects the highest concession amount when multiple apply.
 4. Affordability flow accurately computes merit waiver + highest special concession.
 """
 import pytest
 from app.sru_agent.affordability import (
-    SPECIAL_CONCESSION_CATEGORIES,
+    _official_categories,
     match_all_special_concessions,
     match_special_concession,
     process_affordability_flow,
 )
 
 
-def test_all_19_categories_are_present_and_valid():
-    assert len(SPECIAL_CONCESSION_CATEGORIES) == 19
-    for cat in SPECIAL_CONCESSION_CATEGORIES:
+def test_claimable_categories_come_from_the_circular():
+    cats = _official_categories()
+    assert len(cats) == 19                      # 20 on the circular; the Chancellor recommendation is not claimable
+    assert "chancellor_recommendation" not in {c["key"] for c in cats}
+    for cat in cats:
         assert cat["amount"] in (50000, 20000, 15000)
         assert len(cat["keywords"]) >= 1
         assert "label" in cat
@@ -61,5 +63,5 @@ def test_affordability_flow_applies_highest_concession():
     # Annual base = 3,40,000. 88% State Board gets 25% merit = 2,55,000
     # Concession = 50,000. Final net tuition = 2,05,000
     assert "₹2,05,000" in res["text"]
-    assert "Orphan" in res["text"] or "both parents" in res["text"]
+    assert "both parents not alive" in res["text"].lower()
     assert "applied highest benefit category" in res["text"]

@@ -7,7 +7,7 @@ The website's Fee & Scholarship Calculator loads its numbers from the backend
 (/api/v1/agent/fee-config). So that it can draw instantly, even while the backend is
 waking up, the same data is also bundled into the frontend as
 frontend/src/data/feeConfig.json. That file is GENERATED from
-backend/app/sru_agent/fees_2027_28.json by this script: never edit it by hand.
+backend/app/sru_agent/fee_policy_2027_28.json by this script: never edit it by hand.
 After changing a fee, run this script, then `pytest` (a test fails if you forget).
 """
 import json
@@ -20,8 +20,9 @@ sys.path.insert(0, str(BACKEND))
 from app.sru_agent import fees  # noqa: E402
 
 TARGET = BACKEND.parent / "frontend" / "src" / "data" / "feeConfig.json"
-# Answers from the backend calculation for many scores. The frontend check (npm run test:calc)
-# recomputes each one in the browser code and must get exactly the same rupees.
+# Answers from the backend calculation for many scores. The frontend check (npm run test:calc) reads the
+# same numbers out of the generated config / the backend response and must show exactly the same rupees:
+# the frontend never does fee maths itself.
 CASES_TARGET = BACKEND.parent / "frontend" / "scripts" / "feeCases.json"
 
 _SCORES = (
@@ -38,18 +39,18 @@ def render() -> str:
 
 def render_cases() -> str:
     keep = ("scholarship_percent", "tuition_first_year", "tuition_first_year_after_scholarship",
-            "per_semester_after_scholarship", "saving_first_year", "total_per_semester",
-            "sem1_total_payable", "first_year_total_payable", "full_course_total")
+            "per_semester_after_scholarship", "saving_first_year", "sem1_total_payable", "sem2_total_payable",
+            "first_year_total_payable", "full_course_total", "application_fee")
     cases = []
     for program in fees.load_data()["programs"]:
         for i, score in enumerate(_SCORES):
-            hostel = ("none", "non_ac_4", "ac_3")[i % 3]
+            hostel = "none"
             result = fees.calculate_fee(program, hostel=hostel, **score)
             if result.get("status") != "ok":
                 continue
             cases.append({"program": program, "hostel": hostel, **score,
                           "expect": {k: result.get(k) for k in keep},
-                          "years": [y["after_scholarship"] for y in result.get("year_by_year", [])]})
+                          "years": [y["total_payable"] for y in result.get("year_by_year", [])]})
     return json.dumps(cases, ensure_ascii=False, indent=0) + "\n"
 
 

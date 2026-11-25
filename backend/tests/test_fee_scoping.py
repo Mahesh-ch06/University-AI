@@ -81,7 +81,7 @@ def test_exam_fee_scoping():
     )
     assert len(cards) == 1
     assert cards[0] == EXAM_FEE_CARD
-    assert "Examination Fee" in cards[0]["items"][0]["category"]
+    assert "Exam Fee (Year 1)" in cards[0]["items"][0]["category"] and cards[0]["items"][0]["amount"] == "₹5,000"
 
 
 def test_admission_fee_scoping():
@@ -106,10 +106,10 @@ def test_btech_cse_fee_query_shows_cse_only():
     assert len(cards) == 1
     assert cards[0] == BTECH_CSE_FEE_CARD
     categories = [item["category"] for item in cards[0]["items"]]
-    assert any("CSE" in c for c in categories)
+    assert "B.Tech CSE" in cards[0]["title"]
     assert not any("ECE" in c for c in categories)
     assert not any("Hostel" in c for c in categories)
-    assert not any("Transport" in c for c in categories)
+    assert not any("Transport" in c or "Bus" in c for c in categories)
 
 
 def test_btech_complete_fee_structure_shows_pure_academic_fees():
@@ -125,7 +125,7 @@ def test_btech_complete_fee_structure_shows_pure_academic_fees():
     assert any("CSE" in c for c in categories)
     assert any("ECE" in c for c in categories)
     assert any("Core" in c for c in categories)
-    assert any("Admission" in c for c in categories)
+    assert any("Enrollment" in c for c in categories)
     # Strictly zero cross-contamination
     assert not any("Hostel" in c for c in categories)
     assert not any("Transport" in c for c in categories)
@@ -142,8 +142,8 @@ def test_merit_scholarship_slabs_card():
     assert len(cards) == 1
     assert cards[0] == MERIT_SCHOLARSHIP_CARD
     categories = [item["category"] for item in cards[0]["items"]]
-    assert any("40% Tuition Waiver" in c for c in categories)
-    assert any("30% Tuition Waiver" in c for c in categories)
+    assert any("40% tuition scholarship" in c for c in categories)
+    assert any("30% tuition scholarship" in c for c in categories)
     assert not any("Hostel" in c for c in categories)
     assert not any("Transport" in c for c in categories)
 

@@ -592,3 +592,9 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.fp-hint.fp-hint-muted {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  margin-top: 6px;
+}

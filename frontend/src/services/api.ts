@@ -132,19 +132,24 @@ export interface AgentFeeResult {
   per_semester_after_scholarship: string;
   saving_first_year: string;
   one_time_enrollment_fee: string;
-  other_yearly_fees: string;
-  other_fees_per_semester?: string;
-  hostel?: { type?: string; per_year?: string; per_semester?: string } | null;
+  other_fee_per_year?: string;
+  exam_fee_first_year?: string;
+  application_fee?: string;
+  hostel?: { type?: string; per_year?: string; electricity_deposit?: string; status?: string } | null;
   transport_per_year?: string | null;
+  semester_1?: { items: Array<{ key: string; item: string; amount: string; kind: string }>; total: string };
+  semester_2?: { items: Array<{ key: string; item: string; amount: string; kind: string }>; total: string };
   total_per_semester?: string;
   sem1_total_payable?: string;
+  sem2_total_payable?: string;
   next_scholarship_slab?: { scholarship_percent: number; requires: string; extra_saving_first_year: string } | null;
   first_year_total_payable: string;
   yearly_increase: string;
   duration_years?: number;
-  year_by_year?: Array<{ year: number; tuition: string; after_scholarship: string; per_semester: string }>;
+  year_by_year?: Array<{ year: number; tuition: string; after_scholarship: string; per_semester: string; total_payable: string }>;
   full_course_total?: string;
-  specialization_fee?: string;
+  specialization_fee_per_year?: string | null;
+  flags?: string[];
   notes: string[];
 }
 

@@ -64,7 +64,7 @@ python scripts/build_faculty_directory.py data/faculty_raw/sru_faculty_new.json
 
 ## To change a fee later
 
-Edit `backend/app/sru_agent/fees_2027_28.json` only, then run
+Edit `backend/app/sru_agent/fee_policy_2027_28.json` only, then run
 `python scripts/export_fee_config.py` in `backend/`. The chat, the calculator, the fee cards
 and the handbook pages all come from that one file. Tests fail if you forget.
 

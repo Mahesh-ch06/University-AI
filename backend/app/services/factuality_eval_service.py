@@ -153,7 +153,7 @@ BENCHMARK_POLICIES: dict[str, FactualityBenchmarkItem] = {
         ground_truth_claims=[
             "Official tuition fee for CSE is ₹3,40,000 per year (or ₹1,70,000 per semester)",
             "Yearly fee increase is ₹9,000 per year",
-            "One-time enrollment fee is ₹5,000",
+            "One-time enrollment fee is ₹5,000; standard Semester 1 is ₹1,95,000 and Semester 2 ₹1,70,000",
         ],
         required_keywords_any=[
             ["3,40,000", "340000", "3.4", "1,70,000", "170000"],
@@ -165,7 +165,7 @@ BENCHMARK_POLICIES: dict[str, FactualityBenchmarkItem] = {
                 "Hallucination: Outdated or fabricated tuition fee number for CSE (must be ₹3,40,000/year or ₹1,70,000/sem)",
             ),
         ],
-        allowed_numbers=["3,40,000", "1,70,000", "340000", "170000", "5,000", "9,000", "15,000", "20,000", "30,000", "2,95,000", "1,47,500"],
+        allowed_numbers=["3,40,000", "1,70,000", "340000", "170000", "5,000", "9,000", "15,000", "1,100", "30,000", "1,95,000", "3,65,000", "14,84,000"],
     ),
     "merit_scholarships_slabs": FactualityBenchmarkItem(
         policy_id="merit_scholarships_slabs",

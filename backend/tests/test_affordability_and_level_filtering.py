@@ -88,14 +88,15 @@ def test_affordability_multi_step_flow_turn_by_turn():
     res3 = affordability.process_affordability_flow("Single parent / Divorced", profile, state3)
     assert res3 is not None
     assert "final net fee breakdown after all considered deductions" in res3["text"].lower()
-    assert "Single living parent / Divorced mother" in res3["text"]
+    assert "Only one parent alive or divorced" in res3["text"]
     assert "₹15,000" in res3["text"]
     # Standard tuition: ₹3,40,000. 25% scholarship = ₹85,000.
     # Tuition after merit: ₹2,55,000. Special concession: ₹15,000.
-    # Final net annual tuition: ₹2,40,000.
-    # Net semester tuition: ₹1,20,000.
+    # Final net annual tuition: ₹2,40,000. Semesters from the fee engine (concession deducted in Semester 1):
+    # Sem 1 = 1,27,500 - 15,000 + 5,000 enrollment + 15,000 other + 5,000 exam = 1,37,500; Sem 2 = 1,27,500
     assert "₹2,40,000" in res3["text"]
-    assert "₹1,20,000" in res3["text"]
+    assert "Semester 1 payable**: **₹1,37,500**" in res3["text"] and "₹1,27,500" in res3["text"]
+    assert "**₹2,65,000**" in res3["text"]
     assert "State Bank of India (SBI)" in res3["text"]
     assert "Union Bank of India" in res3["text"]
     assert len(res3["cards"]) == 1

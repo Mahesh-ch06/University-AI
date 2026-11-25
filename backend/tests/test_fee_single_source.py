@@ -24,6 +24,9 @@ CIRCULAR = {
     "bba": (150000, 4000), "bba_specialised": (200000, 6000), "bca": (150000, 4000),
     "bsc_cs": (150000, 4000), "bcom": (100000, 3000), "mba": (300000, 9000), "mca": (150000, 4000),
     "mtech": (100000, 3000), "msc": (100000, 3000), "mba_agri": (200000, 6000),
+    "btech_biotech": (200000, 6000), "btech_food_tech": (200000, 6000), "btech_engg_physics": (200000, 6000),
+    "bsc_hospitality": (150000, 4000), "bsc_maths_ai": (100000, 3000), "bsc_physics": (100000, 3000),
+    "bsc_chemistry": (100000, 3000),
 }
 
 
@@ -32,10 +35,21 @@ def test_fee_file_matches_the_official_circular():
     for key, (tuition, increase) in CIRCULAR.items():
         prog = data["programs"][key]
         assert (prog["tuition_per_year"], prog["yearly_increase"]) == (tuition, increase), key
-    assert data["hostel_per_year"] == {"non_ac_4": 115000, "non_ac_3": 125000, "ac_4": 125000, "ac_3": 135000}
-    assert data["one_time"] == {"enrollment_fee": 5000, "application_fee": 1100}
-    assert data["yearly_other"] == {"other_fee": 15000, "exam_fee": 5000}
-    assert data["transport_per_year"] == 30000
+    ch = data["charges"]
+    assert {k: ch[k]["amount"] for k in ("enrollment_fee", "other_fee", "exam_fee", "application_fee", "bus",
+                                          "specialization_fee", "phd_fee")} == {
+        "enrollment_fee": 5000, "other_fee": 15000, "exam_fee": 5000, "application_fee": 1100, "bus": 30000,
+        "specialization_fee": 30000, "phd_fee": 70000}
+    assert (ch["electricity_deposit"]["non_ac"], ch["electricity_deposit"]["ac"]) == (5000, 10000)
+    assert ch["exam_fee"]["year"] == 1 and ch["enrollment_fee"]["year"] == 1          # Year 1 only
+    assert ch["specialization_fee"]["from_year"] == 2
+    # hostel room fees are not on the circular: kept, but marked pending confirmation
+    assert data["hostel"]["status"] == "pending_confirmation"
+    assert fees.hostel_per_year() == {"non_ac_4": 115000, "non_ac_3": 125000, "ac_4": 125000, "ac_3": 135000}
+    # minimum marks from the circular
+    assert {k: p["min_percent"] for k, p in data["programs"].items() if p["min_percent"] != 50} == {
+        "btech_cse": 55, "btech_ece": 55}
+    assert all(p.get("min_percent_confirmed") is False for p in data["programs"].values() if p["level"] == "pg")
 
 
 @pytest.mark.parametrize("score, expected", [
@@ -44,7 +58,9 @@ def test_fee_file_matches_the_official_circular():
     ({"percent": 90, "board": "cbse"}, 30), ({"percent": 95, "board": "cbse"}, 40),
     ({"eapcet_rank": 2000}, 40), ({"eapcet_rank": 2001}, 30), ({"eapcet_rank": 8000}, 30),
     ({"eapcet_rank": 9000}, 25), ({"eapcet_rank": 20000}, 25), ({"eapcet_rank": 20001}, 0),
-    ({"jee_percentile": 55}, 10), ({"jee_percentile": 92}, 30), ({"jee_percentile": 95}, 40),
+    ({"jee_percentile": 55}, 10), ({"jee_percentile": 92}, 30), ({"jee_percentile": 94.5}, 30),
+    ({"jee_percentile": 94.7}, 0), ({"jee_percentile": 95}, 40),
+    ({"ib_score": 24}, 20), ({"ib_score": 30}, 25), ({"ib_score": 34}, 30), ({"ib_score": 38}, 40),
 ])
 def test_merit_scholarship_slabs(score, expected):
     assert fees.calculate_fee("cse", **score)["scholarship_percent"] == expected
@@ -64,9 +80,11 @@ def test_calculator_api_and_agent_tool_give_the_same_numbers(api):
     from_api = api.post("/api/v1/agent/calculate", json=body).json()
     from_tool = fees.calculate_fee(**body)
     for key in ("scholarship_percent", "tuition_first_year_after_scholarship", "sem1_total_payable",
-                "total_per_semester", "first_year_total_payable"):
+                "sem2_total_payable", "first_year_total_payable", "semester_1", "semester_2"):
         assert from_api[key] == from_tool[key], key
-    assert from_api["sem1_total_payable"] == "₹2,05,000" and from_api["total_per_semester"] == "₹2,00,000"
+    # 25%: tuition 1,27,500 a semester; Sem 1 adds enrollment, other, Year-1 exam, AC hostel and AC deposit
+    assert from_api["sem1_total_payable"] == "₹2,87,500" and from_api["sem2_total_payable"] == "₹1,27,500"
+    assert from_api["first_year_total_payable"] == "₹4,15,000"
 
 
 def test_calculator_api_understands_an_eapcet_rank(api):
@@ -86,26 +104,30 @@ def test_fee_config_gives_the_calculator_everything_it_needs(api):
     cse = next(p for p in cfg["programs"] if p["id"] == "btech_cse")
     assert cse["tuition_per_year"] == 340000
     assert [e["key"] for e in cse["exams"]] == ["state_board", "cbse", "jee_percentile", "eapcet_rank", "ib"]
-    assert [s["scholarship_percent"] for s in cse["slabs"]] == [10, 15, 20, 25, 30, 40]
+    assert [s["scholarship_percent"] for s in cse["slabs"]] == [0, 10, 15, 20, 25, 30, 40]
     slab_25 = next(s for s in cse["slabs"] if s["scholarship_percent"] == 25)
-    assert slab_25["payable_per_semester"] == 127500 and "8,001" in slab_25["ranges"]["eapcet_rank"]
+    assert slab_25["tuition_per_semester"] == 127500 and "8,001" in slab_25["ranges"]["eapcet_rank"]
+    assert [s["total"] for s in slab_25["semesters"]] == [152500, 127500] and slab_25["first_year_total"] == 280000
+    slab_30 = next(s for s in cse["slabs"] if s["scholarship_percent"] == 30)
+    assert [s["total"] for s in slab_30["semesters"]] == [144000, 119000] and slab_30["first_year_total"] == 263000
     mba = next(p for p in cfg["programs"] if p["id"] == "mba")
     assert [e["key"] for e in mba["exams"]] == ["state_board"]  # PG: qualifying-degree % only
-    assert cfg["hostel_per_year"] == data["hostel_per_year"]
+    assert cfg["hostel_per_year"] == fees.hostel_per_year()
+    assert all(c.get("selectable", True) for c in cfg["special_concessions"])
 
 
 def test_fee_cards_are_built_from_the_fee_file():
     from app.services.card_service import ADMISSION_FEE_CARD, HOSTEL_FEE_CARD, TRANSPORT_FEE_CARD
     data = fees.load_data()
-    assert [i["amount"] for i in HOSTEL_FEE_CARD["items"]] == [
-        fees.inr(data["hostel_per_year"][k]) for k in ("non_ac_4", "non_ac_3", "ac_4", "ac_3")]
+    assert [i["amount"] for i in HOSTEL_FEE_CARD["items"][:4]] == [
+        fees.inr(fees.hostel_per_year()[k]) for k in ("non_ac_4", "non_ac_3", "ac_4", "ac_3")]
     assert TRANSPORT_FEE_CARD["items"][0]["amount"] == "₹30,000"
     amounts = [i["amount"] for i in ADMISSION_FEE_CARD["items"]]
     assert amounts == ["₹5,000", "₹1,100"]
     # figures that were in the old hand-typed cards but not in the circular
     import json
     everything = json.dumps([ADMISSION_FEE_CARD, HOSTEL_FEE_CARD, TRANSPORT_FEE_CARD], ensure_ascii=False)
-    for wrong in ("₹25,000", "₹85,000", "₹95,000", "₹22,000"):
+    for wrong in ("₹25,000", "₹85,000", "₹95,000", "₹22,000", "aution", "aundry"):
         assert wrong not in everything
 
 

@@ -55,15 +55,15 @@ class _ApiError(Exception):
 
 
 # ------------------------------------------------------------- fee card accuracy ----
-def test_fee_file_matches_the_fee_card_pdf():
+def test_fee_file_matches_the_fee_circular_pdf():
     d = fees.load_data()
-    assert len(d["special_concessions"]) == 19                      # the PDF lists exactly 19
+    assert len(d["special_concessions"]) == 20                      # the 2027-28 circular lists exactly 20
     labels = " ".join(c["label"].lower() for c in d["special_concessions"])
-    for invented in ("recommendation", "north east", "covid", "teachers", "partner"):
+    for invented in ("north east", "covid", "teachers", "partner"):
         assert invented not in labels
-    assert {c["amount"] for c in d["special_concessions"]} == {50000, 20000, 15000}
-    assert d["hostel_deposits"]["electricity_deposit_ac"] == 10000
-    assert d["hostel_deposits"]["electricity_deposit_non_ac"] == 5000
+    assert {c["amount"] for c in d["special_concessions"]} == {50000, 20000, 15000, 10000}
+    assert d["charges"]["electricity_deposit"] == {**d["charges"]["electricity_deposit"], "ac": 10000, "non_ac": 5000}
+    assert "hostel_deposits" not in d                                # caution deposit / laundry are not on the circular
     assert d["programs"]["btech_cse"]["name"].endswith("Robotics and Automation, Quantum AI)")
     # PG slabs on the card: 10/15/20/25/30/40 at 60/65/70/80/92/98
     assert [fees.calculate_fee("mba", percent=p)["scholarship_percent"] for p in (59, 60, 65, 70, 80, 92, 98)] == [
@@ -84,7 +84,7 @@ def test_each_score_is_reported_by_itself():
 
 def test_ib_overlap_is_flagged_not_guessed():
     fee = fees.calculate_fee("cse", ib_score=36)
-    assert fee["scholarship_percent"] == 30 and any("overlap" in n for n in fee["notes"])
+    assert fee["scholarship_percent"] == 30 and any("overlap" in n for n in fee["flags"])
 
 
 # ------------------------------------------------------------------ handbook ----
@@ -119,7 +119,7 @@ def test_both_handbook_copies_are_identical():
     ("hostel curfew for first years", "In-Time"),
     ("who is the vice chancellor", "Deepak Garg"),
     ("owner of sr university", "Varada Reddy"),
-    ("special concession for sibling", "Sibling"),
+    ("special concession for sibling", "Real brother or sister"),
     ("is ragging there", "Ragging"),
     ("nirf ranking", "91st"),
     ("mtech fee", "M.Tech"),

@@ -17,8 +17,8 @@ import { createLead, calculateAgentFee, fetchFeeConfig } from "../services/api";
 import bundledFeeConfig from "../data/feeConfig.json";
 import {
   calculateParams,
-  computeEstimate,
   estimateFromBackend,
+  estimateFromConfig,
   inr,
   matchSlab,
   parseScore,
@@ -32,13 +32,13 @@ import "./ScholarshipCalculatorModal.css";
 /*
  * Fee & Scholarship Calculator.
  *
- * This component holds NO fee amounts. Programs, scholarship slabs, hostel and one-time fees
- * come from the backend fee table (GET /api/v1/agent/fee-config), which is built from
- * backend/app/sru_agent/fees_2027_28.json, the file the chat agent also uses. A generated copy
- * (src/data/feeConfig.json) is bundled so the calculator opens instantly; the live table replaces
- * it as soon as it arrives, and every result is confirmed by POST /api/v1/agent/calculate.
+ * This component holds NO fee amounts and does NO fee arithmetic. Every rupee comes from the ONE fee
+ * engine (backend/app/sru_agent/fees.py, reading fee_policy_2027_28.json): the day-scholar estimate for
+ * each slab is in the fee table (GET /api/v1/agent/fee-config, bundled as src/data/feeConfig.json so
+ * the calculator opens instantly), and the exact schedule for the student's score, hostel and bus comes
+ * from POST /api/v1/agent/calculate.
  *
- * To change a fee: edit fees_2027_28.json, run `python scripts/export_fee_config.py` in backend/.
+ * To change a fee: edit fee_policy_2027_28.json, run `python scripts/export_fee_config.py` in backend/.
  */
 
 interface Props {
@@ -89,6 +89,7 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
   const [showSlabsPreview, setShowSlabsPreview] = useState<boolean>(false);
   const [includeHostel, setIncludeHostel] = useState<boolean>(false);
   const [hostelKey, setHostelKey] = useState<string>("non_ac_4");
+  const [includeBus, setIncludeBus] = useState<boolean>(false);
 
   // Optional callback request
   const [studentName, setStudentName] = useState<string>(savedLead?.name || "");
@@ -113,28 +114,30 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
   const hasScore = parsed.status === "ok" && parsed.value !== undefined;
   const hostelChoice = includeHostel ? hostelKey : "none";
   const localPercent = hasScore ? matchSlab(program, examKey, parsed.value as number) : 0;
+  // Day-scholar figures straight from the engine's slab row; hostel / bus need the backend schedule.
   const localEstimate = useMemo(
-    () => computeEstimate(config, program, localPercent, hostelChoice, examKey),
-    [config, program, localPercent, hostelChoice, examKey]
+    () => estimateFromConfig(config, program, localPercent, examKey),
+    [config, program, localPercent, examKey]
   );
+  const needsBackend = includeHostel || includeBus;
 
-  // Confirm with the backend (the same calculation the chat agent uses). A slow answer for an
+  // Confirm with the backend (the same engine the chat agent uses). A slow answer for an
   // older entry is ignored: only the answer for what is on screen now is shown.
-  const inputsKey = `${program.id}|${examKey}|${hasScore ? parsed.value : ""}|${hostelChoice}`;
+  const inputsKey = `${program.id}|${examKey}|${hasScore ? parsed.value : ""}|${hostelChoice}|${includeBus}`;
   const [confirmed, setConfirmed] = useState<{ key: string; estimate: Estimate } | null>(null);
   useEffect(() => {
     if (!hasScore) return;
     let stale = false;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      calculateAgentFee(calculateParams(program.id, parsed, hostelChoice), controller.signal)
+      calculateAgentFee(calculateParams(program.id, parsed, hostelChoice, includeBus), controller.signal)
         .then((res) => {
           if (res?.status === "ok" && !stale) {
-            setConfirmed({ key: inputsKey, estimate: estimateFromBackend(res, localEstimate) });
+            setConfirmed({ key: inputsKey, estimate: estimateFromBackend(res) });
           }
         })
         .catch(() => {
-          /* offline or waking up: the estimate from the fee table stays on screen */
+          /* offline or waking up: the day-scholar estimate from the fee table stays on screen */
         });
     }, 350);
     return () => {
@@ -146,7 +149,9 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
   }, [inputsKey]);
 
   const isConfirmed = Boolean(confirmed && confirmed.key === inputsKey);
+  // With hostel or bus chosen, only the engine's own answer is shown (never a figure worked out here).
   const estimate: Estimate = isConfirmed && confirmed ? confirmed.estimate : localEstimate;
+  const optionsPending = needsBackend && !isConfirmed;
   const pct = estimate.scholarshipPercent;
   const matchedRange = program.slabs.find((s) => s.scholarship_percent === pct)?.ranges[examKey] || "";
   const belowMinimum =
@@ -154,7 +159,7 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
   const year = config.academic_year;
   const shortProgramName = program.name.split(" (")[0];
   const hostelLabel = config.hostel_labels[hostelKey] || hostelKey;
-  const otherFeeNote = `Other fee ${inr(config.yearly_other.other_fee || 0)} + exam fee ${inr(config.yearly_other.exam_fee || 0)}`;
+  const charge = (key: string) => config.charges[key]?.amount || 0;
 
   const concessionGroups = useMemo(() => {
     const groups = new Map<number, string[]>();
@@ -286,9 +291,11 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
       `• Merit scholarship: ${pct}%`,
       `• Net tuition: ${inr(estimate.netSem)}/sem (${inr(estimate.netYear)}/year)`,
     ];
-    if (includeHostel) lines.push(`• Hostel (${hostelLabel}): ${inr(estimate.hostelYear)}/year`);
+    if (includeHostel) lines.push(`• Hostel: ${hostelLabel}`);
+    if (includeBus) lines.push("• University bus: yes");
     lines.push(
-      `• Total 1st year: ${inr(estimate.firstYearTotal)}`,
+      ...estimate.semesters.map((s) => `• Semester ${s.semester}: ${inr(s.total)}`),
+      `• Total 1st year: ${inr(estimate.firstYearTotal)} (application form ${inr(estimate.applicationFee)} separately)`,
       "Please share further admission and counselling guidance."
     );
     window.open(`https://wa.me/${ADMISSIONS_WHATSAPP}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
@@ -544,88 +551,112 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
               </div>
             </div>
 
-            {/* First-year breakdown with optional hostel */}
+            {/* First-year breakdown, semester by semester (engine figures only) */}
             <div className="calc-breakdown-card">
               <div className="breakdown-card-header">
-                <strong>First Year Total Payable Breakdown ({year})</strong>
+                <strong>First-Year Fee, Semester by Semester ({year})</strong>
                 <span className="breakdown-badge">{shortProgramName}</span>
               </div>
 
-              <div className="breakdown-lines">
-                <div className="breakdown-line">
-                  <span className="line-label">Net 1st Year Tuition Fee:</span>
-                  <span className="line-val">{inr(estimate.netYear)}</span>
-                </div>
-                <div className="breakdown-line sub">
-                  <span className="line-label">↳ Semester-wise Installment:</span>
-                  <span className="line-val">{inr(estimate.netSem)} / semester</span>
-                </div>
-                <div className="breakdown-line">
-                  <span className="line-label">One-Time Enrollment Fee:</span>
-                  <span className="line-val">{inr(estimate.enrollment)}</span>
-                </div>
-                <div className="breakdown-line">
-                  <span className="line-label">Other & Exam Fees (every year):</span>
-                  <span className="line-val">{inr(estimate.otherYearly)}</span>
-                </div>
-                <div className="breakdown-line sub">
-                  <span className="line-label">↳ {otherFeeNote}</span>
-                  <span className="line-val"></span>
-                </div>
-
-                <div className="calc-hostel-option-box">
-                  <label className="hostel-toggle-label">
-                    <input
-                      type="checkbox"
-                      checked={includeHostel}
-                      onChange={(e) => setIncludeHostel(e.target.checked)}
-                      className="hostel-checkbox"
-                    />
-                    <span className="hostel-toggle-text">
-                      <strong>Include On-Campus Residential Hostel & Dining (Optional)</strong>
-                    </span>
-                  </label>
-
-                  {includeHostel && (
-                    <div className="hostel-sub-picker">
-                      {HOSTEL_ORDER.filter((k) => config.hostel_per_year[k] !== undefined).map((k) => (
-                        <label key={k} className={`hostel-type-pill ${hostelKey === k ? "selected" : ""}`}>
-                          <input
-                            type="radio"
-                            name="hostelType"
-                            value={k}
-                            checked={hostelKey === k}
-                            onChange={() => setHostelKey(k)}
-                          />
-                          <span>{config.hostel_labels[k] || k}: +{inr(config.hostel_per_year[k])} / year</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {program.yearly_increase > 0 && (
-                  <div className="breakdown-line sub">
-                    <span className="line-label">Tuition Increase from 2nd Year:</span>
-                    <span className="line-val">+{inr(program.yearly_increase)} / year</span>
-                  </div>
-                )}
-
-                <div className="breakdown-total-row">
-                  <span className="total-label">
-                    {includeHostel
-                      ? "Total 1st Year (Tuition + Enrollment + Other Fees + Hostel):"
-                      : "Total 1st Year (Tuition + Enrollment + Other Fees):"}
+              <div className="calc-option-row">
+                <label className="hostel-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={includeHostel}
+                    onChange={(e) => setIncludeHostel(e.target.checked)}
+                    className="hostel-checkbox"
+                  />
+                  <span className="hostel-toggle-text"><strong>Add hostel</strong> (optional)</span>
+                </label>
+                <label className="hostel-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={includeBus}
+                    onChange={(e) => setIncludeBus(e.target.checked)}
+                    className="hostel-checkbox"
+                  />
+                  <span className="hostel-toggle-text">
+                    <strong>Add university bus</strong> ({inr(charge("bus"))}/yr, optional)
                   </span>
-                  <span className="total-val bold-emerald">{inr(estimate.firstYearTotal)}</span>
-                </div>
-                <div className="breakdown-line sub">
-                  <span className="line-label">↳ Payable in Semester 1 / each later semester:</span>
-                  <span className="line-val">
-                    {inr(estimate.sem1Total)} / {inr(estimate.regularSemTotal)}
-                  </span>
-                </div>
+                </label>
               </div>
+              {includeHostel && (
+                <div className="hostel-sub-picker">
+                  {HOSTEL_ORDER.filter((k) => config.hostel_per_year[k] !== undefined).map((k) => (
+                    <label key={k} className={`hostel-type-pill ${hostelKey === k ? "selected" : ""}`}>
+                      <input
+                        type="radio"
+                        name="hostelType"
+                        value={k}
+                        checked={hostelKey === k}
+                        onChange={() => setHostelKey(k)}
+                      />
+                      <span>{config.hostel_labels[k] || k}: {inr(config.hostel_per_year[k])} / year</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {optionsPending ? (
+                <div className="calc-sem-pending" role="status">Working out your semester fees with these options…</div>
+              ) : (
+                <div className="calc-sem-table-wrap">
+                  <table className="calc-sem-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Component</th>
+                        {estimate.semesters.map((s) => (
+                          <th scope="col" key={s.semester}>Sem {s.semester}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from(new Set(estimate.semesters.flatMap((s) => s.items.map((i) => i.label)))).map((label) => (
+                        <tr key={label}>
+                          <th scope="row">{label}</th>
+                          {estimate.semesters.map((s) => {
+                            const item = s.items.find((i) => i.label === label);
+                            return (
+                              <td key={s.semester} className={item && item.amount < 0 ? "is-discount" : undefined}>
+                                {item ? inr(item.amount) : "—"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th scope="row">Semester payable</th>
+                        {estimate.semesters.map((s) => (
+                          <td key={s.semester}>{inr(s.total)}</td>
+                        ))}
+                      </tr>
+                    </tfoot>
+                  </table>
+                  <div className="breakdown-total-row">
+                    <span className="total-label">First-year total (Sem 1 + Sem 2):</span>
+                    <span className="total-val bold-emerald">{inr(estimate.firstYearTotal)}</span>
+                  </div>
+                  {estimate.fullCourseTotal ? (
+                    <div className="breakdown-line sub">
+                      <span className="line-label">Full course ({estimate.years.length} years):</span>
+                      <span className="line-val">{inr(estimate.fullCourseTotal)}</span>
+                    </div>
+                  ) : null}
+                  <div className="breakdown-line sub">
+                    <span className="line-label">Application form (paid separately):</span>
+                    <span className="line-val">{inr(estimate.applicationFee || charge("application_fee"))}</span>
+                  </div>
+                </div>
+              )}
+              {estimate.flags.length > 0 && (
+                <div className="calc-flags" role="note">
+                  {estimate.flags.map((f) => (
+                    <p key={f}>⚠️ {f}</p>
+                  ))}
+                </div>
+              )}
             </div>
 
             {estimate.nextSlab && (
@@ -638,13 +669,13 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
               </div>
             )}
 
-            {estimate.years.length > 1 && (
+            {!optionsPending && estimate.years.length > 1 && (
               <div className="calc-progression-card">
                 <div className="progression-header">
                   <CalendarIcon size={14} />
                   <span>
-                    {estimate.years.length}-Year Tuition (increases by {inr(program.yearly_increase)} each year for
-                    every student):
+                    Payable each year (tuition rises by {inr(program.yearly_increase)} a year, irrespective of
+                    scholarship):
                   </span>
                 </div>
                 <div className="progression-pill-grid">
@@ -662,17 +693,18 @@ export default function ScholarshipCalculatorModal({ onClose, onAskBuddy }: Prop
               <div className="note-item">
                 <PinIcon size={15} />
                 <div>
-                  <strong>One-Time & Annual Charges:</strong> Enrollment fee {inr(config.one_time.enrollment_fee)}{" "}
-                  (one-time). {otherFeeNote} per year.
-                  {config.transport_per_year ? ` University bus (optional): ${inr(config.transport_per_year)} per year.` : ""}
+                  <strong>How the charges are placed:</strong> only tuition is split between the two semesters.
+                  Semester 1 of Year 1 has the enrollment fee ({inr(charge("enrollment_fee"))}) and exam fee (
+                  {inr(charge("exam_fee"))}); the other fee ({inr(charge("other_fee"))}) is paid in Semester 1 every
+                  year. Merit scholarships reduce tuition only.
                 </div>
               </div>
-              {program.specialization_fee_per_year_from_year2 > 0 && (
+              {program.specialization_fee_applies && (
                 <div className="note-item">
                   <FlaskIcon size={15} />
                   <div>
-                    <strong>Specialization Fee:</strong> {inr(program.specialization_fee_per_year_from_year2)} per
-                    year from the 2nd year for specialization tracks (not included above).
+                    <strong>Specialisation Fee:</strong> {inr(charge("specialization_fee"))} per year from the 2nd
+                    year where a specialisation applies (not included above).
                   </div>
                 </div>
               )}

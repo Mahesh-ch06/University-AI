@@ -52,33 +52,142 @@ Offers reflect individual student interview clearance, backed by our extensive r
 Can I share details for a specific department or recruiter?""",
 ]
 
-_SPECIAL_CONCESSIONS_TEXT = """### 🎖️ Special Category Fee Concessions (2027–28)
+# ---------------------------------------------------------------------------------------------------------------
+# Fee texts: GENERATED from the fee policy by the ONE fee engine (app/sru_agent/fees.py). No amount is typed here.
+# ---------------------------------------------------------------------------------------------------------------
+from . import fees as _fees
 
-At SR University, special category tuition fee concessions are offered annually to eligible students across 19 categories. These concessions are applied directly to your annual tuition fee upon verification of valid certificates by the Admissions Office:
 
-| Category / Eligibility | Annual Concession |
-| :--- | :--- |
-| **Students who have lost both parents (Orphans)** | **₹50,000 / year** |
-| **International-level sports achievers** | **₹50,000 / year** |
-| **Children of regular SR University employees** | **₹50,000 / year** |
-| **Students with 50% or above disability (Differently Abled)** | **₹20,000 / year** |
-| **Children of Defence personnel, CRPF personnel & Martyrs** | **₹15,000 / year** |
-| **Children of State Police personnel** | **₹15,000 / year** |
-| **Only Girl Child from Telangana** | **₹15,000 / year** |
-| **Girl students from states other than Telangana** | **₹15,000 / year** |
-| **Students with a single living parent / Divorced parents** | **₹15,000 / year** |
-| **Sibling enrolled at SR University (concurrent 2027–28)** | **₹15,000 / year** |
-| **SRU Alumni, their children and siblings** | **₹15,000 / year** |
-| **Students of SR Junior College** | **₹15,000 / year** |
-| **NCC 'C' Certificate holders** | **₹15,000 / year** |
-| **National-level sports achievers** | **₹15,000 / year** |
-| **Children of Padma / Gallantry awardees & J&K migrant families** | **₹15,000 / year** |
-| **Non-Local students (outside Telangana & Andhra Pradesh)** | **₹15,000 / year** |
-| **Students from Andhra Pradesh** | **₹15,000 / year** |
-| **Lateral Entry students** | **₹15,000 / year** |
-| **International students** | **₹15,000 / year** |
+def _sem_table(key: str, **options) -> str:
+    """Year-1 semester table: only tuition is split; other charges sit where the policy places them."""
+    r = _fees.calculate_fee(key, **options)
+    rows = ["| Component | Semester 1 | Semester 2 |", "| :--- | ---: | ---: |"]
+    s1 = {i["key"]: i["amount"] for i in r["semester_1"]["items"]}
+    s2 = {i["key"]: i["amount"] for i in r["semester_2"]["items"]}
+    labels = {i["key"]: i["item"] for i in r["semester_1"]["items"] + r["semester_2"]["items"]}
+    for k, label in labels.items():
+        rows.append(f"| {label} | {s1.get(k, '—')} | {s2.get(k, '—')} |")
+    rows.append(f"| **Semester payable** | **{r['sem1_total_payable']}** | **{r['sem2_total_payable']}** |")
+    tail = f"**First year: {r['first_year_total_payable']}**"
+    if r.get("full_course_total"):
+        tail += f" · **Full course ({r['duration_years']} years): {r['full_course_total']}**"
+    tail += f" · Application form {r['application_fee']} is paid separately."
+    return "\n".join(rows) + "\n\n" + tail
 
-Concessions are applicable per academic year on tuition fees. Required certificates and documentation must be submitted directly to the Admissions Office (833 100 3030 / info@sru.edu.in) during admission counselling."""
+
+def _slab_lines(key: str) -> str:
+    p = _fees.load_data()["programs"][key]
+    base = p["tuition_per_year"]
+    ug = _fees.load_data()["slab_sets"][p["slab_set"]]
+    names = {"state_board": "Inter", "cbse": "CBSE/ICSE", "jee_percentile": "JEE", "eapcet_rank": "EAPCET", "ib": "IB"}
+    out = []
+    for pct in (40, 30, 25, 20, 15, 10):
+        parts = [f"{names[k]} {_fees._range_text(k, t[0])}" for k, t in
+                 ((k, [x for x in table if x["percent"] == pct]) for k, table in ug.items()) if t]
+        if parts:
+            out.append(f"- **{pct}%**: {' / '.join(parts)} → tuition **{_fees.inr(base * (100 - pct) / 100)} / yr** "
+                       f"(save {_fees.inr(base * pct / 100)})")
+    return "\n".join(out)
+
+
+def _programme_fee_text(key: str, heading: str, intro: str) -> str:
+    p = _fees.load_data()["programs"][key]
+    return (f"### {heading} — Fee Structure (2027–28)\n\n{intro}\n\n"
+            f"Annual tuition **{_fees.inr(p['tuition_per_year'])}** (standard fee, minimum {p['min_percent']:g}% in "
+            f"Intermediate), rising by {_fees.inr(p['yearly_increase'])} each year.\n\n"
+            f"{_sem_table(key)}\n\n#### 🎓 Merit scholarships (tuition only)\n{_slab_lines(key)}\n\n"
+            "Scholarships never reduce the other charges. Hostel and bus are optional and added only if you choose them.")
+
+
+def _group_fee_text(heading: str, intro: str, rows: list[tuple[str, str]], extra: str = "") -> str:
+    data = _fees.load_data()
+    lines = ["| Programme | Annual tuition | Tuition / semester | Yearly increase |", "| :--- | ---: | ---: | ---: |"]
+    for label, key in rows:
+        p = data["programs"][key]
+        lines.append(f"| **{label}** | **{_fees.inr(p['tuition_per_year'])}** | {_fees.inr(p['tuition_per_year'] / 2)} | "
+                     f"+{_fees.inr(p['yearly_increase'])} |")
+    ch = data["charges"]
+    return (f"### {heading} — Fee Structure (2027–28)\n\n{intro}\n\n" + "\n".join(lines) + "\n\n"
+            f"- **Semester 1 of Year 1** also has the enrollment fee {_fees.inr(ch['enrollment_fee']['amount'])}, "
+            f"the other fee {_fees.inr(ch['other_fee']['amount'])} and the Year-1 exam fee "
+            f"{_fees.inr(ch['exam_fee']['amount'])}; later years pay the other fee in Semester 1.\n"
+            f"- Application form {_fees.inr(ch['application_fee']['amount'])}, paid separately.\n"
+            + (f"- {extra}\n" if extra else "")
+            + "- **Scholarships**: 10% to 40% of tuition on your qualifying marks (2027-28 fee circular).")
+
+
+def _tuition_line(key: str) -> str:
+    p = _fees.load_data()["programs"][key]
+    return (f"- **Tuition**: {_fees.inr(p['tuition_per_year'])} / year ({_fees.inr(p['tuition_per_year'] / 2)} tuition "
+            f"per semester) | Merit scholarships up to 40% available.")
+
+
+def _concessions_text() -> str:
+    items = [c for c in _fees.load_data()["special_concessions"]]
+    rows = "\n".join(f"| **{c['label']}** | **{_fees.inr(c['amount'])} / year** |"
+                     for c in sorted(items, key=lambda c: -int(c["amount"])))
+    return ("### 🎖️ Special Category Fee Concessions (2027–28)\n\n"
+            f"SR University offers annual special-category concessions in **{len(items)} categories**, deducted from "
+            "tuition each academic year once your credentials are verified by the Admissions Office:\n\n"
+            "| Category / Eligibility | Annual Concession |\n| :--- | :--- |\n" + rows + "\n\n"
+            "Concessions apply per academic year, subject to verification of credentials. Submit certificates to the "
+            "Admissions Office (833 100 3030 / info@sru.edu.in) during admission counselling.")
+
+
+def _btech_tree_text() -> str:
+    d = _fees.load_data()["programs"]
+    def line(n, label, key):
+        t = d[key]["tuition_per_year"]
+        return f"• **{n}. {label}** — **{_fees.inr(t)} / yr** ({_fees.inr(t / 2)} tuition / sem)"
+    return ("### 📘 B.Tech Fee Structure (2027–28)\n\nFor **B.Tech (Bachelor of Technology)**, SR University offers "
+            "several engineering streams. Which branch would you like to view the detailed fee structure for?\n\n"
+            + "\n".join([line(1, "B.Tech CSE & Allied** (AIML, Data Science, Cyber Security, Robotics, Quantum AI)**", "btech_cse"),
+                         line(2, "B.Tech AI & Robotics", "btech_ai_robotics"),
+                         line(3, "B.Tech ECE** (AIML, VLSI, Robotics & Automation)**", "btech_ece"),
+                         line(4, "B.Tech Core** (Biotech, Civil, EEE, Mech, Food Tech, Engg Physics)**", "btech_mech")])
+            + "\n\n*All B.Tech programmes offer **10% to 40% merit scholarships** on tuition, based on your 10+2 marks, "
+              "JEE Main percentile or EAPCET rank. Minimum 55% for CSE and ECE, 50% for other branches.*\n\n"
+              "👉 **Select a branch below to see the semester-wise breakdown:**")
+
+
+def _hostel_fee_text() -> str:
+    h = _fees.hostel_per_year()
+    e = _fees.load_data()["charges"]["electricity_deposit"]
+    return ("### 💰 SR University Residential Hostel Fees (2027–28)\n\nHostel accommodation is optional. Annual fees "
+            "cover **room and all 4 daily meals** in the 4,000-seat mega dining hall:\n\n"
+            "| Room Type | Annual Fee (Room + Mess) |\n| :--- | ---: |\n"
+            + "\n".join(f"| **{_fees.HOSTEL_LABELS[k]}** | **{_fees.inr(v)} / year** |" for k, v in h.items())
+            + f"\n\n• **Electricity deposit (one-time):** {_fees.inr(e['non_ac'])} Non-AC / {_fees.inr(e['ac'])} AC "
+              "(2027-28 fee circular)\n\nHostel room fees are not on the 2027-28 fee circular, so the Admissions Office "
+              "confirms them. Separate hostel blocks are provided for boys and girls on campus.")
+
+
+def _combined_hostel_text() -> str:
+    r = _fees.calculate_fee("btech_cse", hostel="ac_4")
+    return ("### 🎓 B.Tech CSE Fee + Hostel (AC 4-Sharing), Year 1 (2027–28)\n\nStandard fee before any scholarship, "
+            "semester by semester:\n\n" + _sem_table("btech_cse", hostel="ac_4") + "\n\n"
+            f"Hostel room fees ({r['hostel']['per_year']} a year for AC 4-sharing) are not on the fee circular and are "
+            "confirmed by the Admissions Office. Merit scholarships (up to 40%) reduce the tuition only.")
+
+
+def _other_fees_text() -> str:
+    ch = _fees.load_data()["charges"]
+    e = ch["electricity_deposit"]
+    i = _fees.inr
+    return ("As per the official 2027-28 fee circular, the charges other than tuition are:\n\n"
+            "| Fee Component | Amount | When |\n| :--- | ---: | :--- |\n"
+            f"| **Enrollment Fee** | **{i(ch['enrollment_fee']['amount'])}** | One-time, Semester 1 of Year 1 |\n"
+            f"| **Other Fee** | **{i(ch['other_fee']['amount'])}** | Every year, paid in Semester 1 (not split) |\n"
+            f"| **Exam Fee (Year 1)** | **{i(ch['exam_fee']['amount'])}** | Year 1 only, Semester 1 |\n"
+            f"| **Application Form** | **{i(ch['application_fee']['amount'])}** | Once, with the application (not in any semester) |\n"
+            f"| **Specialisation Fee** | **{i(ch['specialization_fee']['amount'])}** | Per year from Year 2, where it applies |\n"
+            f"| **PhD Fee** | **{i(ch['phd_fee']['amount'])}** | Per year (doctoral scholars) |\n\n"
+            f"• **Optional:** university bus {i(ch['bus']['amount'])} a year; hostel by room type with a one-time "
+            f"electricity deposit of {i(e['non_ac'])} (Non-AC) or {i(e['ac'])} (AC).\n\n"
+            "Merit scholarships reduce tuition only, never these charges.")
+
+
+_SPECIAL_CONCESSIONS_TEXT = _concessions_text()
 
 _NEXT_GEN_TECH_TEXT = """### 🚀 Next-Gen Technology Programs at SR University
 
@@ -89,32 +198,32 @@ SR University has pioneered futuristic, multidisciplinary undergraduate engineer
 #### 1. 🤖 B.Tech in Artificial Intelligence & Robotics
 - **Focus**: Autonomous mobile robotics, ROS (Robot Operating System), computer vision, sensor fusion, cyber-physical systems, and robotic manipulation.
 - **Key Labs**: Advanced Robotics Arena, Makerspace, and Embedded Systems Lab.
-- **Tuition**: ₹4,00,000 / year (₹2,00,000 / semester) | Merit scholarships up to 40% available.
+@@AIR@@
 
 ---
 
 #### 2. 🌾 B.Tech CSE — AI & Precision Agriculture
 - **Focus**: Integrating machine learning, computer vision, IoT sensing, and drone analytics with modern agricultural science to create high-yield, climate-smart farming solutions.
 - **Unique Advantage**: Jointly offered with SRU’s **ICAR-accredited School of Agriculture** with hands-on learning on experiential research farms.
-- **Tuition**: ₹3,40,000 / year (₹1,70,000 / semester) | Merit scholarships up to 40% available.
+@@CSE@@
 
 ---
 
 #### 3. 🦾 B.Tech CSE — Robotics & Automation
 - **Focus**: Industrial automation, PLC/SCADA programming, kinematics, machine kinematics, robotic arm control, and smart Industry 4.0 manufacturing.
 - **Career Pathways**: Automation engineer, robotics software engineer, mechatronics specialist in automotive, aerospace, and defense sectors.
-- **Tuition**: ₹3,40,000 / year (₹1,70,000 / semester) | Merit scholarships up to 40% available.
+@@CSE@@
 
 ---
 
 #### 4. ⚛️ B.Tech CSE — Quantum AI
 - **Focus**: Quantum computing algorithms, Qiskit framework, quantum neural networks, quantum annealing, and post-quantum cryptography.
 - **Cutting Edge**: Equips students for future high-performance computing, drug discovery simulations, and next-generation cybersecurity.
-- **Tuition**: ₹3,40,000 / year (₹1,70,000 / semester) | Merit scholarships up to 40% available.
+@@CSE@@
 
 ---
 
-*Would you like to see the fee breakdown, eligibility cutoffs, or calculate your scholarship for any of these programs?*"""
+*Would you like to see the fee breakdown, eligibility cutoffs, or calculate your scholarship for any of these programs?*""".replace("@@AIR@@", _tuition_line("btech_ai_robotics")).replace("@@CSE@@", _tuition_line("btech_cse"))
 
 _FEE_TREE_TEXT = """### 💰 SR University Fee Structure (2027–28)
 
@@ -129,166 +238,51 @@ Here is the **Program Category Directory**. Select an academic school below or t
 
 👉 **Which program category would you like to see the fee structure for?** Tap an option below or type your branch:"""
 
-_BTECH_TREE_TEXT = """### 📘 B.Tech Fee Structure (2027–28)
-
-For **B.Tech (Bachelor of Technology)**, SR University offers several engineering streams. Which branch would you like to view the detailed fee structure for?
-
-• **1. B.Tech CSE & Allied** (AIML, Data Science, Cyber, Quantum AI) — **₹3,40,000 / yr** (₹1,70,000 / sem)
-• **2. B.Tech AI & Robotics** — **₹4,00,000 / yr** (₹2,00,000 / sem)
-• **3. B.Tech ECE** (VLSI & Embedded) — **₹2,70,000 / yr** (₹1,35,000 / sem)
-• **4. B.Tech Core** (Biotech, Civil, EEE, Mech, Food Tech) — **₹2,00,000 / yr** (₹1,00,000 / sem)
-
-*All B.Tech programs offer **10% to 40% Merit Scholarships** based on your 10+2 marks or EAPCET rank.*
-
-👉 **Select a branch below to see the complete semester breakdown:**"""
+_BTECH_TREE_TEXT = _btech_tree_text()
 
 def get_btech_cse_fee_text(specialization: str | None = None, user_msg: str | None = None) -> str:
-    from app.sru_agent import fees
-    clean_name = fees.clean_program_name("btech_cse", specialization=specialization, user_text=user_msg)
+    clean_name = _fees.clean_program_name("btech_cse", specialization=specialization, user_text=user_msg)
     if user_msg and "allied" in user_msg.lower():
-        title = "B.Tech CSE & Allied Streams"
-        intro = "Official fee schedule for **B.Tech Computer Science & Engineering** and its specialized streams:"
+        title, intro = ("B.Tech CSE & Allied Streams", "Official fee schedule for **B.Tech Computer Science & "
+                                                       "Engineering** and its specialised streams:")
     else:
-        title = clean_name
-        intro = f"Official fee schedule for **{clean_name}**:"
+        title, intro = clean_name, f"Official fee schedule for **{clean_name}**:"
+    return _programme_fee_text("btech_cse", f"💻 {title}", intro)
 
-    return f"""### 💻 {title} — Fee Structure (2027–28)
-
-{intro}
-
-| Component | Semester Fee | Annual Total | Notes |
-| :--- | :--- | :--- | :--- |
-| **Base Tuition Fee** | **₹1,70,000** | **₹3,40,000** | Payable per semester |
-| **One-Time Enrollment Fee** | **₹5,000** | — | Semester 1 only |
-| **Examination & Other Fees** | **₹10,000** | **₹20,000** | ₹15,000 other + ₹5,000 exam |
-| **Semester 1 Total (Day-Scholar)** | **₹1,85,000** | — | Includes enrollment + exam/other |
-| **Regular Semester Total** | **₹1,80,000** | **₹3,60,000** | Semesters 2 through 8 |
-
-#### 🎓 Merit Scholarships (Tuition Waiver):
-- **40% Waiver**: Inter ≥ 98% / CBSE ≥ 95% / EAPCET 1–2000 → **₹2,04,000 / yr** (Save ₹1,36,000)
-- **30% Waiver**: Inter 92–97.9% / CBSE 90–94.9% / EAPCET 2001–8000 → **₹2,38,000 / yr** (Save ₹1,02,000)
-- **25% Waiver**: Inter 80–91.9% / CBSE 80–89.9% / EAPCET 8001–20000 → **₹2,55,000 / yr** (Save ₹85,000)
-- **20% Waiver**: Inter 70–79.9% → **₹2,72,000 / yr** (Save ₹68,000)
-- **10%–15% Waiver**: Inter 60–69.9% → **₹2,89,000 – ₹3,06,000 / yr**
-
-Annual tuition escalation: ₹9,000/year for subsequent academic years. Hostel is optional: ₹1,15,000 to ₹1,35,000/year (includes 4 meals daily, AC/Non-AC options, Wi-Fi & laundry)."""
 
 _BTECH_CSE_FEE_TEXT = get_btech_cse_fee_text()
 
-_BTECH_AI_ROBOTICS_FEE_TEXT = """### 🤖 B.Tech in Artificial Intelligence & Robotics — Fee Structure (2027–28)
+_BTECH_AI_ROBOTICS_FEE_TEXT = _programme_fee_text(
+    "btech_ai_robotics", "🤖 B.Tech in Artificial Intelligence & Robotics",
+    "Official fee schedule for the specialised **B.Tech in Artificial Intelligence & Robotics**:")
 
-Official fee schedule for the specialized **B.Tech in Artificial Intelligence & Robotics**:
+_BTECH_ECE_FEE_TEXT = _programme_fee_text(
+    "btech_ece", "⚡ B.Tech Electronics & Communication (ECE)",
+    "Official fee schedule for **B.Tech ECE** (specialisations in AIML, VLSI, and Robotics & Automation):")
 
-| Component | Semester Fee | Annual Total | Notes |
-| :--- | :--- | :--- | :--- |
-| **Base Tuition Fee** | **₹2,00,000** | **₹4,00,000** | Payable per semester |
-| **One-Time Enrollment Fee** | **₹5,000** | — | Semester 1 only |
-| **Examination & Other Fees** | **₹10,000** | **₹20,000** | Per semester breakdown |
-| **Semester 1 Total (Day-Scholar)** | **₹2,15,000** | — | With enrollment fee |
-| **Regular Semester Total** | **₹2,10,000** | **₹4,20,000** | Semesters 2 through 8 |
+_BTECH_CORE_FEE_TEXT = _programme_fee_text(
+    "btech_mech", "⚙️ B.Tech Core Engineering",
+    "Official fee schedule for **B.Tech Core Programs** (Mechanical, Civil, Electrical & Electronics, "
+    "Biotechnology with AI, Food Technology, Engineering Physics, Applied Chemistry):")
 
-#### 🎓 Merit Scholarships (Tuition Waiver):
-- **40% Waiver**: Net Tuition **₹2,40,000 / yr** (Save ₹1,60,000/yr)
-- **30% Waiver**: Net Tuition **₹2,80,000 / yr** (Save ₹1,20,000/yr)
-- **25% Waiver**: Net Tuition **₹3,00,000 / yr** (Save ₹1,00,000/yr)
-- **20% Waiver**: Net Tuition **₹3,20,000 / yr** (Save ₹80,000/yr)
+_MANAGEMENT_FEE_TEXT = _group_fee_text(
+    "🏢 Astra School of Business", "Official fee schedule for Management & Commerce programs:",
+    [("BBA", "bba"), ("BBA (Finance, Operations, HR, Business Analytics, Marketing)", "bba_specialised"),
+     ("B.Com", "bcom"), ("MBA", "mba"), ("MBA in Agri Business Management", "mba_agri")])
 
-Annual tuition escalation: ₹12,000/year for subsequent academic years. Hostel is optional: ₹1,15,000 to ₹1,35,000/year."""
+_AGRICULTURE_FEE_TEXT = _group_fee_text(
+    "🌾 School of Agriculture", "Official fee schedule for the **ICAR-Accredited** agricultural programs:",
+    [("B.Sc Agriculture", "bsc_agri"), ("B.Tech Food Technology", "btech_food_tech"),
+     ("M.Sc (Agriculture disciplines)", "msc")],
+    "**Accreditation**: first private university in the Telugu States with ICAR accreditation.")
 
-_BTECH_ECE_FEE_TEXT = """### ⚡ B.Tech Electronics & Communication (ECE) — Fee Structure (2027–28)
+_COMP_APP_FEE_TEXT = _group_fee_text(
+    "💻 Computer Applications & IT", "Official fee schedule for Computer Applications:",
+    [("BCA (Hons)", "bca"), ("B.Sc Computer Science (Hons)", "bsc_cs"), ("MCA", "mca"),
+     ("M.Sc Computer Science", "msc")])
 
-Official fee schedule for **B.Tech ECE** (Specializations in VLSI, Embedded Systems, and Robotics):
-
-| Component | Semester Fee | Annual Total | Notes |
-| :--- | :--- | :--- | :--- |
-| **Base Tuition Fee** | **₹1,35,000** | **₹2,70,000** | Payable per semester |
-| **One-Time Enrollment Fee** | **₹5,000** | — | Semester 1 only |
-| **Examination & Other Fees** | **₹10,000** | **₹20,000** | Per semester breakdown |
-| **Semester 1 Total (Day-Scholar)** | **₹1,50,000** | — | With enrollment fee |
-| **Regular Semester Total** | **₹1,45,000** | **₹2,90,000** | Semesters 2 through 8 |
-
-#### 🎓 Merit Scholarships (Tuition Waiver):
-- **40% Waiver**: Net Tuition **₹1,62,000 / yr** (Save ₹1,08,000/yr)
-- **30% Waiver**: Net Tuition **₹1,89,000 / yr** (Save ₹81,000/yr)
-- **25% Waiver**: Net Tuition **₹2,02,500 / yr** (Save ₹67,500/yr)
-- **20% Waiver**: Net Tuition **₹2,16,000 / yr** (Save ₹54,000/yr)
-
-Annual tuition escalation: ₹8,000/year for subsequent academic years. Hostel is optional: ₹1,15,000 to ₹1,35,000/year."""
-
-_BTECH_CORE_FEE_TEXT = """### ⚙️ B.Tech Core Engineering — Fee Structure (2027–28)
-
-Official fee schedule for **B.Tech Core Programs** (Mechanical, Civil, Electrical & Electronics, Biotechnology, Food Technology):
-
-| Component | Semester Fee | Annual Total | Notes |
-| :--- | :--- | :--- | :--- |
-| **Base Tuition Fee** | **₹1,00,000** | **₹2,00,000** | Payable per semester |
-| **One-Time Enrollment Fee** | **₹5,000** | — | Semester 1 only |
-| **Examination & Other Fees** | **₹10,000** | **₹20,000** | Per semester breakdown |
-| **Semester 1 Total (Day-Scholar)** | **₹1,15,000** | — | With enrollment fee |
-| **Regular Semester Total** | **₹1,10,000** | **₹2,20,000** | Semesters 2 through 8 |
-
-#### 🎓 Merit Scholarships (Tuition Waiver):
-- **40% Waiver**: Net Tuition **₹1,20,000 / yr** (Save ₹80,000/yr)
-- **30% Waiver**: Net Tuition **₹1,40,000 / yr** (Save ₹60,000/yr)
-- **25% Waiver**: Net Tuition **₹1,50,000 / yr** (Save ₹50,000/yr)
-- **20% Waiver**: Net Tuition **₹1,60,000 / yr** (Save ₹40,000/yr)
-
-Annual tuition escalation: ₹6,000/year for subsequent academic years. Hostel is optional: ₹1,15,000 to ₹1,35,000/year."""
-
-_MANAGEMENT_FEE_TEXT = """### 🏢 Astra School of Business — Fee Structure (2027–28)
-
-Official fee schedule for Management & Commerce programs:
-
-| Program | Annual Tuition | Semester Fee | Annual Escalation |
-| :--- | :--- | :--- | :--- |
-| **BBA (General)** | **₹1,50,000** | ₹75,000 | +₹4,000 / yr |
-| **BBA (Business Analytics / Specialized)** | **₹2,00,000** | ₹1,00,000 | +₹6,000 / yr |
-| **B.Com** | **₹1,00,000** | ₹50,000 | +₹3,000 / yr |
-| **MBA (Finance, Marketing, HR, Analytics)** | **₹3,00,000** | ₹1,50,000 | +₹9,000 / yr |
-| **MBA in Agri-Business Management** | **₹2,00,000** | ₹1,00,000 | +₹6,000 / yr |
-
-- **One-time enrollment**: ₹5,000 (Sem 1 only). Exam & other fees: ₹20,000/yr.
-- **Scholarships**: 10% to 40% merit waivers based on qualifying exam scores (2027-28 fee card)."""
-
-_AGRICULTURE_FEE_TEXT = """### 🌾 School of Agriculture — Fee Structure (2027–28)
-
-Official fee schedule for the **ICAR-Accredited** Agricultural programs:
-
-| Program | Annual Tuition | Semester Fee | Annual Escalation |
-| :--- | :--- | :--- | :--- |
-| **B.Sc. (Hons) Agriculture** | **₹2,00,000** | ₹1,00,000 | +₹6,000 / yr |
-| **B.Tech Food Technology** | **₹2,00,000** | ₹1,00,000 | +₹6,000 / yr |
-| **M.Sc Agriculture (All Disciplines)** | **₹1,00,000** | ₹50,000 | +₹3,000 / yr |
-
-- **Accreditation**: First private university in the Telugu States with ICAR accreditation.
-- **One-time enrollment**: ₹5,000 (Sem 1 only). Exam & other fees: ₹20,000/yr.
-- **Scholarships**: 10% to 40% merit waivers based on 10+2 BiPC marks or EAPCET rank."""
-
-_COMP_APP_FEE_TEXT = """### 💻 Computer Applications & IT — Fee Structure (2027–28)
-
-Official fee schedule for Computer Applications:
-
-| Program | Annual Tuition | Semester Fee | Annual Escalation |
-| :--- | :--- | :--- | :--- |
-| **BCA (Hons)** | **₹1,50,000** | ₹75,000 | +₹4,000 / yr |
-| **B.Sc Computer Science (Hons)** | **₹1,50,000** | ₹75,000 | +₹4,000 / yr |
-| **MCA** | **₹1,50,000** | ₹75,000 | +₹4,000 / yr |
-| **M.Sc Computer Science** | **₹1,00,000** | ₹50,000 | +₹3,000 / yr |
-
-- **One-time enrollment**: ₹5,000 (Sem 1 only). Exam & other fees: ₹20,000/yr.
-- **Scholarships**: 10% to 40% merit waivers."""
-
-_DESIGN_FEE_TEXT = """### 🎨 School of Design — Fee Structure (2027–28)
-
-Official fee schedule for Design programs:
-
-| Program | Annual Tuition | Semester Fee | Annual Escalation |
-| :--- | :--- | :--- | :--- |
-| **B.Des Interior Design** | **₹2,10,000** | ₹1,05,000 | +₹6,000 / yr |
-| **B.Des Fashion Design** | **₹2,10,000** | ₹1,05,000 | +₹6,000 / yr |
-
-- **One-time enrollment**: ₹5,000 (Sem 1 only). Exam & other fees: ₹20,000/yr.
-- **Scholarships**: 10% to 40% merit waivers."""
+_DESIGN_FEE_TEXT = _group_fee_text(
+    "🎨 School of Design", "Official fee schedule for Design programs:", [("B.Des (Design)", "bdes")])
 
 _ALL_PROGRAMS_TEXT = """### 🎓 Programs Offered at SR University (2027–28)
 
@@ -387,23 +381,7 @@ The safety and well-being of residential students are our highest priorities:
 
 Would you like details on hostel living facilities, mess food, or room fees?"""
 
-_HOSTEL_FEE_TEXT = """### 💰 SR University Residential Hostel Fee Structure (2027–28)
-
-Hostel accommodation is optional. Annual fees cover both **room accommodation and all 4 daily meals** in the 4,000-seat mega dining hall:
-
-| Room Type | Sharing | Annual Fee (Room + Mess) | Notes |
-| :--- | :--- | :--- | :--- |
-| **Non-AC** | **4-Sharing** | **₹1,15,000 / year** | 4 meals/day, Wi-Fi, study desk, power backup |
-| **Non-AC** | **3-Sharing** | **₹1,25,000 / year** | 4 meals/day, Wi-Fi, study desk, power backup |
-| **Air-Conditioned (AC)** | **4-Sharing** | **₹1,25,000 / year** | AC room, 4 meals/day, Wi-Fi, study desk |
-| **Air-Conditioned (AC)** | **3-Sharing** | **₹1,35,000 / year** | AC room, 4 meals/day, Wi-Fi, study desk |
-
-#### 📋 Additional Deposits & Charges:
-• **Caution Deposit**: **₹5,000** (one-time, refundable at end of degree)
-• **Laundry Services**: **₹5,000 / year** (in-house mechanized laundry)
-• **Electricity Deposit (AC Rooms)**: **₹10,000 / year** (Non-AC: **₹5,000 / year**)
-
-Hostel fees are billed annually at the beginning of each academic year. Separate hostel blocks are provided for Boys and Girls on campus."""
+_HOSTEL_FEE_TEXT = _hostel_fee_text()
 
 _HOSTEL_INFO_CHIPS = ["Mess Food & Timings", "Hostel Rules & Curfew", "Safety & Wardens", "Hostel Fee Breakdown"]
 _HOSTEL_MESS_CHIPS = ["Hostel Facilities & Rooms", "Curfew & In-Time Rules", "Hostel Room Fees", "Safety & Security"]
@@ -411,21 +389,7 @@ _HOSTEL_CURFEW_CHIPS = ["Mess & Dining timings", "Hostel Facilities & Rooms", "H
 _HOSTEL_SAFETY_CHIPS = ["Hostel Facilities & Rooms", "Mess Food & Timings", "Curfew & Rules", "Hostel Fees"]
 _HOSTEL_FEE_CHIPS = ["Hostel Facilities & Rooms", "Mess Food & Timings", "Curfew & Rules", "Calculate B.Tech Fee"]
 
-_COMBINED_HOSTEL_FEE_TEXT = """### 🎓 B.Tech CSE Fee + Hostel Combined Breakdown (Academic Year 2027–28)
-
-Here is the complete combined fee breakdown for **B.Tech Computer Science & Engineering (Core)** including **Residential Hostel & Mess (AC 4-Sharing)**:
-
-#### 📅 Per-Semester Breakdown (Regular):
-• **Tuition Fee**: **₹1,70,000 / sem** (Annual base ₹3,40,000; up to 40% merit scholarship applies)
-• **Hostel & Dining (AC 4-Sharing)**: **₹62,500 / sem** (Annual ₹1,25,000; includes 4 daily meals, Wi-Fi & laundry)
-• **Academic & Exam Fee**: **₹10,000 / sem** (Annual ₹20,000)
-👉 **Combined Regular Semester Fee**: **₹2,42,500 / semester**
-
-#### 📋 First-Year Total Outlay:
-• **Year 1 Combined Total**: **₹4,91,100** (Tuition ₹3.40L + Hostel ₹1.25L + Academic ₹20k + One-time admission/enrolment ₹6,100)
-*(With Non-AC 4-Sharing, the combined total is **₹4,81,100 / year** or **₹2,37,500 / semester**).*
-
-Merit scholarships (up to 40% waiver based on 10+2 marks or entrance ranks) directly reduce the tuition portion."""
+_COMBINED_HOSTEL_FEE_TEXT = _combined_hostel_text()
 
 _COMBINED_HOSTEL_FEE_CHIPS = ["Calculate scholarship for my marks", "Hostel room options", "Placement records for this course", "Hostel Rules & Curfew"]
 
@@ -557,23 +521,7 @@ def get_why_choose_sru_text(variant_id: int | None = None, session_id: str | Non
     idx = int(hashlib.md5(seed).hexdigest(), 16) % len(_WHY_CHOOSE_SRU_VARIANTS)
     return _WHY_CHOOSE_SRU_VARIANTS[idx]
 
-_OTHER_FEES_TEXT = """As per the official 2027-28 Fee Structure, the fee components and charges other than semester tuition are:
-
-| Fee Component / Head | Amount | Notes / Frequency |
-| :--- | :--- | :--- |
-| **Enrolment Fee** | **₹5,000** | One-time (payable at admission / Semester 1) |
-| **Other Academic / University Charges** | **₹15,000** | Annual (laboratories, library & campus amenities) |
-| **Examination Fee (First Year)** | **₹5,000** | Annual (as printed on fee card for Year 1) |
-| **Application Form Fee** | **₹1,100** | One-time (paid with online application at apply.sru.edu.in) |
-| **Specialisation Fee** | **₹30,000** | Applicable annually from the 2nd year onwards where specialisation applies |
-| **PhD Fee** | **₹70,000** | Per year (for doctoral research scholars) |
-
-• **Optional Living & Transport Services**:
-  - **Hostel (Accommodation + Food)**: ₹1,15,000 – ₹1,35,000/year (includes 4 daily meals in the 4,000-seat Mega Dining Hall)
-  - **Hostel Caution Deposit**: ₹5,000 (refundable) + ₹5,000 laundry
-  - **Transportation (University Bus)**: ₹30,000/year (covers Warangal, Hanamkonda, Kazipet and outstation routes)
-
-There is no separate "admission fee" charged on the 2027-28 fee card."""
+_OTHER_FEES_TEXT = _other_fees_text()
 
 _OTHER_FEES_CHIPS = ["B.Tech CSE tuition", "Calculate my scholarship", "Hostel accommodation", "Plan a campus visit"]
 
@@ -786,8 +734,7 @@ _PROGRAM_DESIGN_OVERVIEW_CHIPS = [
     "Career paths",
 ]
 
-# Generated from fees_2027_28.json by eligibility.py (never hand-written thresholds: the official sources
-# disagree for several programmes, and both values are shown until the Admissions Office confirms one).
+# Generated from fee_policy_2027_28.json by eligibility.py (never hand-written thresholds).
 from .eligibility import overview_text as _eligibility_overview
 
 _ELIGIBILITY_TEXT = (_eligibility_overview() + "\n\nShare your programme and marks and I'll check your eligibility, "

@@ -32,163 +32,107 @@ COMPARISON_CSE_AIML = {
     ],
 }
 
-BTECH_ACADEMIC_FEE_CARD = {
-    "type": "fee_breakdown",
-    "title": "SR University B.Tech Tuition Fee Breakdown (Official 2027-28)",
-    "currency": "INR",
-    "items": [
-        {
-            "category": "Tuition Fee (B.Tech CSE & Allied)",
-            "amount": "₹1,70,000 / Sem",
-            "frequency": "₹3,40,000 / Year",
-            "note": "Annual base tuition ₹3,40,000 (+₹9k/yr increase); up to 40% merit scholarship",
-        },
-        {
-            "category": "Tuition Fee (B.Tech AI & Robotics)",
-            "amount": "₹2,00,000 / Sem",
-            "frequency": "₹4,00,000 / Year",
-            "note": "Annual base tuition ₹4,00,000 (+₹12k/yr increase)",
-        },
-        {
-            "category": "Tuition Fee (B.Tech ECE)",
-            "amount": "₹1,35,000 / Sem",
-            "frequency": "₹2,70,000 / Year",
-            "note": "Annual base tuition ₹2,70,000 (+₹8k/yr increase)",
-        },
-        {
-            "category": "Tuition Fee (B.Tech Core: Mech / Civil / EEE / Biotech)",
-            "amount": "₹1,00,000 / Sem",
-            "frequency": "₹2,00,000 / Year",
-            "note": "Annual base tuition ₹2,00,000 (+₹6k/yr increase)",
-        },
-        {
-            "category": "Enrollment & Admission Fee (One-time)",
-            "amount": "₹5,000",
-            "frequency": "One-time (Year 1)",
-            "note": "Mandatory enrollment component",
-        },
-        {
-            "category": "Other & Exam Fees",
-            "amount": "₹20,000 / Year",
-            "frequency": "Annual",
-            "note": "₹15,000 other fee + ₹5,000 exam fee",
-        },
-        {
-            "category": "CSE Specialization Fee (Year 2+)",
-            "amount": "₹30,000 / Year",
-            "frequency": "From 2nd Year Onwards",
-            "note": "Applicable for AIML, Data Science, Cyber Security, AR/VR, Robotics",
-        },
-    ],
-    "scholarship_note": "Merit scholarships offer 10% to 40% tuition reduction based on board marks, JEE Main, or TG EAPCET ranks.",
-}
+# ---- Fee cards: every amount is produced by the ONE fee engine (app/sru_agent/fees.py) --------------
+# Nothing here is typed by hand. The cards used to carry their own figures (and split the other/exam fees
+# across both semesters); they are now built from fee_policy_2027_28.json through fees.fee_schedule, the
+# same calculator the chat, the admission flow and the website calculator use.
+def _fees():
+    from app.sru_agent import fees
+    return fees
 
-# Alias for backwards compatibility
+
+def _schedule_items(program_key: str, pct: float = 0, **options) -> tuple[list[dict], dict]:
+    """Year-1 semester rows for a fee_breakdown card, straight from the engine."""
+    f = _fees()
+    plan = f.fee_schedule(program_key, pct, **options)
+    y1 = plan["years"][0]
+    items = []
+    for sem in y1["semesters"]:
+        n = sem["semester"]
+        for it in sem["items"]:
+            note = {"tuition": "Annual tuition split equally between the two semesters",
+                    "enrollment_fee": "One-time, Year 1", "exam_fee": "Year 1 only",
+                    "other_fee": "Annual, paid in Semester 1", "electricity_deposit": "One-time, refundable rules per hostel office",
+                    }.get(it["key"], "Optional" if it["kind"] == "optional" else "")
+            items.append({"category": f"Semester {n}: {it['label']}", "amount": f.inr(it["amount"]),
+                          "frequency": f"Semester {n}", "note": note})
+        items.append({"category": f"Semester {n} payable", "amount": f.inr(sem["total"]),
+                      "frequency": f"Semester {n}", "note": "Total for this semester", "is_total": True})
+    items.append({"category": "First-year payable", "amount": f.inr(y1["total"]), "frequency": "Year 1",
+                  "note": "Semester 1 + Semester 2", "is_total": True})
+    return items, plan
+
+
+def _build_btech_fee_table_card() -> dict:
+    f = _fees()
+    data = f.load_data()
+    rows = []
+    for key in ("btech_cse", "btech_ai_robotics", "btech_ece", "btech_iep", "btech_mech"):
+        p = data["programs"][key]
+        label = ("B.Tech Core (Mech / Civil / EEE / Biotech / Food Tech / Engg Physics)" if key == "btech_mech"
+                 else f.short_name(key))
+        rows.append({"category": f"Tuition: {label}", "amount": f"{f.inr(p['tuition_per_year'])} / Year",
+                     "frequency": f"{f.inr(p['tuition_per_year'] / 2)} tuition per semester",
+                     "note": f"+{f.inr(p['yearly_increase'])} a year from Year 2; minimum {p['min_percent']:g}% in Intermediate"})
+    ch = data["charges"]
+    rows += [
+        {"category": "Enrollment fee", "amount": f.inr(ch["enrollment_fee"]["amount"]), "frequency": "One-time",
+         "note": "Semester 1, Year 1"},
+        {"category": "Other fee", "amount": f"{f.inr(ch['other_fee']['amount'])} / Year", "frequency": "Annual",
+         "note": "Paid in Semester 1 of each year"},
+        {"category": "Exam fee (Year 1)", "amount": f.inr(ch["exam_fee"]["amount"]), "frequency": "Year 1 only",
+         "note": "Semester 1, Year 1"},
+        {"category": "Specialisation fee (B.Tech CSE)", "amount": f"{f.inr(ch['specialization_fee']['amount'])} / Year",
+         "frequency": "From Year 2", "note": "Only when a specialisation applies"},
+    ]
+    return {"type": "fee_breakdown", "title": f"B.Tech Tuition & Fee Components ({data['academic_year']})",
+            "currency": "INR", "items": rows,
+            "scholarship_note": ("Merit scholarships (10% to 40%) reduce tuition only. The application form fee "
+                                 f"({f.inr(ch['application_fee']['amount'])}) is paid separately.")}
+
+
+def _build_cse_semester_card(hostel: str | None = None) -> dict:
+    f = _fees()
+    data = f.load_data()
+    items, plan = _schedule_items("btech_cse", 0, hostel=hostel)
+    with_h = f" + Hostel ({f.HOSTEL_LABELS.get(hostel)})" if hostel else ""
+    note = ("Standard fee (no scholarship). Only tuition is split between semesters; the enrollment, other and "
+            "Year-1 exam fees are paid in Semester 1. Application form fee "
+            f"{f.inr(plan['application_fee'])} is paid separately.")
+    if hostel:
+        note += " Hostel fees are not on the fee circular and are confirmed by the Admissions Office."
+    return {"type": "fee_breakdown",
+            "title": f"B.Tech CSE{with_h}: Semester-wise Fee, Year 1 ({data['academic_year']})",
+            "currency": "INR", "items": items, "scholarship_note": note}
+
+
+def _build_merit_scholarship_card() -> dict:
+    f = _fees()
+    data = f.load_data()
+    ug = data["slab_sets"]["ug"]
+    base = data["programs"]["btech_cse"]["tuition_per_year"]
+    names = {"state_board": "Inter", "cbse": "CBSE/ICSE", "jee_percentile": "JEE", "eapcet_rank": "EAPCET", "ib": "IB"}
+    items = []
+    for pct in (40, 30, 25, 20, 15, 10):
+        parts = []
+        for kind, table in ug.items():
+            hit = [s for s in table if s["percent"] == pct]
+            if hit:
+                parts.append(f"{names[kind]} {f._range_text(kind, hit[0])}")
+        items.append({"category": f"{pct}% tuition scholarship",
+                      "amount": f"{f.inr(base * (100 - pct) / 100)} / Year (CSE)",
+                      "frequency": f"Save {f.inr(base * pct / 100)} / Year", "note": " | ".join(parts)})
+    return {"type": "fee_breakdown", "title": f"Merit Scholarship Slabs, UG ({data['academic_year']})",
+            "currency": "INR", "items": items,
+            "scholarship_note": (f"Shown on B.Tech CSE tuition ({f.inr(base)} a year). Scholarships apply to tuition "
+                                 "only, never to other charges. Standard fee from 55% for CSE/ECE and 50% for other "
+                                 "programmes. Subject to marksheet verification.")}
+
+
+BTECH_ACADEMIC_FEE_CARD = _build_btech_fee_table_card()
 FEE_BREAKDOWN_CARD = BTECH_ACADEMIC_FEE_CARD
-
-BTECH_CSE_SEMESTER_FEE_CARD = {
-    "type": "fee_breakdown",
-    "title": "B.Tech CSE Total Per-Semester Estimated Fee Breakdown (Official 2027-28)",
-    "currency": "INR",
-    "items": [
-        {
-            "category": "1st Semester Tuition Fee (B.Tech CSE)",
-            "amount": "₹1,70,000",
-            "frequency": "Semester 1",
-            "note": "Base tuition (₹3,40,000/yr). Up to 40% merit scholarship waiver available",
-        },
-        {
-            "category": "2nd Semester Tuition Fee (B.Tech CSE)",
-            "amount": "₹1,70,000",
-            "frequency": "Semester 2",
-            "note": "Annual base ₹3,40,000 (+₹9,000/yr annual escalation in subsequent years)",
-        },
-        {
-            "category": "One-Time Enrollment Fee",
-            "amount": "₹5,000",
-            "frequency": "One-Time (Semester 1)",
-            "note": "Mandatory official enrollment component paid once in Year 1",
-        },
-        {
-            "category": "Other & Examination Fees",
-            "amount": "₹10,000 / Sem",
-            "frequency": "₹20,000 / Year",
-            "note": "₹15,000 other university fee + ₹5,000 semester-end examination fee",
-        },
-        {
-            "category": "Total Per-Semester Payable (Regular)",
-            "amount": "₹1,80,000 / Sem",
-            "frequency": "₹3,60,000 / Year",
-            "note": "Tuition (₹1,70,000) + Other & Exam Fees (₹10,000). Hostels separate.",
-        },
-        {
-            "category": "Total 1st Semester Payable",
-            "amount": "₹1,85,000",
-            "frequency": "Semester 1",
-            "note": "Regular semester total + one-time enrollment fee (₹5,000)",
-        },
-        {
-            "category": "CSE Specialization Fee (From Year 2+)",
-            "amount": "₹15,000 / Sem",
-            "frequency": "₹30,000 / Year",
-            "note": "Applicable from 3rd semester for AI & ML, Data Science, Cyber Security tracks",
-        },
-    ],
-    "scholarship_note": "Merit scholarships provide 10% to 40% tuition fee waiver (up to ₹68,000/sem saved; net tuition ₹1,02,000/sem; total regular sem ₹1,12,000/sem). Hostel is optional & separate (₹1,15,000 to ₹1,35,000/yr). 2027-28 fees, as per Admissions Office.",
-}
-
-BTECH_CSE_WITH_HOSTEL_FEE_CARD = {
-    "type": "fee_breakdown",
-    "title": "B.Tech CSE Fee + Hostel Per-Semester Total Breakdown (Official 2027-28)",
-    "currency": "INR",
-    "items": [
-        {
-            "category": "1st Semester Tuition Fee (B.Tech CSE)",
-            "amount": "₹1,70,000",
-            "frequency": "Semester 1",
-            "note": "Base tuition (₹3,40,000/yr). Up to 40% merit scholarship waiver available",
-        },
-        {
-            "category": "2nd Semester Tuition Fee (B.Tech CSE)",
-            "amount": "₹1,70,000",
-            "frequency": "Semester 2",
-            "note": "Annual base ₹3,40,000 (+₹9,000/yr annual escalation in subsequent years)",
-        },
-        {
-            "category": "Residential Hostel & Mess (AC 4-Sharing)",
-            "amount": "₹62,500 / Sem",
-            "frequency": "₹1,25,000 / Year",
-            "note": "4 daily meals in mega dining hall, laundry, high-speed Wi-Fi, 24/7 security",
-        },
-        {
-            "category": "Other & Examination Fees",
-            "amount": "₹10,000 / Sem",
-            "frequency": "₹20,000 / Year",
-            "note": "₹15,000 other university fee + ₹5,000 semester-end examination fee",
-        },
-        {
-            "category": "One-Time Enrollment Fee",
-            "amount": "₹5,000",
-            "frequency": "One-Time (Semester 1)",
-            "note": "Mandatory official enrollment component paid once in Year 1",
-        },
-        {
-            "category": "Combined Total Per-Semester (Regular)",
-            "amount": "₹2,42,500 / Sem",
-            "frequency": "₹4,85,000 / Year",
-            "note": "Combined Tuition (₹1.70L) + Other/Exam (₹10k) + Hostel & Mess (₹62.5k)",
-        },
-        {
-            "category": "Combined Total 1st Semester Payable",
-            "amount": "₹2,47,500",
-            "frequency": "Semester 1",
-            "note": "Regular combined total + one-time enrollment fee (₹5,000)",
-        },
-    ],
-    "scholarship_note": "With 40% merit scholarship, net tuition is ₹1,02,000/sem, bringing the combined regular per-semester total to ₹1,74,500/sem. 2027-28 fees, as per Admissions Office.",
-}
-
-# Alias for backwards compatibility
+BTECH_CSE_SEMESTER_FEE_CARD = _build_cse_semester_card()
+BTECH_CSE_WITH_HOSTEL_FEE_CARD = _build_cse_semester_card("ac_4")
 BTECH_CSE_FEE_CARD = BTECH_CSE_SEMESTER_FEE_CARD
 
 APPLICATION_AD_CARD = {
@@ -204,57 +148,11 @@ APPLICATION_AD_CARD = {
 
 
 
-MERIT_SCHOLARSHIP_CARD = {
-    "type": "fee_breakdown",
-    "title": "SR University B.Tech Merit Scholarship Slabs (2027-28)",
-    "currency": "INR",
-    "items": [
-        {
-            "category": "40% Tuition Waiver Slab",
-            "amount": "₹2,04,000 / Year (CSE)",
-            "frequency": "Save ₹1,36,000 / Year",
-            "note": "Inter ≥ 98% | CBSE ≥ 95% | JEE ≥ 95%ile | TG EAPCET 1–2000",
-        },
-        {
-            "category": "30% Tuition Waiver Slab",
-            "amount": "₹2,38,000 / Year (CSE)",
-            "frequency": "Save ₹1,02,000 / Year",
-            "note": "Inter 92–97.9% | CBSE 90–94.9% | JEE 90–94.99%ile | TG EAPCET 2001–8000",
-        },
-        {
-            "category": "25% Tuition Waiver Slab",
-            "amount": "₹2,55,000 / Year (CSE)",
-            "frequency": "Save ₹85,000 / Year",
-            "note": "Inter 80–91.9% | CBSE 80–89.9% | JEE 80–89.9%ile | TG EAPCET 8001–20000",
-        },
-        {
-            "category": "20% Tuition Waiver Slab",
-            "amount": "₹2,72,000 / Year (CSE)",
-            "frequency": "Save ₹68,000 / Year",
-            "note": "Inter 70–79.9% | CBSE 70–79.9% | JEE 70–79.9%ile",
-        },
-        {
-            "category": "15% Tuition Waiver Slab",
-            "amount": "₹2,89,000 / Year (CSE)",
-            "frequency": "Save ₹51,000 / Year",
-            "note": "Inter 65–69.9% | CBSE 65–69.9% | JEE 60–69.9%ile",
-        },
-        {
-            "category": "10% Tuition Waiver Slab",
-            "amount": "₹3,06,000 / Year (CSE)",
-            "frequency": "Save ₹34,000 / Year",
-            "note": "Inter 60–64.9% | CBSE 60–64.9% | JEE 50–59.9%ile",
-        },
-    ],
-    "scholarship_note": "Calculated on standard B.Tech CSE base tuition (₹3,40,000/yr). Slabs apply similarly across all UG disciplines. Tuition rises ₹9,000 yearly. Subject to marksheet verification and Admissions Office confirmation.",
-}
+
+MERIT_SCHOLARSHIP_CARD = _build_merit_scholarship_card()
 
 
-# ---- Cards whose numbers come from the official fee file -------------------------------------
-# These three used to carry their own hand-typed amounts, which had drifted away from the
-# official circular (hostel ₹85,000-95,000, bus ₹22,000, an "admission fee" of ₹25,000 that the
-# circular does not contain). They are now built from app/sru_agent/fees_2027_28.json, the same
-# file the agent and the calculator read, so a card can never disagree with the chat answer.
+# ---- Charge cards: built from app/sru_agent/fee_policy_2027_28.json (the fee circular), never typed by hand.
 def _fee_data() -> dict:
     from app.sru_agent import fees
     return fees.load_data()
@@ -267,6 +165,7 @@ def _inr(amount) -> str:
 
 def _build_transport_fee_card() -> dict:
     data = _fee_data()
+    bus = data["charges"]["bus"]["amount"]
     return {
         "type": "fee_breakdown",
         "title": f"SR University Transport & Bus Fee ({data['academic_year']})",
@@ -274,9 +173,9 @@ def _build_transport_fee_card() -> dict:
         "items": [
             {
                 "category": "University Bus: Tri-Cities (Warangal, Hanamkonda, Kazipet) and outstation routes",
-                "amount": _inr(data["transport_per_year"]),
+                "amount": _inr(bus),
                 "frequency": "Per Year",
-                "note": "Optional. GPS-tracked fleet with designated pickup stops across the tri-cities",
+                "note": "Optional; added to your fee only if you choose the bus. GPS-tracked fleet with pickup stops across the tri-cities",
             },
         ],
         "scholarship_note": "Transport in-charge: Mr. A. Keerthi Reddy (9640606408, transport@sru.edu.in).",
@@ -284,8 +183,10 @@ def _build_transport_fee_card() -> dict:
 
 
 def _build_hostel_fee_card() -> dict:
+    from app.sru_agent import fees
     data = _fee_data()
-    hostel, deposits = data["hostel_per_year"], data.get("hostel_deposits", {})
+    hostel = fees.hostel_per_year()
+    elec = data["charges"]["electricity_deposit"]
     amenities = "4 meals daily in the 4,000-seat mega dining hall, 24/7 Wi-Fi, study areas & power backup"
     rooms = (("non_ac_4", "Non-AC 4-Sharing"), ("non_ac_3", "Non-AC 3-Sharing"),
              ("ac_4", "AC 4-Sharing"), ("ac_3", "AC 3-Sharing"))
@@ -302,18 +203,20 @@ def _build_hostel_fee_card() -> dict:
                 "note": amenities,
             }
             for key, label in rooms
+        ] + [
+            {"category": "Electricity deposit (one-time)", "amount": f"{_inr(elec['non_ac'])} Non-AC / {_inr(elec['ac'])} AC",
+             "frequency": "One-time", "note": "From the 2027-28 fee circular; paid in the first hostel semester"},
         ],
         "scholarship_note": (
-            f"Room and mess are included. Extra: caution deposit {_inr(deposits.get('caution_deposit', 0))} and "
-            f"laundry {_inr(deposits.get('laundry_per_year', 0))} per year; AC rooms also pay an electricity "
-            f"deposit. Hostel is optional. {data['academic_year']} fees, as per the Admissions Office."
+            "Room and meals are included. Hostel is optional. Hostel room fees are not on the 2027-28 fee circular, "
+            "so the Admissions Office confirms them; the electricity deposit is from the circular."
         ),
     }
 
 
 def _build_admission_fee_card() -> dict:
     data = _fee_data()
-    one_time = data["one_time"]
+    ch = data["charges"]
     return {
         "type": "fee_breakdown",
         "title": "SR University One-Time Admission & Enrollment Fees",
@@ -321,73 +224,59 @@ def _build_admission_fee_card() -> dict:
         "items": [
             {
                 "category": "Enrollment Fee (One-time)",
-                "amount": _inr(one_time["enrollment_fee"]),
-                "frequency": "One-time (Year 1)",
-                "note": "Paid once at the time of admission",
+                "amount": _inr(ch["enrollment_fee"]["amount"]),
+                "frequency": "One-time (Semester 1, Year 1)",
+                "note": "Paid once with the first semester fee",
             },
             {
                 "category": "Admission Application Form Fee",
-                "amount": _inr(one_time["application_fee"]),
+                "amount": _inr(ch["application_fee"]["amount"]),
                 "frequency": "One-time (when applying)",
-                "note": "Paid with the online application at apply.sru.edu.in",
+                "note": "Paid with the online application at apply.sru.edu.in; not part of any semester fee",
             },
         ],
-        "scholarship_note": f"{data['academic_year']} fees, as per the Admissions Office. Tuition and other yearly fees are separate.",
+        "scholarship_note": f"{data['academic_year']} fee circular. Tuition and other charges are separate.",
     }
 
 
 def _build_other_fees_card() -> dict:
     data = _fee_data()
-    one_time = data["one_time"]
-    yearly = data.get("yearly_other", {})
+    ch = data["charges"]
     return {
         "type": "fee_breakdown",
         "title": f"SR University Other Fees & Annual Charges ({data['academic_year']})",
-        "subtitle": "Fee components and institutional charges other than semester tuition",
+        "subtitle": "Fee components other than tuition, from the official fee circular",
         "currency": "INR",
         "items": [
-            {
-                "category": "Enrolment Fee",
-                "amount": _inr(one_time.get("enrollment_fee", 5000)),
-                "frequency": "One-time (Year 1)",
-                "note": "Paid once at the time of admission / Semester 1",
-            },
-            {
-                "category": "Other Academic / University Charges",
-                "amount": _inr(yearly.get("other_fee", 15000)),
-                "frequency": "Per Year",
-                "note": "Covers laboratories, library, campus amenities & infrastructure maintenance",
-            },
-            {
-                "category": "Examination Fee (First Year)",
-                "amount": _inr(yearly.get("exam_fee", 5000)),
-                "frequency": "Per Year",
-                "note": "Semester examination and evaluation charges as printed on fee card",
-            },
-            {
-                "category": "Application Form Fee",
-                "amount": _inr(one_time.get("application_fee", 1100)),
-                "frequency": "One-time",
-                "note": "Paid with the online application at apply.sru.edu.in",
-            },
-            {
-                "category": "Specialisation Fee",
-                "amount": "₹30,000",
-                "frequency": "Per Year (Year 2 Onwards)",
-                "note": "Applicable annually from the second year onwards where specialisation applies",
-            },
-            {
-                "category": "PhD Fee",
-                "amount": _inr(data.get("phd_fee_per_year", 70000)),
-                "frequency": "Per Year",
-                "note": "Annual fee for doctoral research scholars",
-            },
+            {"category": "Enrollment Fee", "amount": _inr(ch["enrollment_fee"]["amount"]),
+             "frequency": "One-time", "note": "Semester 1 of Year 1"},
+            {"category": "Other Fee", "amount": _inr(ch["other_fee"]["amount"]),
+             "frequency": "Per Year", "note": "Paid in Semester 1 of each year (not split)"},
+            {"category": "Exam Fee (Year 1)", "amount": _inr(ch["exam_fee"]["amount"]),
+             "frequency": "Year 1 only", "note": "Semester 1 of Year 1"},
+            {"category": "Application Form Fee", "amount": _inr(ch["application_fee"]["amount"]),
+             "frequency": "One-time, at application", "note": "Paid separately with the online application"},
+            {"category": "Specialisation Fee", "amount": _inr(ch["specialization_fee"]["amount"]),
+             "frequency": "Per Year, from Year 2", "note": "Only where a specialisation applies; never in Year 1"},
+            {"category": "PhD Fee", "amount": _inr(ch["phd_fee"]["amount"]),
+             "frequency": "Per Year", "note": "Annual fee for doctoral research scholars"},
         ],
         "scholarship_note": (
-            "Optional facilities: University Bus ₹30,000/year; Hostel ₹1,15,000–₹1,35,000/year "
-            "(includes 4 daily meals in Mega Dining Hall, caution deposit ₹5,000 refundable). "
-            "There is no separate 'admission fee' charged on the 2027-28 fee card."
+            f"Optional: University Bus {_inr(ch['bus']['amount'])} a year; hostel electricity deposit "
+            f"{_inr(ch['electricity_deposit']['non_ac'])} (Non-AC) / {_inr(ch['electricity_deposit']['ac'])} (AC), one-time. "
+            "Merit scholarships apply to tuition only, never to these charges."
         ),
+    }
+
+
+def _build_exam_fee_card() -> dict:
+    data = _fee_data()
+    return {
+        "type": "fee_breakdown",
+        "title": "SR University Examination Fee",
+        "currency": "INR",
+        "items": [{"category": "Exam Fee (Year 1)", "amount": _inr(data["charges"]["exam_fee"]["amount"]),
+                   "frequency": "Year 1 only", "note": "Paid in Semester 1 of Year 1, as on the 2027-28 fee circular"}],
     }
 
 
@@ -453,19 +342,7 @@ HOSTEL_FEE_CARD = _build_hostel_fee_card()
 
 HOSTEL_FACILITIES_CARD = _build_hostel_facilities_card()
 
-EXAM_FEE_CARD = {
-    "type": "fee_breakdown",
-    "title": "SR University Examination Fee Structure",
-    "currency": "INR",
-    "items": [
-        {
-            "category": "Annual Examination Fee",
-            "amount": "₹5,000",
-            "frequency": "Per Year",
-            "note": "Covers semester-end evaluations per Controller of Examinations notifications",
-        },
-    ],
-}
+EXAM_FEE_CARD = _build_exam_fee_card()
 
 ADMISSION_FEE_CARD = _build_admission_fee_card()
 OTHER_FEES_CARD = _build_other_fees_card()
@@ -1255,26 +1132,31 @@ def generate_cards(
     return cards
 
 
+def _TUITION(key: str) -> int:
+    """Annual tuition from the fee policy (never typed here)."""
+    return int(_fees().load_data()["programs"][key]["tuition_per_year"])
+
+
 _ALL_FORM_PROGRAMS = [
     # Undergraduate Programmes (UG)
-    {"key": "btech_cse", "name": "B.Tech Computer Science & Engineering (CSE)", "degree": "B.Tech", "level": "ug", "annual_tuition": 340000},
-    {"key": "btech_ai_robotics", "name": "B.Tech in Artificial Intelligence & Robotics", "degree": "B.Tech", "level": "ug", "annual_tuition": 400000},
-    {"key": "btech_ece", "name": "B.Tech Electronics & Communication (ECE)", "degree": "B.Tech", "level": "ug", "annual_tuition": 270000},
-    {"key": "btech_mech", "name": "B.Tech Mechanical Engineering", "degree": "B.Tech", "level": "ug", "annual_tuition": 200000},
-    {"key": "btech_civil", "name": "B.Tech Civil Engineering", "degree": "B.Tech", "level": "ug", "annual_tuition": 200000},
-    {"key": "btech_eee", "name": "B.Tech Electrical & Electronics (EEE)", "degree": "B.Tech", "level": "ug", "annual_tuition": 200000},
-    {"key": "bsc_agri", "name": "B.Sc (Hons.) Agriculture (ICAR Accredited)", "degree": "B.Sc", "level": "ug", "annual_tuition": 200000},
-    {"key": "bba", "name": "BBA (Bachelor of Business Administration)", "degree": "BBA", "level": "ug", "annual_tuition": 150000},
-    {"key": "bca", "name": "BCA (Bachelor of Computer Applications)", "degree": "BCA", "level": "ug", "annual_tuition": 150000},
-    {"key": "bdes", "name": "B.Des (School of Design)", "degree": "B.Des", "level": "ug", "annual_tuition": 210000},
-    {"key": "bcom", "name": "B.Com (Bachelor of Commerce)", "degree": "B.Com", "level": "ug", "annual_tuition": 100000},
+    {"key": "btech_cse", "name": "B.Tech Computer Science & Engineering (CSE)", "degree": "B.Tech", "level": "ug", "annual_tuition": _TUITION("btech_cse")},
+    {"key": "btech_ai_robotics", "name": "B.Tech in Artificial Intelligence & Robotics", "degree": "B.Tech", "level": "ug", "annual_tuition": _TUITION("btech_ai_robotics")},
+    {"key": "btech_ece", "name": "B.Tech Electronics & Communication (ECE)", "degree": "B.Tech", "level": "ug", "annual_tuition": _TUITION("btech_ece")},
+    {"key": "btech_mech", "name": "B.Tech Mechanical Engineering", "degree": "B.Tech", "level": "ug", "annual_tuition": _TUITION("btech_mech")},
+    {"key": "btech_civil", "name": "B.Tech Civil Engineering", "degree": "B.Tech", "level": "ug", "annual_tuition": _TUITION("btech_civil")},
+    {"key": "btech_eee", "name": "B.Tech Electrical & Electronics (EEE)", "degree": "B.Tech", "level": "ug", "annual_tuition": _TUITION("btech_eee")},
+    {"key": "bsc_agri", "name": "B.Sc (Hons.) Agriculture (ICAR Accredited)", "degree": "B.Sc", "level": "ug", "annual_tuition": _TUITION("bsc_agri")},
+    {"key": "bba", "name": "BBA (Bachelor of Business Administration)", "degree": "BBA", "level": "ug", "annual_tuition": _TUITION("bba")},
+    {"key": "bca", "name": "BCA (Bachelor of Computer Applications)", "degree": "BCA", "level": "ug", "annual_tuition": _TUITION("bca")},
+    {"key": "bdes", "name": "B.Des (School of Design)", "degree": "B.Des", "level": "ug", "annual_tuition": _TUITION("bdes")},
+    {"key": "bcom", "name": "B.Com (Bachelor of Commerce)", "degree": "B.Com", "level": "ug", "annual_tuition": _TUITION("bcom")},
 
     # Postgraduate Programmes (PG)
-    {"key": "mba", "name": "MBA (Finance, Operations, HR, Business Analytics, Marketing)", "degree": "MBA", "level": "pg", "annual_tuition": 300000},
-    {"key": "mba_agri", "name": "MBA in Agri-Business Management", "degree": "MBA", "level": "pg", "annual_tuition": 200000},
-    {"key": "mca", "name": "MCA (Master of Computer Applications)", "degree": "MCA", "level": "pg", "annual_tuition": 150000},
-    {"key": "mtech", "name": "M.Tech CSE", "degree": "M.Tech", "level": "pg", "annual_tuition": 100000},
-    {"key": "msc", "name": "M.Sc Sciences & Agriculture", "degree": "M.Sc", "level": "pg", "annual_tuition": 100000},
+    {"key": "mba", "name": "MBA (Finance, Operations, HR, Business Analytics, Marketing)", "degree": "MBA", "level": "pg", "annual_tuition": _TUITION("mba")},
+    {"key": "mba_agri", "name": "MBA in Agri-Business Management", "degree": "MBA", "level": "pg", "annual_tuition": _TUITION("mba_agri")},
+    {"key": "mca", "name": "MCA (Master of Computer Applications)", "degree": "MCA", "level": "pg", "annual_tuition": _TUITION("mca")},
+    {"key": "mtech", "name": "M.Tech CSE", "degree": "M.Tech", "level": "pg", "annual_tuition": _TUITION("mtech")},
+    {"key": "msc", "name": "M.Sc Sciences & Agriculture", "degree": "M.Sc", "level": "pg", "annual_tuition": _TUITION("msc")},
 ]
 
 
@@ -1502,13 +1384,13 @@ def build_counsellor_program_card(selected_program: str | None = None, step_labe
         "step_label": step_label,
         "selected_program": selected_program or None,
         "programs": [
-            {"key": "btech_cse", "name": "B.Tech Computer Science & Engineering (CSE)", "short": "B.Tech CSE", "annual_tuition": "₹3,40,000"},
-            {"key": "btech_ai_robotics", "name": "B.Tech in Artificial Intelligence & Robotics", "short": "AI & Robotics", "annual_tuition": "₹4,00,000"},
-            {"key": "btech_ece", "name": "B.Tech ECE (AIML, VLSI, Robotics)", "short": "B.Tech ECE", "annual_tuition": "₹2,70,000"},
-            {"key": "btech_mech", "name": "B.Tech Mechanical / Civil / EEE", "short": "Core Engineering", "annual_tuition": "₹2,00,000"},
-            {"key": "mba", "name": "Master of Business Administration (MBA)", "short": "MBA", "annual_tuition": "₹3,00,000"},
-            {"key": "bba", "name": "Bachelor of Business Administration (BBA)", "short": "BBA", "annual_tuition": "₹1,50,000"},
-            {"key": "bsc_agri", "name": "B.Sc (Hons.) Agriculture (ICAR Accredited)", "short": "B.Sc Agriculture", "annual_tuition": "₹2,00,000"},
+            {"key": "btech_cse", "name": "B.Tech Computer Science & Engineering (CSE)", "short": "B.Tech CSE", "annual_tuition": _fees().inr(_TUITION("btech_cse"))},
+            {"key": "btech_ai_robotics", "name": "B.Tech in Artificial Intelligence & Robotics", "short": "AI & Robotics", "annual_tuition": _fees().inr(_TUITION("btech_ai_robotics"))},
+            {"key": "btech_ece", "name": "B.Tech ECE (AIML, VLSI, Robotics)", "short": "B.Tech ECE", "annual_tuition": _fees().inr(_TUITION("btech_ece"))},
+            {"key": "btech_mech", "name": "B.Tech Mechanical / Civil / EEE", "short": "Core Engineering", "annual_tuition": _fees().inr(_TUITION("btech_mech"))},
+            {"key": "mba", "name": "Master of Business Administration (MBA)", "short": "MBA", "annual_tuition": _fees().inr(_TUITION("mba"))},
+            {"key": "bba", "name": "Bachelor of Business Administration (BBA)", "short": "BBA", "annual_tuition": _fees().inr(_TUITION("bba"))},
+            {"key": "bsc_agri", "name": "B.Sc (Hons.) Agriculture (ICAR Accredited)", "short": "B.Sc Agriculture", "annual_tuition": _fees().inr(_TUITION("bsc_agri"))},
         ],
     }
 
