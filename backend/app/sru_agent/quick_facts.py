@@ -607,6 +607,109 @@ _RULES += [
 ]
 
 
+# v4.15.1 (multi-question live test): everyday campus facts, read from the handbook lines (Gemini got the station
+# distance and the condonation rule wrong when it wrote them itself).
+def _lines(file: str, *needles: str) -> list[str]:
+    """The handbook lines containing any of the needles (bullet marks removed), in file order."""
+    try:
+        text = (_HANDBOOK / file).read_text(encoding="utf-8")
+    except OSError:
+        return []
+    out = []
+    for ln in text.splitlines():
+        if any(n.lower() in ln.lower() for n in needles):
+            out.append(re.sub(r"^\s*[-*]\s+", "", ln).strip())
+    return out
+
+
+def _from_lines(lines: list[str], lead: str = "", tail: str = "", chips: list[str] | None = None) -> QuickAnswer | None:
+    if not lines:
+        return None
+    body = lines[0] if len(lines) == 1 else "• " + "\n• ".join(lines)
+    return QuickAnswer((lead + "\n\n" if lead else "") + body + (("\n\n" + tail) if tail else ""), chips or [])
+
+
+def _location(message: str) -> QuickAnswer | None:
+    address = [ln.split("(")[0].strip() for ln in _lines("09_verified_sru_facts.md", "Main Campus:")[:1]]
+    return _from_lines(address + _lines("01_campus_life_and_facilities.md", "Distance: 14 km")[:1],
+                       "Where SR University is:", "The nearest major airport is Rajiv Gandhi International, Hyderabad.",
+                       ["Plan a campus visit", "Transport", "Hostel life"])
+
+
+def _attendance(message: str) -> QuickAnswer | None:
+    lines = [ln for ln in _section("02_academic_regulations_and_examinations.md", "4. Attendance Policy")
+             if re.search(r"minimum of 75%|10% to 25%|Agriculture Exception|\"R\" grade", ln)]
+    return _from_lines(lines, "Attendance rules (SRU academic regulations):", "", ["Exam pattern", "Backlogs", "Hostel rules"])
+
+
+def _exams(message: str) -> QuickAnswer | None:
+    lines = [ln.split(":")[0].rstrip(".") + "." for ln in _lines("02_academic_regulations_and_examinations.md",
+                                                                  "Evaluation is based on Continuous Internal")]
+    return _from_lines(lines[:1], "", "Students with a shortage of attendance can't sit the End Semester Examination.",
+                       ["Attendance rule", "Backlogs", "Grading"])
+
+
+def _classes_start(message: str) -> QuickAnswer:
+    return QuickAnswer("The class start date for the new batch isn't in the official sources I use; the Admissions "
+                       f"Office confirms it with your admission ({_phone()}, info@sru.edu.in).",
+                       ["How do I apply?", "Admission process", "Talk to a counsellor"])
+
+
+def _wifi(message: str) -> QuickAnswer | None:
+    return _from_lines(_lines("01_campus_life_and_facilities.md", "100% Wi-Fi enabled")[:1], "",
+                       "", ["Hostel life", "Hostel fees", "Labs"])
+
+
+def _vehicles(message: str) -> QuickAnswer | None:
+    return _from_lines([ln.replace("**", "") for ln in _lines("01_campus_life_and_facilities.md", "Motorized vehicles",
+                                                               "park motorized", "Bicycles are allowed")][:3],
+                       "Vehicle rules on campus:", "", ["Transport", "Hostel rules", "Hostel life"])
+
+
+def _atm(message: str) -> QuickAnswer | None:
+    return _from_lines(_lines("01_campus_life_and_facilities.md", "Canara Bank ATM")[:1], "", "",
+                       ["Hostel life", "Campus facilities"])
+
+
+def _ragging(message: str) -> QuickAnswer | None:
+    lines = _lines("04_hostels_rules_and_discipline_code.md", "Ragging is a criminal", "Anti-Ragging Helpline")[:2]
+    return _from_lines(lines, "SR University has zero tolerance for ragging:", "", ["Hostel safety", "Hostel rules"])
+
+
+def _library(message: str) -> QuickAnswer | None:
+    lines = [ln.replace("**", "") for ln in _lines("01_campus_life_and_facilities.md", "Central Library: Monday",
+                                                    "Spread over 1,000 sq. meters")][:2]
+    return _from_lines(lines, "The University Central Library:", "", ["Labs", "Wi-Fi", "Campus tour"])
+
+
+def _campus_size(message: str) -> QuickAnswer | None:
+    # 170+ acres: the handbook (01, 09, 10, 14) as confirmed by the university on 25 Nov 2026
+    lines = _lines("01_campus_life_and_facilities.md", "170+ acres")[:1]
+    return _from_lines([ln.replace("**", "") for ln in lines], "", "Plan a visit to see it for yourself.",
+                       ["Plan a campus visit", "Hostel life", "Campus facilities"])
+
+
+_RULES += [
+    (re.compile(r"\bhow\s+(?:big|large)\s+is\s+(?:the\s+)?(?:campus|university|sru|college)\b|\bcampus\s+(?:size|area)\b|"
+                r"\bhow\s+many\s+acres\b|\bis\s+the\s+campus\s+(?:big|large|huge)\b", re.I), _campus_size),
+    (re.compile(r"\blibrary\b.{0,25}\b(?:timings?|hours?|open|opens|close|closes|time|big|size)\b|"
+                r"\b(?:timings?|hours?|when)\b.{0,20}\blibrary\b|\bhow\s+big\s+is\s+(?:the\s+)?library\b", re.I), _library),
+    (re.compile(r"\bhow\s+far\b|\bdistance\b|\bwhere\s+is\s+(?:sru|sr\s+university|the\s+(?:campus|university|college)|"
+                r"campus|college)\b|\bwhere\s+(?:is|are)\s+you\s+located\b|\b(?:sru|campus)\s+location\b|"
+                r"\b(?:railway\s+station|kazipet|hanamkonda|hanumakonda)\b", re.I), _location),
+    (re.compile(r"\battendance\b(?!.{0,20}\b(?:sms|sent\s+to\s+parents)\b)", re.I), _attendance),
+    (re.compile(r"\bhow\s+(?:are|is)\s+(?:the\s+)?(?:exams?|examinations?)\b|\b(?:exam|evaluation|examination)\s+(?:pattern|"
+                r"system|process)\b|\bgrading\s+system\b|\bhow\s+(?:are|is)\s+(?:students?\s+)?(?:evaluated|graded|assessed)\b",
+                re.I), _exams),
+    (re.compile(r"\bwhen\s+(?:do|will|does)\s+(?:the\s+)?class(?:es)?\s+(?:start|begin|commence)\b|\bclass(?:es)?\s+start"
+                r"(?:\s+date)?\b|\bacademic\s+calendar\b", re.I), _classes_start),
+    (re.compile(r"\bwi-?\s?fi\b|\binternet\b", re.I), _wifi),
+    (re.compile(r"\b(?:bikes?|scooty|scooters?|two[- ]wheelers?|cars?|vehicles?|bicycles?|cycles?)\b", re.I), _vehicles),
+    (re.compile(r"\batm\b|\bis\s+there\s+(?:a\s+)?bank\b", re.I), _atm),
+    (re.compile(r"\bragg(?:ing|ed)?\b", re.I), _ragging),
+]
+
+
 def answer(message: str) -> QuickAnswer | None:
     na = _not_offered(message) if re.search(r"\b(?:do\s+you|is\s+there|does\s+sru|offer|available|have|course|"
                                              r"programme|program|admission)\b", message or "", re.I) else None

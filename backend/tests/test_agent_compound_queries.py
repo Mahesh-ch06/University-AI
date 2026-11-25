@@ -44,7 +44,7 @@ async def test_compound_query_cse_vs_aiml_and_why_sru():
     assert "CSE vs" in full_text or "Computer Science & Engineering" in full_text
     assert "Artificial Intelligence" in full_text or "AI & ML" in full_text
     # Must also cover Why Choose SRU
-    assert "Why Choose SR University" in full_text or "Top Private University" in full_text
+    assert "Why students choose SRU" in full_text or "reasons to choose SRU" in full_text   # verified facts (v4.15.1)
 
 
 @pytest.mark.asyncio

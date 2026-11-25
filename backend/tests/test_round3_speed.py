@@ -94,7 +94,7 @@ async def _events(client, message, session):
 @pytest.mark.asyncio
 async def test_answer_streams_while_the_model_writes_it():
     client = StreamingClient([[_text_chunk("SR University has "), _text_chunk("a 150-acre campus.")]])
-    events = await _events(client, "tell me about the campus size", f"stream-{uuid.uuid4()}")
+    events = await _events(client, "what is the library like at sru?", f"stream-{uuid.uuid4()}")
     tokens = [e["delta"] for e in events if e["type"] == "token"]
     assert tokens[:2] == ["SR University has ", "a 150-acre campus."]  # the model's own pieces
     done = events[-1]

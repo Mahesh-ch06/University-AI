@@ -1899,6 +1899,12 @@ def _is_mock_or_test_client(cl) -> bool:
     )
 
 
+def _one_question(message: str, profile: dict) -> bool:
+    """True when a single-topic answer may take this message: it is not several questions (those are answered part
+    by part by compound.plan, or by the model with the list of parts: v4.15.1)."""
+    return compound.plan(message, profile) is None and not compound.model_note(message)
+
+
 async def _resolve_sub_query(sub_q: str, topic: str, session_id: str) -> tuple[str, list, list]:
     """One part of a multi-question message, answered from verified content: (text, cards, chips).
     `topic` comes from compound.plan, which only plans topics this function can answer."""
@@ -1906,6 +1912,15 @@ async def _resolve_sub_query(sub_q: str, topic: str, session_id: str) -> tuple[s
     if topic == "cse_vs_aiml":
         return responses._CSE_VS_AIML_TEXT, cards, list(responses._CSE_VS_AIML_CHIPS)
     if topic == "why_sru":
+        # v4.15.1: from the verified facts registry (not the long static text), and exactly the number asked for
+        n = compound.asked_count(sub_q)
+        picked = fact_service.retrieve("why choose sru", k=n or 3,
+                                       aspects=["rankings", "placements", "accreditation", "campus", "research"])
+        bullets = [f"{i}. {(f.metadata or {}).get('short', '').strip()}" for i, f in enumerate(picked[:n or 3], 1)
+                   if (f.metadata or {}).get("short")]
+        if bullets:
+            head = f"**{len(bullets)} reasons to choose SRU:**" if n else "**Why students choose SRU:**"
+            return head + "\n\n" + "\n".join(bullets), cards, list(_ABOUT_SRU_CHIPS)
         return _WHY_CHOOSE_SRU_TEXT, cards, list(_ABOUT_SRU_CHIPS)
     if topic == "about_sru":
         return _ABOUT_SRU_TEXT, cards, list(_ABOUT_SRU_CHIPS)
@@ -1933,6 +1948,13 @@ async def _resolve_sub_query(sub_q: str, topic: str, session_id: str) -> tuple[s
         return responses._PLACEMENT_ASSISTANCE_RESPONSES[0], cards, list(responses._PLACEMENT_ASSISTANCE_CHIPS)
     if topic == "scholarships":
         return compound.scholarship_overview_text(), cards, list(responses._SCHOLARSHIP_CRITERIA_CHIPS)
+    if topic == "qf":          # v4.15.1: an exact answer from the fee card or the handbook
+        from . import quick_facts
+        qa = quick_facts.answer(sub_q)
+        return (qa.text, cards, list(qa.chips)) if qa else ("", cards, [])
+    if topic.startswith("campus:"):
+        ans = campus_life.answer(topic.split(":", 1)[1], sub_q)
+        return ans.text, list(getattr(ans, "cards", None) or []), list(getattr(ans, "chips", None) or [])
     return "", cards, []
 
 
@@ -2209,8 +2231,10 @@ async def run_agent(
     step_answer = bool(dlg_busy and not side_q and intake_now.get("waiting_for") not in (None, "done"))
     # v4.15.1: specific questions answered exactly from the fee card's terms / verified facts (quick_facts.py)
     from . import quick_facts
-    qa = None if (step_answer or tools.find_phone(message) or intents.is_callback_request(message)) \
-        else quick_facts.answer(message)            # a phone number or callback request goes to the callback flow
+    # a phone number or callback request goes to the callback flow; several questions go to the multi-question step
+    # below, which answers every part (a single quick fact would answer only one of them)
+    qa = None if (step_answer or tools.find_phone(message) or intents.is_callback_request(message)
+                  or compound.model_note(message)) else quick_facts.answer(message)
     if qa:
         async for ev in _reply(qa.text, message, session_id, conversation_id, suggestions=qa.chips, exact_chips=True,
                                client=client, history=history, profile=profile, conv_state=conv_state):
@@ -2262,7 +2286,11 @@ async def run_agent(
         fj = fee_journey.decide(message, conv_state.get(fee_journey.KEY), profile, {
             "program": (conv_state.get("active_program") or profile.get("program_interest")
                         or (conv_state.get("fee_intake") or {}).get("program") or last_fee_args.get("program")),
-            "hostel": last_fee_args.get("hostel") if last_fee_args.get("hostel") not in (None, "none") else None,
+            # v4.15.1: a room type only when the student chose one ("AC 4 sharing"), never one the model assumed
+            "hostel": last_fee_args.get("hostel") if last_fee_args.get("hostel") not in (None, "none") and (
+                fee_journey._read_hostel(message or "") or any(
+                    fee_journey._read_hostel(h.get("text", "") or "") for h in history[-12:] if h.get("role") == "user"))
+                else None,
             "transport": True if last_fee_args.get("transport") else None,
             "last_reply": last_reply,
             "selected_concession": conv_state.get("selected_concession"),
@@ -2329,7 +2357,7 @@ async def run_agent(
     # official fee data, then the offer to work out the student's own. (It used to start the step questions at once.)
     if not fee_plan_turn and _GENERAL_SCHOLARSHIP.search(message or "") and not re.search(r"\d", message or "") \
             and not _OWN_FEE.search(message or "") \
-            and compound.plan(message, profile) is None:
+            and _one_question(message, profile):
         sch_prog = fees.find_program(message or "") or conv_state.get("active_program") \
             or profile.get("program_interest") or "btech_cse"
         if sch_prog not in fees.load_data()["programs"]:
@@ -2350,7 +2378,7 @@ async def run_agent(
     # jobs after BBA" get the verified placement answer at once (it used to ask "what about placements?" first, or go
     # to the model). Guarantee / recruiters / training / internships each get their own answer.
     if not fee_plan_turn and _PLACEMENT_Q.search(message or "") and not tools.find_phone(message) \
-            and not intents.is_callback_request(message) and compound.plan(message, profile) is None \
+            and not intents.is_callback_request(message) and _one_question(message, profile) \
             and not re.search(r"\b(?:fees?|cost|scholarship|eligib\w*|hostel|cut-?off)\b", message or "", re.I) \
             and (side_q or not (dlg_busy or (conv_state.get("dialogue") or {}).get("step"))) \
             and responses.placement_aspect(message) != "guarantee" \
@@ -2387,7 +2415,7 @@ async def run_agent(
         if campus_key is None and conv_state.get("campus_offer") and _AFFIRM.match(message or "") \
                 and len((message or "").split()) <= 4:
             campus_key = conv_state.get("campus_offer")      # "yes" to "Would you like to see the other events?"
-        if campus_key and compound.plan(message, profile) is None:
+        if campus_key and _one_question(message, profile):
             ans = campus_life.answer(campus_key, message)
             told = list(conv_state.get("campus_told") or [])
             if campus_key in told and not campus_key.startswith("event:"):
@@ -2558,6 +2586,14 @@ async def run_agent(
             for chip in part_chips:
                 if chip not in combined_chips:
                     combined_chips.append(chip)
+        if resolved_parts and compound.from_other_state(message):
+            conc = next((c for c in fees.load_data().get("special_concessions", [])
+                         if c["label"].lower().startswith("students from states other than telangana")), None)
+            if conc:
+                resolved_parts.append(
+                    f"Coming from outside Telangana and Andhra Pradesh? The 2027-28 fee card has a special concession "
+                    f"of **{fees.inr(int(conc['amount']))} a year** for students from other states, applied after the "
+                    "Admissions Office verifies your proof.")
         if resolved_parts:
             # A side question during an unfinished fee evaluation keeps the "continue" button (docs/36 rule 2).
             chips = await _with_resume_chip(session_id, conversation_id, combined_chips[:4])
@@ -3890,6 +3926,7 @@ async def run_agent(
                     handbook_passages=passages, fee_result=fee_note, faculty_result=faculty_note,
                     persona=persona, name_used_recently=name_used_recently,
                     conversation_note=_conversation_note(conv_state, ctx["profile"], history),
+                    reply_brief=compound.model_note(message),     # several questions: answer each (v4.15.1)
                     focus_program=(fees.clean_program_name(conv_state["active_program"])
                                    if conv_state.get("active_program") in fees.load_data()["programs"] else None)),
                 tools=[tool_decl],

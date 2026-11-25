@@ -195,7 +195,7 @@ async def test_repeated_first_question_is_never_served_from_a_saved_copy(monkeyp
     monkeypatch.setattr(agent, "_ring", ring)
     answers = []
     for sid in ("r2-cache-1", "r2-cache-2", "r2-cache-3"):
-        events = [e async for e in run_agent("Where is SR University located?", sid)]
+        events = [e async for e in run_agent("What is the library like at SR University?", sid)]
         answers.append(events[-1]["answer"])
     assert len(calls) == 3 and len(set(answers)) == 3
 
@@ -217,7 +217,7 @@ async def test_daily_limit_is_not_retried_and_gets_a_useful_reply(monkeypatch):
     monkeypatch.setattr(ring, "client", lambda key: DailyLimit())
     monkeypatch.setattr(agent, "_ring", ring)
     monkeypatch.setattr(agent.asyncio, "sleep", no_sleep)
-    events = [e async for e in run_agent("tell me about the anti ragging rules", "r2-daily")]
+    events = [e async for e in run_agent("what is the grade improvement policy", "r2-daily")]
     assert events[-1]["type"] == "done" and "handbook" in events[-1]["answer"]
     assert slept == []                                             # no pointless waiting on a per-day limit
     assert ring.all_resting()

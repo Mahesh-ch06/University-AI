@@ -192,9 +192,12 @@ async def test_concession_with_merit_scholarship_notes_the_admissions_office(mod
 
 # ------------------------------------------------------------------ fee chart
 async def test_fee_with_hostel_offers_the_chart_and_yes_prepares_it(model):
-    calc, chart = await _chat(["my inter percentage is 85, state board. cse fee with ac hostel 4 sharing", "yes"])
+    # v4.15.1: "yes" first asks what the chart still needs (marks are known here: the special concessions)
+    calc, ask, chart = await _chat(["my inter percentage is 85, state board. cse fee with ac hostel 4 sharing", "yes",
+                                    "None of these apply"])
     assert "complete fee chart" in calc["answer"] and calc["suggestions"] == ["Yes, prepare my fee chart", "No, thanks"]
     assert len([c for c in calc["cards"] if c["type"] in ("calculate_fee", "fee_breakdown")]) == 1   # no double card
+    assert _cards(ask, "get_special_concessions") and not _cards(ask, "fee_summary")
     (card,) = _cards(chart, "fee_summary")          # v4.11.0: the chart is the personalised fee summary
     d = card["data"]
     total = sum((-1 if r["kind"] == "discount" else 0 if r["kind"] == "pending" else 1) * fee_plan._num(r["amount"])
@@ -210,8 +213,10 @@ async def test_declining_the_chart_offer_is_respected(model):
 
 
 async def test_chart_includes_a_selected_concession_as_if_approved(model):
+    sid = f"v410-{uuid.uuid4().hex[:10]}"
+    await memory.update_profile(sid, percent=70, board="state_board")   # v4.15.1: the chart needs the marks first
     out = await _chat(['Apply the "SRU alumni, their children and siblings" concession to my B.Tech ECE fee',
-                       "📋 Prepare my full fee chart"])
+                       "📋 Prepare my full fee chart"], sid)
     d = _cards(out[1], "fee_summary")[0]["data"]
     assert d["program"] == fees.short_name("btech_ece")
     assert fee_plan._num(d["payable_after_approval"]) == fee_plan._num(d["payable_confirmed"]) - 15000

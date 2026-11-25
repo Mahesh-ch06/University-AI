@@ -27,14 +27,79 @@ _ACTION = re.compile(
     r"\b(call\s*(?:me|back)|callback|contact\s+me|reach\s+me|ring\s+me|whats\s*app\s+me|talk\s+to|speak\s+(?:to|with)|"
     r"counsell?or|visit|tour|apply|application|register|registration|book|booking|schedule|enrol|enroll|"
     r"my\s+(?:marks?|percentage|rank|score|name|number|phone|mobile|son|daughter|child)|"
-    r"i\s+(?:got|scored|have|am|want|need|will|would|wish))\b",
+    r"i\s+(?:got|scored|have|am(?!\s+(?:leaving|from|coming|moving|relocating|shifting|travell?ing))|want|need|will|"
+    r"would|wish))\b",
     re.IGNORECASE,
 )
 
 _CSE = re.compile(r"\b(?:cse|computer\s+science)\b", re.IGNORECASE)
 _AIML = re.compile(r"\b(?:aiml|ai\s*(?:&|and)\s*ml|machine\s+learning|artificial\s+intelligence)\b", re.IGNORECASE)
 _COMPARE = re.compile(r"\b(?:vs|versus|compare|comparison|difference\s+between)\b", re.IGNORECASE)
-_WHY_SRU = re.compile(r"\bwhy\s+(?:should\s+i\s+)?(?:choose|join|pick)?\s*(?:sru|sr\s*university)\b", re.IGNORECASE)
+_WHY_SRU = re.compile(r"\bwhy\s+(?:should\s+i\s+)?(?:choose|join|pick)?\s*(?:sru|sr\s*university)\b|"
+                      r"\b(?:reasons?|advantages?|benefits?)\b(?!.{0,20}\b(?:fees?|hostel)\b)", re.IGNORECASE)
+# A number that only counts what is asked ("2 reasons") or a duration ("4 years"): not marks, a rank or a phone number.
+_COUNT_OR_YEARS = re.compile(r"\b\d{1,2}\s+(?:reasons?|things?|points?|questions?|advantages?|benefits?|years?|yrs?)\b",
+                             re.IGNORECASE)
+
+
+_CONTEXT_ONLY = re.compile(
+    r"^\W*(?:(?:hey|hi|hello|sir|madam|ok|so)\W+)*(?:i\s*(?:am|'?m)\s+(?:from|leaving|coming|moving|relocating|shifting)"
+    r"\b[^?]*|hey|hi|hello)\W*$", re.IGNORECASE)
+
+# States and big cities outside Telangana and Andhra Pradesh: the fee card's ₹15,000 concession for students from
+# other states is then worth mentioning (it is applied only after proof is verified).
+_OTHER_STATE = re.compile(
+    r"\b(?:delhi|mumbai|maharashtra|pune|bihar|patna|odisha|orissa|bhubaneswar|bengal|kolkata|jharkhand|ranchi|"
+    r"uttar\s+pradesh|lucknow|kanpur|noida|madhya\s+pradesh|bhopal|indore|rajasthan|jaipur|gujarat|ahmedabad|"
+    r"surat|karnataka|bangalore|bengaluru|mysore|tamil\s*nadu|chennai|kerala|kochi|chhattisgarh|raipur|punjab|"
+    r"haryana|gurgaon|gurugram|assam|guwahati|uttarakhand|dehradun|himachal|goa|nepal|bhutan)\b", re.IGNORECASE)
+
+
+_ASKS = re.compile(r"\b(?:give|tell|show|what|how|why|which|when|where|can|could|is|are|does|do|need|want|explain|"
+                   r"reasons?|fees?|hostel|placements?|scholarships?)\b|\?", re.IGNORECASE)
+
+
+def context_only(part: str) -> bool:
+    """A part that only gives context ("I am from Delhi", "hi") and asks nothing."""
+    return bool(_CONTEXT_ONLY.match(part or "")) and not _ASKS.search(part or "")
+
+
+def from_other_state(text: str) -> bool:
+    return bool(re.search(r"\b(?:from|leaving|in|live\s+in|coming\s+from)\b", text or "", re.IGNORECASE)
+                and _OTHER_STATE.search(text or ""))
+
+
+def verified_topic(part: str) -> str | None:
+    """'qf' when quick_facts answers this part exactly, 'campus:<key>' for a campus-life topic, else None."""
+    from app.sru_agent import campus_life, quick_facts
+    if quick_facts.answer(part):
+        return "qf"
+    key = campus_life.topic(part)
+    return f"campus:{key}" if key else None
+
+
+def model_note(message: str) -> str | None:
+    """For the AI model: a message that asks several things gets the list of its parts, to answer each in turn
+    (v4.15.1). None for a single question."""
+    text = (message or "").strip()
+    if not text or not _is_compound_query(text):
+        return None
+    parts = [p for p in _fast_split(text) if not context_only(p)]
+    if len(parts) < 2:
+        return None
+    listed = "; ".join(f"{i}) {p.strip()}" for i, p in enumerate(parts, 1))
+    note = (f"THIS MESSAGE ASKS {len(parts)} THINGS: {listed}. Answer every one, in this order, each under a short "
+            "bold label; when a number is asked (\"2 reasons\"), give exactly that many. Keep each part brief.")
+    if from_other_state(text):
+        note += (" The student is from outside Telangana and Andhra Pradesh: mention the fee card's special concession "
+                 "for students from other states (amount from the fee data, applied after proof is verified).")
+    return note
+
+
+def asked_count(text: str) -> int | None:
+    """How many items the student asked for ("give me 2 reasons" -> 2), 1-6, or None."""
+    m = re.search(r"\b([1-6])\s+(?:reasons?|things?|points?|advantages?|benefits?)\b", text or "", re.IGNORECASE)
+    return int(m.group(1)) if m else None
 _ABOUT_SRU = re.compile(r"\b(?:about|overview\s+of|describe)\s+(?:sru|sr\s*university|the\s+university)\b", re.IGNORECASE)
 _HOSTEL = re.compile(r"\b(?:hostels?|accommodation|residential|residence)\b", re.IGNORECASE)
 _CURFEW = re.compile(r"\b(?:curfew|in-?time|out-?pass)\b", re.IGNORECASE)
@@ -87,7 +152,7 @@ def plan(message: str, profile: dict | None = None) -> list[tuple[str, str]] | N
     text = (message or "").strip()
     if not text or not _is_compound_query(text):
         return None
-    if re.search(r"\d", text) or _ACTION.search(text):
+    if re.search(r"\d", _COUNT_OR_YEARS.sub(" ", text)) or _ACTION.search(text):
         return None
     parts = _fast_split(text)
     if len(parts) < 2:
@@ -95,10 +160,24 @@ def plan(message: str, profile: dict | None = None) -> list[tuple[str, str]] | N
     planned: list[tuple[str, str]] = []
     for part in parts:
         t = topic(part, text)
+        if t == "hostel_info" and verified_topic(part) == "qf":
+            t = "qf"          # "is wifi there in hostel": the exact answer, not the general hostel text
         if t is None:
-            return None
+            if context_only(part):
+                continue          # "I am from Delhi", "hi": context for the answer, not a question of its own
+            t = verified_topic(part)          # v4.15.1: a quick fact or campus-life answer, else the AI answers all
+            if t is None:
+                return None
         planned.append((part, t))
-    if len({t for _, t in planned}) < 2:
+    if len(planned) < 2:
+        return None
+    def _distinct(part: str, t: str) -> str:
+        if t != "qf":
+            return t
+        from app.sru_agent import quick_facts           # quick facts: different answers are different topics
+        qa = quick_facts.answer(part)
+        return "qf:" + (qa.text[:80] if qa else part)
+    if len({_distinct(p, t) for p, t in planned}) < 2:
         return None
     if any(t == "fees" for _, t in planned):
         program = fees.find_program(text) or (profile or {}).get("program_interest")

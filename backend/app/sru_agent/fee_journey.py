@@ -433,6 +433,10 @@ def next_step(state: dict, profile: dict, lead: str = "", seed: str = "") -> dic
     consideration_first = state.get("origin") == "special_consideration" and not state.get("concession_decided")
     if not program and not consideration_first:
         return _ask(state, "program", lead + "Which programme should I work out the fee for?", PROGRAM_CHIPS)
+    if state.get("marks_first") and program and state.get("scholarship") == "yes" and not has_marks(profile):
+        state["awaiting"] = "scholarship_steps"        # the chart asked for: marks first (v4.15.1)
+        state["asked_text"] = None
+        return {"kind": "scholarship_steps", "lead": lead, "state": state}
     if state.get("goal") == "lowest" and program:
         if not has_marks(profile):
             state["scholarship"] = "yes"
@@ -646,6 +650,21 @@ def _decide(message: str, state: dict | None, profile: dict, ctx: dict) -> dict 
         if not st.get("program"):
             st["want_final"] = True
             return _ask(st, "program", "Sure! Which programme should the fee summary be for?", PROGRAM_CHIPS)
+        chart_request = (ctx.get("offer") == "fee_chart" and _YES.match(msg)) or re.search(
+            r"\b(?:fee\s+chart|prepare)\b", msg, re.IGNORECASE)
+        missing_marks = not has_marks(profile) and st.get("scholarship") != "no"
+        if chart_request and (missing_marks or (not active and not st.get("concession_decided"))):
+            # v4.15.1: the chart is the student's own fee, so its details come first (marks -> scholarship, special
+            # concessions, hostel); a chart at the standard fee would be shown and then replaced.
+            if missing_marks:
+                st.update(scholarship="yes", marks_first=True)
+            need = (["your Intermediate marks (for the merit scholarship)"] if missing_marks else []) + \
+                (["any special concession that applies to you"] if not st.get("concession_decided") else []) + \
+                (["your hostel choice"] if not st.get("hostel") else [])
+            lead = _pick(["Sure! To make your fee chart exact, I need a few details first: ",
+                          "Happy to. A couple of quick details first, so the chart shows your real fee: ",
+                          "Let's build it. First I'll need "], seed) + ", then ".join(need) + "."
+            return next_step(st, profile, lead, seed)
         return final(st, profile)
 
     about = _about_my_evaluation(msg, st if active else None, profile, ctx, seed)
