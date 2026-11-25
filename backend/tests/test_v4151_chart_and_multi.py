@@ -140,3 +140,34 @@ async def test_a_concession_question_during_the_fee_steps_is_answered_first(mode
 async def test_cutoff_question_after_how_to_apply_says_it_is_not_published(model):
     out = await _chat(["how to get admission in sru", "what was the cutoff rank for CSE last year?"])
     assert "does not publish" in out[-1]["answer"] and "What were your" not in out[-1]["answer"]
+
+
+# ------------------------------------------------------------------ live chat 25 Nov: not eligible, videos, programmes
+async def test_no_fee_for_a_programme_the_student_cannot_join(model):
+    out = await _chat(["CSE", "Eligibility", "450 out of 1000", "can u show my fee", "BBA fees"])
+    for o in out[-2:]:
+        assert "can't show you a fee" in o["answer"] and not _cards(o, "fee_summary") and not _cards(o, "calculate_fee")
+        assert "50%" in o["answer"] and o["suggestions"] == ["Talk to a counsellor"]
+
+
+async def test_corrected_marks_give_the_fee_again(model):
+    import uuid
+    from app.sru_agent import memory
+    sid = f"v4151-{uuid.uuid4().hex[:10]}"
+    await memory.update_profile(sid, percent=82, board="state_board", program_interest="btech_cse")
+    (o,) = await _chat(["can u show my fee"], sid)
+    assert "can't show you a fee" not in o["answer"]
+
+
+def test_why_sru_videos_are_not_programme_specific():
+    from app.services import video_service
+    vids = video_service.get_keyword_videos("Why Choose SR University", limit=2)
+    assert vids and all(v["category"] not in ("School of Agriculture", "MBA & Business") for v in vids)
+    assert video_service.get_keyword_videos("why choose agriculture at sru", limit=2)[0]["category"] == "School of Agriculture"
+
+
+def test_programme_overview_comes_from_the_fee_card():
+    from app.sru_agent import quick_facts
+    a = quick_facts.answer("Explore programs offered at SR University")
+    assert a and "21 undergraduate" in a.text and "B.Sc in Hospitality and Event Management" in a.text and a.cards
+    assert quick_facts.answer("courses for bipc students").text.startswith("With **BiPC**")

@@ -519,7 +519,7 @@ async def test_twenty_students_at_once_are_all_answered(monkeypatch):
     monkeypatch.setattr(agent, "_gates", {})  # a fresh concurrency gate with the limit set above
 
     async def one_student(i):
-        events = [e async for e in run_agent("which courses are there?", f"act-load-{i}")]
+        events = [e async for e in run_agent("what is the library like at sru?", f"act-load-{i}")]
         return events[-1]["type"]
 
     results = await asyncio.gather(*(one_student(i) for i in range(20)))

@@ -2238,10 +2238,24 @@ async def run_agent(
     qa = None if (step_answer or tools.find_phone(message) or intents.is_callback_request(message)
                   or compound.model_note(message)) else quick_facts.answer(message)
     if qa:
-        async for ev in _reply(qa.text, message, session_id, conversation_id, suggestions=qa.chips, exact_chips=True,
+        async for ev in _reply(qa.text, message, session_id, conversation_id, cards=list(qa.cards or []),
+                               suggestions=qa.chips, exact_chips=True,
                                client=client, history=history, profile=profile, conv_state=conv_state):
             yield ev
         return
+    # v4.15.1 (live chat): a fee question for a programme the student's marks don't qualify for gets the honest "not
+    # eligible" answer with the programmes they can join, never a fee summary for a programme they can't join.
+    if not step_answer and profile.get("percent") not in (None, "") and fee_intake.is_fee_enquiry(message or "") \
+            and not tools.find_phone(message) and not intents.is_callback_request(message):
+        asked_prog = fees.find_program(message or "") or (
+            conv_state.get("active_program") if not fees.find_program(message or "") else None)
+        blocked = fee_journey.not_eligible({"program": asked_prog}, profile) if asked_prog else None
+        if blocked:
+            async for ev in _reply(blocked["text"], message, session_id, conversation_id, suggestions=blocked["chips"],
+                                   exact_chips=True, client=client, history=history, profile=profile,
+                                   conv_state=conv_state):
+                yield ev
+            return
     # v4.15.1 (2,000-student run): a cut-off question after "how to apply" was taken by the admission steps; it is
     # a figure SRU doesn't publish, so it is answered here, before any step can ask for marks.
     if _CUTOFF_FACT.search(message or "") and not step_answer \

@@ -433,6 +433,9 @@ def next_step(state: dict, profile: dict, lead: str = "", seed: str = "") -> dic
     consideration_first = state.get("origin") == "special_consideration" and not state.get("concession_decided")
     if not program and not consideration_first:
         return _ask(state, "program", lead + "Which programme should I work out the fee for?", PROGRAM_CHIPS)
+    blocked = not_eligible(state, profile, lead) if program else None
+    if blocked:
+        return blocked             # no concession / hostel steps for a programme the student can't join
     if state.get("marks_first") and program and state.get("scholarship") == "yes" and not has_marks(profile):
         state["awaiting"] = "scholarship_steps"        # the chart asked for: marks first (v4.15.1)
         state["asked_text"] = None
@@ -501,7 +504,57 @@ def hostel_step(state: dict, lead: str = "", seed: str = "") -> dict:
     return _ask(state, "hostel", lead + text, _hostel_chips() + [NO_HOSTEL])
 
 
+def not_eligible(state: dict, profile: dict, lead: str = "") -> dict | None:
+    """v4.15.1: marks below the programme's official minimum. No fee summary, concession or hostel steps for a
+    programme the student can't join: say so kindly, name the programmes their marks do meet (fee card), and offer
+    a counsellor. None when the student is eligible or the marks / programme aren't known."""
+    from . import eligibility
+    program, pct = state.get("program"), (profile or {}).get("percent")
+    if not program or pct in (None, ""):
+        return None
+    try:
+        verdict = eligibility.assess(program, float(pct), (profile or {}).get("stream"))
+    except (TypeError, ValueError):
+        return None
+    if verdict.get("eligible") is not False:
+        return None
+    stream = (profile or {}).get("stream")
+    options = []
+    for key, prog in fees.load_data()["programs"].items():
+        if prog.get("level", "ug") != verdict.get("level", "ug") or key == program:
+            continue
+        v = eligibility.assess(key, float(pct), stream)
+        if v.get("status") == eligibility.MEETS and v.get("stream_ok") is not False:
+            options.append(key)
+    name = fees.short_name(program)
+    floor = eligibility.show_percent(verdict["floor"]) if verdict.get("floor") is not None else None
+    if verdict.get("status") == eligibility.BELOW:
+        why = (f"with **{verdict['percent_text']}**, you're below the **{floor}** minimum for **{name}**, so I can't "
+               f"show you a fee for it: you wouldn't be able to join {name} with these marks.")
+    else:
+        why = f"**{name}** needs a different Intermediate group from yours, so I can't show you a fee for it."
+    text = (lead.strip() + "\n\n" if lead.strip() else "") + "I'm sorry, " + why
+    if options:
+        text += ("\n\nThe good news: your marks meet the minimum for these programmes" +
+                 ("" if stream else " (depending on your Intermediate group)") + ":\n\n• " +
+                 "\n• ".join(fees.short_name(k) for k in options[:8]) +
+                 "\n\nWould you like the fee for one of these, or shall a counsellor help you find the right fit?")
+        chips = [f"{fees.short_name(k)} fees" for k in options[:2]] + ["Talk to a counsellor"]
+    else:
+        lowest = eligibility.show_percent(eligibility.lowest_minimum_any_program(verdict.get("level", "ug")))
+        text += (f"\n\nAll of SRU's {'undergraduate' if verdict.get('level', 'ug') == 'ug' else 'postgraduate'} "
+                 f"programmes ask for at least **{lowest}**, so I'd suggest talking to a counsellor: they can tell you "
+                 f"what's possible with your marks ({config.ADMISSIONS_PHONE}).")
+        chips = ["Talk to a counsellor"]
+    text += "\n\nIf your marks are different, just tell me the correct ones."
+    state.update(awaiting=None, asked_text=None, final_shown=False, blocked=program)
+    return {"kind": "reply", "text": text, "chips": chips, "cards": [], "state": state}
+
+
 def final(state: dict, profile: dict, lead: str = "") -> dict:
+    blocked = not_eligible(state, profile, lead)
+    if blocked:
+        return blocked
     data = evaluate(state, profile)
     if not data:
         state["program"] = None

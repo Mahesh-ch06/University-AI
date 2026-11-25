@@ -17,6 +17,7 @@ from . import config, fees
 class QuickAnswer:
     text: str
     chips: list[str] = field(default_factory=list)
+    cards: list = field(default_factory=list)
 
 
 def _phone() -> str:
@@ -758,6 +759,69 @@ _RULES += [
     (re.compile(r"\b(?:bikes?|scooty|scooters?|two[- ]wheelers?|cars?|vehicles?|bicycles?|cycles?)\b", re.I), _vehicles),
     (re.compile(r"\batm\b|\bis\s+there\s+(?:a\s+)?bank\b", re.I), _atm),
     (re.compile(r"\bragg(?:ing|ed)?\b", re.I), _ragging),
+]
+
+
+# v4.15.1 (live chat): "Explore programmes" / "what courses do you offer" answered from the fee card, not by the model.
+_PROGRAMME_GROUPS = [
+    ("Engineering (B.Tech)", lambda k: k.startswith("btech_")),
+    ("Computing", lambda k: k in ("bca", "bsc_cs")),
+    ("Agriculture", lambda k: k == "bsc_agri"),
+    ("Business & commerce", lambda k: k in ("bba", "bba_specialised", "bcom")),
+    ("Design", lambda k: k == "bdes"),
+    ("Hospitality", lambda k: k == "bsc_hospitality"),
+    ("Sciences", lambda k: k in ("bsc_maths_ai", "bsc_physics", "bsc_chemistry")),
+    ("Postgraduate", lambda k: k in ("mba", "mba_agri", "mca", "mtech", "msc")),
+]
+
+
+def _lakh(amount: int) -> str:
+    return f"₹{amount / 100000:g} lakh"
+
+
+def _programmes_overview(message: str) -> QuickAnswer | None:
+    progs = _data()["programs"]
+    if not progs or re.search(r"\bb\.?\s?tech|\bengineering\b|\bmba\b|\bbba\b|\bb\.?\s?sc\b|\bm\.?\s?tech\b|\bpg\b|"
+                              r"\bpost\s*graduate|\bunder\s*graduate|\bagri", message or "", re.I):
+        return None        # a family named ("B.Tech programmes offered"): its own overview answers
+    return _overview_text(progs)
+
+
+def _overview_text(progs: dict) -> QuickAnswer | None:
+    lines, used = [], set()
+    for label, belongs in _PROGRAMME_GROUPS:
+        keys = [k for k in progs if belongs(k)]
+        if not keys:
+            continue
+        used |= set(keys)
+        fees_ = [int(progs[k].get("tuition_per_year") or progs[k].get("annual_tuition") or 0) for k in keys]
+        fees_ = [f for f in fees_ if f]
+        rng = (f"{_lakh(min(fees_))}" if min(fees_) == max(fees_) else f"{_lakh(min(fees_))}–{_lakh(max(fees_))}") \
+            if fees_ else ""
+        names = ", ".join(re.sub(r"^B\.Tech\s+", "", fees.short_name(k)) if label.startswith("Engineering")
+                          else fees.short_name(k) for k in keys)
+        lines.append(f"**{label}**" + (f" ({rng} a year)" if rng else "") + f": {names}")
+    ug = sum(1 for p in progs.values() if p.get("level", "ug") == "ug")
+    pg = sum(1 for p in progs.values() if p.get("level") == "pg")
+    phd = ", plus the Ph.D" if _data().get("phd_fee_per_year") else ""
+    text = (f"SRU has **{ug} undergraduate** and **{pg} postgraduate** programmes for 2027-28{phd}. Here they are, "
+            "with yearly tuition before any scholarship:\n\n• " + "\n• ".join(lines) +
+            "\n\nWhich one catches your eye? I can check your eligibility or work out your fee for it.")
+    card = None
+    try:
+        from app.services.card_service import PROGRAMS_OFFERED_CARD
+        card = PROGRAMS_OFFERED_CARD
+    except Exception:
+        pass
+    return QuickAnswer(text, ["Check my eligibility", "Calculate my fee", "Placements"], [card] if card else [])
+
+
+_RULES += [
+    (re.compile(r"\bexplore\s+(?:all\s+)?(?:the\s+)?(?:programs?|programmes?|courses?)\b|"
+                r"\b(?:programs?|programmes?|courses?|degrees?)\s+(?:offered|available)\b(?!\s+(?:after|for|with))|"
+                r"\bwhat\s+(?:all\s+)?(?:courses?|programs?|programmes?|degrees?)\s+(?:do|does|are|can)\b|"
+                r"\b(?:list\s+of|all)\s+(?:the\s+)?(?:courses?|programs?|programmes?)\b|\bwhich\s+courses\s+(?:do|are|does)\b",
+                re.I), _programmes_overview),
 ]
 
 
