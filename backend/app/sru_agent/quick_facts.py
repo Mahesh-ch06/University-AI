@@ -397,7 +397,7 @@ def _leadership(message: str) -> QuickAnswer | None:
     low = (message or "").lower()
     lead = ""
     if re.search(r"\bprincipal\b", low):
-        lead = "As a university, SRU is led by a Vice-Chancellor rather than a principal. "
+        lead = "Being a university, SRU doesn't have a principal; it's led by a Vice-Chancellor. "
     else:
         role = next((r for r, rx in (("Pro Vice-Chancellor", r"\bpro[- ]?vice[- ]?chancellor\b|\bpro[- ]?vc\b"),
                                       ("Vice-Chancellor", r"\bvice[- ]?chancellor\b|\bvc\b"),
@@ -405,13 +405,15 @@ def _leadership(message: str) -> QuickAnswer | None:
                                       ("Registrar", r"\bregistrar\b")) if re.search(rx, low)), None)
         line = next((p for p in people if role and p.startswith(f"**{role}:**")), None)
         if line:
-            lead = f"The {role} of SR University is {line.split(':**', 1)[1].strip()}. "
+            lead = f"SRU's {role} is {line.split(':**', 1)[1].strip()}. "
     if lead:
         pass
     elif re.search(r"\bfound(?:er|ed)\b|\bstarted\b|\bowner\b|\bowns\b", low):
-        lead = ("SR University's parent group, the **SR Educational group**, was founded in **1976** by "
-                "**Sri A. Varada Reddy**, who is now the university's Chancellor. ")
-    text = lead + "SR University's leadership (sru.edu.in/about):\n\n• " + "\n• ".join(people)
+        lead = ("SRU comes from the **SR Educational group**, which **Sri A. Varada Reddy** started back in **1976**. "
+                "He's the university's Chancellor today. ")
+    others = [p for p in people if not (lead and p.split(":**", 1)[-1].strip() in lead)]
+    text = lead + ("The rest of the leadership team:" if lead else "Here's who leads SRU:") + "\n\n• " + \
+        "\n• ".join(others)
     return QuickAnswer(text, ["Why choose SRU?", "Rankings", "Programmes offered"])
 
 
@@ -419,8 +421,8 @@ def _history(message: str) -> QuickAnswer | None:
     facts = _section("11_official_website_facts_nov2026.md", "1. University identity")
     if not facts:
         return None
-    text = ("SR University's story (sru.edu.in/about):\n\n• " + "\n• ".join(facts[:3]) +
-            "\n\nThe group was founded by **Sri A. Varada Reddy**, now SR University's Chancellor.")
+    text = ("SRU is young as a university, but its roots go back a long way:\n\n• " + "\n• ".join(facts[:3]) +
+            "\n\nThe group was started by **Sri A. Varada Reddy**, who is SRU's Chancellor today.")
     return QuickAnswer(text, ["Why choose SRU?", "Rankings", "Leadership"])
 
 
@@ -428,10 +430,10 @@ def _international(message: str) -> QuickAnswer | None:
     facts = _section("12_strengths_faculty_and_visits_nov2026.md", "4. International partnerships")
     if not facts:
         return None
-    text = ("For international students, SR University's website lists (sru.edu.in/international):\n\n• " +
-            "\n• ".join(facts) + "\n\nThe 2027-28 fee card also has a special concession of **₹15,000 a year** for "
-            "international students. The International Affairs office handles applications and visa questions; "
-            f"the Admissions Office can connect you ({_phone()}, info@sru.edu.in).")
+    text = ("Yes, SRU welcomes international students, and there's support for visas and settling in:\n\n• " +
+            "\n• ".join(facts) + "\n\nInternational students also get a special concession of **₹15,000 a year** "
+            "(2027-28). For applications and visa questions, the International Affairs office can help; the Admissions "
+            f"Office will connect you ({_phone()}, info@sru.edu.in).")
     return QuickAnswer(text, ["Study abroad pathways", "Special concessions", "Talk to a counsellor"])
 
 
@@ -439,11 +441,11 @@ def _lateral(message: str) -> QuickAnswer | None:
     if re.search(r"\b(?:concessions?|discounts?|apply|applied|fees?)\b", message or "", re.I):
         return None          # a concession or fee request: the fee flow answers (with the ₹15,000 concession)
     return QuickAnswer(
-        "Yes. SR University has **B.Tech Lateral Entry**: **6 semesters (3 years)**, instead of 8 for the regular "
-        "B.Tech (academic regulations). Lateral entry students pay the same tuition structure and get the same "
-        "concessions as regular students, plus a special concession of **₹15,000 a year** (2027-28 fee card).\n\n"
-        "The eligibility and admission process for lateral entry aren't printed in the official sources I use, so the "
-        f"Admissions Office confirms them ({_phone()}, info@sru.edu.in).",
+        "Yes, you can! **B.Tech Lateral Entry** lets you join directly and finish in **3 years (6 semesters)** "
+        "instead of 4. You pay the same tuition as regular students, get the same concessions, and there's an extra "
+        "**₹15,000 a year** concession for lateral entry students (2027-28).\n\n"
+        "For the exact eligibility and how to apply, the Admissions Office is your best bet "
+        f"({_phone()}, info@sru.edu.in).",
         ["B.Tech programmes", "Calculate my fee", "Talk to a counsellor"])
 
 
@@ -465,20 +467,21 @@ _RULES += [
 # v4.15.1 (real-model audit): questions the AI answered wrongly or with facts not in the sources. Each answer is
 # built from the fee card (programme names, tuition, eligibility notes) or a handbook line, never typed in by hand.
 def _programme_line(key: str) -> str:
+    """'**B.Des (Design)**: ₹2,10,000 a year, open after 10+2 / Intermediate' (from the fee card)."""
     p = _data()["programs"].get(key) or {}
     tuition = p.get("tuition_per_year") or p.get("annual_tuition")
-    fee = f", {fees.inr(int(tuition))} a year" if tuition else ""
-    note = f"; eligibility: {p['eligibility_note']}" if p.get("eligibility_note") else ""
-    return f"**{p.get('name', key)}** (2027-28 fee card{fee}{note})"
+    fee = f"{fees.inr(int(tuition))} a year" if tuition else ""
+    note = p.get("eligibility_note") or ""
+    who = f"after {note}" if note else ""
+    return f"**{p.get('name', key)}**" + (": " + ", ".join(x for x in (fee, who) if x) if fee or who else "")
 
 
 def _hospitality(message: str) -> QuickAnswer | None:
     if "bsc_hospitality" not in _data()["programs"]:
         return None
     return QuickAnswer(
-        "Yes. SR University's hospitality programme is " + _programme_line("bsc_hospitality") + ". A degree "
-        "named \"hotel management\" isn't on the fee card; this is the programme for hospitality and events.\n\n"
-        "Would you like its fees with your marks, or the programmes open to your stream?",
+        "Yes! SRU's programme for hotels, hospitality and events is " + _programme_line("bsc_hospitality") +
+        " (2027-28).\n\nWant me to work out the fee with your marks, or see what else you can join?",
         ["B.Sc Hospitality fees", "Check my eligibility", "Programmes offered"])
 
 
@@ -487,10 +490,10 @@ def _robotics(message: str) -> QuickAnswer | None:
     if not keys:
         return None
     dedicated = [k for k in keys if "and robotics" in (_data()["programs"][k].get("name") or "").lower()]
-    lead = (f"SR University has a dedicated **{_data()['programs'][dedicated[0]]['name']}** programme, and robotics "
-            "is also a specialisation in other B.Tech branches. " if dedicated else "")
-    text = (lead + "On the 2027-28 fee card:\n\n• " + "\n• ".join(_programme_line(k) for k in keys) +
-            "\n\nWould you like the fees with your marks or the curriculum of one of them?")
+    lead = (f"Good choice to explore! SRU has a full **{_data()['programs'][dedicated[0]]['name']}** degree, and you "
+            "can also take robotics as a specialisation in other branches. " if dedicated else "")
+    text = (lead + "Your options (2027-28 tuition):\n\n• " + "\n• ".join(_programme_line(k) for k in keys) +
+            "\n\nShall I work out the fee with your marks, or tell you more about one of them?")
     return QuickAnswer(text, ["Calculate my fee", "Check my eligibility", "Placements"])
 
 
@@ -498,9 +501,9 @@ def _design_interest(message: str) -> QuickAnswer | None:
     if "bdes" not in _data()["programs"]:
         return None
     return QuickAnswer(
-        "If design is what you enjoy, SR University has a **School of Design** with " + _programme_line("bdes") +
-        ". It's a 4-year design degree, separate from engineering.\n\nIf your family would like you to look at "
-        "engineering too, a counsellor can talk you and your parents through both options.",
+        "Then design is worth a serious look! SRU has a **School of Design** offering " + _programme_line("bdes") +
+        " (2027-28). It's a 4-year design degree of its own, not part of engineering.\n\nIt's a big decision with "
+        "your parents too, so if it helps, a counsellor can talk all of you through both paths.",
         ["B.Des fees", "Check my eligibility", "Talk to a counsellor"])
 
 
@@ -514,12 +517,13 @@ def _entrance_test(message: str) -> QuickAnswer:
     except OSError:
         pass
     named = re.search(r"\bsrsat\b", message or "", re.I)
-    text = (("I can't find \"SRSAT\" in SR University's official sources, so I can't describe it. " if named else "") +
-            "The official admission page and the 2027-28 fee card don't list an SRU entrance test for undergraduate "
-            "admission: eligibility is your 10+2 / Intermediate with the subjects each programme needs, and the merit "
-            "scholarship uses the best of your Intermediate marks, EAPCET rank or JEE Main percentile." +
+    text = (("I haven't come across \"SRSAT\" in SRU's official information, so I'd rather not guess about it. "
+             if named else "") +
+            "For undergraduate admission, SRU doesn't list an entrance test of its own: what counts is your 10+2 / "
+            "Intermediate with the right subjects for the programme. Your scholarship is based on the best of your "
+            "Intermediate marks, EAPCET rank or JEE Main percentile." +
             ("\n\n" + lines[0] if lines else "") +
-            f"\n\nThe Admissions Office confirms the current process ({_phone()}, info@sru.edu.in).")
+            f"\n\nThe Admissions Office can confirm the latest process ({_phone()}, info@sru.edu.in).")
     return QuickAnswer(text, ["How do I apply?", "Check my eligibility", "Scholarships"])
 
 
@@ -527,10 +531,10 @@ def _without_entrance(message: str) -> QuickAnswer | None:
     if re.search(r"\d|%|\bfees?\b|\bscholarship", message or "", re.I):
         return None          # "cse fee with 85%, no JEE or EAPCET": a fee / scholarship calculation, not this
     return QuickAnswer(
-        "Yes, you can still apply. The 2027-28 fee card's eligibility for each programme is your 10+2 / Intermediate "
-        "with the required subjects (B.Tech: Maths, Physics, Chemistry); it doesn't list an EAPCET or JEE rank as a "
-        "requirement. A rank only helps the merit scholarship, which also counts your Intermediate marks: the best "
-        f"one applies.\n\nThe Admissions Office confirms the process for your programme ({_phone()}).",
+        "Don't worry, you can still apply! SRU's eligibility is based on your 10+2 / Intermediate with the right "
+        "subjects (for B.Tech: Maths, Physics, Chemistry); an EAPCET or JEE rank isn't listed as a requirement. A rank "
+        "only helps with the scholarship, and your Intermediate marks count for that too, whichever is better.\n\n"
+        f"The Admissions Office can confirm the steps for your programme ({_phone()}).",
         ["Check my eligibility", "Scholarships", "How do I apply?"])
 
 
@@ -541,16 +545,16 @@ def _ratio(message: str) -> QuickAnswer:
         text = ""
     facts = [ln.strip()[2:] for ln in text.splitlines()
              if ln.strip().startswith("- ") and ("340 faculty" in ln or "316 of the 340" in ln)]
-    text = "SR University doesn't publish a student-teacher ratio in the official sources I use, so I can't give one."
+    text = "SRU hasn't published a student-teacher ratio, so I won't guess a number."
     if facts:
-        text += " What its website shows:\n\n• " + "\n• ".join(facts)
+        text += " Here's what I can tell you about the faculty:\n\n• " + "\n• ".join(facts)
     return QuickAnswer(text, ["Faculty", "Labs", "Talk to a counsellor"])
 
 
 def _age_limit(message: str) -> QuickAnswer:
     return QuickAnswer(
-        "The 2027-28 fee card's eligibility notes don't mention an age limit, so I can't confirm one either way. "
-        f"The Admissions Office can tell you ({_phone()}, info@sru.edu.in).",
+        "SRU's eligibility rules don't mention an age limit, but I wouldn't want to promise either way. The Admissions "
+        f"Office can confirm it for you ({_phone()}, info@sru.edu.in).",
         ["Check my eligibility", "How do I apply?"])
 
 
@@ -560,23 +564,23 @@ def _university_type(message: str) -> QuickAnswer | None:
         return None
     low = (message or "").lower()
     if "autonomous" in low:
-        lead = ("\"Autonomous\" was the status of **SR Engineering College**, SRU's predecessor, from 2014. Today SR "
-                "University is a **State Private University**, which runs its own programmes and examinations.")
+        lead = ("SRU is a full university now, a **State Private University** that runs its own programmes and exams. "
+                "\"Autonomous\" was the status of **SR Engineering College**, where it all started, from 2014.")
     elif "deemed" in low:
-        lead = "No, SR University is not a deemed-to-be university: it is a **State Private University**."
+        lead = "No, it's not a deemed university. SRU is a **State Private University**."
     else:
-        lead = "SR University is a **State Private University**, not a government university."
-    text = (lead + "\n\n• " + "\n• ".join(facts[:2]) + "\n• It was established under the Telangana State Private "
-            "Universities Act. Accreditation: **NBA Tier-I** for B.Tech CSE, ECE, EEE, Mechanical and Civil; **ICAR** "
-            "for the School of Agriculture.")
+        lead = "SRU is a **private** university (a State Private University), not a government one."
+    text = (lead + "\n\n• " + "\n• ".join(facts[:2]) + "\n• It was set up under the Telangana State Private "
+            "Universities Act, with **NBA Tier-I** accreditation for B.Tech CSE, ECE, EEE, Mechanical and Civil, and "
+            "**ICAR** accreditation for Agriculture.")
     return QuickAnswer(text, ["Rankings", "Why choose SRU?", "Programmes offered"])
 
 
 def _parent_visits(message: str) -> QuickAnswer:
     return QuickAnswer(
-        "The hostel rules I have don't give visiting hours for parents, so I can't confirm them; the hostel office "
-        f"can ({_phone()}). What the rules do say: students and visitors may not enter a hostel of the opposite "
-        "gender, and daily attendance and mid-term marks are sent to parents by SMS.",
+        "I don't have the exact visiting hours for parents, so it's best to check with the hostel office "
+        f"({_phone()}). What I can tell you: nobody can enter a hostel of the opposite gender, and parents get "
+        "daily attendance and mid-term marks by SMS, so they stay in the loop.",
         ["Hostel rules", "Hostel safety", "Hostel fees"])
 
 
@@ -629,63 +633,109 @@ def _from_lines(lines: list[str], lead: str = "", tail: str = "", chips: list[st
     return QuickAnswer((lead + "\n\n" if lead else "") + body + (("\n\n" + tail) if tail else ""), chips or [])
 
 
+def _num(pattern: str, text: str) -> str | None:
+    m = re.search(pattern, text or "", re.I)
+    return m.group(1) if m else None
+
+
 def _location(message: str) -> QuickAnswer | None:
-    address = [ln.split("(")[0].strip() for ln in _lines("09_verified_sru_facts.md", "Main Campus:")[:1]]
-    return _from_lines(address + _lines("01_campus_life_and_facilities.md", "Distance: 14 km")[:1],
-                       "Where SR University is:", "The nearest major airport is Rajiv Gandhi International, Hyderabad.",
-                       ["Plan a campus visit", "Transport", "Hostel life"])
+    dist = " ".join(_lines("01_campus_life_and_facilities.md", "Distance: 14 km")[:1])
+    addr = " ".join(_lines("09_verified_sru_facts.md", "Main Campus:")[:1])
+    town = _num(r"Main Campus:\s*([^(]+?)\s*\(", addr)
+    city, kzj, wgl = (_num(r"(\d+)\s*km from Hanumakonda", dist), _num(r"(\d+)\s*km from Kazipet", dist),
+                      _num(r"(\d+)\s*km from Warangal Railway", dist))
+    if not (town and city and kzj and wgl):
+        return None
+    return QuickAnswer(
+        f"SRU is at **{town}**, on the Warangal–Karimnagar highway. It's about **{city} km** from Hanumakonda, "
+        f"**{kzj} km** from Kazipet Railway Station and **{wgl} km** from Warangal Railway Station. If you're flying "
+        "in, the nearest big airport is Hyderabad's Rajiv Gandhi International.",
+        ["Plan a campus visit", "Transport", "Hostel life"])
 
 
 def _attendance(message: str) -> QuickAnswer | None:
-    lines = [ln for ln in _section("02_academic_regulations_and_examinations.md", "4. Attendance Policy")
-             if re.search(r"minimum of 75%|10% to 25%|Agriculture Exception|\"R\" grade", ln)]
-    return _from_lines(lines, "Attendance rules (SRU academic regulations):", "", ["Exam pattern", "Backlogs", "Hostel rules"])
+    text = " ".join(_section("02_academic_regulations_and_examinations.md", "4. Attendance Policy"))
+    if not ("75%" in text and "10% to 25%" in text):
+        return None
+    agri = " (only 10% for Agriculture, so 65% there)" if "Agriculture Exception" in text else ""
+    return QuickAnswer(
+        "You need at least **75% attendance** in each course. That 25% leeway is meant for things like illness, "
+        "family emergencies, fests and sports.\n\nIf you fall a little short for a genuine reason, the Condonation "
+        f"Board can allow **10% to 25%** more{agri}, with a fee. Below that, you can't write that course's "
+        "end-semester exam and you'd have to repeat it.",
+        ["Exam pattern", "Backlogs", "Hostel rules"])
 
 
 def _exams(message: str) -> QuickAnswer | None:
-    lines = [ln.split(":")[0].rstrip(".") + "." for ln in _lines("02_academic_regulations_and_examinations.md",
-                                                                  "Evaluation is based on Continuous Internal")]
-    return _from_lines(lines[:1], "", "Students with a shortage of attendance can't sit the End Semester Examination.",
-                       ["Attendance rule", "Backlogs", "Grading"])
+    if not _lines("02_academic_regulations_and_examinations.md", "Evaluation is based on Continuous Internal"):
+        return None
+    return QuickAnswer(
+        "Each course is assessed in two parts: **continuous internal evaluation** during the semester (tests, "
+        "assignments and so on) and an **end-semester exam**. Grades are on a 10-point scale. Just keep your "
+        "attendance up, because without it you can't sit the end-semester exam.",
+        ["Attendance rule", "Backlogs", "Grading"])
 
 
 def _classes_start(message: str) -> QuickAnswer:
-    return QuickAnswer("The class start date for the new batch isn't in the official sources I use; the Admissions "
-                       f"Office confirms it with your admission ({_phone()}, info@sru.edu.in).",
+    return QuickAnswer("The start date for the new batch hasn't been announced in anything I have yet. The Admissions "
+                       f"Office will confirm it once you're admitted ({_phone()}, info@sru.edu.in).",
                        ["How do I apply?", "Admission process", "Talk to a counsellor"])
 
 
 def _wifi(message: str) -> QuickAnswer | None:
-    return _from_lines(_lines("01_campus_life_and_facilities.md", "100% Wi-Fi enabled")[:1], "",
-                       "", ["Hostel life", "Hostel fees", "Labs"])
+    if not _lines("01_campus_life_and_facilities.md", "100% Wi-Fi enabled"):
+        return None
+    return QuickAnswer("Yes! The whole campus is on Wi-Fi: hostels, classrooms, labs and the library.",
+                       ["Hostel life", "Hostel fees", "Labs"])
 
 
 def _vehicles(message: str) -> QuickAnswer | None:
-    return _from_lines([ln.replace("**", "") for ln in _lines("01_campus_life_and_facilities.md", "Motorized vehicles",
-                                                               "park motorized", "Bicycles are allowed")][:3],
-                       "Vehicle rules on campus:", "", ["Transport", "Hostel rules", "Hostel life"])
+    if not _lines("01_campus_life_and_facilities.md", "Motorized vehicles", "Bicycles are allowed"):
+        return None
+    return QuickAnswer(
+        "Bikes, scooters and cars aren't allowed inside the campus for students. You can park them outside the "
+        "second gate (at your own risk). A **bicycle is fine**, though, and hostel students can keep theirs in the "
+        "hostel.", ["Transport", "Hostel rules", "Hostel life"])
 
 
 def _atm(message: str) -> QuickAnswer | None:
-    return _from_lines(_lines("01_campus_life_and_facilities.md", "Canara Bank ATM")[:1], "", "",
+    bank = _num(r"(\w+\s+Bank)\s+ATM", " ".join(_lines("01_campus_life_and_facilities.md", "Bank ATM")[:1]))
+    if not bank:
+        return None
+    return QuickAnswer(f"Yes, there's a **{bank} ATM** right at the main gate, open 24x7.",
                        ["Hostel life", "Campus facilities"])
 
 
 def _ragging(message: str) -> QuickAnswer | None:
-    lines = _lines("04_hostels_rules_and_discipline_code.md", "Ragging is a criminal", "Anti-Ragging Helpline")[:2]
-    return _from_lines(lines, "SR University has zero tolerance for ragging:", "", ["Hostel safety", "Hostel rules"])
+    mail = _num(r"`([^`]+)`", " ".join(_lines("04_hostels_rules_and_discipline_code.md", "Anti-Ragging Helpline")[:1]))
+    if not _lines("04_hostels_rules_and_discipline_code.md", "Ragging is a criminal"):
+        return None
+    return QuickAnswer(
+        "No, SRU has **zero tolerance** for ragging. It's a criminal offence under Supreme Court and UGC rules, "
+        "and there's an Anti-Ragging Cell watching out for students" + (f": you can reach it anytime at {mail}." if mail
+                                                                        else ".") +
+        " You'll be in safe hands.", ["Hostel safety", "Hostel rules"])
 
 
 def _library(message: str) -> QuickAnswer | None:
-    lines = [ln.replace("**", "") for ln in _lines("01_campus_life_and_facilities.md", "Central Library: Monday",
-                                                    "Spread over 1,000 sq. meters")][:2]
-    return _from_lines(lines, "The University Central Library:", "", ["Labs", "Wi-Fi", "Campus tour"])
+    hours = " ".join(_lines("01_campus_life_and_facilities.md", "Central Library: Monday")[:1]).replace("**", "")
+    wk = _num(r"Monday to Friday\s*([^;]+);", hours)
+    we = _num(r"Saturday\s*&\s*Sunday\s*([^.]+)\.", hours)
+    if not (wk and we):
+        return None
+    size = "about 1,000 sq. m with reading rooms, a reference section and a digital library. " if _lines(
+        "01_campus_life_and_facilities.md", "Spread over 1,000 sq. meters") else ""
+    return QuickAnswer(f"The Central Library is open **{wk}** on weekdays and **{we}** on weekends. It's " + size +
+                       "A good spot for focused study!", ["Labs", "Wi-Fi", "Campus tour"])
 
 
 def _campus_size(message: str) -> QuickAnswer | None:
     # 170+ acres: the handbook (01, 09, 10, 14) as confirmed by the university on 25 Nov 2026
-    lines = _lines("01_campus_life_and_facilities.md", "170+ acres")[:1]
-    return _from_lines([ln.replace("**", "") for ln in lines], "", "Plan a visit to see it for yourself.",
+    acres = _num(r"(\d+\+?)\s*acres", " ".join(_lines("01_campus_life_and_facilities.md", "acres")[:1]))
+    if not acres:
+        return None
+    return QuickAnswer(f"It's big! SRU's green campus is spread over **{acres} acres** in Warangal, one of the largest "
+                       "in Telangana. Honestly, the best way to get a feel for it is a campus visit.",
                        ["Plan a campus visit", "Hostel life", "Campus facilities"])
 
 

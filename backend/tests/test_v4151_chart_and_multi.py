@@ -65,13 +65,13 @@ def test_the_model_gets_the_list_of_questions():
 
 
 @pytest.mark.parametrize("question,expected", [
-    ("how far is the railway station", "29 km from Warangal Railway Station"),
-    ("what is the attendance rule", "10% to 25% waiver"),
-    ("is wifi there in hostel", "100% Wi-Fi"),
-    ("can i bring a bike", "Bicycles are allowed"),
+    ("how far is the railway station", "**29 km** from Warangal Railway Station"),
+    ("what is the attendance rule", "**10% to 25%** more"),
+    ("is wifi there in hostel", "whole campus is on Wi-Fi"),
+    ("can i bring a bike", "**bicycle is fine**"),
     ("is there an atm", "Canara Bank ATM"),
     ("is ragging there", "zero tolerance"),
-    ("when do classes start", "isn't in the official sources"),
+    ("when do classes start", "hasn't been announced"),
 ])
 def test_everyday_campus_facts_come_from_the_handbook(question, expected):
     from app.sru_agent import quick_facts
@@ -94,7 +94,7 @@ async def test_multi_questions_are_answered_from_verified_sources(model, message
 def test_library_hours_and_size_from_the_handbook():
     from app.sru_agent import quick_facts
     a = quick_facts.answer("what are the library timings")
-    assert a and "8:30 AM to 8:30 PM" in a.text and "1,000 sq. meters" in a.text
+    assert a and "8:30 AM to 8:30 PM" in a.text and "1,000 sq. m" in a.text
     assert quick_facts.answer("what is the library like at sru?") is None
 
 
@@ -122,4 +122,4 @@ async def test_the_chart_asks_the_room_type_when_the_student_never_chose_one(mod
 
 async def test_wifi_part_gets_the_wifi_answer(model):
     (o,) = await _chat(["is wifi there in hostel, can i bring a bike, and is there an atm"])
-    assert "100% Wi-Fi" in o["answer"] and "Bicycles are allowed" in o["answer"] and "Canara Bank ATM" in o["answer"]
+    assert "on Wi-Fi" in o["answer"] and "bicycle is fine" in o["answer"] and "Canara Bank ATM" in o["answer"]

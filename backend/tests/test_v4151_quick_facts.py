@@ -76,11 +76,11 @@ def test_secret_word_in_a_normal_question_is_not_blocked():
 # ------------------------------------------------------------------ handbook-backed answers (leadership, history, ...)
 def test_leadership_answers_come_from_the_verified_website_facts():
     vc = quick_facts.answer("who is the vice chancellor")
-    assert vc and vc.text.startswith("The Vice-Chancellor of SR University is Prof. Deepak Garg")
+    assert vc and vc.text.startswith("SRU's Vice-Chancellor is Prof. Deepak Garg")
     founder = quick_facts.answer("who founded sru")
     assert founder and "1976" in founder.text and "Sri A. Varada Reddy" in founder.text
     principal = quick_facts.answer("who is the principal")
-    assert principal and "Vice-Chancellor rather than a principal" in principal.text
+    assert principal and "doesn't have a principal" in principal.text and "Vice-Chancellor" in principal.text
 
 
 def test_history_and_international_students():
@@ -148,7 +148,7 @@ def test_contact_number_questions_still_get_the_contacts(question):
 # ------------------------------------------------------------------ real-model audit (Gemini, 25 Nov 2026)
 def test_hospitality_is_offered_under_its_fee_card_name():
     a = quick_facts.answer("is there hotel management")
-    assert a and a.text.startswith("Yes.") and "B.Sc in Hospitality and Event Management" in a.text and "₹1,50,000" in a.text
+    assert a and a.text.startswith("Yes!") and "B.Sc in Hospitality and Event Management" in a.text and "₹1,50,000" in a.text
 
 
 def test_robotics_lists_the_dedicated_programme_and_specialisations():
@@ -164,25 +164,25 @@ def test_design_interest_points_to_bdes():
 @pytest.mark.parametrize("question", ["what is SRSAT", "is there an entrance exam conducted by SRU"])
 def test_no_invented_entrance_test(question):
     a = quick_facts.answer(question)
-    assert a and "don't list an SRU entrance test" in a.text and "Ph.D." in a.text
+    assert a and "doesn't list an entrance test of its own" in a.text and "Ph.D." in a.text
 
 
 def test_missed_eapcet_says_rank_is_not_required_by_the_fee_card():
     a = quick_facts.answer("i missed eapcet, can i still join")
-    assert a and a.text.startswith("Yes") and "entrance test" not in a.text
+    assert a and "you can still apply" in a.text and "entrance test" not in a.text
     assert quick_facts.answer("i got eapcet rank 5000") is None
 
 
 def test_unpublished_ratio_and_age_limit_are_not_guessed():
     r = quick_facts.answer("what is the student teacher ratio")
-    assert r and "doesn't publish" in r.text and "316 of the 340" in r.text and "15:1" not in r.text
+    assert r and "hasn't published" in r.text and "316 of the 340" in r.text and "15:1" not in r.text
     a = quick_facts.answer("is there age limit")
-    assert a and "don't mention an age limit" in a.text
+    assert a and "don't mention an age limit" in a.text and "Admissions" in a.text
 
 
 @pytest.mark.parametrize("question,lead", [
-    ("is sru a deemed university", "not a deemed-to-be university"),
-    ("is sru private or government", "not a government university"),
+    ("is sru a deemed university", "not a deemed university"),
+    ("is sru private or government", "not a government one"),
     ("is sru autonomous", "SR Engineering College"),
 ])
 def test_university_type_is_stated_from_the_website_facts(question, lead):
@@ -193,7 +193,7 @@ def test_university_type_is_stated_from_the_website_facts(question, lead):
 
 def test_parent_visits_are_not_invented():
     a = quick_facts.answer("can parents visit hostel")
-    assert a and "don't give visiting hours" in a.text
+    assert a and "don't have the exact visiting hours" in a.text
 
 
 @pytest.mark.parametrize("question", ["hospitality fees", "ai and robotics fee", "b.des fees", "how old is the university"])
