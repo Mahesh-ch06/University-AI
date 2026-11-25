@@ -36,7 +36,7 @@ def _types(done):
 @pytest.mark.asyncio
 async def test_the_reported_conversation_runs_the_whole_agentic_flow_with_the_new_cards_only():
     out = await _chat(["I want to join sru", "B.Tech", "AI & Robotics", "admission process", "any merit schorshipp",
-                       "867", "Telangana State Board", "Completed", "MPC", "Students of SR Junior College",
+                       "867", "Telangana State Board", "Completed", "MPC", "SR Junior College student",
                        "Yes, I have it", "AC 3-sharing (₹1,35,000)"])
     assert all(OLD_FORM not in _types(d) for d in out)
     scholarship, marks = out[4], out[5]
@@ -47,7 +47,9 @@ async def test_the_reported_conversation_runs_the_whole_agentic_flow_with_the_ne
     assert "Before we finalise your fee" in result                      # the agentic flow continues by itself
     final = out[-1]
     assert "fee_summary" in _types(final)
-    assert "₹4,60,000" in final["answer"] and "₹4,45,000" in final["answer"]
+    # AI & Robotics, 25%: 3,00,000 tuition + 5,000 enrollment + 15,000 other + 5,000 Year-1 exam
+    # + 1,35,000 AC 3-sharing + 10,000 AC electricity deposit = 4,70,000; with the SR Junior College concession 4,55,000
+    assert "₹4,70,000" in final["answer"] and "₹4,55,000" in final["answer"]
 
 
 @pytest.mark.parametrize("typo", ["any merit schorshipp", "skolarship for cse", "scholership details", "scolarship?"])

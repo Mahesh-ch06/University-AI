@@ -59,7 +59,7 @@ AP = 'Apply the "Students from Andhra Pradesh" concession to my fee'
 # ------------------------------------------------------------------ 1. eligibility -> concessions -> final
 async def test_eligibility_confirms_and_offers_concessions_before_any_fee_card():
     done = (await _chat(STEPS))[-1]
-    assert "Congratulations" in done["answer"] or "eligible" in done["answer"]
+    assert "minimum" in done["answer"] and "qualify for this programme" not in done["answer"]
     assert "Before we finalise your fee" in done["answer"]
     assert _card(done, "get_special_concessions") and not _card(done, "calculate_fee") \
         and not _card(done, "fee_summary")                         # no premature fee card
@@ -157,7 +157,7 @@ async def test_the_same_concession_is_counted_once_and_another_replaces_it():
     assert "replaces Students from Andhra Pradesh" in out[8]["answer"]
     d = _card(out[-1], "fee_summary")
     assert [r for r in d["rows"] if r["kind"] == "pending"] == [
-        {"item": "Special consideration: Lateral entry students", "amount": "− ₹15,000", "kind": "pending",
+        {"item": "Special consideration: Lateral Entry Students", "amount": "− ₹15,000", "kind": "pending",
          "status": "pending"}]
 
 
@@ -205,7 +205,7 @@ def test_all_amounts_come_from_the_fee_data():
         if not fees.find_program(program):
             continue
         st = fee_journey.new_state(program, scholarship="yes", hostel="ac_3", transport=False)
-        st.update(concession_decided=True, concession={"label": "Lateral entry students", "amount": 15000},
+        st.update(concession_decided=True, concession={"key": "lateral_entry", "label": "Lateral Entry Students", "amount": 15000},
                   proof="needed")
         d = fee_journey.evaluate(st, {"percent": 92, "board": "cbse"})
         fee = fees.calculate_fee(program, percent=92, board="cbse", hostel="ac_3")

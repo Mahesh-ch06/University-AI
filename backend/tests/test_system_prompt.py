@@ -23,8 +23,10 @@ def test_system_prompt_contains_critical_rules():
     """Verify key facts and behavioral rules are present."""
     prompt = load_prompt("system")
     assert "SRU Buddy" in prompt
-    # Eligibility: both official minimums are stated as differing, never one of them as THE cutoff
-    assert "minimum marks differ between official sources" in prompt
+    # Eligibility: the 2027-28 fee circular minimums, never promised as guaranteed admission
+    assert "55% in Intermediate for B.Tech CSE and ECE" in prompt and "not a guarantee of admission" in prompt.lower()
+    # Fees: never typed into the prompt; the generated FEE POLICY block is the only source
+    assert "FEE POLICY (2027-28" in prompt and "{{FEE_POLICY}}" not in prompt
     assert "60% aggregate marks" not in prompt
     assert "Fully Flexible Credit System" in prompt
     assert "Strictly No Double Questions" in prompt

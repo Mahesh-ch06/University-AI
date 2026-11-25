@@ -183,7 +183,7 @@ def test_phd_filtering_for_undergrad_queries():
             },
             {
                 "content": "B.Tech CSE undergraduate tuition fee is ₹3,40,000 per year.",
-                "metadata": {"title": "SRU Fee Schedule 2027-28", "document_id": "fees_2027_28.json"},
+                "metadata": {"title": "SRU Fee Schedule 2027-28", "document_id": "fee_policy_2027_28.json"},
                 "distance": 0.25,
             },
         ]

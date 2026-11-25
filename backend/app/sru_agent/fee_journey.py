@@ -113,7 +113,7 @@ def has_marks(profile: dict) -> bool:
 
 
 def _hostel_chips() -> list[str]:
-    per_year = fees.load_data().get("hostel_per_year", {})
+    per_year = fees.hostel_per_year()
     return [f"{label} ({fees.inr(per_year[key])})" for label, key in HOSTEL_CHOICES if key in per_year]
 
 
@@ -130,7 +130,7 @@ def _read_hostel(message: str) -> str | None:
 
 
 def _cheapest_room() -> tuple[str, int]:
-    per_year = fees.load_data().get("hostel_per_year", {})
+    per_year = fees.hostel_per_year()
     key = min(per_year, key=lambda k: (per_year[k], k))
     return fees.HOSTEL_LABELS.get(key, key), int(per_year[key])
 
@@ -223,7 +223,7 @@ def _lowest_explanation(state: dict, profile: dict, data: dict) -> tuple[str, li
         lines.append(f"• **Concession:** {c['label']} (− {fees.inr(c['amount'])}/year) once your proof is verified.")
     hostel = state.get("hostel")
     if hostel not in (None, "none"):
-        per_year = fees.load_data().get("hostel_per_year", {})
+        per_year = fees.hostel_per_year()
         cheapest_label, cheapest = _cheapest_room()
         if per_year.get(hostel, cheapest) > cheapest:
             lines.append(f"• 💡 A {cheapest_label} room would save **{fees.inr(per_year[hostel] - cheapest)}** a year.")
@@ -328,12 +328,18 @@ def evaluate(state: dict, profile: dict) -> dict | None:
     else:
         cons = {"status": "not_explored", "category": None, "amount": None, "label": "Not explored yet"}
 
-    total_base = num(base["first_year_total_payable"])
+    # Totals come straight from the engine: the confirmed fee (merit only once it is applied) and the fee if
+    # every pending item (an estimated merit slab, a special concession) is approved.
+    confirmed_fee = with_merit if sch["status"] == "applied" else base
+    pending_fee = confirmed_fee
+    if sch["status"] == "estimated" or conc:
+        args = {k: v for k, v in merit.items() if k != "board"} if sch["status"] in ("applied", "estimated") else {}
+        pending_fee = fees.calculate_fee(program, hostel=hostel, transport=transport, board=merit.get("board") or
+                                         "state_board", concessions=[conc.get("key") or conc["label"]] if conc else (),
+                                         **args)
     applied = merit_amount if sch["status"] == "applied" else 0
-    pending_merit = merit_amount if sch["status"] == "estimated" else 0
-    pending_conc = int(conc["amount"]) if conc else 0
-    confirmed = total_base - applied
-    estimated = confirmed - pending_merit - pending_conc
+    confirmed = num(confirmed_fee["first_year_total_payable"])
+    estimated = num(pending_fee["first_year_total_payable"])
 
     rows = [{"item": "Tuition fee (first year)", "amount": fees.inr(tuition), "kind": "fee"}]
     if sch["amount"]:
@@ -342,17 +348,11 @@ def evaluate(state: dict, profile: dict) -> dict | None:
     if conc:
         rows.append({"item": f"Special consideration: {conc['label']}", "amount": "− " + cons["amount"],
                      "kind": "pending", "status": "pending"})
-    rows.append({"item": "Other academic / university fees", "amount": base["other_yearly_fees"], "kind": "fee",
-                 "note": "per year"})
-    rows.append({"item": "Enrollment fee", "amount": base["one_time_enrollment_fee"], "kind": "fee",
-                 "note": "one time"})
-    h = base.get("hostel") or {}
-    if base.get("has_hostel") and h.get("per_year"):
-        rows.append({"item": f"Hostel ({h.get('type')})", "amount": h["per_year"], "kind": "fee",
-                     "note": "includes meals"})
-    if base.get("transport_per_year"):
-        rows.append({"item": "Transport (university bus)", "amount": base["transport_per_year"], "kind": "fee",
-                     "note": "varies by distance"})
+    notes = {"enrollment_fee": "one time", "other_fee": "per year", "exam_fee": "Year 1 only",
+             "hostel": "includes meals", "electricity_deposit": "one time", "bus": "optional"}
+    for item in base["semester_1"]["items"] + base["semester_2"]["items"]:
+        if item["kind"] != "tuition":
+            rows.append({"item": item["item"], "amount": item["amount"], "kind": "fee", "note": notes.get(item["key"])})
 
     pending = []
     if sch["status"] == "estimated":
@@ -386,8 +386,15 @@ def evaluate(state: dict, profile: dict) -> dict | None:
         "total_approved_concessions": fees.inr(applied),
         "payable_confirmed": fees.inr(confirmed),
         "payable_after_approval": fees.inr(estimated) if estimated != confirmed else None,
+        "semesters": [{"semester": 1, **confirmed_fee["semester_1"]}, {"semester": 2, **confirmed_fee["semester_2"]}],
+        "semesters_after_approval": ([{"semester": 1, **pending_fee["semester_1"]},
+                                      {"semester": 2, **pending_fee["semester_2"]}]
+                                     if estimated != confirmed else None),
+        "course_total": confirmed_fee.get("full_course_total"),
+        "duration_years": confirmed_fee.get("duration_years"),
+        "flags": with_merit.get("flags") or [],
         "pending": pending,
-        "application_fee": base.get("one_time_application_fee"),
+        "application_fee": base.get("application_fee"),
         "combine_note": (fee_plan.COMBINE_NOTE.format(phone=config.ADMISSIONS_PHONE)
                          if conc and sch["status"] in ("applied", "estimated") else None),
         "source": base.get("source"),
@@ -484,7 +491,7 @@ def next_step(state: dict, profile: dict, lead: str = "", seed: str = "") -> dic
     if state.get("hostel") is None:
         return hostel_step(state, lead, seed)
     if state.get("hostel") == "none" and state.get("transport") is None:
-        bus = fees.inr(fees.load_data().get("transport_per_year", 0))
+        bus = fees.inr(fees.charge_amount("bus"))
         return _ask(state, "transport",
                     lead + f"Will you use the university bus? It's about **{bus}/year** (varies by distance).",
                     ["Yes, add the bus", "No, I'll manage"])
@@ -995,9 +1002,10 @@ def _after_scholarship(state: dict, profile: dict, assessment_text: str, eligibl
 
 def _after_first_result(st, profile, assessment_text, eligible, seed):
     if eligible is True:
-        intro = _pick(["Congratulations! Based on your academic details, you qualify for this programme.",
-                       "Congratulations! Your academic details meet the requirements for this programme.",
-                       "You're eligible for this programme based on the details you shared. Congratulations!"], seed)
+        # Meeting the fee circular's minimum is not a guaranteed admission (documents and seats decide it).
+        intro = _pick(["You meet the minimum marks for this programme.",
+                       "Your academic details meet the minimum marks for this programme.",
+                       "Your marks clear the minimum for this programme. Well done!"], seed)
         assessment_text = assessment_text.replace("\n\nYou also meet the minimum marks for it.", "")
     else:
         intro = "Here's your result."

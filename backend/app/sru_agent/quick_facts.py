@@ -1,6 +1,6 @@
 """Short, exact answers to specific questions the open-question audit found answered badly (v4.15.1).
 
-Every answer comes from the official 2027-28 fee card (fees_2027_28.json: its programmes and `terms`), the verified
+Every answer comes from the official 2027-28 fee circular (fee_policy_2027_28.json: its programmes and `terms`), the verified
 facts registry, or says plainly that the information is not in the official sources and who confirms it. Nothing is
 added from general knowledge. answer() returns None when the message is not one of these questions.
 """
@@ -28,16 +28,16 @@ def _fee_increase(message: str) -> QuickAnswer:
     data = fees.load_data()
     key = fees.find_program(message or "")
     terms = data.get("terms") or []
-    rule = next((t for t in terms if "annual increase" in t.lower()), "")
+    rule = next((t for t in terms if "increase" in t.lower()), "")
     if key:
         p = data["programs"][key]
         inc = p.get("yearly_increase")
         line = (f"For **{fees.short_name(key)}** the 2027-28 tuition is **{fees.inr(p['tuition_per_year'])}** a year, "
                 f"rising by **{fees.inr(inc)}** each year of the course." if inc else "")
     else:
-        line = ("Each programme's yearly increase is printed on the fee card (for example B.Tech CSE: "
+        line = ("Each programme's yearly increase is printed on the fee circular (for example B.Tech CSE: "
                 f"{fees.inr(data['programs']['btech_cse'].get('yearly_increase', 0))} a year).")
-    text = ("Yes. The official 2027-28 fee card says: \"" + rule + "\" " + line +
+    text = ("Yes. The official 2027-28 fee circular says: \"" + rule + "\" " + line +
             "\n\nFees for students admitted in later years are not published yet.")
     return QuickAnswer(text.strip(), ["Calculate my fee", "Scholarships", "Talk to a counsellor"])
 
@@ -46,7 +46,7 @@ def _fee_value(message: str) -> QuickAnswer:
     return QuickAnswer(
         "Most students at SR University pay well below the listed tuition:\n\n"
         "• **Merit scholarships up to 40%** of tuition, from Intermediate marks, EAPCET rank or JEE Main percentile\n"
-        "• **19 special concessions** (₹15,000 to ₹50,000 a year), for example for siblings, girl students from "
+        "• **20 special concessions** (₹10,000 to ₹50,000 a year), for example for siblings, girl students from "
         "other states or sports achievers\n"
         "• **Placements:** 1,300+ offers, average 6 to 6.5 LPA and a highest of ₹51 LPA (Microsoft)\n"
         "• **Recognition:** NIRF 91st in Engineering, NBA Tier-I B.Tech programmes, the first private university "
@@ -57,7 +57,7 @@ def _fee_value(message: str) -> QuickAnswer:
 
 def _scholarship_renewal(message: str) -> QuickAnswer:
     return QuickAnswer(
-        "The 2027-28 fee card gives the merit scholarship slabs (from your Intermediate marks, EAPCET rank or JEE "
+        "The 2027-28 fee circular gives the merit scholarship slabs (from your Intermediate marks, EAPCET rank or JEE "
         "Main percentile) but does not print the rules for keeping the scholarship in later years. It does say "
         "that tuition rises every year *irrespective of the scholarship awarded*, and that all scholarships are "
         "subject to university policies.\n\n"
@@ -124,84 +124,92 @@ _RULES = [
 ]
 
 
-# ------------------------------------------------------------------ fees (2027-28 fee card)
+# ------------------------------------------------------------------ fees (2027-28 fee circular)
 def _data():
     return fees.load_data()
 
 
 def _hostel_included(message: str) -> QuickAnswer:
-    h = _data()["hostel_per_year"]
+    h = fees.hostel_per_year()
     return QuickAnswer(
-        "No. The hostel is **separate from tuition**: per year, meals included, "
+        "No. The hostel is **separate from tuition** and optional: per year, meals included, "
         f"AC 3-sharing {fees.inr(h['ac_3'])}, AC 4-sharing {fees.inr(h['ac_4'])}, Non-AC 3-sharing {fees.inr(h['non_ac_3'])}, "
-        f"Non-AC 4-sharing {fees.inr(h['non_ac_4'])} (2027-28 fee card). Day scholars pay no hostel fee.",
+        f"Non-AC 4-sharing {fees.inr(h['non_ac_4'])}. Day scholars pay no hostel fee. (Hostel room fees aren't on the "
+        "2027-28 fee circular, so the Admissions Office confirms them.)",
         ["Calculate my fee", "Hostel life", "Hostel deposits"])
 
 
 def _per_semester(message: str) -> QuickAnswer:
     key = fees.find_program(message or "") or "btech_cse"
-    p = _data()["programs"][key]
-    half = int(p["tuition_per_year"]) // 2
+    r = fees.calculate_fee(key)
+    extras = ", ".join(f"{i['item'].lower()} {i['amount']}" for i in r["semester_1"]["items"] if i["kind"] != "tuition")
     return QuickAnswer(
-        f"**{fees.short_name(key)}** tuition for 2027-28 is **{fees.inr(half)} per semester** "
-        f"({fees.inr(p['tuition_per_year'])} a year), before any scholarship. Other yearly charges and the hostel are "
-        "separate.\n\nThe payment dates and instalment rules aren't printed on the fee card; the Admissions Office "
-        f"confirms them ({_phone()}).",
+        f"For **{fees.short_name(key)}** (2027-28, before any scholarship), tuition is **{r['per_semester_after_scholarship']} "
+        f"per semester** ({r['tuition_first_year']} a year, split equally).\n\n"
+        f"• **Semester 1:** {r['sem1_total_payable']} (tuition + {extras})\n"
+        f"• **Semester 2:** {r['sem2_total_payable']} (tuition only)\n"
+        f"• **First year:** {r['first_year_total_payable']}\n\n"
+        f"The application form ({r['application_fee']}) is paid separately. Payment dates aren't on the fee circular; "
+        f"the Admissions Office confirms them ({_phone()}).",
         ["Calculate my fee", f"{fees.short_name(key)} fees", "Scholarships"])
 
 
 def _course_total(message: str) -> QuickAnswer:
     key = fees.find_program(message or "") or "btech_cse"
-    p = _data()["programs"][key]
-    years = int(p.get("duration_years") or 4)
-    t, inc = int(p["tuition_per_year"]), int(p.get("yearly_increase") or 0)
-    per_year = [t + inc * i for i in range(years)]
-    rows = "\n".join(f"• Year {i + 1}: {fees.inr(v)}" for i, v in enumerate(per_year))
+    r = fees.calculate_fee(key)
+    if not r.get("full_course_total"):
+        return QuickAnswer(
+            f"The course duration for **{fees.short_name(key)}** isn't on the fee circular, so I can't give a "
+            f"full-course total. The first year comes to **{r['first_year_total_payable']}** before any scholarship.",
+            ["Calculate my fee", "Scholarships"])
+    rows = "\n".join(f"• Year {y['year']}: {y['total_payable']} (tuition {y['after_scholarship']})"
+                      for y in r["year_by_year"])
     return QuickAnswer(
-        f"**{fees.short_name(key)}** tuition over {years} years (2027-28 fee card, before any scholarship):\n\n{rows}\n\n"
-        f"**Total tuition: {fees.inr(sum(per_year))}.** Other yearly charges, the hostel and transport are extra, and a "
-        "merit scholarship (up to 40%) lowers the tuition.",
+        f"**{fees.short_name(key)}** over {r['duration_years']} years (2027-28 fee circular, before any scholarship, "
+        f"day scholar):\n\n{rows}\n\n**Course total: {r['full_course_total']}.** Tuition rises by "
+        f"{r['yearly_increase']} a year; the other fee is paid each year and the enrollment and Year-1 exam fees once. "
+        f"Hostel and bus are optional extras, and a merit scholarship (up to 40%) lowers the tuition.",
         ["Calculate my fee", "Scholarships", "Hostel fees"])
 
 
 def _extra_charges(message: str) -> QuickAnswer:
-    d = _data()
-    o, y, dep = d["one_time"], d["yearly_other"], d["hostel_deposits"]
+    ch = _data()["charges"]
+    e = ch["electricity_deposit"]
     return QuickAnswer(
-        "Everything on the 2027-28 fee card besides tuition:\n\n"
-        f"• **One-time:** application fee {fees.inr(o['application_fee'])}, enrolment fee {fees.inr(o['enrollment_fee'])}\n"
-        f"• **Every year:** other academic / university charges {fees.inr(y['other_fee'])}, examination fee "
-        f"{fees.inr(y['exam_fee'])}\n"
-        f"• **Hostel (if you stay):** room with meals, plus a caution deposit {fees.inr(dep['caution_deposit'])}, laundry "
-        f"{fees.inr(dep['laundry_per_year'])} a year and an electricity deposit ({fees.inr(dep['electricity_deposit_non_ac'])} "
-        f"non-AC, {fees.inr(dep['electricity_deposit_ac'])} AC)\n"
-        f"• **Transport (optional):** about {fees.inr(d['transport_per_year'])} a year, depending on distance\n\n"
-        "Nothing else is listed on the fee card.",
+        "Everything on the 2027-28 fee circular besides tuition:\n\n"
+        f"• **When you apply:** application form {fees.inr(ch['application_fee']['amount'])} (paid separately)\n"
+        f"• **Semester 1, Year 1 only:** enrollment fee {fees.inr(ch['enrollment_fee']['amount'])} and exam fee "
+        f"{fees.inr(ch['exam_fee']['amount'])}\n"
+        f"• **Every year (Semester 1):** other fee {fees.inr(ch['other_fee']['amount'])}\n"
+        f"• **From Year 2, where it applies:** specialisation fee {fees.inr(ch['specialization_fee']['amount'])} a year\n"
+        f"• **Optional:** bus {fees.inr(ch['bus']['amount'])} a year; hostel by room type, with a one-time electricity "
+        f"deposit of {fees.inr(e['non_ac'])} (Non-AC) or {fees.inr(e['ac'])} (AC)\n\n"
+        "Merit scholarships reduce tuition only, never these charges.",
         ["Calculate my fee", "Hostel fees", "Scholarships"])
 
 
 def _deposit(message: str) -> QuickAnswer:
-    dep = _data()["hostel_deposits"]
+    e = _data()["charges"]["electricity_deposit"]
     return QuickAnswer(
-        f"For hostel students the 2027-28 fee card lists a **caution deposit of {fees.inr(dep['caution_deposit'])}**, "
-        f"laundry {fees.inr(dep['laundry_per_year'])} a year, and an electricity deposit of "
-        f"{fees.inr(dep['electricity_deposit_non_ac'])} (non-AC) or {fees.inr(dep['electricity_deposit_ac'])} (AC).",
+        f"The 2027-28 fee circular lists one hostel deposit: an **electricity deposit of {fees.inr(e['non_ac'])} "
+        f"(Non-AC) or {fees.inr(e['ac'])} (AC)**, paid once. It doesn't list a caution deposit or a laundry fee; "
+        f"the Admissions Office ({_phone()}) can confirm anything else the hostel asks for.",
         ["Hostel fees", "Calculate my fee"])
 
 
 def _transport(message: str) -> QuickAnswer:
     d = _data()
     return QuickAnswer(
-        f"University transport is about **{fees.inr(d['transport_per_year'])} a year** on the 2027-28 fee card; the "
-        "actual amount depends on the distance of your boarding point. The transport office confirms the fee for "
-        f"your area ({_phone()}).",
+        f"The university bus is **{fees.inr(d['charges']['bus']['amount'])} a year** on the 2027-28 fee circular. It's "
+        "optional, so it's added to your fee only if you choose it. The transport office confirms routes and stops "
+        f"({_phone()}).",
         ["Calculate my fee", "Hostel fees"])
 
 
 def _not_on_fee_card(topic: str):
     def fn(message: str) -> QuickAnswer:
         return QuickAnswer(
-            f"The {topic} isn't printed on the official 2027-28 fee card, so I can't state it. The Admissions Office "
+            f"The {topic} isn't printed on the official 2027-28 fee circular, so I can't state it. The Admissions Office "
             f"confirms it ({_phone()}, {config.ADMISSIONS_EMAIL}).",
             ["Calculate my fee", "Talk to a counsellor"])
     return fn
@@ -256,7 +264,7 @@ def _not_offered(message: str) -> QuickAnswer | None:
     hit = next((label for rx, label in _NOT_OFFERED if re.search(rx, low)), None)
     if not hit:
         return None
-    return QuickAnswer(f"**{hit}** isn't among the programmes on SR University's 2027-28 fee card. What SRU offers:\n\n"
+    return QuickAnswer(f"**{hit}** isn't among the programmes on SR University's 2027-28 fee circular. What SRU offers:\n\n"
                        f"{_programme_list()}", ["Programmes for MPC", "Programmes for BiPC", "Calculate my fee"])
 
 
@@ -277,8 +285,8 @@ def _pg_research(message: str) -> QuickAnswer:
     d = _data()
     low = (message or "").lower()
     if "phd" in low or "ph.d" in low or "doctor" in low:
-        return QuickAnswer(f"Yes, SR University offers the **Ph.D.**; the 2027-28 fee card lists **{fees.inr(d['phd_fee_per_year'])} "
-                           "a year**. Admission dates and the entrance process aren't on the fee card; the Admissions "
+        return QuickAnswer(f"Yes, SR University offers the **Ph.D.**; the 2027-28 fee circular lists **{fees.inr(d['charges']['phd_fee']['amount'])} "
+                           "a year**. Admission dates and the entrance process aren't on the fee circular; the Admissions "
                            f"Office confirms them ({_phone()}).", ["Research at SRU", "Talk to a counsellor"])
     p = d["programs"]["mtech"]
     specs = re.search(r"\(([^)]+)\)", p["name"])
@@ -288,7 +296,7 @@ def _pg_research(message: str) -> QuickAnswer:
 
 
 def _after_stream(message: str) -> QuickAnswer:
-    """Which undergraduate programmes a student's 10+2 group allows, from the fee card's eligibility notes only:
+    """Which undergraduate programmes a student's 10+2 group allows, from the fee circular's eligibility notes only:
     "open" when the note allows the group, "ask" when the note says "required subjects as per university norms"."""
     low = (message or "").lower()
     bipc = bool(re.search(r"bipc|bi\.?p\.?c|biology|pcb", low))
@@ -329,7 +337,7 @@ def _after_stream(message: str) -> QuickAnswer:
         if nm in open_:
             lead = f"Yes. **{nm}** is open to students with {stream}. "
         elif nm in ask:
-            lead = (f"For **{nm}** the fee card lists \"required subjects as per university norms\", so the Admissions "
+            lead = (f"For **{nm}** the fee circular lists \"required subjects as per university norms\", so the Admissions "
                     f"Office confirms whether {stream} qualifies ({_phone()}). ")
         else:
             need = _data()["programs"][named].get("eligibility_note") or "different subjects"
@@ -337,9 +345,9 @@ def _after_stream(message: str) -> QuickAnswer:
     if named and fees.short_name(named) in open_:
         return QuickAnswer(lead + "Would you like its fees or to check your eligibility with your marks?",
                            ["Check my eligibility", f"{fees.short_name(named)} fees", "Programmes offered"])
-    text = lead + f"With **{stream}** in Intermediate, the 2027-28 fee card allows:\n\n• " + "\n• ".join(open_)
+    text = lead + f"With **{stream}** in Intermediate, the 2027-28 fee circular allows:\n\n• " + "\n• ".join(open_)
     if ask:
-        text += ("\n\nTo confirm with the Admissions Office (the fee card says \"required subjects as per university "
+        text += ("\n\nTo confirm with the Admissions Office (the fee circular says \"required subjects as per university "
                  "norms\"):\n\n• " + "\n• ".join(ask))
     text += "\n\nWould you like the fees or your eligibility for one?"
     return QuickAnswer(text, ["Check my eligibility", "Calculate my fee", "Programmes offered"])
@@ -466,9 +474,9 @@ _RULES += [
 
 
 # v4.15.1 (real-model audit): questions the AI answered wrongly or with facts not in the sources. Each answer is
-# built from the fee card (programme names, tuition, eligibility notes) or a handbook line, never typed in by hand.
+# built from the fee circular (programme names, tuition, eligibility notes) or a handbook line, never typed in by hand.
 def _programme_line(key: str) -> str:
-    """'**B.Des (Design)**: ₹2,10,000 a year, open after 10+2 / Intermediate' (from the fee card)."""
+    """'**B.Des (Design)**: ₹2,10,000 a year, open after 10+2 / Intermediate' (from the fee circular)."""
     p = _data()["programs"].get(key) or {}
     tuition = p.get("tuition_per_year") or p.get("annual_tuition")
     fee = f"{fees.inr(int(tuition))} a year" if tuition else ""
@@ -762,7 +770,7 @@ _RULES += [
 ]
 
 
-# v4.15.1 (live chat): "Explore programmes" / "what courses do you offer" answered from the fee card, not by the model.
+# v4.15.1 (live chat): "Explore programmes" / "what courses do you offer" answered from the fee circular, not by the model.
 _PROGRAMME_GROUPS = [
     ("Engineering (B.Tech)", lambda k: k.startswith("btech_")),
     ("Computing", lambda k: k in ("bca", "bsc_cs")),
@@ -803,7 +811,7 @@ def _overview_text(progs: dict) -> QuickAnswer | None:
         lines.append(f"**{label}**" + (f" ({rng} a year)" if rng else "") + f": {names}")
     ug = sum(1 for p in progs.values() if p.get("level", "ug") == "ug")
     pg = sum(1 for p in progs.values() if p.get("level") == "pg")
-    phd = ", plus the Ph.D" if _data().get("phd_fee_per_year") else ""
+    phd = ", plus the Ph.D" if _data()["charges"].get("phd_fee") else ""
     text = (f"SRU has **{ug} undergraduate** and **{pg} postgraduate** programmes for 2027-28{phd}. Here they are, "
             "with yearly tuition before any scholarship:\n\n• " + "\n• ".join(lines) +
             "\n\nWhich one catches your eye? I can check your eligibility or work out your fee for it.")
@@ -820,13 +828,13 @@ def _day_scholar(message: str) -> QuickAnswer | None:
     routes = " ".join(_lines("01_campus_life_and_facilities.md", "**Routes**")[:1])
     towns = _num(r"tri-cities \(([^)]+)\)", routes)
     more = _num(r"neighboring towns:\s*([^.]+)\.", routes)
-    bus = fees.load_data().get("transport_per_year")
+    bus = fees.charge_amount("bus")
     if not (towns and bus):
         return None
     return QuickAnswer(
         "Yes, you can be a **day scholar**; the hostel is your choice. University buses run Monday to Friday across "
         f"the tri-cities ({towns})" + (f" and nearby towns like {more}" if more else "") +
-        f", for about **{fees.inr(int(bus))} a year** (it depends on the distance of your stop).",
+        f", for **{fees.inr(int(bus))} a year** on the 2027-28 fee circular (optional).",
         ["Transport", "Hostel life", "Hostel fees"])
 
 

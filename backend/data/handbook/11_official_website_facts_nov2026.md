@@ -1,8 +1,8 @@
 # SR University: Facts Checked on the Official Website (sru.edu.in), 17 November 2026
 
 > **Source:** pages of https://sru.edu.in read on 17-11-2026: `/about`, `/admission/`, `/placements/`,
-> `/fee-scholarship/`, `/academics/program/`. Where the website and the 2027-28 fee card differ on fees,
-> the fee card is used (the website's fee pages are still for 2026-27).
+> `/fee-scholarship/`, `/academics/program/`. Where the website and the 2027-28 fee circular differ on fees,
+> the fee circular is used (the website's fee pages are still for 2026-27).
 
 ---
 
@@ -29,7 +29,7 @@
 
 Astra School of Business; School of Agriculture; School of Computer Science & Artificial Intelligence; School of Design; School of Engineering; School of Sciences and Humanities. Levels offered: undergraduate, postgraduate, Ph.D., postdoctoral fellowship, D.Sc., and minors & honours.
 
-## 4. Rankings and accreditations (website and 2027-28 fee card agree)
+## 4. Rankings and accreditations (website and the 2027-28 admissions material agree)
 
 - **NIRF 2025:** 91st in the Engineering category (in the top 100 every year since 2021); 101-150 band in the University category.
 - **NBA:** Tier-I accreditation for B.Tech programmes.

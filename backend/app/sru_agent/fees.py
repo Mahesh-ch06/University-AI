@@ -1,7 +1,8 @@
 """Fee, scholarship and eligibility maths. Pure Python, no AI.
 
 The agent is NOT allowed to state a fee from memory. It must call these
-functions, which read fees_2027_28.json, so every number is traceable.
+functions, which read fee_policy_2027_28.json (the 2027-28 fee circular), so every
+number is traceable. calculate_fee / fee_schedule is the ONLY fee calculator.
 The Fee & Scholarship Calculator reads the same file through
 /api/v1/agent/fee-config and /api/v1/agent/calculate.
 """
@@ -10,7 +11,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-DATA_FILE = Path(__file__).with_name("fees_2027_28.json")
+DATA_FILE = Path(__file__).with_name("fee_policy_2027_28.json")
 HOSTEL_LABELS = {
     "non_ac_4": "Non-AC, 4-sharing", "non_ac_3": "Non-AC, 3-sharing",
     "ac_4": "AC, 4-sharing", "ac_3": "AC, 3-sharing",
@@ -361,15 +362,15 @@ def program_info(program: str) -> dict:
         "eligibility": prog["eligibility_note"],
         "tuition_per_year": inr(prog["tuition_per_year"]),
         "tuition_per_semester": inr(prog["tuition_per_year"] / 2),
+        "tuition_split": "Only tuition is split equally between the two semesters; other charges are added by the calculator.",
         "yearly_tuition_increase": inr(prog["yearly_increase"]),
         "merit_scholarship_slabs": slabs,
         "reminder": "Admission depends on seat availability and document verification.",
     }
-    if prog.get("fee_band_min_percent"):
-        info["note"] = (f"The fee card lists fees for this program from "
-                        f"{prog['fee_band_min_percent']}% marks; below that, the Admissions Office confirms.")
+    if prog.get("min_percent_confirmed") is False:
+        info["note"] = f"The {prog['min_percent']:g}% PG minimum is subject to confirmation by the Admissions Office."
     if prog.get("duration_years") is None:
-        info["duration_note"] = "Course duration is not in the fee file. Do not state one."
+        info["duration_note"] = "Course duration is not in the fee policy. Do not state one."
     return info
 
 
@@ -385,7 +386,9 @@ def special_concessions(category: str = "") -> dict:
     return {
         "status": "ok", "academic_year": data["academic_year"],
         "matching": [{"category": c["label"], "per_year": inr(c["amount"])} for c in matched],
-        "all_categories": [{"category": c["label"], "per_year": inr(c["amount"])} for c in items],
+        "all_categories": [{"category": c["label"], "per_year": inr(c["amount"]),
+                            **({"selectable": False, "note": c.get("note", "")} if not c.get("selectable", True) else {})}
+                           for c in items],
         "note": data.get("special_concession_note", ""),
         "instruction": "If 'matching' is empty, say plainly that the category asked about is not in the "
                        "official list, then mention the closest listed categories. Do not ask the student "
@@ -393,12 +396,157 @@ def special_concessions(category: str = "") -> dict:
     }
 
 
+def charge_amount(key: str, variant: str | None = None) -> int:
+    """One fee head from the circular, e.g. charge_amount('other_fee') -> 15000."""
+    c = load_data()["charges"][key]
+    return int(c[variant] if variant else c.get("amount", 0))
+
+
+def hostel_per_year() -> dict:
+    """Hostel room fees (with meals). NOT on the fee circular: pending confirmation, see policy['hostel']."""
+    return dict(load_data().get("hostel", {}).get("per_year", {}))
+
+
+def _allocate(amount: int, where, semesters: int = 2) -> list[int]:
+    """Place an annual amount in one semester (1, 2) or split it ('split')."""
+    out = [0] * semesters
+    if where == "split":
+        first = round(amount / semesters)
+        out[0] = first
+        for i in range(1, semesters):
+            out[i] = (amount - first) // (semesters - 1)
+        out[-1] += amount - sum(out)
+    else:
+        out[max(0, min(semesters, int(where or 1)) - 1)] = amount
+    return out
+
+
+def _concession_items(concessions) -> list[dict]:
+    """Selected special-category concessions (keys or labels) that the circular lists and a student may claim."""
+    items = {c["key"]: c for c in load_data().get("special_concessions", [])}
+    by_label = {c["label"].lower(): c for c in items.values()}
+    chosen = []
+    for c in concessions or ():
+        key = c.get("key") if isinstance(c, dict) else c
+        item = items.get(key) or by_label.get(str(key or "").lower())
+        if item and item.get("selectable", True) and item not in chosen:
+            chosen.append(item)
+    return chosen
+
+
+def fee_schedule(program_key: str, scholarship_percent: float = 0, *, hostel: str | None = None,
+                 transport: bool = False, specialization: bool = False, concessions=()) -> dict:
+    """THE semester-wise fee engine (steps 3-14 of the fee policy). Deterministic, component based.
+
+    Tuition is the only amount split between the two semesters. Every other head is placed where the
+    policy (or its configurable ``schedule``) says: one-time charges once, annual charges whole in one
+    semester, optional charges only when chosen, and no merit scholarship on any charge.
+    """
+    data = load_data()
+    prog = data["programs"][program_key]
+    rules = data.get("schedule", {})
+    n_sem = int(rules.get("semesters_per_year", 2))
+    years = prog.get("duration_years") or 1
+    base = int(prog["tuition_per_year"])
+    inc = int(prog["yearly_increase"])
+    scholarship = round(base * float(scholarship_percent) / 100)                       # step 4-5
+    continues = rules.get("scholarship_continues_every_year", True)
+    charges = data["charges"]
+    hostel_fee = hostel_per_year().get(hostel, 0) if hostel and hostel != "none" else 0
+    deposit = charges["electricity_deposit"]["ac" if str(hostel).startswith("ac") else "non_ac"] if hostel_fee else 0
+    spec_on = bool(specialization) and program_key in rules.get("specialization_fee_programs", [])
+    chosen = _concession_items(concessions)
+    concession_total = sum(int(c["amount"]) for c in chosen)
+
+    out_years, course_total = [], 0
+    for y in range(1, years + 1):
+        sch_y = scholarship if (y == 1 or continues) else 0
+        annual = base - sch_y + (y - 1) * inc                                            # step 6
+        sem_tuition = _allocate(annual, "split", n_sem)                                   # step 8
+        sems = [{"semester": s + 1, "items": [{"key": "tuition", "label": "Tuition", "amount": sem_tuition[s],
+                                                "kind": "tuition"}]} for s in range(n_sem)]
+
+        def put(key, label, amount, where, kind="charge"):
+            for s, amt in enumerate(_allocate(int(amount), where, n_sem)):
+                if amt:
+                    sems[s]["items"].append({"key": key, "label": label, "amount": amt, "kind": kind})
+
+        # step 9: concessions, an annual deduction from tuition (never more than the year's tuition)
+        if concession_total:
+            ded = min(concession_total, annual)
+            first = int(rules.get("concession_semester", 1)) - 1 if rules.get("concession_semester") != "split" else None
+            parts = _allocate(ded, "split" if first is None else first + 1, n_sem)
+            for s in range(n_sem):                     # a deduction never exceeds that semester's tuition
+                over = parts[s] - sem_tuition[s]
+                if over > 0:
+                    parts[s] -= over
+                    parts[(s + 1) % n_sem] += over
+            for s, amt in enumerate(parts):
+                if amt:
+                    sems[s]["items"].append({"key": "concession", "label": "Special concession",
+                                             "amount": -amt, "kind": "concession"})
+        # steps 10-11: charges, placed by the policy
+        if y == 1:
+            c = charges["enrollment_fee"]
+            put("enrollment_fee", c["label"], c["amount"], c.get("semester", 1))
+        if y == 1 or rules.get("other_fee_every_year", True):
+            put("other_fee", charges["other_fee"]["label"], charges["other_fee"]["amount"],
+                charges["other_fee"].get("semester", 1))
+        if y == 1:
+            c = charges["exam_fee"]
+            put("exam_fee", c["label"], c["amount"], c.get("semester", 1))
+        if spec_on and y >= charges["specialization_fee"].get("from_year", 2):
+            put("specialization_fee", charges["specialization_fee"]["label"], charges["specialization_fee"]["amount"],
+                charges["specialization_fee"].get("semester", 1))
+        if transport:
+            put("bus", charges["bus"]["label"], charges["bus"]["amount"], rules.get("bus_semester", 1), "optional")
+        if hostel_fee:
+            put("hostel", f"Hostel ({HOSTEL_LABELS.get(hostel, hostel)})", hostel_fee, rules.get("hostel_semester", 1),
+                "optional")
+            if y == 1:
+                put("electricity_deposit", charges["electricity_deposit"]["label"], deposit, 1, "optional")
+        for s in sems:                                                                    # step 12
+            s["total"] = sum(i["amount"] for i in s["items"])
+        year_total = sum(s["total"] for s in sems)                                        # step 13
+        course_total += year_total
+        out_years.append({"year": y, "tuition_before_scholarship": base + (y - 1) * inc, "scholarship": sch_y,
+                          "annual_tuition": annual, "concession": min(concession_total, annual),
+                          "semesters": sems, "total": year_total})
+    return {"years": out_years, "duration_known": bool(prog.get("duration_years")),
+            "course_total": course_total if prog.get("duration_years") else None,           # step 14
+            "application_fee": charge_amount("application_fee"),                              # step 15
+            "concessions": [{"key": c["key"], "label": c["label"], "amount": c["amount"]} for c in chosen]}
+
+
+def verification_flags(program_key: str, percent=None, jee_percentile=None, ib_score=None,
+                       eapcet_rank=None) -> list[str]:
+    """Things the Admissions Office must verify before the estimate is final (never hidden from the student)."""
+    data = load_data()
+    prog = data["programs"][program_key]
+    flags = []
+    if percent is not None and float(percent) < float(prog["min_percent"]):
+        flags.append(f"Your marks are below the {prog['min_percent']:g}% minimum listed for this programme; "
+                     f"admission needs verification by the Admissions Office.")
+    if prog.get("min_percent_confirmed") is False:
+        flags.append(f"The {prog['min_percent']:g}% minimum for postgraduate programmes is subject to confirmation.")
+    if jee_percentile is not None and 94.5 < float(jee_percentile) < 95:
+        flags.append(data.get("jee_gap_note", ""))
+    if ib_score is not None and 30 <= float(ib_score) <= 37 and data.get("ib_overlap_note"):
+        flags.append(data["ib_overlap_note"])
+    return [f for f in flags if f]
+
+
 def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=None,
                   jee_percentile=None, hostel="none", specialization=False,
-                  ib_score=None, transport=False) -> dict:
-    """Tuition, scholarship, first-year payable and full-course total for one student."""
+                  ib_score=None, transport=False, concessions=()) -> dict:
+    """The ONE fee calculator (chatbot, admission flow and frontend all call it).
+
+    Order: resolve programme -> check minimum -> base tuition -> scholarship -> increment -> concessions ->
+    split tuition -> place charges -> semester payables -> annual payable -> course total; the application
+    fee is shown separately and never added to a semester.
+    """
     data = load_data()
-    key = find_program(program)
+    key = find_program(program)                                                          # step 1
     if not key:
         return {"status": "unknown_program",
                 "ask_student": "Ask which course or branch they mean.",
@@ -406,41 +554,25 @@ def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=N
     prog = data["programs"][key]
     sch = scholarship_for(key, percent, board, eapcet_rank, jee_percentile, ib_score)
     pct = sch["percent"]
+    base = prog["tuition_per_year"]                                                       # step 3
+    plan = fee_schedule(key, pct, hostel=hostel, transport=transport, specialization=specialization,
+                        concessions=concessions)
+    y1 = plan["years"][0]
+    s1, s2 = y1["semesters"][0], y1["semesters"][1]
+    has_hostel = any(i["key"] == "hostel" for i in s1["items"] + s2["items"])
+    hostel_fee = hostel_per_year().get(hostel, 0) if has_hostel else 0
+    transport_fee = charge_amount("bus") if transport else 0
+    spec_applies = bool(specialization) and key in data.get("schedule", {}).get("specialization_fee_programs", [])
 
-    years = prog.get("duration_years")
-    base = prog["tuition_per_year"]
-    per_year = []
-    # The circular's last column is "Yearly Fee Increase (Irrespective of Schol.)": every student
-    # pays the same flat increase each year, so the scholarship applies to the year-1 fee only
-    # and the increase is added on top (25% on CSE: 2,55,000 then 2,64,000, not 2,61,750).
-    net_first = round(base * (100 - pct) / 100)
-    for y in range(years or 1):
-        step = prog["yearly_increase"] * y
-        net = net_first + step
-        per_year.append({"year": y + 1, "tuition": inr(base + step), "after_scholarship": inr(net),
-                         "per_semester": inr(net / 2), "_net": net})
-
-    one_time = data["one_time"].get("enrollment_fee", 0)
-    one_time_app = data["one_time"].get("application_fee", 0)
-    yearly_other = sum(data["yearly_other"].values())
-    hostel_fee = data["hostel_per_year"].get(hostel, 0) if hostel and hostel != "none" else 0
-    transport_fee = data.get("transport_per_year", 0) if transport else 0
-    spec = prog.get("specialization_fee_per_year_from_year2", 0) if specialization else 0
-
-    first_year = per_year[0]["_net"] + one_time + yearly_other + hostel_fee + transport_fee
-
-    tuition_sem1 = round(per_year[0]["_net"] / 2)
-    other_sem = round(yearly_other / 2)
-    has_hostel = hostel_fee > 0
-    hostel_sem = round(hostel_fee / 2) if has_hostel else 0
-    transport_sem = round(transport_fee / 2)
-    regular_sem_total = tuition_sem1 + other_sem + hostel_sem + transport_sem
-    sem1_total_payable = regular_sem_total + one_time
+    def money_rows(sem):
+        return [{"key": i["key"], "item": i["label"], "amount": inr(i["amount"]), "kind": i["kind"]}
+                for i in sem["items"]]
 
     result = {
         "status": "ok",
         "academic_year": data["academic_year"],
         "source": data["source"],
+        "policy_id": data.get("policy_id"),
         "data_status": "verified" if data.get("verified") else
         "UNVERIFIED: tell the student the final fee will be confirmed by the Admissions Office",
         "program_key": key,
@@ -452,55 +584,59 @@ def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=N
         # What each score earns by itself. The best one is applied; scholarships are not added together.
         "scores_considered": sch["considered"],
         "tuition_first_year": inr(base),
-        "tuition_first_year_after_scholarship": inr(per_year[0]["_net"]),
-        "per_semester_after_scholarship": per_year[0]["per_semester"],
-        "saving_first_year": inr(base - per_year[0]["_net"]),
-        "one_time_enrollment_fee": inr(one_time),
-        "one_time_application_fee": inr(one_time_app),
-        "one_time_total": inr(one_time + one_time_app),
-        "other_yearly_fees": inr(yearly_other),
-        "other_fees_per_semester": inr(other_sem),
+        "scholarship_amount_per_year": inr(y1["scholarship"]),
+        "tuition_first_year_after_scholarship": inr(y1["annual_tuition"]),
+        "per_semester_after_scholarship": inr(s1["items"][0]["amount"]),
+        "saving_first_year": inr(y1["scholarship"]),
+        "one_time_enrollment_fee": inr(charge_amount("enrollment_fee")),
+        "exam_fee_first_year": inr(charge_amount("exam_fee")),
+        "other_fee_per_year": inr(charge_amount("other_fee")),
+        "application_fee": inr(plan["application_fee"]),
+        "application_fee_note": "Paid once with the application form; not part of any semester payable.",
         "has_hostel": has_hostel,
         "hostel": {
             "type": HOSTEL_LABELS.get(hostel),
             "per_year": inr(hostel_fee),
-            "per_semester": inr(hostel_sem),
+            "electricity_deposit": inr(charge_amount("electricity_deposit", "ac" if str(hostel).startswith("ac") else "non_ac")),
+            "status": "Hostel fees are not on the 2027-28 fee circular; the Admissions Office confirms them.",
         } if has_hostel else None,
         "transport_per_year": inr(transport_fee) if transport_fee else None,
-        "total_per_semester": inr(regular_sem_total),
-        "sem1_total_payable": inr(sem1_total_payable),
-        "per_sem_breakdown": {
-            "tuition_per_sem": per_year[0]["per_semester"],
-            "other_fees_per_sem": inr(other_sem),
-            **({"hostel_per_sem": inr(hostel_sem)} if has_hostel else {}),
-            **({"transport_per_sem": inr(transport_sem)} if transport_fee else {}),
-            "one_time_enrollment": inr(one_time),
-            "regular_sem_total": inr(regular_sem_total),
-            "sem1_total_payable": inr(sem1_total_payable),
-        },
-        "first_year_total_payable": inr(first_year),
+        "specialization_fee_per_year": inr(charge_amount("specialization_fee")) if spec_applies else None,
+        "concessions_applied": [{"category": c["label"], "per_year": inr(c["amount"])} for c in plan["concessions"]],
+        "semester_1": {"items": money_rows(s1), "total": inr(s1["total"])},
+        "semester_2": {"items": money_rows(s2), "total": inr(s2["total"])},
+        "sem1_total_payable": inr(s1["total"]),
+        "sem2_total_payable": inr(s2["total"]),
+        # A semester with no one-time or annual charges (Year 1, Semester 2).
+        "total_per_semester": inr(s2["total"]),
+        "first_year_total_payable": inr(y1["total"]),
         "yearly_increase": inr(prog["yearly_increase"]),
-        "not_included": ["books and personal expenses"]
-        + ([] if transport_fee else ["transport"]) + ([] if hostel_fee else ["hostel"]),
+        "schedule": [{"year": y["year"], "annual_tuition": inr(y["annual_tuition"]),
+                      "semesters": [{"semester": s["semester"], "items": money_rows(s), "total": inr(s["total"])}
+                                    for s in y["semesters"]],
+                      "total": inr(y["total"])} for y in plan["years"]],
+        "not_included": ["application form fee (paid separately)", "books and personal expenses"]
+        + ([] if transport_fee else ["bus (optional)"]) + ([] if has_hostel else ["hostel (optional)"]),
         "notes": [],
+        "flags": verification_flags(key, percent, jee_percentile, ib_score, eapcet_rank)
+        + (["More than one special concession was selected; whether they can be combined is decided by the "
+            "Admissions Office on verification."] if len(plan["concessions"]) > 1 else []),
     }
-
-    if years:
-        total = (sum(p["_net"] for p in per_year) + one_time
-                 + (yearly_other + hostel_fee + transport_fee) * years + spec * (years - 1))
-        result["duration_years"] = years
-        result["year_by_year"] = [{k: v for k, v in p.items() if k != "_net"} for p in per_year]
-        result["full_course_total"] = inr(total)
-        if spec:
-            result["specialization_fee"] = f"{inr(spec)} per year from year 2 (included in total)"
+    if plan["course_total"] is not None:
+        result["duration_years"] = prog["duration_years"]
+        result["year_by_year"] = [{"year": y["year"], "tuition": inr(y["tuition_before_scholarship"]),
+                                   "after_scholarship": inr(y["annual_tuition"]),
+                                   "per_semester": inr(y["semesters"][0]["items"][0]["amount"]),
+                                   "total_payable": inr(y["total"])} for y in plan["years"]]
+        result["full_course_total"] = inr(plan["course_total"])
     else:
-        result["notes"].append("Course duration is not set in the fee file, so no full-course total.")
+        result["notes"].append("Course duration is not set in the fee policy, so no full-course total.")
 
     nxt = _next_slab(key, pct, percent, board, eapcet_rank, jee_percentile, ib_score)
     if nxt:
         result["next_scholarship_slab"] = nxt
     if has_hostel:
-        result["hostel_options_per_year"] = {HOSTEL_LABELS[k]: inr(v) for k, v in data["hostel_per_year"].items()}
+        result["hostel_options_per_year"] = {HOSTEL_LABELS[k]: inr(v) for k, v in hostel_per_year().items()}
     if sch["not_configured"]:
         result["notes"].append(
             "No scholarship table is configured for: " + ", ".join(sch["not_configured"]) +
@@ -511,16 +647,10 @@ def calculate_fee(program: str, percent=None, board="state_board", eapcet_rank=N
     elif pct == 0 and not sch["not_configured"]:
         result["notes"].append("This score is outside the merit scholarship slabs, so the standard fee applies. "
                                "Another score (board %, JEE, EAPCET) may still qualify.")
-    band = prog.get("fee_band_min_percent")
-    if percent is not None and band and float(percent) < band:
-        result["notes"].append(f"The fee card lists {prog['name']} fees from {band}% marks; for a lower "
-                               f"percentage the Admissions Office must confirm admission and fee.")
-    if ib_score is not None and 30 <= float(ib_score) <= 37 and data.get("ib_overlap_note"):
-        result["notes"].append(data["ib_overlap_note"])
-    result["notes"].append("Scholarship is subject to marksheet verification; continuation rules are set by the university.")
+    result["notes"].append("Merit scholarship applies to tuition only, subject to marksheet verification.")
     if percent is not None:
         # Admission eligibility is separate from the scholarship: a 23% student gets no "you qualify".
-        from . import eligibility
+        from . import eligibility                                                         # step 2
         verdict = eligibility.assess(key, float(percent))
         result["admission_eligibility"] = {
             "status": verdict["status"], "eligible": verdict["eligible"],
@@ -560,13 +690,14 @@ def compare_programs(program_a: str, program_b: str, **score) -> dict:
 
 
 def fee_config() -> dict:
-    """Everything the Fee & Scholarship Calculator needs to draw itself."""
+    """Everything the Fee & Scholarship Calculator needs to draw itself. Every payable in here is produced
+    by fee_schedule (the one engine); the frontend shows these numbers and never does fee maths itself."""
     data = load_data()
     programs = []
     for key, prog in data["programs"].items():
         slab_set = data["slab_sets"].get(prog["slab_set"], {})
         exams = [{"key": k, "label": _exam_label(k, prog)} for k in EXAM_LABELS if slab_set.get(k)]
-        percents = sorted({s["percent"] for table in slab_set.values() for s in table})
+        percents = sorted({0} | {s["percent"] for table in slab_set.values() for s in table})
         slabs = []
         for pct in percents:
             ranges, bounds = {}, {}
@@ -575,25 +706,36 @@ def fee_config() -> dict:
                 if hit:
                     ranges[kind] = _range_text(kind, hit[0])       # text to show
                     bounds[kind] = [hit[0]["min"], hit[0]["max"]]  # numbers to match a score against
+            plan = fee_schedule(key, pct)
+            y1 = plan["years"][0]
             slabs.append({"scholarship_percent": pct, "ranges": ranges, "bounds": bounds,
-                          "payable_per_semester": round(prog["tuition_per_year"] * (100 - pct) / 200)})
+                          "annual_tuition": y1["annual_tuition"], "saving_per_year": y1["scholarship"],
+                          "tuition_per_semester": y1["semesters"][0]["items"][0]["amount"],
+                          "semesters": [{"semester": s["semester"], "total": s["total"],
+                                         "items": [{"label": i["label"], "amount": i["amount"], "kind": i["kind"]}
+                                                   for i in s["items"]]} for s in y1["semesters"]],
+                          "first_year_total": y1["total"], "course_total": plan["course_total"],
+                          "years": [{"year": y["year"], "annual_tuition": y["annual_tuition"], "total": y["total"]}
+                                    for y in plan["years"]] if plan["course_total"] else []})
         programs.append({
             "id": key, "name": prog["name"], "level": prog.get("level", "ug"),
             "tuition_per_year": prog["tuition_per_year"],
-            "tuition_per_semester": round(prog["tuition_per_year"] / 2),
             "yearly_increase": prog["yearly_increase"],
             "duration_years": prog.get("duration_years"),
             "minimum_percent": prog["min_percent"],
+            "minimum_confirmed": prog.get("min_percent_confirmed", True),
             "eligibility": prog.get("eligibility_note", ""),
-            "specialization_fee_per_year_from_year2": prog.get("specialization_fee_per_year_from_year2", 0),
+            "specialization_fee_applies": key in data.get("schedule", {}).get("specialization_fee_programs", []),
             "exams": exams, "slabs": slabs,
         })
     return {
         "status": "ok", "academic_year": data["academic_year"], "source": data["source"],
-        "one_time": data["one_time"], "yearly_other": data["yearly_other"],
-        "transport_per_year": data.get("transport_per_year"),
-        "hostel_per_year": data["hostel_per_year"], "hostel_labels": HOSTEL_LABELS,
-        "hostel_deposits": data.get("hostel_deposits", {}),
-        "special_concessions": data.get("special_concessions", []),
+        "policy_id": data.get("policy_id"),
+        "charges": {k: {kk: vv for kk, vv in v.items()} for k, v in data["charges"].items()},
+        "schedule": {k: v for k, v in data.get("schedule", {}).items() if not k.startswith("_")},
+        "hostel_per_year": hostel_per_year(), "hostel_labels": HOSTEL_LABELS,
+        "hostel_status": data.get("hostel", {}).get("source", ""),
+        "special_concessions": [c for c in data.get("special_concessions", []) if c.get("selectable", True)],
+        "terms": data.get("terms", []),
         "programs": programs,
     }

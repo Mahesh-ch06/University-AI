@@ -1,14 +1,21 @@
 /**
- * Pure logic for the Fee & Scholarship Calculator.
+ * Logic for the Fee & Scholarship Calculator. It does NO fee arithmetic.
  *
- * There are NO fee amounts in this file. Every number comes from the fee table the backend
- * serves at /api/v1/agent/fee-config (a generated copy is bundled as src/data/feeConfig.json so
- * the calculator can draw instantly). That table is produced from
- * backend/app/sru_agent/fees_2027_28.json, the same file the chat agent uses, so the calculator
- * and the chat cannot disagree.
- *
- * Run the checks for this file with:  npm run test:calc
+ * Every rupee shown comes from the ONE fee engine in the backend (app/sru_agent/fees.py):
+ *   - /api/v1/agent/fee-config gives, for every programme and scholarship slab, the semester-wise
+ *     payable the engine worked out (a generated copy is bundled as src/data/feeConfig.json so the
+ *     calculator can draw instantly);
+ *   - /api/v1/agent/calculate gives the exact schedule for the student's own score and options
+ *     (hostel, bus).
+ * This file only understands what the student typed, finds the matching slab row, and reads the
+ * engine's numbers. Run the checks with:  npm run test:calc
  */
+
+export interface FeeSlabSemester {
+  semester: number;
+  total: number;
+  items: { label: string; amount: number; kind: string }[];
+}
 
 export interface FeeSlab {
   scholarship_percent: number;
@@ -16,7 +23,13 @@ export interface FeeSlab {
   ranges: Record<string, string>;
   /** Numbers to match a score against, per exam: [min, max]. */
   bounds: Record<string, number[]>;
-  payable_per_semester: number;
+  annual_tuition: number;
+  saving_per_year: number;
+  tuition_per_semester: number;
+  semesters: FeeSlabSemester[];
+  first_year_total: number;
+  course_total: number | null;
+  years: { year: number; annual_tuition: number; total: number }[];
 }
 
 export interface FeeProgram {
@@ -24,27 +37,34 @@ export interface FeeProgram {
   name: string;
   level: string;
   tuition_per_year: number;
-  tuition_per_semester: number;
   yearly_increase: number;
   duration_years: number | null;
   minimum_percent: number;
+  minimum_confirmed: boolean;
   eligibility: string;
-  specialization_fee_per_year_from_year2: number;
+  specialization_fee_applies: boolean;
   exams: { key: string; label: string }[];
   slabs: FeeSlab[];
+}
+
+export interface FeeCharge {
+  label: string;
+  amount?: number;
+  non_ac?: number;
+  ac?: number;
+  kind: string;
 }
 
 export interface FeeConfig {
   status: string;
   academic_year: string;
   source: string;
-  one_time: { enrollment_fee: number; application_fee: number };
-  yearly_other: Record<string, number>;
-  transport_per_year: number | null;
+  charges: Record<string, FeeCharge>;
   hostel_per_year: Record<string, number>;
   hostel_labels: Record<string, string>;
-  hostel_deposits: Record<string, number>;
+  hostel_status: string;
   special_concessions: { key: string; label: string; amount: number }[];
+  terms: string[];
   programs: FeeProgram[];
 }
 
@@ -62,21 +82,25 @@ export interface ParsedScore {
   message?: string;
 }
 
+export interface EstimateSemester {
+  semester: number;
+  total: number;
+  items: { label: string; amount: number; kind: string }[];
+}
+
 export interface Estimate {
   scholarshipPercent: number;
   tuitionYear: number;
   netYear: number;
   netSem: number;
   savingYear: number;
-  enrollment: number;
-  otherYearly: number;
-  hostelYear: number;
-  regularSemTotal: number;
-  sem1Total: number;
+  semesters: EstimateSemester[];
   firstYearTotal: number;
-  /** Tuition payable in each year of the course (empty when the duration is not in the fee table). */
+  /** Total payable per year of the course (empty when the duration is not in the fee policy). */
   years: number[];
   fullCourseTotal: number | null;
+  applicationFee: number;
+  flags: string[];
   nextSlab: { percent: number; requires: string; extraSavingYear: number } | null;
 }
 
@@ -222,46 +246,45 @@ export function scholarshipStartText(program: FeeProgram, examKey: string): stri
   return `Merit scholarship starts at ${lowest}%`;
 }
 
-/** The fee estimate for one scholarship %, using only numbers from the fee table. */
-export function computeEstimate(
-  config: FeeConfig, program: FeeProgram, scholarshipPercent: number, hostelKey: string, examKey: string,
-): Estimate {
-  const tuitionYear = program.tuition_per_year;
-  const netYear = Math.round((tuitionYear * (100 - scholarshipPercent)) / 100);
-  const enrollment = config.one_time.enrollment_fee || 0;
-  const otherYearly = Object.values(config.yearly_other).reduce((a, b) => a + b, 0);
-  const hostelYear = hostelKey && hostelKey !== "none" ? config.hostel_per_year[hostelKey] || 0 : 0;
-  const regularSemTotal = Math.round(netYear / 2) + Math.round(otherYearly / 2) + Math.round(hostelYear / 2);
-
-  // The yearly increase is the same flat amount for every student, with or without scholarship.
-  const years: number[] = [];
-  for (let y = 0; y < (program.duration_years || 0); y++) years.push(netYear + program.yearly_increase * y);
-  const fullCourseTotal = years.length
-    ? years.reduce((a, b) => a + b, 0) + enrollment + (otherYearly + hostelYear) * years.length
-    : null;
-
+/** The next higher slab for this exam (what it needs and the extra saving the engine computed). */
+function nextSlabFor(program: FeeProgram, pct: number, examKey: string, current: FeeSlab | undefined) {
   const better = program.slabs
-    .filter((s) => s.scholarship_percent > scholarshipPercent && s.bounds[examKey])
+    .filter((s) => s.scholarship_percent > pct && s.bounds[examKey])
     .sort((a, b) => a.scholarship_percent - b.scholarship_percent)[0];
-
+  if (!better) return null;
   return {
-    scholarshipPercent, tuitionYear, netYear, netSem: Math.round(netYear / 2),
-    savingYear: tuitionYear - netYear, enrollment, otherYearly, hostelYear,
-    regularSemTotal, sem1Total: regularSemTotal + enrollment,
-    firstYearTotal: netYear + enrollment + otherYearly + hostelYear,
-    years, fullCourseTotal,
-    nextSlab: better
-      ? {
-          percent: better.scholarship_percent,
-          requires: `${examLabel(program, examKey)}: ${better.ranges[examKey]}`,
-          extraSavingYear: Math.round((tuitionYear * (better.scholarship_percent - scholarshipPercent)) / 100),
-        }
-      : null,
+    percent: better.scholarship_percent,
+    requires: `${examLabel(program, examKey)}: ${better.ranges[examKey]}`,
+    extraSavingYear: better.saving_per_year - (current?.saving_per_year || 0),
+  };
+}
+
+/**
+ * The day-scholar estimate for one scholarship %, read straight from the engine's slab row
+ * (no arithmetic here). Hostel / bus estimates come from the backend (estimateFromBackend).
+ */
+export function estimateFromConfig(config: FeeConfig, program: FeeProgram, scholarshipPercent: number,
+  examKey: string): Estimate {
+  const slab = program.slabs.find((s) => s.scholarship_percent === scholarshipPercent)
+    || program.slabs.find((s) => s.scholarship_percent === 0) as FeeSlab;
+  return {
+    scholarshipPercent: slab.scholarship_percent,
+    tuitionYear: program.tuition_per_year,
+    netYear: slab.annual_tuition,
+    netSem: slab.tuition_per_semester,
+    savingYear: slab.saving_per_year,
+    semesters: slab.semesters,
+    firstYearTotal: slab.first_year_total,
+    years: slab.years.map((y) => y.total),
+    fullCourseTotal: slab.course_total,
+    applicationFee: config.charges.application_fee?.amount || 0,
+    flags: [],
+    nextSlab: nextSlabFor(program, slab.scholarship_percent, examKey, slab),
   };
 }
 
 /** What to send to POST /api/v1/agent/calculate for this score. */
-export function calculateParams(programId: string, parsed: ParsedScore, hostelKey: string) {
+export function calculateParams(programId: string, parsed: ParsedScore, hostelKey: string, transport = false) {
   const v = parsed.status === "ok" ? parsed.value : undefined;
   return {
     program: programId,
@@ -271,29 +294,29 @@ export function calculateParams(programId: string, parsed: ParsedScore, hostelKe
     jee_percentile: parsed.examKey === "jee_percentile" ? v : undefined,
     ib_score: parsed.examKey === "ib" ? v : undefined,
     hostel: hostelKey || "none",
+    transport,
   };
 }
 
-/** The backend's answer in the same shape as computeEstimate, so the screen can show either. */
-export function estimateFromBackend(res: any, local: Estimate): Estimate {
-  const netYear = rupees(res.tuition_first_year_after_scholarship);
-  const years: number[] = Array.isArray(res.year_by_year)
-    ? res.year_by_year.map((y: any) => rupees(y.after_scholarship))
-    : local.years;
+/** The backend's answer (the engine's schedule for this exact score and options) in the Estimate shape. */
+export function estimateFromBackend(res: any): Estimate {
+  const sem = (block: any, n: number): EstimateSemester => ({
+    semester: n,
+    total: rupees(block?.total),
+    items: (block?.items || []).map((i: any) => ({ label: i.item, amount: rupees(i.amount), kind: i.kind })),
+  });
   return {
     scholarshipPercent: Number(res.scholarship_percent) || 0,
     tuitionYear: rupees(res.tuition_first_year),
-    netYear,
+    netYear: rupees(res.tuition_first_year_after_scholarship),
     netSem: rupees(res.per_semester_after_scholarship),
     savingYear: rupees(res.saving_first_year),
-    enrollment: rupees(res.one_time_enrollment_fee),
-    otherYearly: rupees(res.other_yearly_fees),
-    hostelYear: res.hostel ? rupees(res.hostel.per_year) : 0,
-    regularSemTotal: rupees(res.total_per_semester) || local.regularSemTotal,
-    sem1Total: rupees(res.sem1_total_payable) || local.sem1Total,
+    semesters: [sem(res.semester_1, 1), sem(res.semester_2, 2)],
     firstYearTotal: rupees(res.first_year_total_payable),
-    years,
-    fullCourseTotal: res.full_course_total ? rupees(res.full_course_total) : local.fullCourseTotal,
+    years: Array.isArray(res.year_by_year) ? res.year_by_year.map((y: any) => rupees(y.total_payable)) : [],
+    fullCourseTotal: res.full_course_total ? rupees(res.full_course_total) : null,
+    applicationFee: rupees(res.application_fee),
+    flags: Array.isArray(res.flags) ? res.flags : [],
     nextSlab: res.next_scholarship_slab
       ? {
           percent: res.next_scholarship_slab.scholarship_percent,

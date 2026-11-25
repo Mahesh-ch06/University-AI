@@ -2,7 +2,7 @@
 
 The handbook used to carry hand-typed fee facts that had drifted away from the official fee card
 (wrong PG fees and slabs, special concessions that do not exist). These pages are now GENERATED
-from backend/app/sru_agent/fees_2027_28.json, so the knowledge base, the chat and the calculator
+from backend/app/sru_agent/fee_policy_2027_28.json, so the knowledge base, the chat and the calculator
 all say the same thing. Run through `python scripts/export_fee_config.py`.
 """
 import re
@@ -17,7 +17,7 @@ from app.sru_agent import fees  # noqa: E402
 HANDBOOK_DIRS = [BACKEND / "data" / "handbook", BACKEND.parent / "data" / "handbook"]
 FEE_PAGE = "08_admissions_fees_scholarships_and_eligibility.md"
 FACTS_PAGE = "09_verified_sru_facts.md"
-BEGIN, END = "<!-- FEES:BEGIN (generated from fees_2027_28.json, do not edit by hand) -->", "<!-- FEES:END -->"
+BEGIN, END = "<!-- FEES:BEGIN (generated from fee_policy_2027_28.json, do not edit by hand) -->", "<!-- FEES:END -->"
 _EXAMS = (("state_board", "Intermediate / State Board %"), ("cbse", "CBSE / ICSE %"),
           ("jee_percentile", "JEE Main percentile"), ("eapcet_rank", "TG / AP EAPCET rank"),
           ("ib", "IB Diploma score (out of 45)"))
@@ -73,16 +73,40 @@ def _concessions(data):
     return "\n".join(lines)
 
 
+def _semester_table(data) -> str:
+    lines = ["| Programme | Min. marks | Tuition / semester | Semester 1 | Semester 2 | Year 1 | Full course |",
+             "|---|---:|---:|---:|---:|---:|---:|"]
+    for key, p in data["programs"].items():
+        r = fees.calculate_fee(key)
+        minimum = f"{p['min_percent']:g}%" + ("" if p.get("min_percent_confirmed", True) else " (to be confirmed)")
+        lines.append(f"| {p['name']} | {minimum} | {r['per_semester_after_scholarship']} | {r['sem1_total_payable']} | "
+                     f"{r['sem2_total_payable']} | {r['first_year_total_payable']} | {r.get('full_course_total') or 'n/a'} |")
+    return "\n".join(lines)
+
+
+def _worked_example() -> str:
+    r = fees.calculate_fee("btech_cse", percent=95)
+    rows = ["| Component | Semester 1 | Semester 2 |", "|---|---:|---:|"]
+    s1 = {i["key"]: i["amount"] for i in r["semester_1"]["items"]}
+    s2 = {i["key"]: i["amount"] for i in r["semester_2"]["items"]}
+    for i in r["semester_1"]["items"]:
+        rows.append(f"| {i['item']} | {i['amount']} | {s2.get(i['key'], '—')} |")
+    rows.append(f"| **Total** | **{r['sem1_total_payable']}** | **{r['sem2_total_payable']}** |")
+    return ("\n".join(rows) + f"\n\nFirst year: **{r['first_year_total_payable']}**. The application fee "
+            f"({r['application_fee']}) and optional charges (hostel, bus) are not included.")
+
+
 def render_fee_page() -> str:
     d = fees.load_data()
-    year, hostel, dep = d["academic_year"], d["hostel_per_year"], d["hostel_deposits"]
-    other = d["yearly_other"]
+    year, hostel, ch = d["academic_year"], fees.hostel_per_year(), d["charges"]
+    elec = ch["electricity_deposit"]
     return f"""# SR University: Admissions, Fees & Scholarships ({year})
 
-> **Source:** {d['source']} (two-page official fee card).
-> **This page is generated** from `backend/app/sru_agent/fees_2027_28.json`. Do not edit it by hand:
+> **Source:** {d['source']} (official fee circular).
+> **This page is generated** from `backend/app/sru_agent/fee_policy_2027_28.json`. Do not edit it by hand:
 > change the fee file and run `python scripts/export_fee_config.py`.
-> **Currency:** Indian Rupees (₹). Tuition is per year; one semester is half of the yearly amount.
+> **Currency:** Indian Rupees (₹). Tuition is per year and is the only amount split equally between the two
+> semesters; the other charges are placed in the semester the policy names (see section 3).
 
 ---
 
@@ -119,54 +143,69 @@ PG scholarships depend only on the percentage in the qualifying degree. The stan
 
 ## 3. Other fees and charges ({year})
 
-| Fee | Amount | Notes |
+| Fee | Amount | When it is paid |
 |---|---:|---|
-| Enrolment fee | {fees.inr(d['one_time']['enrollment_fee'])} | One-time, at admission |
-| Other academic / university charges | {fees.inr(other['other_fee'])} | Every year |
-| Examination fee (first year) | {fees.inr(other['exam_fee'])} | As printed on the fee card for the first year |
-| Application form fee | {fees.inr(d['one_time']['application_fee'])} | Paid with the application |
-| Transportation (university bus) | {fees.inr(d['transport_per_year'])} | Optional. Varies depending on distance; this is the amount printed on the fee card |
-| Specialisation fee | ₹30,000 | Every year from the second year onwards, where a specialisation applies |
-| Ph.D. fee | {fees.inr(d['phd_fee_per_year'])} | Per year |
-| Electricity deposit, Non-AC hostel | {fees.inr(dep['electricity_deposit_non_ac'])} | Hostel students |
-| Electricity deposit, AC hostel | {fees.inr(dep['electricity_deposit_ac'])} | Hostel students |
+| Enrollment fee | {fees.inr(ch['enrollment_fee']['amount'])} | One-time, Semester 1 of Year 1 |
+| Other fee | {fees.inr(ch['other_fee']['amount'])} | Every year, whole in Semester 1 (not split) |
+| Exam fee (Year 1) | {fees.inr(ch['exam_fee']['amount'])} | Year 1 only, Semester 1 |
+| Application form fee | {fees.inr(ch['application_fee']['amount'])} | Once, with the application; never part of a semester payable |
+| Specialisation fee | {fees.inr(ch['specialization_fee']['amount'])} | Every year from Year 2 where a specialisation applies; never in Year 1 |
+| University bus | {fees.inr(ch['bus']['amount'])} | Optional, per year; only if chosen |
+| Ph.D. fee | {fees.inr(ch['phd_fee']['amount'])} | Per year |
+| Electricity deposit, Non-AC hostel | {fees.inr(elec['non_ac'])} | One-time, first hostel semester |
+| Electricity deposit, AC hostel | {fees.inr(elec['ac'])} | One-time, first hostel semester |
 
-There is no separate "admission fee" on the {year} fee card.
+Merit scholarships reduce tuition only; they never apply to these charges. There is no separate "admission fee".
+
+### Semester-wise fee, Year 1 (standard fee, day scholar)
+
+Calculation order: base tuition → merit scholarship → yearly increase (from Year 2) → special concessions → tuition
+split equally between the semesters → charges placed by the policy → semester payables → first-year and course totals.
+The application fee is shown separately.
+
+{_semester_table(d)}
+
+**Worked example (from the fee circular): B.Tech CSE with 95% in Intermediate → 30% scholarship.**
+
+{_worked_example()}
 
 ---
 
 ## 4. Special category concessions (all courses, per year, {year})
 
-The fee card lists exactly {len(d['special_concessions'])} categories. Each is subject to verification and approval of supporting documents.
+The fee circular lists exactly {len(d['special_concessions'])} categories. Each applies per academic year, subject to verification of credentials.
 
 {_concessions(d)}
 
 - State-level sports is **not** on the list. Only national-level (₹15,000) and international-level (₹50,000) sports achievers are.
-- There is no general concession for "all girl students": the two girl-student categories are "only girl child from Telangana" and "girl students from states other than Telangana".
+- There is no general concession for "all girl students": the two girl-student categories are "Only girl child from Telangana" and "Girl Child from Outside Telangana".
+- The Chancellor / Pro Chancellor Recommendation concession is granted only on that recommendation.
 
-### Administrative terms printed on the fee card
+### Administrative terms printed on the fee circular
 {chr(10).join('- ' + t for t in d['terms'])}
 
 ---
 
 ## 5. Hostel accommodation and dining (per year)
 
-Hostel room fees are not printed on the {year} fee card. These amounts are from the university's hostel fee table (also shown on sru.edu.in) and include room and mess.
+Hostel room fees are **not** printed on the {year} fee circular, so the Admissions Office confirms them. These amounts are
+from the university's hostel fee table and include room and mess. The circular's only hostel charge is the one-time
+electricity deposit.
 
-| Room type | Fee per year | Caution deposit (one-time, refundable) | Laundry per year | Electricity deposit |
-|---|---:|---:|---:|---:|
-| 4-sharing, Non-AC | {fees.inr(hostel['non_ac_4'])} | {fees.inr(dep['caution_deposit'])} | {fees.inr(dep['laundry_per_year'])} | {fees.inr(dep['electricity_deposit_non_ac'])} |
-| 3-sharing, Non-AC | {fees.inr(hostel['non_ac_3'])} | {fees.inr(dep['caution_deposit'])} | {fees.inr(dep['laundry_per_year'])} | {fees.inr(dep['electricity_deposit_non_ac'])} |
-| 4-sharing, AC | {fees.inr(hostel['ac_4'])} | {fees.inr(dep['caution_deposit'])} | {fees.inr(dep['laundry_per_year'])} | {fees.inr(dep['electricity_deposit_ac'])} |
-| 3-sharing, AC | {fees.inr(hostel['ac_3'])} | {fees.inr(dep['caution_deposit'])} | {fees.inr(dep['laundry_per_year'])} | {fees.inr(dep['electricity_deposit_ac'])} |
+| Room type | Fee per year | Electricity deposit (one-time) |
+|---|---:|---:|
+| 4-sharing, Non-AC | {fees.inr(hostel['non_ac_4'])} | {fees.inr(elec['non_ac'])} |
+| 3-sharing, Non-AC | {fees.inr(hostel['non_ac_3'])} | {fees.inr(elec['non_ac'])} |
+| 4-sharing, AC | {fees.inr(hostel['ac_4'])} | {fees.inr(elec['ac'])} |
+| 3-sharing, AC | {fees.inr(hostel['ac_3'])} | {fees.inr(elec['ac'])} |
 
 - **Dining**: 4 meals a day (breakfast, lunch, evening snacks, dinner), vegetarian and non-vegetarian.
 - **Facilities**: 24/7 Wi-Fi, 4,000-seat dining hall, study areas, ambulance on campus, power backup.
-- Hostel is optional.
+- Hostel is optional and is added to a fee only when the student chooses it.
 
 ---
 
-## 6. Rankings and accreditations printed on the {year} fee card
+## 6. Rankings and accreditations
 
 {chr(10).join(f"- **{r['body']}**: {r['claim']}." for r in d['rankings'])}
 
@@ -183,10 +222,10 @@ Hostel room fees are not printed on the {year} fee card. These amounts are from 
 
 ---
 
-## 8. Not on the fee card (ask the Admissions Office)
+## 8. Not on the fee circular (ask the Admissions Office)
 
 The list of documents required at admission, the fee refund policy, payment dates and instalment
-rules, and scholarship continuation rules are not printed on the {year} fee card. The agent must
+rules, and scholarship continuation rules are not printed on the {year} fee circular. The agent must
 say these are confirmed by the Admissions Office rather than state them.
 """
 
@@ -200,7 +239,7 @@ def render_facts_sections() -> str:
     line = lambda p: (f"  - **{p['name']}**: **{fees.inr(p['tuition_per_year'])} per year** "
                       f"({fees.inr(p['tuition_per_year'] / 2)} per semester); increases by "
                       f"{fees.inr(p['yearly_increase'])} every year for every student.")
-    other = d["yearly_other"]
+    ch = d["charges"]
     groups = {}
     for c in d["special_concessions"]:
         groups.setdefault(c["amount"], []).append(c["label"])
@@ -213,20 +252,21 @@ def render_facts_sections() -> str:
     return f"""{BEGIN}
 ## 3. Tuition Fee Structure ({year})
 
-- **[FACT-ID: FEE-001] [STATUS: VERIFIED] [SOURCE: official {year} fee card, via fees_2027_28.json]**
+- **[FACT-ID: FEE-001] [STATUS: VERIFIED] [SOURCE: official {year} fee circular, via fee_policy_2027_28.json]**
   - **Scoping rule**: when asked about a fee, state only the fee for the program or item asked about.
   - **Undergraduate programs (tuition per year)**:
 {chr(10).join(line(p) for _k, p in ug)}
   - **Postgraduate programs (tuition per year)**:
 {chr(10).join(line(p) for _k, p in pg)}
-  - **Other fees**: enrolment fee {fees.inr(d['one_time']['enrollment_fee'])} (one-time); other academic / university charges {fees.inr(other['other_fee'])} per year; examination fee (first year) {fees.inr(other['exam_fee'])}; application form fee {fees.inr(d['one_time']['application_fee'])}; transportation {fees.inr(d['transport_per_year'])} per year (varies with distance); specialisation fee ₹30,000 per year from the second year where applicable; Ph.D. fee {fees.inr(d['phd_fee_per_year'])} per year; hostel electricity deposit {fees.inr(d['hostel_deposits']['electricity_deposit_non_ac'])} (Non-AC) / {fees.inr(d['hostel_deposits']['electricity_deposit_ac'])} (AC).
-  - There is no separate admission fee on the {year} fee card.
+  - **Other fees**: enrollment fee {fees.inr(ch['enrollment_fee']['amount'])} (one-time, Semester 1 of Year 1); other fee {fees.inr(ch['other_fee']['amount'])} per year (Semester 1); exam fee {fees.inr(ch['exam_fee']['amount'])} (Year 1 only, Semester 1); application form fee {fees.inr(ch['application_fee']['amount'])} (paid separately); university bus {fees.inr(ch['bus']['amount'])} per year (optional); specialisation fee {fees.inr(ch['specialization_fee']['amount'])} per year from Year 2 where applicable; Ph.D. fee {fees.inr(ch['phd_fee']['amount'])} per year; hostel electricity deposit {fees.inr(ch['electricity_deposit']['non_ac'])} (Non-AC) / {fees.inr(ch['electricity_deposit']['ac'])} (AC), one-time.
+  - Only tuition is split equally between the two semesters; merit scholarships reduce tuition only. Example: B.Tech CSE standard fee is Semester 1 {fees.calculate_fee('btech_cse')['sem1_total_payable']}, Semester 2 {fees.calculate_fee('btech_cse')['sem2_total_payable']}, Year 1 {fees.calculate_fee('btech_cse')['first_year_total_payable']}.
+  - There is no separate admission fee on the {year} fee circular.
 
 ---
 
 ## 4. Merit Scholarships & Special Category Concessions ({year})
 
-- **[FACT-ID: FEE-002] [STATUS: VERIFIED] [SOURCE: official {year} fee card, via fees_2027_28.json]**
+- **[FACT-ID: FEE-002] [STATUS: VERIFIED] [SOURCE: official {year} fee circular, via fee_policy_2027_28.json]**
   - Only the best single scholarship applies; scholarships are never added together. The scholarship is applied to the standard fee and is subject to marksheet verification.
   - **Undergraduate merit scholarship slabs**:
 {slabs('ug')}
@@ -235,7 +275,7 @@ def render_facts_sections() -> str:
 {chr(10).join(f"    - **{pct}% scholarship**: {cells[0]}" for pct, cells in _slab_rows(d, 'pg')[1])}
   - **{len(d['special_concessions'])} special category concessions (per year, all courses, subject to document verification)**:
 {conc}
-  - State-level sports is NOT on the list. There is no concession for "all girl students", North-East domicile, teachers' children, COVID-affected students or partner organisations: those are not on the fee card.
+  - State-level sports is NOT on the list. There is no concession for "all girl students", North-East domicile, teachers' children, COVID-affected students or partner organisations: those are not on the fee circular.
 {END}"""
 
 

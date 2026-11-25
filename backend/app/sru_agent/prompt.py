@@ -2,7 +2,7 @@
 
 Kept short on purpose: this text is sent with every model call, so every extra
 line costs quota. Fee numbers do NOT belong here; they come from calculate_fee,
-which reads fees_2027_28.json.
+which reads fee_policy_2027_28.json.
 """
 from datetime import date
 

@@ -133,9 +133,9 @@ async def test_eligibility_criteria_response():
     done = [e for e in events if e["type"] == "done"][0]
     answer = done["answer"]
 
-    # Built from the data file: both sources shown where they differ, never one picked as confirmed
+    # Built from the fee policy (2027-28 circular): 55% CSE/ECE, 50% other UG, PG subject to confirmation
     assert "Admission eligibility at SR University" in answer
-    assert "50% (2027-28 fee card)" in answer and "60% (university's programme page (2026-27))" in answer
+    assert "| 55% |" in answer and "| 50% |" in answer and "programme page" not in answer
     assert "MPC" in answer
     # Then one question: which programme
     assert "Which programme are you interested in?" in answer

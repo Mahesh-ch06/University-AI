@@ -85,7 +85,7 @@ const mobile = kind === 'mobile';
   for (const m of ['B.Tech CSE', 'Telangana State Board', 'Completed', '885', 'MPC']) await send(m);
   await page.screenshot({ path: `${outdir}/${kind}-4-result-concessions.png` });
   await frame.locator('.fp-group-head', { hasText: 'Family link to SRU' }).click().catch(() => {});
-  await frame.locator('.fp-option', { hasText: 'Students of SR Junior College' }).click().catch(() => {});
+  await frame.locator('.fp-option', { hasText: 'SR Junior College student' }).click().catch(() => {});
   await page.screenshot({ path: `${outdir}/${kind}-5-picked.png` });
   { const b = await assistants(); await frame.locator('.fp-apply').click().catch(() => {}); await waitAnswer(b); }
   await page.screenshot({ path: `${outdir}/${kind}-5b-pending.png` });

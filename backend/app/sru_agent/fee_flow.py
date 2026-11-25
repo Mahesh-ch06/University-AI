@@ -2,7 +2,7 @@
 
 Implements a structured multi-step conversational state machine:
   Fee Enquiry -> School Selection -> Programme Selection -> Specialization (if applicable) -> Detailed Fee Structure.
-All figures are grounded in fees_2027_28.json and the verified admissions handbook.
+All figures are grounded in fee_policy_2027_28.json and the verified admissions handbook.
 """
 import re
 from typing import Any
@@ -34,8 +34,7 @@ SCHOOLS_DATA = [
                     "key": "btech_cse",
                     "name": "B.Tech Computer Science & Engineering (CSE)",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 340000,
+
                     "has_specializations": True,
                     "specializations": [
                         "Artificial Intelligence & Machine Learning (AIML)",
@@ -50,32 +49,28 @@ SCHOOLS_DATA = [
                     "key": "btech_ai_robotics",
                     "name": "B.Tech in Artificial Intelligence & Robotics",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 400000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "bca",
                     "name": "BCA (Bachelor of Computer Applications)",
                     "degree": "BCA",
-                    "duration_years": 3,
-                    "tuition_per_year": 150000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "bsc_cs",
                     "name": "B.Sc Computer Science (Hons.)",
                     "degree": "B.Sc",
-                    "duration_years": 3,
-                    "tuition_per_year": 150000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "bsc_maths_ai",
                     "name": "B.Sc (Hons.) in Mathematics & AI",
                     "degree": "B.Sc",
-                    "duration_years": 3,
-                    "tuition_per_year": 100000,
+
                     "has_specializations": False,
                 },
             ],
@@ -84,24 +79,21 @@ SCHOOLS_DATA = [
                     "key": "mtech",
                     "name": "M.Tech CSE (AIML, Data Science, Cyber Security)",
                     "degree": "M.Tech",
-                    "duration_years": 2,
-                    "tuition_per_year": 100000,
+
                     "has_specializations": True,
                 },
                 {
                     "key": "mca",
                     "name": "MCA (Master of Computer Applications)",
                     "degree": "MCA",
-                    "duration_years": 2,
-                    "tuition_per_year": 150000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "msc",
                     "name": "M.Sc Computer Science",
                     "degree": "M.Sc",
-                    "duration_years": 2,
-                    "tuition_per_year": 100000,
+
                     "has_specializations": False,
                 },
             ],
@@ -123,8 +115,7 @@ SCHOOLS_DATA = [
                     "key": "btech_ece",
                     "name": "B.Tech Electronics & Communication Engineering (ECE)",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 270000,
+
                     "has_specializations": True,
                     "specializations": ["AIML", "VLSI System Design", "Robotics and Automation"],
                 },
@@ -132,8 +123,7 @@ SCHOOLS_DATA = [
                     "key": "btech_eee",
                     "name": "B.Tech Electrical & Electronics Engineering (EEE)",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 200000,
+
                     "has_specializations": True,
                     "specializations": ["Electric Vehicles (EV)", "Renewable Energy"],
                 },
@@ -141,8 +131,7 @@ SCHOOLS_DATA = [
                     "key": "btech_mech",
                     "name": "B.Tech Mechanical Engineering",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 200000,
+
                     "has_specializations": True,
                     "specializations": ["Robotics and Automation", "Smart Manufacturing"],
                 },
@@ -150,16 +139,14 @@ SCHOOLS_DATA = [
                     "key": "btech_civil",
                     "name": "B.Tech Civil Engineering",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 200000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "btech_iep",
                     "name": "B.Tech International Engineering Programme (IEP)",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 340000,
+
                     "has_specializations": False,
                 },
             ],
@@ -168,8 +155,7 @@ SCHOOLS_DATA = [
                     "key": "mtech",
                     "name": "M.Tech Engineering (VLSI, Embedded Systems, EDT, AMS, Thermal, CTM)",
                     "degree": "M.Tech",
-                    "duration_years": 2,
-                    "tuition_per_year": 100000,
+
                     "has_specializations": True,
                 },
             ],
@@ -191,16 +177,14 @@ SCHOOLS_DATA = [
                     "key": "bsc_agri",
                     "name": "B.Sc. (Hons.) Agriculture (ICAR-Accredited)",
                     "degree": "B.Sc",
-                    "duration_years": 4,
-                    "tuition_per_year": 200000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "btech_food_tech",
                     "name": "B.Tech Food Technology",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 200000,
+
                     "has_specializations": False,
                 },
             ],
@@ -209,8 +193,7 @@ SCHOOLS_DATA = [
                     "key": "msc",
                     "name": "M.Sc. Agriculture (Agronomy, Genetics, Horticulture, Pathology, Soil Science)",
                     "degree": "M.Sc",
-                    "duration_years": 2,
-                    "tuition_per_year": 100000,
+
                     "has_specializations": True,
                 },
             ],
@@ -232,16 +215,14 @@ SCHOOLS_DATA = [
                     "key": "bba",
                     "name": "BBA (Bachelor of Business Administration)",
                     "degree": "BBA",
-                    "duration_years": 3,
-                    "tuition_per_year": 150000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "bba_specialised",
                     "name": "BBA Specialised (Finance, Operations, HR, Business Analytics, Marketing)",
                     "degree": "BBA",
-                    "duration_years": 3,
-                    "tuition_per_year": 200000,
+
                     "has_specializations": True,
                     "specializations": ["Finance", "Business Analytics", "Marketing", "HR", "Operations"],
                 },
@@ -249,16 +230,14 @@ SCHOOLS_DATA = [
                     "key": "bcom",
                     "name": "B.Com. (Bachelor of Commerce)",
                     "degree": "B.Com",
-                    "duration_years": 3,
-                    "tuition_per_year": 100000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "bsc_hospitality",
                     "name": "B.Sc in Hospitality and Event Management",
                     "degree": "B.Sc",
-                    "duration_years": 3,
-                    "tuition_per_year": 150000,
+
                     "has_specializations": False,
                 },
             ],
@@ -267,8 +246,7 @@ SCHOOLS_DATA = [
                     "key": "mba",
                     "name": "MBA (Finance, Operations, HR, Business Analytics, Marketing)",
                     "degree": "MBA",
-                    "duration_years": 2,
-                    "tuition_per_year": 300000,
+
                     "has_specializations": True,
                     "specializations": ["Finance", "Business Analytics", "Marketing", "HR", "Operations"],
                 },
@@ -276,8 +254,7 @@ SCHOOLS_DATA = [
                     "key": "mba_agri",
                     "name": "MBA in Agri-Business Management",
                     "degree": "MBA",
-                    "duration_years": 2,
-                    "tuition_per_year": 200000,
+
                     "has_specializations": False,
                 },
             ],
@@ -299,32 +276,28 @@ SCHOOLS_DATA = [
                     "key": "btech_biotech",
                     "name": "B.Tech Biotechnology with AI",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 200000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "btech_engg_physics",
                     "name": "B.Tech Engineering Physics in AI, Robotics & Space",
                     "degree": "B.Tech",
-                    "duration_years": 4,
-                    "tuition_per_year": 200000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "bsc_physics",
                     "name": "B.Sc Physics",
                     "degree": "B.Sc",
-                    "duration_years": 3,
-                    "tuition_per_year": 100000,
+
                     "has_specializations": False,
                 },
                 {
                     "key": "bsc_chemistry",
                     "name": "B.Sc Chemistry",
                     "degree": "B.Sc",
-                    "duration_years": 4,
-                    "tuition_per_year": 100000,
+
                     "has_specializations": False,
                 },
             ],
@@ -333,8 +306,7 @@ SCHOOLS_DATA = [
                     "key": "msc",
                     "name": "M.Sc Sciences & Mathematics",
                     "degree": "M.Sc",
-                    "duration_years": 2,
-                    "tuition_per_year": 100000,
+
                     "has_specializations": False,
                 },
             ],
@@ -356,8 +328,7 @@ SCHOOLS_DATA = [
                     "key": "bdes",
                     "name": "B.Des (Design: Interior Design, Fashion Design)",
                     "degree": "B.Des",
-                    "duration_years": 4,
-                    "tuition_per_year": 210000,
+
                     "has_specializations": True,
                     "specializations": ["Interior Design", "Fashion Design"],
                 },
@@ -370,6 +341,19 @@ SCHOOLS_DATA = [
 # -----------------------------------------------------------------------------
 # 2. Helpers for Intent & Entity Detection
 # -----------------------------------------------------------------------------
+
+def _fill_from_policy() -> None:
+    """Tuition and duration come from the fee policy (fee_policy_2027_28.json), never from this file."""
+    progs = fees.load_data()["programs"]
+    for school in SCHOOLS_DATA:
+        for level in ("ug", "pg"):
+            for prog in school["programs"].get(level, []):
+                policy = progs.get(prog["key"], {})
+                prog["tuition_per_year"] = policy.get("tuition_per_year")
+                prog["duration_years"] = policy.get("duration_years")
+
+
+_fill_from_policy()
 
 _FEE_TRIGGER_WORDS = re.compile(
     r"\b(?:fee|fees|fess|feez|tuition|cost|costs|expense|expenses|hostel\s*fee|mess\s*fee|"
@@ -564,34 +548,23 @@ def build_course_selection_card(school: dict, level: str | None = None) -> dict:
 
 
 def build_detailed_fee_card(prog: dict, school: dict, year: str, spec: str | None = None, user_text: str | None = None) -> dict:
-    tuition = prog.get("tuition_per_year", 0)
-    sem_tuition = tuition // 2
-    duration = prog.get("duration_years", 4)
+    """The programme's standard fee (no scholarship yet), semester by semester, from the ONE fee engine."""
+    key = prog.get("key", "")
+    data = fees.load_data()
+    ch = data["charges"]
+    spec_on = bool(spec) and key in data.get("schedule", {}).get("specialization_fee_programs", [])
+    plan = fees.fee_schedule(key, 0, specialization=spec_on)
+    y1 = plan["years"][0]
+    tuition = y1["annual_tuition"]
 
-    # Verified components from fees_2027_28.json
-    fee_data = fees.load_data()
-    one_time = fee_data.get("one_time", {})
-    enrollment = one_time.get("enrollment_fee", 5000)
-    application = one_time.get("application_fee", 1100)
-    one_time_total = enrollment + application
+    def rows(sem):
+        return [{"label": i["label"], "amount": i["amount"], "formatted": fees.inr(i["amount"]), "kind": i["kind"]}
+                for i in sem["items"]]
 
-    yearly_other = fee_data.get("yearly_other", {})
-    other_fee = yearly_other.get("other_fee", 15000)
-    exam_fee = yearly_other.get("exam_fee", 5000)
-    annual_academic_other = other_fee + exam_fee
-
-    transport_fee = fee_data.get("transport_per_year", 30000)
-
-    hostel_per_year = fee_data.get("hostel_per_year", {})
-    hostel_deposits = fee_data.get("hostel_deposits", {})
-
-    spec_fee_y2 = 30000 if prog.get("has_specializations") and "btech_cse" in prog.get("key", "") else 0
-
-    first_year_academic = tuition + one_time_total + annual_academic_other
-    total_programme_tuition = tuition * duration
-
-    clean_p_name = fees.clean_program_name(prog.get("key", ""), specialization=spec, user_text=user_text)
-
+    semesters = [{"semester": s["semester"], "items": rows(s), "total": s["total"], "formatted_total": fees.inr(s["total"])}
+                 for s in y1["semesters"]]
+    hostel = fees.hostel_per_year()
+    clean_p_name = fees.clean_program_name(key, specialization=spec, user_text=user_text)
     return {
         "type": "fee_structure_detailed",
         "title": f"Fee Structure — {clean_p_name}",
@@ -600,48 +573,56 @@ def build_detailed_fee_card(prog: dict, school: dict, year: str, spec: str | Non
         "program_name": clean_p_name,
         "specialization": spec,
         "degree": prog.get("degree", "Degree"),
-        "duration_years": duration,
+        "duration_years": prog.get("duration_years"),
         "tuition": {
             "annual": tuition,
-            "semester": sem_tuition,
+            "semester": semesters[0]["items"][0]["amount"],
             "formatted_annual": fees.inr(tuition),
-            "formatted_semester": fees.inr(sem_tuition),
+            "formatted_semester": fees.inr(semesters[0]["items"][0]["amount"]),
+            "yearly_increase": fees.inr(data["programs"][key]["yearly_increase"]),
         },
-        "one_time_charges": [
-            {"label": "Enrolment Fee (One-Time)", "amount": enrollment, "formatted": fees.inr(enrollment)},
-            {"label": "Application Processing Fee", "amount": application, "formatted": fees.inr(application)},
-        ],
-        "one_time_total": one_time_total,
-        "formatted_one_time_total": fees.inr(one_time_total),
-        "annual_academic_charges": [
-            {"label": "Academic & Facility Other Fee", "amount": other_fee, "formatted": fees.inr(other_fee)},
-            {"label": "Examination Fee", "amount": exam_fee, "formatted": fees.inr(exam_fee)},
-        ],
-        "annual_academic_other_total": annual_academic_other,
-        "formatted_annual_other": fees.inr(annual_academic_other),
-        "specialization_fee": spec_fee_y2,
-        "first_year_academic_total": first_year_academic,
-        "formatted_first_year_academic": fees.inr(first_year_academic),
-        "total_programme_tuition": total_programme_tuition,
-        "formatted_total_programme_tuition": fees.inr(total_programme_tuition),
-        "transport_annual": transport_fee,
-        "formatted_transport": fees.inr(transport_fee),
+        "semesters": semesters,
+        "first_year_total": y1["total"],
+        "formatted_first_year_total": fees.inr(y1["total"]),
+        "course_total": plan["course_total"],
+        "formatted_course_total": fees.inr(plan["course_total"]) if plan["course_total"] else None,
+        "application_fee": fees.inr(plan["application_fee"]),
+        "specialization_fee": fees.inr(ch["specialization_fee"]["amount"]) if key in data.get("schedule", {}).get("specialization_fee_programs", []) else None,
+        "formatted_transport": fees.inr(ch["bus"]["amount"]),
         "hostel_options": [
-            {"type": "AC, 3-Sharing Room", "fee": hostel_per_year.get("ac_3", 135000), "formatted": fees.inr(hostel_per_year.get("ac_3", 135000))},
-            {"type": "AC, 4-Sharing Room", "fee": hostel_per_year.get("ac_4", 125000), "formatted": fees.inr(hostel_per_year.get("ac_4", 125000))},
-            {"type": "Non-AC, 3-Sharing Room", "fee": hostel_per_year.get("non_ac_3", 125000), "formatted": fees.inr(hostel_per_year.get("non_ac_3", 125000))},
-            {"type": "Non-AC, 4-Sharing Room", "fee": hostel_per_year.get("non_ac_4", 115000), "formatted": fees.inr(hostel_per_year.get("non_ac_4", 115000))},
+            {"type": fees.HOSTEL_LABELS[k], "fee": v, "formatted": fees.inr(v)} for k, v in hostel.items()
         ],
+        "hostel_note": "Hostel fees are not on the 2027-28 fee circular; the Admissions Office confirms them.",
         "hostel_deposits": [
-            {"label": "Refundable Caution Deposit", "amount": hostel_deposits.get("caution_deposit", 5000), "formatted": fees.inr(hostel_deposits.get("caution_deposit", 5000))},
-            {"label": "Annual Laundry Fee", "amount": hostel_deposits.get("laundry_per_year", 5000), "formatted": fees.inr(hostel_deposits.get("laundry_per_year", 5000))},
-            {"label": "AC Electricity Security Deposit", "amount": hostel_deposits.get("electricity_deposit_ac", 10000), "formatted": fees.inr(hostel_deposits.get("electricity_deposit_ac", 10000))},
-            {"label": "Non-AC Electricity Security Deposit", "amount": hostel_deposits.get("electricity_deposit_non_ac", 5000), "formatted": fees.inr(hostel_deposits.get("electricity_deposit_non_ac", 5000))},
+            {"label": "Electricity deposit, AC (one-time)", "amount": ch["electricity_deposit"]["ac"],
+             "formatted": fees.inr(ch["electricity_deposit"]["ac"])},
+            {"label": "Electricity deposit, Non-AC (one-time)", "amount": ch["electricity_deposit"]["non_ac"],
+             "formatted": fees.inr(ch["electricity_deposit"]["non_ac"])},
         ],
-        "dining_info": "Nutritious multi-cuisine mess dining included in residential fee, served in SRU's 4,000-seat central dining facility.",
+        "dining_info": "Meals are included in the hostel fee, served in SRU's 4,000-seat central dining facility.",
         "verified": True,
-        "source": "SR University Official Admissions & Fee Structure 2027-28",
+        "source": data["source"],
     }
+
+
+def fee_summary_text(fee_card: dict, lead: str, closing: str) -> str:
+    """The chat text for a programme's standard fee, written only from the engine's numbers on the card."""
+    s1, s2 = fee_card["semesters"][0], fee_card["semesters"][1]
+    extras = [i for i in s1["items"] if i["kind"] != "tuition"]
+    extra_text = ", ".join(f"{i['label'].lower()} {i['formatted']}" for i in extras)
+    lines = [lead, "",
+             f"• **Tuition:** {fee_card['tuition']['formatted_annual']} a year, split equally: "
+             f"{fee_card['tuition']['formatted_semester']} per semester "
+             f"(rises by {fee_card['tuition']['yearly_increase']} each year)",
+             f"• **Semester 1:** {s1['formatted_total']} (tuition + {extra_text})",
+             f"• **Semester 2:** {s2['formatted_total']} (tuition only)",
+             f"• **First year:** {fee_card['formatted_first_year_total']}"]
+    if fee_card.get("formatted_course_total"):
+        lines.append(f"• **Full course ({fee_card['duration_years']} years):** {fee_card['formatted_course_total']}")
+    lines += [f"• **Application form:** {fee_card['application_fee']}, paid separately when you apply",
+              f"• **Optional:** bus {fee_card['formatted_transport']} a year; hostel by room type", "",
+              "This is the standard fee before any merit scholarship. " + closing]
+    return "\n".join(lines)
 
 
 # -----------------------------------------------------------------------------
@@ -665,29 +646,19 @@ def _build_combined_hostel_payload(
     conv_state: dict,
 ) -> dict:
     from app.services.card_service import BTECH_CSE_WITH_HOSTEL_FEE_CARD
-    prog_name = prog_dict.get("name", "B.Tech Computer Science & Engineering (Core)")
-    tuition = prog_dict.get("tuition_per_year", 340000)
-    sem_tuition = tuition // 2
-    one_time = 6100
-    annual_academic = 20000
-    sem_academic = 10000
-    hostel_annual = 125000  # AC 4-Sharing
-    hostel_sem = 62500
-
-    combined_sem = sem_tuition + sem_academic + hostel_sem
-    combined_annual_y1 = tuition + annual_academic + one_time + hostel_annual
-
+    key = prog_dict.get("key", "btech_cse")
+    prog_name = fees.clean_program_name(key)
+    r = fees.calculate_fee(key, hostel="ac_4")
     name_str = f", {user_name}" if user_name else ""
+    lines = "\n".join(f"• {i['item']}: {i['amount']}" for i in r["semester_1"]["items"])
     reply_text = (
-        f"Here is the complete combined fee breakdown for **{prog_name}** including **Residential Hostel & Mess (AC 4-Sharing)** for Academic Year **{saved_year}**{name_str}:\n\n"
-        f"**Per-Semester Breakdown (Regular)**:\n"
-        f"• **Tuition Fee**: {fees.inr(sem_tuition)} / semester ({fees.inr(tuition)} / year)\n"
-        f"• **Hostel & Mess (AC 4-Sharing)**: {fees.inr(hostel_sem)} / semester ({fees.inr(hostel_annual)} / year; includes 4 daily meals, Wi-Fi & laundry)\n"
-        f"• **Academic & Exam Fee**: {fees.inr(sem_academic)} / semester ({fees.inr(annual_academic)} / year)\n"
-        f"👉 **Combined Per-Semester Total**: **{fees.inr(combined_sem)} / semester**\n\n"
-        f"**First-Year Total Outlay**:\n"
-        f"• **Year 1 Combined Total**: **{fees.inr(combined_annual_y1)}** (Tuition + Hostel + Academic + ₹6,100 one-time admission/enrolment)\n\n"
-        f"*(Note: Non-AC 4-Sharing reduces hostel fee to ₹1,15,000/yr; AC 3-Sharing is ₹1,35,000/yr. Merit scholarships up to 40% apply to tuition.)*"
+        f"Here's the combined fee breakdown for **{prog_name}** with an **AC 4-sharing hostel** room for "
+        f"**{saved_year}**{name_str} (standard fee; tuition {r['tuition_first_year']} a year, split equally):\n\n"
+        f"**Semester 1**\n{lines}\n👉 **Semester 1 payable: {r['sem1_total_payable']}**\n\n"
+        f"**Semester 2**: tuition {r['per_semester_after_scholarship']} → **{r['sem2_total_payable']}**\n\n"
+        f"**First year: {r['first_year_total_payable']}** (application form fee {r['application_fee']} is paid separately).\n\n"
+        f"*Hostel fees are not on the fee circular and are confirmed by the Admissions Office. Merit scholarships "
+        f"reduce tuition only.*"
     )
     return {
         "text": reply_text,
@@ -822,21 +793,9 @@ def process_fee_flow(
             fee_card = build_detailed_fee_card(matched_prog, sch, saved_year, spec, user_text=msg)
             clean_p_name = fees.clean_program_name(matched_prog["key"], specialization=spec, user_text=msg)
 
-            tuition_fmt = fee_card["tuition"]["formatted_annual"]
-            sem_fmt = fee_card["tuition"]["formatted_semester"]
-            one_time_fmt = fee_card["formatted_one_time_total"]
-            annual_other_fmt = fee_card["formatted_annual_other"]
-
-            reply_text = (
-                f"{year_unverified_notice}Sure{name_part}! Here is the complete verified fee breakdown for "
-                f"**{clean_p_name}** ({sch['short_name']}) for Academic Year **{saved_year}**:\n\n"
-                f"• **Tuition Fee**: {tuition_fmt} per year ({sem_fmt} per semester)\n"
-                f"• **One-Time Charges**: {one_time_fmt} (Enrolment ₹5,000 + Application ₹1,100)\n"
-                f"• **Annual Academic Charges**: {annual_other_fmt} (Other fee ₹15,000 + Exam fee ₹5,000)\n"
-                f"• **Hostel Accommodation**: ₹1,15,000 – ₹1,35,000/year (Includes multi-cuisine dining in 4,000-seat central dining; AC & Non-AC 3/4 sharing options available)\n"
-                f"• **Transport Fee**: ₹30,000/year (Tri-cities: Warangal, Hanamkonda, Kazipet)\n\n"
-                f"You can also check merit scholarship slabs (up to 40% waiver) or connect with admissions counsellors."
-            )
+            reply_text = year_unverified_notice + fee_summary_text(
+                fee_card, f"Sure{name_part}! Here's the fee for **{clean_p_name}** ({sch['short_name']}), {saved_year}:",
+                "Want me to work out your scholarship from your marks, or add a hostel room?")
 
             follow_up_chips = [
                 "Calculate scholarship for my marks",
@@ -936,16 +895,9 @@ def process_fee_flow(
             spec = detect_specialization(msg, matched_prog)
             fee_card = build_detailed_fee_card(matched_prog, sch, saved_year, spec, user_text=msg)
             clean_p_name = fees.clean_program_name(matched_prog["key"], specialization=spec, user_text=msg)
-            reply_text = (
-                f"Excellent choice{name_part}! Here is the complete verified fee breakdown for "
-                f"**{clean_p_name}** ({sch['short_name']}) for Academic Year **{saved_year}**:\n\n"
-                f"• **Tuition Fee**: {fee_card['tuition']['formatted_annual']} per year ({fee_card['tuition']['formatted_semester']} per semester)\n"
-                f"• **One-Time Charges**: {fee_card['formatted_one_time_total']} (Enrolment ₹5,000 + Application ₹1,100)\n"
-                f"• **Annual Academic Charges**: {fee_card['formatted_annual_other']} (Other fee ₹15,000 + Exam fee ₹5,000)\n"
-                f"• **Hostel Accommodation**: ₹1,15,000 – ₹1,35,000/year (Includes central mess dining; AC & Non-AC 3/4 sharing options available)\n"
-                f"• **Transport Fee**: ₹30,000/year (Warangal / Hanamkonda / Kazipet tri-cities)\n\n"
-                f"Would you like to calculate your merit scholarship or check hostel options?"
-            )
+            reply_text = fee_summary_text(
+                fee_card, f"Great choice{name_part}! Here's the fee for **{clean_p_name}** ({sch['short_name']}), {saved_year}:",
+                "Want me to work out your scholarship from your marks, or add a hostel room?")
             return {
                 "text": reply_text,
                 "cards": [fee_card],
@@ -1015,21 +967,9 @@ def process_fee_flow(
             fee_card = build_detailed_fee_card(matched_prog, sch, saved_year, spec, user_text=msg)
             clean_p_name = fees.clean_program_name(matched_prog["key"], specialization=spec, user_text=msg)
 
-            tuition_fmt = fee_card["tuition"]["formatted_annual"]
-            sem_fmt = fee_card["tuition"]["formatted_semester"]
-            one_time_fmt = fee_card["formatted_one_time_total"]
-            annual_other_fmt = fee_card["formatted_annual_other"]
-
-            reply_text = (
-                f"Here is the complete verified fee structure for **{clean_p_name}** ({sch['short_name']}) "
-                f"for Academic Year **{saved_year}**:\n\n"
-                f"• **Tuition Fee**: {tuition_fmt} per year ({sem_fmt} per semester)\n"
-                f"• **One-Time Charges**: {one_time_fmt} (Enrolment ₹5,000 + Application ₹1,100)\n"
-                f"• **Annual Academic Charges**: {annual_other_fmt} (Other fee ₹15,000 + Exam fee ₹5,000)\n"
-                f"• **Hostel Accommodation**: ₹1,15,000 – ₹1,35,000/year (Includes central mess dining; AC & Non-AC 3/4 sharing)\n"
-                f"• **Transport Fee**: ₹30,000/year (Tri-cities bus routes)\n\n"
-                f"Would you like to calculate your merit scholarship (up to 40% waiver) or check hostel options?"
-            )
+            reply_text = fee_summary_text(
+                fee_card, f"Here's the fee for **{clean_p_name}** ({sch['short_name']}), {saved_year}:",
+                "Want me to work out your scholarship from your marks, or add a hostel room?")
 
             follow_up_chips = [
                 "Calculate scholarship for my marks",
@@ -1174,19 +1114,12 @@ def process_fee_flow(
 
             return {
                 "text": (
-                    f"Here are the detailed residential hostel charges at SR University:\n\n"
-                    f"**Room & Living Fees (Annual)**:\n"
-                    f"• **AC, 3-Sharing**: ₹1,35,000/year\n"
-                    f"• **AC, 4-Sharing**: ₹1,25,000/year\n"
-                    f"• **Non-AC, 3-Sharing**: ₹1,25,000/year\n"
-                    f"• **Non-AC, 4-Sharing**: ₹1,15,000/year\n\n"
-                    f"**Dining & Security**:\n"
-                    f"• Nutritious, hygienic multi-cuisine mess food is included, served in the 4,000-seat central dining complex.\n"
-                    f"• 24/7 biometric security, resident wardens, and medical dispensary on campus.\n\n"
-                    f"**Deposits & Utilities**:\n"
-                    f"• Caution Deposit (Refundable): ₹5,000\n"
-                    f"• Laundry Service: ₹5,000/year\n"
-                    f"• Electricity Security: ₹10,000 (AC) / ₹5,000 (Non-AC)"
+                    "Here are the residential hostel charges at SR University (room with meals, per year):\n\n"
+                    + "".join(f"• **{fees.HOSTEL_LABELS[k]}**: {fees.inr(v)}/year\n" for k, v in fees.hostel_per_year().items())
+                    + f"\n• Electricity deposit (one-time): {fees.inr(fees.charge_amount('electricity_deposit', 'ac'))} AC / "
+                    f"{fees.inr(fees.charge_amount('electricity_deposit', 'non_ac'))} Non-AC\n\n"
+                    "Meals are served in the 4,000-seat central dining complex, with 24/7 security and wardens. "
+                    "Hostel room fees aren't on the 2027-28 fee circular, so the Admissions Office confirms them."
                 ),
                 "cards": [],
                 "suggestions": [
@@ -1209,23 +1142,22 @@ def process_fee_flow(
         if is_total_fee_q:
             fee_data = fees.load_data()
             active_p = saved_prog_key or conv_state.get("active_program") or (profile.get("program_interest") if profile else None) or "btech_cse"
-            prog_dict = fee_data["programs"].get(active_p, {})
-            tuition = prog_dict.get("tuition_per_year", 340000)
-            duration = prog_dict.get("duration_years", 4)
-            one_time = 6100
-            annual_other = 20000
-            hostel_min = 115000
-
-            y1_day_scholar = tuition + one_time + annual_other
-            y1_hosteller = y1_day_scholar + hostel_min + 15000  # deposits + laundry
-
+            active_p = active_p if active_p in fee_data["programs"] else "btech_cse"
+            day = fees.calculate_fee(active_p)
+            stay = fees.calculate_fee(active_p, hostel="non_ac_4")
+            course = (f"• **Full course ({day['duration_years']} years, day scholar):** **{day['full_course_total']}**\n"
+                      if day.get("full_course_total") else "")
             return {
                 "text": (
-                    f"Here is the estimated total cost breakdown for **{prog_dict.get('name', 'B.Tech CSE')}**:\n\n"
-                    f"• **Year 1 (Day Scholar)**: **{fees.inr(y1_day_scholar)}** (Tuition: {fees.inr(tuition)} + One-time: ₹6,100 + Annual Academic: ₹20,000)\n"
-                    f"• **Year 1 (With Non-AC 4-sharing Hostel)**: **{fees.inr(y1_hosteller)}** (Includes room, dining, laundry & security deposits)\n"
-                    f"• **Full {duration}-Year Programme Tuition**: **{fees.inr(tuition * duration)}** (before merit scholarships)\n\n"
-                    f"Would you like to calculate your scholarship based on your 10+2 marks or entrance rank?"
+                    f"Here's the total cost breakdown for **{fees.clean_program_name(active_p)}** (standard fee, before "
+                    f"any scholarship):\n\n"
+                    f"• **Year 1, day scholar:** **{day['first_year_total_payable']}** "
+                    f"(Semester 1 {day['sem1_total_payable']} + Semester 2 {day['sem2_total_payable']})\n"
+                    f"• **Year 1 with a Non-AC 4-sharing hostel:** **{stay['first_year_total_payable']}** "
+                    f"(includes the hostel fee and the one-time electricity deposit)\n"
+                    f"{course}"
+                    f"• Application form {day['application_fee']} is paid separately.\n\n"
+                    f"Shall I work out your scholarship from your 10+2 marks or entrance rank?"
                 ),
                 "cards": [],
                 "suggestions": [

@@ -59,9 +59,9 @@ def test_fee_breakdown_card_accuracy():
     assert len(fee_cards) >= 1
     card = fee_cards[0]
 
-    cse_item = next((item for item in card["items"] if "CSE" in item["category"]), None)
-    assert cse_item is not None
-    assert "1,70,000" in cse_item["amount"] or "3,40,000" in cse_item["frequency"]
+    assert "B.Tech CSE" in card["title"]
+    cse_item = next((item for item in card["items"] if item["category"] == "Semester 1: Tuition"), None)
+    assert cse_item is not None and cse_item["amount"] == "₹1,70,000"
 
     # Verify hostel and transport are strictly NOT present in the B.Tech CSE fee card
     assert not any("Girls" in item["category"] or "Hostel" in item["category"] for item in card["items"])

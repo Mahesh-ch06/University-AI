@@ -21,13 +21,13 @@ async def test_special_concessions_quick_response():
     done = [e for e in events if e["type"] == "done"][0]
     answer = done["answer"]
 
-    # v4.10.0: one line of text; the 19 categories are in the selectable table card (official data)
-    assert "**19 special concessions**" in answer and "|" not in answer and len(answer) < 220
+    # v4.10.0: one line of text; the 20 categories are in the selectable table card (official data)
+    assert "**20 special concessions**" in answer and "|" not in answer and len(answer) < 220
     (card,) = [c for c in done["cards"] if c["type"] == "get_special_concessions"]
     rows = {c["category"]: c["per_year"] for c in card["data"]["all_categories"]}
-    assert len(rows) == 19 and set(rows.values()) == {"₹50,000", "₹20,000", "₹15,000"}
-    assert rows["Students who have lost both parents"] == "₹50,000"
-    assert "Only girl child from Telangana" in rows and "NCC 'C' certificate holders" in rows
+    assert len(rows) == 20 and set(rows.values()) == {"₹50,000", "₹20,000", "₹15,000", "₹10,000"}
+    assert rows["Both parents not alive"] == "₹50,000"
+    assert "Only girl child from Telangana" in rows and "NCC C certificate" in rows
     assert any("Calculate my scholarship" in s for s in done["suggestions"])
 
 
@@ -108,9 +108,9 @@ async def test_fee_structure_btech_cse_branch():
     assert "₹1,70,000" in answer
     assert "₹3,40,000" in answer
     assert "₹5,000" in answer
-    assert "₹1,85,000" in answer
-    assert "Merit Scholarships" in answer
-    assert "40% Waiver" in answer
+    assert "₹1,95,000" in answer                     # Semester 1: tuition + enrollment + other + Year-1 exam
+    assert "Merit scholarships" in answer
+    assert "**40%**" in answer
 
 
 @pytest.mark.asyncio

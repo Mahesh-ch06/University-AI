@@ -318,7 +318,8 @@ async def test_23_admission_and_scholarship_are_evaluated_separately():
     done = await s.say("My details", form=form)
     text = done["answer"]
     assert "standard fee" in text                                                # 55%: no merit slab
-    assert "official sources list different minimum marks" in text               # 55% is disputed for B.Tech
+    assert "minimum" in text                                                     # 55% is the CSE minimum (inclusive)
+    assert "qualify for this programme" not in text                              # never a guaranteed admission
     low = Student()
     await low.setup()
     await low.say("I want to join B.Tech CSE")

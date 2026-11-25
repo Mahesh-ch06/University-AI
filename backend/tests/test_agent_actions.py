@@ -367,7 +367,7 @@ async def test_program_info_concessions_compare_and_share_tools():
     sports = await tools.run_tool("get_special_concessions", {"category": "state level sports"}, ctx)
     assert sports["status"] == "ok"
     assert {c["category"] for c in sports["matching"]} == {
-        "National-level sports achievers", "International-level sports achievers"}
+        "Sports — National", "Sports — International"}
 
     both = await tools.run_tool("compare_programs", {"program_a": "cse", "program_b": "ece", "percent": 85}, ctx)
     assert [c["tuition_first_year_after_scholarship"] for c in both["comparison"]] == ["₹2,55,000", "₹2,02,500"]

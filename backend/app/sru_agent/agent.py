@@ -1253,18 +1253,9 @@ def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
     else:
         matching_cat = basis or ("Standard Fee / Minimum Eligibility" if pct_waiver <= 0 else f"{pct_waiver}% Merit Scholarship")
 
-    orig_tuition = fee_res.get("tuition_first_year", "₹3,40,000")
-    num_match = re.search(r"[\d,]+", orig_tuition.replace("₹", ""))
-    if num_match:
-        orig_annual_int = int(num_match.group(0).replace(",", ""))
-        orig_sem = fees.inr(orig_annual_int // 2)
-    else:
-        orig_sem = "₹1,70,000"
-
+    orig_tuition = fee_res.get("tuition_first_year")
     savings = fee_res.get("saving_first_year", "₹0")
     net_tuition = fee_res.get("tuition_first_year_after_scholarship", orig_tuition)
-    per_sem_net = fee_res.get("per_semester_after_scholarship", orig_sem)
-    sem1_payable = fee_res.get("sem1_total_payable", per_sem_net)
 
     from . import eligibility
     verdict = counsellor_verdict(fee_res, details)
@@ -1310,9 +1301,10 @@ def format_counsellor_assessment(fee_res: dict, details: dict) -> str:
 _SCORE_WORDS = r"(?:eapcet|eamcet|emcet|emact|eamect|eamcent)"
 _FEE_KEYS = ("program", "academic_year", "scholarship_percent", "scholarship_basis_text", "scores_considered",
              "tuition_first_year", "tuition_first_year_after_scholarship", "per_semester_after_scholarship",
-             "one_time_enrollment_fee", "other_yearly_fees", "hostel", "hostel_options_per_year",
-             "sem1_total_payable", "total_per_semester", "first_year_total_payable", "yearly_increase",
-             "next_scholarship_slab", "notes")
+             "one_time_enrollment_fee", "other_fee_per_year", "exam_fee_first_year", "hostel",
+             "hostel_options_per_year", "semester_1", "semester_2", "sem1_total_payable", "sem2_total_payable",
+             "first_year_total_payable", "full_course_total", "application_fee", "yearly_increase",
+             "next_scholarship_slab", "flags", "notes")
 
 
 def _fee_args_from_message(message: str, profile: dict):
@@ -1798,7 +1790,8 @@ def _concession_requested(message: str):
         if overlap > score:
             best, score = c, overlap
     named = bool(re.search(r"\bconcession|discount\b", message or "", re.I))
-    return {"label": best["label"], "amount": best["amount"]} if best and (score >= 2 or named) else None
+    return ({"key": best["key"], "label": best["label"], "amount": best["amount"]}
+            if best and (score >= 2 or named) and best.get("selectable", True) else None)
 
 
 def _switch_target_program(message: str):
@@ -2612,12 +2605,11 @@ async def run_agent(
                 if chip not in combined_chips:
                     combined_chips.append(chip)
         if resolved_parts and compound.from_other_state(message):
-            conc = next((c for c in fees.load_data().get("special_concessions", [])
-                         if c["label"].lower().startswith("students from states other than telangana")), None)
+            conc = next((c for c in fees.load_data().get("special_concessions", []) if c["key"] == "non_local"), None)
             if conc:
                 resolved_parts.append(
-                    f"Coming from outside Telangana and Andhra Pradesh? The 2027-28 fee card has a special concession "
-                    f"of **{fees.inr(int(conc['amount']))} a year** for students from other states, applied after the "
+                    f"Coming from outside Telangana and Andhra Pradesh? The 2027-28 fee circular has a special concession "
+                    f"of **{fees.inr(int(conc['amount']))} a year** for students from outside Telangana and AP, applied after the "
                     "Admissions Office verifies your proof.")
         if resolved_parts:
             # A side question during an unfinished fee evaluation keeps the "continue" button (docs/36 rule 2).

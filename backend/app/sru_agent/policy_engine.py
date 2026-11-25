@@ -14,6 +14,18 @@ from app.services.guardrail_service import normalize_positive_brand_advocacy
 log = logging.getLogger("sru_agent.engine")
 
 
+def _hostel_range() -> str:
+    from . import fees
+    h = fees.hostel_per_year().values()
+    return f"{fees.inr(min(h))} to {fees.inr(max(h))}"
+
+
+def _cse() -> dict:
+    from . import fees
+    p = fees.load_data()["programs"]["btech_cse"]
+    return {"tuition": fees.inr(p["tuition_per_year"]), "increase": fees.inr(p["yearly_increase"])}
+
+
 def _execute_fixed_policy(
     policy: ApprovedAnswerPolicy,
     message: str,
@@ -21,6 +33,10 @@ def _execute_fixed_policy(
 ) -> str:
     """Execute a fixed-wording policy with variable substitution."""
     template = policy.fixed_template or ""
+    if policy.intent_id == "SPECIAL_CONCESSIONS":
+        # Concession amounts come from the fee policy, never from a stored template.
+        from .responses import _SPECIAL_CONCESSIONS_TEXT
+        template = _SPECIAL_CONCESSIONS_TEXT
     if "{today}" in template or "{date}" in template:
         today_str = f"{date.today():%B %d, %Y}"
         template = template.replace("{today}", today_str).replace("{date}", today_str)
@@ -87,7 +103,8 @@ def _synthesize_guided_response(
     elif policy.intent_id == "HOSTEL_INFO":
         ans = (
             "**SR University provides modern on-campus residential facilities**:\n\n"
-            "• 🛏️ **Room Options**: Spacious 3-sharing and 4-sharing AC and Non-AC rooms (₹1,15,000 to ₹1,35,000/year).\n"
+            f"• 🛏️ **Room Options**: Spacious 3-sharing and 4-sharing AC and Non-AC rooms ({_hostel_range()} a year, "
+            "confirmed by the Admissions Office).\n"
             "• 🍽️ **Mega Dining Hall**: 4 nutritious daily meals in our 4,000-seat dining facility included in the hostel fee.\n"
             "• 🌐 **Amenities**: High-speed Wi-Fi, laundry facilities, 24/7 power backup, biometric security, and recreation zones.\n\n"
             "Would you like to include hostel accommodation in your annual fee calculation?"
@@ -97,8 +114,8 @@ def _synthesize_guided_response(
     elif policy.intent_id == "FUTURE_YEAR_FEE":
         ans = (
             "Official fee structures are formally published for the current **2027-28 academic session**. "
-            "For reference, 2027-28 B.Tech CSE base tuition is ₹3,40,000 per year (₹1,70,000 per semester).\n\n"
-            "SR University adheres to a transparent fee policy with an annual ₹9,000 escalation on tuition for subsequent academic years. "
+            f"For reference, 2027-28 B.Tech CSE base tuition is {_cse()['tuition']} per year, and the fee circular adds "
+            f"a fixed {_cse()['increase']} a year to tuition in later years (irrespective of scholarship). "
             "For future projections or official circulars, please confirm with the Admissions Office at **833 100 3030**."
         )
         return ans

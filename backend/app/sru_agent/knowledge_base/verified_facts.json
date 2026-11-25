@@ -314,12 +314,12 @@
       "fact_id": "fact.hostel.dining_and_rooms",
       "category": "hostel",
       "academic_year": "2027-28",
-      "statement": "Hostels offer 3-sharing and 4-sharing AC and Non-AC rooms (ranging from ₹1,15,000 to ₹1,35,000/year). All hostel packages include 4 nutritious daily meals in the 4,000-seat Mega Dining Hall, Wi-Fi, laundry, and round-the-clock maintenance.",
+      "statement": "Hostels offer 3-sharing and 4-sharing AC and Non-AC rooms (₹1,15,000 to ₹1,35,000 a year, room with meals; hostel fees are not on the 2027-28 fee circular and are confirmed by the Admissions Office). Hostel packages include 4 daily meals in the 4,000-seat Mega Dining Hall, Wi-Fi and round-the-clock maintenance.",
       "source": "Admissions & Hostel Fee Circular 2027-28",
       "verification_status": "verified",
       "valid_from": "2026-10-01",
       "valid_until": "2027-10-31",
-      "last_audited": "2026-11-22",
+      "last_audited": "2026-11-25",
       "metadata": {
         "dining_capacity": 4000,
         "meals_per_day": 4,
@@ -333,29 +333,32 @@
       "fact_id": "fact.fees.btech_cse_base",
       "category": "fees",
       "academic_year": "2027-28",
-      "statement": "For academic session 2027-28, B.Tech Computer Science & Engineering (CSE) tuition is ₹3,40,000 per year (₹1,70,000 per semester), plus ₹5,000 one-time enrollment, ₹15,000/yr other academic charges, and ₹5,000/yr examination fee. An annual ₹9,000 escalation applies to tuition in future academic years.",
-      "source": "Admissions Office Fee Circular 2027-28 (Ref: SRU/ADM/2026/FEE-01)",
+      "statement": "For 2027-28, B.Tech CSE tuition is ₹3,40,000 a year, split equally between two semesters (₹1,70,000 each). Semester 1 of Year 1 also has the ₹5,000 enrollment fee, the ₹15,000 other fee (paid in Semester 1 every year) and the ₹5,000 Year-1 exam fee: standard Semester 1 ₹1,95,000, Semester 2 ₹1,70,000, first year ₹3,65,000. Tuition rises by ₹9,000 a year from Year 2, irrespective of scholarship. The application form fee is paid separately.",
+      "source": "SR University Fee Circulation: Official Fee Structure & Merit Scholarship Matrix, 2027-28 (fee_policy_2027_28.json)",
       "verification_status": "verified",
       "valid_from": "2026-10-01",
       "valid_until": "2027-10-31",
-      "last_audited": "2026-11-22",
+      "last_audited": "2026-11-25",
       "metadata": {
         "annual_tuition": 340000,
         "semester_tuition": 170000,
         "escalation_per_year": 9000,
-        "enrollment_one_time": 5000
+        "enrollment_one_time": 5000,
+        "sem1_standard": 195000,
+        "sem2_standard": 170000,
+        "first_year_standard": 365000
       }
     },
     {
       "fact_id": "fact.fees.btech_ai_robotics",
       "category": "fees",
       "academic_year": "2027-28",
-      "statement": "For academic session 2027-28, B.Tech Artificial Intelligence & Robotics tuition is ₹4,00,000 per year (₹2,00,000 per semester). Merit scholarships up to 40% apply.",
-      "source": "Admissions Office Fee Circular 2027-28",
+      "statement": "For 2027-28, B.Tech in AI and Robotics tuition is ₹4,00,000 a year (₹2,00,000 tuition per semester), rising by ₹12,000 a year. Merit scholarships up to 40% apply to tuition.",
+      "source": "SR University Fee Circulation: Official Fee Structure & Merit Scholarship Matrix, 2027-28 (fee_policy_2027_28.json)",
       "verification_status": "verified",
       "valid_from": "2026-10-01",
       "valid_until": "2027-10-31",
-      "last_audited": "2026-11-22",
+      "last_audited": "2026-11-25",
       "metadata": {
         "annual_tuition": 400000,
         "semester_tuition": 200000
@@ -365,19 +368,21 @@
       "fact_id": "fact.admissions.merit_scholarships",
       "category": "scholarships",
       "academic_year": "2027-28",
-      "statement": "SR University awards merit scholarships of 10% to 40% tuition fee waiver based on 10+2 Intermediate board percentage (95%+ / 985+ marks: 40%; 80%+: 25%; 70%+: 20%; 60%+: 10%), JEE Main percentile, or TG/AP EAPCET rank.",
-      "source": "SRU Merit Scholarship Scheme 2027-28",
+      "statement": "SR University awards merit scholarships of 10% to 40% of tuition (never on other charges): Intermediate 60–64.9% 10%, 65–69.9% 15%, 70–79.9% 20%, 80–91.9% 25%, 92–97.9% 30%, 98%+ 40%; CBSE/ICSE 80–89.9% 25%, 90–94.9% 30%, 95%+ 40%; JEE Main 90–94.5 percentile 30%, 95+ 40%; TG/AP EAPCET rank 1–2000 40%, 2001–8000 30%, 8001–20000 25%.",
+      "source": "SR University Fee Circulation: Official Fee Structure & Merit Scholarship Matrix, 2027-28 (fee_policy_2027_28.json)",
       "verification_status": "verified",
       "valid_from": "2026-10-01",
       "valid_until": "2027-10-31",
-      "last_audited": "2026-11-22",
+      "last_audited": "2026-11-25",
       "metadata": {
         "max_merit_percent": 40,
         "slabs": [
-          40,
-          25,
+          10,
+          15,
           20,
-          10
+          25,
+          30,
+          40
         ]
       }
     },
@@ -385,28 +390,28 @@
       "fact_id": "fact.admissions.special_concessions_count",
       "category": "scholarships",
       "academic_year": "2027-28",
-      "statement": "SR University provides 19 special-category fee concessions ranging from ₹15,000 to ₹50,000 per year (for orphans, sports champions, staff children, single parent, defence ward, sibling at SRU, AP residents, girl child non-TS).",
-      "source": "Special Category Concession Circular 2027-28",
+      "statement": "SR University provides 20 special-category fee concessions from ₹10,000 to ₹50,000 a year (for example both parents not alive, international sports, children of regular SRU staff, disability above 50%, single parent, defence, sibling at SRU, students from Andhra Pradesh, girl child), subject to verification of credentials.",
+      "source": "SR University Fee Circulation: Official Fee Structure & Merit Scholarship Matrix, 2027-28 (fee_policy_2027_28.json)",
       "verification_status": "verified",
       "valid_from": "2026-10-01",
       "valid_until": "2027-10-31",
-      "last_audited": "2026-11-22",
+      "last_audited": "2026-11-25",
       "metadata": {
-        "categories_count": 19,
+        "categories_count": 20,
         "max_concession": 50000,
-        "min_concession": 15000
+        "min_concession": 10000
       }
     },
     {
       "fact_id": "fact.admissions.eligibility_and_guarantee_policy",
       "category": "admissions",
       "academic_year": "2027-28",
-      "statement": "B.Tech minimum marks differ between official sources: the 2027-28 fee card lists standard fees from 50% in 10+2 / Intermediate with MPC (CSE and ECE fees from 55%), while the 2026-27 B.Tech programme pages list 60% in 10+2 PCM. Until the Admissions Office confirms the 2027-28 minimum, scores in between are reported as needing confirmation; below 50% does not meet any listed minimum. Admission is merit-based, subject to seat availability and certificate verification. SR University never guarantees or reserves seats unconditionally for any score.",
-      "source": "2027-28 fee card and sru.edu.in B.Tech programme pages (2026-27); conflict recorded in fees_2027_28.json",
+      "statement": "Minimum marks (2027-28 fee circular): 55% in Intermediate for B.Tech CSE and ECE and their specialisations, 50% for other UG programmes, and 50% in the qualifying degree for PG (subject to confirmation). Meeting the minimum is not a guarantee of admission: admission is merit-based, subject to seat availability and certificate verification, and scores below the minimum are referred to the Admissions Office for verification. SR University never guarantees or reserves seats unconditionally for any score.",
+      "source": "SR University Fee Circulation: Official Fee Structure & Merit Scholarship Matrix, 2027-28 (fee_policy_2027_28.json)",
       "verification_status": "verified",
       "valid_from": "2026-10-01",
       "valid_until": "2027-10-31",
-      "last_audited": "2026-11-22",
+      "last_audited": "2026-11-25",
       "metadata": {
         "btech_min_percent_fee_card": 50.0,
         "btech_fee_band_cse_ece": 55.0,
@@ -626,13 +631,13 @@
     {
       "fact_id": "fact.scholarships.merit_summary",
       "category": "scholarships",
-      "statement": "SR University offers merit scholarships of 10% to 40% of tuition based on board marks, JEE Main, EAPCET or SAT scores, plus 19 special-category concessions.",
-      "source": "SR University Official Fee Structure & Merit Scholarship fee card, Academic Year 2027-28",
+      "statement": "SR University offers merit scholarships of 10% to 40% of tuition based on Intermediate/board marks, JEE Main percentile, EAPCET rank or IB score, plus 20 special-category concessions.",
+      "source": "SR University Fee Circulation: Official Fee Structure & Merit Scholarship Matrix, 2027-28 (fee_policy_2027_28.json)",
       "verification_status": "verified",
       "valid_from": "2026-11-01",
       "valid_until": "2027-10-31",
       "metadata": {
-        "short": "**Scholarships:** 10%–40% merit scholarships on tuition, plus 19 special concessions",
+        "short": "**Scholarships:** 10%–40% merit scholarships on tuition, plus 20 special concessions",
         "tags": [
           "scholarship",
           "scholarships",
@@ -647,7 +652,7 @@
         "priority": 6
       },
       "academic_year": "2027-28",
-      "last_audited": "2026-11-23"
+      "last_audited": "2026-11-25"
     },
     {
       "fact_id": "fact.unverified.placement_rate_95",

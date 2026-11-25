@@ -43,28 +43,38 @@ def find_concession(text: str) -> dict | None:
         label = c["label"].lower()
         if label in low and (best is None or len(label) > len(best["label"])):
             best = c
-    return {"label": best["label"], "amount": int(best["amount"])} if best else None
+    return _item(best) if best else None
 
 
-# How students describe themselves -> the official category (label as in the fee data). v4.13.0.
+def _item(c: dict) -> dict:
+    return {"key": c["key"], "label": c["label"], "amount": int(c["amount"])}
+
+
+def _by_key(key: str) -> dict | None:
+    c = next((c for c in fees.load_data().get("special_concessions", []) if c["key"] == key), None)
+    return _item(c) if c else None
+
+
+# How students describe themselves -> the official category key in the fee policy (labels come from the policy).
 _DESCRIBED = (
     (r"\b(?:brother|sister|sibling|cousin\s+(?:brother|sister))\b.{0,50}\b(?:stud(?:y|ies|ying)|enrol\w*|"
-     r"(?:at|in)\s+(?:sru|sr\s+university))", "Sibling (brother or sister) currently enrolled at SR University"),
-    (r"\b(?:alumni|alumnus|alumna|passed\s+out\s+(?:of|from)\s+(?:sru|sr\s+university))\b", "SRU alumni"),
+     r"(?:at|in)\s+(?:sru|sr\s+university))", "sibling"),
+    (r"\b(?:alumni|alumnus|alumna|old\s+student|passed\s+out\s+(?:of|from)\s+(?:sru|sr\s+university))\b", "alumni"),
     (r"\b(?:father|mother|dad|daddy|mom|mum|amma|nanna|parent)\b.{0,30}\b(?:works?|working|employee|staff|faculty|"
-     r"professor)\b.{0,25}\b(?:sru|sr\s+university|here|your\s+university)\b", "Children of regular SR University employees"),
-    (r"\bsr\s+junior\s+college\b", "Students of SR Junior College"),
-    (r"\b(?:army|navy|air\s*force|defen[cs]e|crpf|military|soldier|jawan|martyr)\b", "Children of Defence personnel"),
-    (r"\b(?:police|constable)\b", "Children of State Police personnel"),
-    (r"\b(?:single\s+(?:parent|mother|father|mom|dad)|divorced)\b", "Students with a single living parent"),
-    (r"\b(?:orphan|lost\s+both\s+(?:my\s+)?parents)\b", "Students who have lost both parents"),
-    (r"\bncc\b", "NCC 'C' certificate holders"),
-    (r"\binternational[- ]level\s+(?:sports|player|athlete|champion)", "International-level sports achievers"),
-    (r"\bnational[- ]level\s+(?:sports|player|athlete|champion)|\bsports\s+quota\b", "National-level sports achievers"),
-    (r"\b(?:disab\w+|handicap\w*|pwd)\b", "Students with 50% or above disability"),
-    (r"\b(?:only|single|one)\s+girl\s+child\b", "Only girl child from Telangana"),
-    (r"\bsiblings?\b", "Sibling (brother or sister) currently enrolled at SR University"),
-    (r"\blateral\s+entry\b|\becet\b", "Lateral entry students"),
+     r"professor)\b.{0,25}\b(?:sru|sr\s+university|here|your\s+university)\b", "staff_child"),
+    (r"\bsr\s+junior\s+college\b", "sr_junior_college"),
+    (r"\b(?:army|navy|air\s*force|defen[cs]e|crpf|military|soldier|jawan|martyr)\b", "defence"),
+    (r"\b(?:police|constable)\b", "state_police"),
+    (r"\b(?:single\s+(?:parent|mother|father|mom|dad)|divorced|one\s+parent)\b", "single_parent"),
+    (r"\b(?:orphan|lost\s+both\s+(?:my\s+)?parents|both\s+parents\s+(?:not\s+alive|died|passed))\b", "orphan"),
+    (r"\bncc\b", "ncc_c"),
+    (r"\binternational[- ]level\s+(?:sports|player|athlete|champion)|\bsports\W+international\b", "sports_international"),
+    (r"\bnational[- ]level\s+(?:sports|player|athlete|champion)|\bsports\s+quota\b|\bsports\W+national\b",
+     "sports_national"),
+    (r"\b(?:disab\w+|handicap\w*|pwd)\b", "disability"),
+    (r"\b(?:only|single|one)\s+girl\s+child\b", "only_girl_child_telangana"),
+    (r"\bsiblings?\b", "sibling"),
+    (r"\blateral\s+entry\b|\becet\b", "lateral_entry"),
 )
 
 
@@ -75,21 +85,18 @@ def infer_concession(text: str) -> dict | None:
     if exact:
         return exact
     low = (text or "").lower()
-    for pattern, label_start in _DESCRIBED:
+    for pattern, key in _DESCRIBED:
         if re.search(pattern, low):
-            for c in fees.load_data().get("special_concessions", []):
-                if c["label"].lower().startswith(label_start.lower()):
-                    return {"label": c["label"], "amount": int(c["amount"])}
+            return _by_key(key)
     return None
 
 
 # v4.15.0: a group the student names that has several official categories ("any concession for girls?",
 # "sports quota?"): every matching category, from the official list (word -> label words).
-_GROUPS = [(r"\bgirls?\b|\bdaughter\b|\bfemale\b|\bwomen\b", ("girl",)),
-           (r"\bsports?\b|\bathlete|\bplayer\b|\bquota\b.*\bsports?\b", ("sports",)),
-           (r"^(?!.*\b(?:single|divorced|lost\s+both|orphan)\b).*\bparents?\b", ("lost both parents",
-                                                                              "single living parent")),
-           (r"\b(?:police|defen[cs]e|army|crpf|martyr|military)\b", ("defence", "police"))]
+_GROUPS = [(r"\bgirls?\b|\bdaughter\b|\bfemale\b|\bwomen\b", ("only_girl_child_telangana", "girl_child_outside_telangana")),
+           (r"\bsports?\b|\bathlete|\bplayer\b|\bquota\b.*\bsports?\b", ("sports_national", "sports_international")),
+           (r"^(?!.*\b(?:single|divorced|lost\s+both|orphan)\b).*\bparents?\b", ("orphan", "single_parent")),
+           (r"\b(?:police|defen[cs]e|army|crpf|martyr|military)\b", ("defence", "state_police"))]
 
 
 def concessions_for_group(text: str) -> list[dict]:
@@ -97,38 +104,43 @@ def concessions_for_group(text: str) -> list[dict]:
     low = (text or "").lower()
     for pattern, keys in _GROUPS:
         if re.search(pattern, low):
-            hits = [{"label": c["label"], "amount": int(c["amount"])}
-                    for c in fees.load_data().get("special_concessions", [])
-                    if any(k in c["label"].lower() for k in keys)]
+            hits = [h for h in (_by_key(k) for k in keys) if h]
             if len(hits) > 1:
                 return hits
     return []
 
 
+def _concession_ref(concession: dict) -> str:
+    return concession.get("key") or concession["label"]
+
+
 def concession_fee(program: str, concession: dict, profile: dict | None = None) -> dict | None:
-    """Tuition for the first year with a special concession. None if the programme is unknown."""
+    """First-year fee with a special concession, from the ONE fee engine. None if the programme is unknown."""
     merit = _merit_args(profile or {})
-    fee = fees.calculate_fee(program, **{k: v for k, v in merit.items() if k != "board"},
-                             board=merit.get("board") or "state_board")
+    args = {k: v for k, v in merit.items() if k != "board"}
+    board = merit.get("board") or "state_board"
+    fee = fees.calculate_fee(program, board=board, concessions=[_concession_ref(concession)], **args)
     if fee.get("status") != "ok":
         return None
-    tuition = _num(fee["tuition_first_year"])
     amount = int(concession["amount"])
     pct = int(fee.get("scholarship_percent") or 0)
+    after_merit = _num(fee["tuition_first_year_after_scholarship"])
     data = {
         "academic_year": fee.get("academic_year") or config.ADMISSION_YEAR,
         "program_key": fee.get("program_key"),
         "program": fees.short_name(fee["program_key"]),
         "concession": concession["label"],
         "concession_amount": fees.inr(amount),
-        "tuition": fees.inr(tuition),
-        "tuition_after_concession": fees.inr(max(tuition - amount, 0)),
-        "per_semester_after_concession": fees.inr(max(tuition - amount, 0) // 2),
+        "tuition": fee["tuition_first_year"],
+        "tuition_after_concession": fees.inr(max(after_merit - amount, 0)),
+        "sem1_payable": fee["sem1_total_payable"],
+        "sem2_payable": fee["sem2_total_payable"],
+        "first_year_total": fee["first_year_total_payable"],
+        "semester_note": "Concession deducted from tuition in Semester 1 of each year (subject to verification).",
         "proof_note": PROOF_NOTE,
         "source": fee.get("source"),
     }
     if pct:
-        after_merit = _num(fee["tuition_first_year_after_scholarship"])
         data.update({
             "merit_percent": pct,
             "tuition_after_merit": fees.inr(after_merit),
@@ -139,11 +151,11 @@ def concession_fee(program: str, concession: dict, profile: dict | None = None) 
 
 def full_fee_chart(program: str, profile: dict | None = None, hostel: str = "none", transport: bool = False,
                    concession: dict | None = None) -> dict | None:
-    """The complete first-year fee chart: every line the student pays, from the official fee data."""
+    """The complete first-year fee chart, semester by semester, from the ONE fee engine (fees.calculate_fee)."""
     merit = _merit_args(profile or {})
-    fee = fees.calculate_fee(program, hostel=hostel or "none", transport=bool(transport),
-                             **{k: v for k, v in merit.items() if k != "board"},
-                             board=merit.get("board") or "state_board")
+    args = {k: v for k, v in merit.items() if k != "board"}
+    board = merit.get("board") or "state_board"
+    fee = fees.calculate_fee(program, hostel=hostel or "none", transport=bool(transport), board=board, **args)
     if fee.get("status") != "ok":
         return None
     pct = int(fee.get("scholarship_percent") or 0)
@@ -151,35 +163,37 @@ def full_fee_chart(program: str, profile: dict | None = None, hostel: str = "non
     if pct:
         rows.append({"item": f"Merit scholarship ({pct}%)", "amount": "− " + fee["saving_first_year"],
                      "kind": "discount", "note": fee.get("scholarship_basis_text") or None})
-    rows.append({"item": "Other academic / university fees", "amount": fee["other_yearly_fees"], "kind": "fee",
-                 "note": "per year"})
-    rows.append({"item": "Enrollment fee", "amount": fee["one_time_enrollment_fee"], "kind": "fee",
-                 "note": "one time"})
-    hostel_info = fee.get("hostel") or {}
-    if fee.get("has_hostel") and hostel_info.get("per_year"):
-        rows.append({"item": f"Hostel ({hostel_info.get('type')})", "amount": hostel_info["per_year"], "kind": "fee",
-                     "note": "includes meals"})
-    if fee.get("transport_per_year"):
-        rows.append({"item": "Transport (university bus)", "amount": fee["transport_per_year"], "kind": "fee",
-                     "note": "varies by distance"})
-    total = _num(fee["first_year_total_payable"])
+    notes = {"enrollment_fee": "one time", "other_fee": "per year", "exam_fee": "Year 1 only",
+             "hostel": "includes meals", "electricity_deposit": "one time", "bus": "optional"}
+    for item in fee["semester_1"]["items"] + fee["semester_2"]["items"]:
+        if item["kind"] == "tuition":
+            continue
+        rows.append({"item": item["item"], "amount": item["amount"], "kind": "fee", "note": notes.get(item["key"])})
     chart = {
         "academic_year": fee.get("academic_year") or config.ADMISSION_YEAR,
         "program_key": fee.get("program_key"),
         "program": fees.short_name(fee["program_key"]),
         "rows": rows,
-        "first_year_total": fees.inr(total),
-        "per_semester": fee.get("total_per_semester"),
-        "application_fee": fee.get("one_time_application_fee"),
-        "not_included": [x for x in (fee.get("not_included") or []) if x != "transport" or not transport],
+        "semesters": [{"semester": 1, **fee["semester_1"]}, {"semester": 2, **fee["semester_2"]}],
+        "sem1_total": fee["sem1_total_payable"],
+        "sem2_total": fee["sem2_total_payable"],
+        "first_year_total": fee["first_year_total_payable"],
+        "per_semester": fee.get("per_semester_after_scholarship"),
+        "course_total": fee.get("full_course_total"),
+        "duration_years": fee.get("duration_years"),
+        "application_fee": fee.get("application_fee"),
+        "not_included": list(fee.get("not_included") or []),
+        "flags": fee.get("flags") or [],
         "source": fee.get("source"),
     }
     if concession:
-        amount = int(concession["amount"])
+        with_c = fees.calculate_fee(program, hostel=hostel or "none", transport=bool(transport), board=board,
+                                    concessions=[_concession_ref(concession)], **args)
         chart["concession"] = {
             "label": concession["label"],
-            "amount": "− " + fees.inr(amount),
-            "total_if_approved": fees.inr(max(total - amount, 0)),
+            "amount": "− " + fees.inr(int(concession["amount"])),
+            "total_if_approved": with_c["first_year_total_payable"],
+            "sem1_if_approved": with_c["sem1_total_payable"],
             "note": PROOF_NOTE + (" " + COMBINE_NOTE.format(phone=config.ADMISSIONS_PHONE) if pct else ""),
         }
     return chart
@@ -190,13 +204,15 @@ def chart_share_text(chart: dict) -> str:
     lines = [f"SR University {chart['academic_year']} fee chart: {chart['program']}"]
     for r in chart["rows"]:
         lines.append(f"- {r['item']}: {r['amount']}" + (f" ({r['note']})" if r.get("note") else ""))
+    if chart.get("sem1_total"):
+        lines.append(f"Semester 1: {chart['sem1_total']} | Semester 2: {chart['sem2_total']}")
     lines.append(f"First-year total: {chart['first_year_total']}")
     if chart.get("concession"):
         c = chart["concession"]
         lines.append(f"With the {c['label']} concession, if approved: {c['total_if_approved']}")
     if chart.get("application_fee"):
         lines.append(f"Application fee (paid when applying): {chart['application_fee']}")
-    lines.append("Source: official SR University fee card. Confirm with the Admissions Office: "
+    lines.append("Source: official SR University 2027-28 fee circular. Confirm with the Admissions Office: "
                  f"{config.ADMISSIONS_PHONE}.")
     return "\n".join(lines)
 

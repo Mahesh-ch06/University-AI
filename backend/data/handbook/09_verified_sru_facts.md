@@ -59,20 +59,20 @@
 ## 2. Undergraduate (B.Tech) Admissions & Eligibility Criteria
 
 - **[FACT-ID: ADM-001] [STATUS: VERIFIED] [SOURCE: 08_admissions_fees_scholarships_and_eligibility.md]**
-  - **Minimum marks (sources differ, pending confirmation)**: The 2027-28 fee card lists standard fees from **50%** in 10+2 / Intermediate with MPC (fees for **CSE and ECE from 55%**). The university's 2026-27 B.Tech programme pages list **60%** in 10+2 PCM plus JEE Main / a state entrance (or sports / cultural merit). Until the Admissions Office confirms the 2027-28 minimum, a score between these values must be reported as **needing confirmation**, never as eligible or not eligible.
-  - **Below 50%** (for example under 500 out of 1000): below the lowest minimum in any official source, so the student does not meet the general eligibility on those marks. No alternative pathway is documented; refer the student to the Admissions Office.
+  - **Minimum marks (2027-28 fee circular)**: **55%** in 10+2 / Intermediate for B.Tech CSE and ECE and all their specialisations (AI&ML, Data Science, Cyber Security, Robotics and Automation, Quantum AI, VLSI); **50%** for every other UG programme; **50%** in the qualifying degree for PG programmes (subject to confirmation).
+  - **Meeting the minimum is not a guarantee of admission**: admission depends on document verification and seat availability. A score below the minimum is flagged for the Admissions Office to verify; the agent never says such a student qualifies.
   - **How the percentage is worked out**: marks obtained / total marks x 100 (230 out of 1000 = 23%). Never assume the total; ask for it.
   - **Admission eligibility is separate from scholarship eligibility** (merit slabs start at 60%).
-  - **Branch differences**: the fee card's 55% fee band applies to CSE (incl. AI&ML, Data Science, Cyber Security) and ECE only.
   - **Direct / Management Quota**: Admission is based on 10+2 marks and seat availability. Entrance ranks determine merit scholarship slabs.
   - **Official Admissions Contacts**: Admissions: **833 100 3030**, Campus Visit: **833 100 4040**, Email: `admissions@sru.edu.in` / `info@sru.edu.in`, Portal: `https://apply.sru.edu.in`.
 
 ---
 
 <!-- FEES:BEGIN (generated from fees_2027_28.json, do not edit by hand) -->
+<!-- FEES:BEGIN (generated from fee_policy_2027_28.json, do not edit by hand) -->
 ## 3. Tuition Fee Structure (2027-28)
 
-- **[FACT-ID: FEE-001] [STATUS: VERIFIED] [SOURCE: official 2027-28 fee card, via fees_2027_28.json]**
+- **[FACT-ID: FEE-001] [STATUS: VERIFIED] [SOURCE: official 2027-28 fee circular, via fee_policy_2027_28.json]**
   - **Scoping rule**: when asked about a fee, state only the fee for the program or item asked about.
   - **Undergraduate programs (tuition per year)**:
   - **B.Tech CSE (AIML, Data Science, Cyber Security, Robotics and Automation, Quantum AI)**: **₹3,40,000 per year** (₹1,70,000 per semester); increases by ₹9,000 every year for every student.
@@ -83,7 +83,7 @@
   - **B.Tech Civil Engineering**: **₹2,00,000 per year** (₹1,00,000 per semester); increases by ₹6,000 every year for every student.
   - **B.Tech Biotechnology with AI**: **₹2,00,000 per year** (₹1,00,000 per semester); increases by ₹6,000 every year for every student.
   - **B.Tech Food Technology**: **₹2,00,000 per year** (₹1,00,000 per semester); increases by ₹6,000 every year for every student.
-  - **B.Tech Engineering Physics with AI, Robotics & Space / B.Tech Applied Chemistry in AI, NanoRobotics & Drug Discovery**: **₹2,00,000 per year** (₹1,00,000 per semester); increases by ₹6,000 every year for every student.
+  - **B.Tech Engineering Physics with AI, Robotics & Space / B.Tech Applied Chemistry with AI, Robotics & Drug Discovery**: **₹2,00,000 per year** (₹1,00,000 per semester); increases by ₹6,000 every year for every student.
   - **B.Tech International Engineering Programme (IEP)**: **₹3,40,000 per year** (₹1,70,000 per semester); increases by ₹10,000 every year for every student.
   - **B.Sc Agriculture (ICAR-accredited)**: **₹2,00,000 per year** (₹1,00,000 per semester); increases by ₹6,000 every year for every student.
   - **B.Des (Design)**: **₹2,10,000 per year** (₹1,05,000 per semester); increases by ₹6,000 every year for every student.
@@ -102,21 +102,22 @@
   - **MCA**: **₹1,50,000 per year** (₹75,000 per semester); increases by ₹4,000 every year for every student.
   - **M.Tech (CSE, Data Science, AIML, Electronic Design Technology, VLSI, Embedded Systems, Advanced Manufacturing Systems, Thermal Engineering, Construction Technology & Management, Power Electronics)**: **₹1,00,000 per year** (₹50,000 per semester); increases by ₹3,000 every year for every student.
   - **M.Sc (Computer Science, Agronomy, Genetics & Plant Breeding, Agriculture Extension Education, Agriculture Economics, Plant Pathology, Horticulture, Soil Science)**: **₹1,00,000 per year** (₹50,000 per semester); increases by ₹3,000 every year for every student.
-  - **Other fees**: enrolment fee ₹5,000 (one-time); other academic / university charges ₹15,000 per year; examination fee (first year) ₹5,000; application form fee ₹1,100; transportation ₹30,000 per year (varies with distance); specialisation fee ₹30,000 per year from the second year where applicable; Ph.D. fee ₹70,000 per year; hostel electricity deposit ₹5,000 (Non-AC) / ₹10,000 (AC).
-  - There is no separate admission fee on the 2027-28 fee card.
+  - **Other fees**: enrollment fee ₹5,000 (one-time, Semester 1 of Year 1); other fee ₹15,000 per year (Semester 1); exam fee ₹5,000 (Year 1 only, Semester 1); application form fee ₹1,100 (paid separately); university bus ₹30,000 per year (optional); specialisation fee ₹30,000 per year from Year 2 where applicable; Ph.D. fee ₹70,000 per year; hostel electricity deposit ₹5,000 (Non-AC) / ₹10,000 (AC), one-time.
+  - Only tuition is split equally between the two semesters; merit scholarships reduce tuition only. Example: B.Tech CSE standard fee is Semester 1 ₹1,95,000, Semester 2 ₹1,70,000, Year 1 ₹3,65,000.
+  - There is no separate admission fee on the 2027-28 fee circular.
 
 ---
 
 ## 4. Merit Scholarships & Special Category Concessions (2027-28)
 
-- **[FACT-ID: FEE-002] [STATUS: VERIFIED] [SOURCE: official 2027-28 fee card, via fees_2027_28.json]**
+- **[FACT-ID: FEE-002] [STATUS: VERIFIED] [SOURCE: official 2027-28 fee circular, via fee_policy_2027_28.json]**
   - Only the best single scholarship applies; scholarships are never added together. The scholarship is applied to the standard fee and is subject to marksheet verification.
   - **Undergraduate merit scholarship slabs**:
     - **10% scholarship**: Intermediate / State Board %: 60 – 64.9% | CBSE / ICSE %: 60 – 64.9% | JEE Main percentile: 50 – 59.9 %ile | TG / AP EAPCET rank: not applicable | IB Diploma score (out of 45): not applicable
     - **15% scholarship**: Intermediate / State Board %: 65 – 69.9% | CBSE / ICSE %: 65 – 69.9% | JEE Main percentile: 60 – 69.9 %ile | TG / AP EAPCET rank: not applicable | IB Diploma score (out of 45): not applicable
     - **20% scholarship**: Intermediate / State Board %: 70 – 79.9% | CBSE / ICSE %: 70 – 79.9% | JEE Main percentile: 70 – 79.9 %ile | TG / AP EAPCET rank: not applicable | IB Diploma score (out of 45): 24 – 29
     - **25% scholarship**: Intermediate / State Board %: 80 – 91.9% | CBSE / ICSE %: 80 – 89.9% | JEE Main percentile: 80 – 89.9 %ile | TG / AP EAPCET rank: 8,001 – 20,000 | IB Diploma score (out of 45): 30 – 33
-    - **30% scholarship**: Intermediate / State Board %: 92 – 97.9% | CBSE / ICSE %: 90 – 94.9% | JEE Main percentile: 90 – 94.9 %ile | TG / AP EAPCET rank: 2,001 – 8,000 | IB Diploma score (out of 45): 34 – 37
+    - **30% scholarship**: Intermediate / State Board %: 92 – 97.9% | CBSE / ICSE %: 90 – 94.9% | JEE Main percentile: 90 – 94.5 %ile | TG / AP EAPCET rank: 2,001 – 8,000 | IB Diploma score (out of 45): 34 – 37
     - **40% scholarship**: Intermediate / State Board %: 98% and above | CBSE / ICSE %: 95% and above | JEE Main percentile: 95 %ile and above | TG / AP EAPCET rank: 1 – 2,000 | IB Diploma score (out of 45): 38 and above
   - An EAPCET rank above 20,000 earns no rank-based scholarship (the student's board %, JEE or IB score may still earn one).
   - **Postgraduate merit scholarship slabs (percentage in the qualifying degree)**:
@@ -126,11 +127,12 @@
     - **25% scholarship**: 80 – 91.9%
     - **30% scholarship**: 92 – 97.9%
     - **40% scholarship**: 98% and above
-  - **19 special category concessions (per year, all courses, subject to document verification)**:
-    - **₹50,000 per year**: Students who have lost both parents; International-level sports achievers; Children of regular SR University employees.
-    - **₹20,000 per year**: Students with 50% or above disability.
-    - **₹15,000 per year**: Children of Defence personnel, CRPF personnel and martyrs; Children of State Police personnel; Students of SR Junior College; SRU alumni, their children and siblings; NCC 'C' certificate holders; Students from states other than Telangana and Andhra Pradesh; National-level sports achievers; Students with a single living parent / divorced parents; Lateral entry students; Children of Padma awardees, J&K migrant families and Gallantry award recipients; Only girl child from Telangana; Sibling (brother or sister) currently enrolled at SR University (2027-28); International students; Students from Andhra Pradesh; Girl students from states other than Telangana.
-  - State-level sports is NOT on the list. There is no concession for "all girl students", North-East domicile, teachers' children, COVID-affected students or partner organisations: those are not on the fee card.
+  - **20 special category concessions (per year, all courses, subject to document verification)**:
+    - **₹50,000 per year**: Sports — International; Both parents not alive; Children of Regular SRU Staff.
+    - **₹20,000 per year**: More than 50% Disability.
+    - **₹15,000 per year**: Real brother or sister on rolls in SRU in 2027–28; Only girl child from Telangana; Girl Child from Outside Telangana; Only one parent alive or divorced; Defence / CRPF / martyr family; Child of State Police of any state; SR Junior College student; SRU old student or child of old student or Sibling of Old Student; NCC C certificate; Student from outside TG and AP; Sports — National; Lateral Entry Students; Children of Padma Awards/ J&K Migrants/ Gallantry Awards; International Students; Students from Andhra Pradesh.
+    - **₹10,000 per year**: Chancellor/Pro Chancellor Recommendation.
+  - State-level sports is NOT on the list. There is no concession for "all girl students", North-East domicile, teachers' children, COVID-affected students or partner organisations: those are not on the fee circular.
 <!-- FEES:END -->
 
 ---

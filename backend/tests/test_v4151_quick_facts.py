@@ -17,9 +17,9 @@ def test_programmes_not_on_the_fee_card_are_said_plainly(question, named):
     assert "B.Tech" in a.text                                    # and what SRU does offer
 
 
-def test_fee_increase_quotes_the_fee_card():
+def test_fee_increase_quotes_the_fee_circular():
     a = quick_facts.answer("will the fee increase every year")
-    assert a and "subject to an annual increase" in a.text
+    assert a and "Yearly increase in tuition fee applies annually irrespective of scholarship status" in a.text
 
 
 @pytest.mark.parametrize("question", ["can i pay in instalments", "is there an education loan"])
@@ -31,7 +31,7 @@ def test_unprinted_payment_rules_go_to_the_admissions_office(question):
 
 def test_hostel_is_separate_from_tuition_with_card_prices():
     a = quick_facts.answer("is hostel fee included")
-    assert a and a.text.startswith("No.") and "₹1,35,000" in a.text
+    assert a and a.text.startswith("No.") and "₹1,35,000" in a.text and "Admissions Office confirms" in a.text
 
 
 def test_btech_duration():
@@ -105,7 +105,7 @@ def test_commerce_students_get_the_list_not_bcom_only():
 
 def test_sibling_and_girl_child_concessions_are_recognised():
     from app.sru_agent import fee_plan
-    assert fee_plan.infer_concession("sibling discount?")["label"].startswith("Sibling")
+    assert fee_plan.infer_concession("sibling discount?")["label"].startswith("Real brother or sister")
     assert fee_plan.infer_concession("single girl child scholarship")["label"] == "Only girl child from Telangana"
 
 

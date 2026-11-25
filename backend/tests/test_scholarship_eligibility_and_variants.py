@@ -141,7 +141,7 @@ def test_format_counsellor_assessment_rejects_under_50():
     }
     text = agent.format_counsellor_assessment(fee_res, details)
     assert "do not currently meet the general eligibility criteria" in text
-    assert "below the official **50% minimum**" in text and "450 marks out of 1000" in text
+    assert "below the official **55% minimum**" in text and "450 marks out of 1000" in text
     assert "Your Fee Details" not in text
     assert "Original Tuition Fee" not in text
 

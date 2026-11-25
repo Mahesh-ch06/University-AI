@@ -21,7 +21,7 @@ async def test_yes_to_the_chart_asks_marks_then_concessions_then_shows_the_chart
 
 
 async def test_prepare_chart_during_a_concession_asks_marks_first(model):
-    out = await _chat(['Apply the "SRU alumni, their children and siblings" concession to my B.Tech ECE fee',
+    out = await _chat(['Apply the "SRU old student or child of old student or Sibling of Old Student" concession to my B.Tech ECE fee',
                        "📋 Prepare my full fee chart"])
     assert not _cards(out[1], "fee_summary") and _cards(out[1], "counsellor_board_selection")
 
@@ -31,7 +31,7 @@ async def test_known_details_show_the_chart_at_once(model):
     from app.sru_agent import memory
     sid = f"v4151-{uuid.uuid4().hex[:10]}"
     await memory.update_profile(sid, percent=85, board="state_board")
-    out = await _chat(['Apply the "SRU alumni, their children and siblings" concession to my B.Tech ECE fee',
+    out = await _chat(['Apply the "SRU old student or child of old student or Sibling of Old Student" concession to my B.Tech ECE fee',
                        "Yes, I have it", "📋 Prepare my full fee chart"], sid)
     assert _cards(out[-1], "fee_summary")
 
@@ -43,7 +43,7 @@ async def test_two_reasons_and_hostel_life_from_a_student_leaving_delhi(model):
     a = o["answer"]
     assert "2 reasons to choose SRU" in a and "\n1. " in a and "\n2. " in a and "\n3. " not in a.split("---")[0]
     assert "Residential Living" in a or "hostel" in a.lower()
-    assert "₹15,000 a year" in a and "other states" in a
+    assert "₹15,000 a year" in a and "outside Telangana and AP" in a
 
 
 @pytest.mark.parametrize("message,parts", [
@@ -133,7 +133,7 @@ def test_robotics_club_is_not_the_degree_answer():
 
 async def test_a_concession_question_during_the_fee_steps_is_answered_first(model):
     out = await _chat(["B.Tech Civil fee", "any fee concession for single parent"])
-    assert "single living parent" in out[-1]["answer"].lower() or "single parent" in out[-1]["answer"].lower()
+    assert "only one parent alive" in out[-1]["answer"].lower() or "single parent" in out[-1]["answer"].lower()
     assert "Almost there" not in out[-1]["answer"]
 
 

@@ -19,7 +19,7 @@ Friendly, helpful, conversational, respectful and concise.
 11. Positive Advocacy & Comparative Resilience: When asked questions about rankings, superlatives, comparisons, or skeptical/degrading queries about SR University, never start with a negative, blunt dismissal, or concession (e.g., "No, SR University is not ranked #1"). Always champion SR University as a top-tier premier institution by leading directly with its highest verified accolades, domain leadership, and distinct competitive advantages.
 
 ## Admission eligibility (v4.4.0)
-- Decided only by `backend/app/sru_agent/eligibility.py`, from `fees_2027_28.json`. No prompt, template or
+- Decided only by `backend/app/sru_agent/eligibility.py`, from `fee_policy_2027_28.json`. No prompt, template or
   flow states a threshold of its own.
 - Percentage = marks obtained / total x 100, compared unrounded; minimums are inclusive (50% meets 50%,
   49.99% does not). Raw marks without a total: ask for the total, never assume 1000.

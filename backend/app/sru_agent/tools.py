@@ -285,6 +285,7 @@ def _fee_summary(fee: dict) -> dict:
         "tuition_after_scholarship": fee.get("tuition_first_year_after_scholarship"),
         "hostel": hostel.get("type"), "hostel_per_year": hostel.get("per_year"),
         "sem1_total_payable": fee.get("sem1_total_payable"),
+        "sem2_total_payable": fee.get("sem2_total_payable"),
         "total_per_semester": fee.get("total_per_semester"),
         "first_year_total_payable": fee.get("first_year_total_payable"),
     }
@@ -674,7 +675,10 @@ TOOLS = {
         "description": "Official fee and merit scholarship for one student. ALWAYS call this for any "
                        "question about fees, scholarship, total cost, or per-semester breakdown. "
                        "Pass hostel parameter ONLY if the student explicitly selected or asked for hostel (e.g. 'with hostel'). "
-                       "If the student did not ask for hostel, keep hostel='none'. Never state a fee from memory.",
+                       "If the student did not ask for hostel, keep hostel='none'. Never state a fee from memory and "
+                       "never add, split or recompute amounts: quote semester_1, semester_2, first_year_total_payable "
+                       "and full_course_total exactly as returned. Only tuition is split between semesters; the "
+                       "application fee is shown separately.",
         "parameters_json_schema": _obj({
             "program": _PROGRAM, "percent": _PERCENT,
             "board": {"type": "string", "enum": ["state_board", "cbse"],
@@ -684,7 +688,7 @@ TOOLS = {
             "ib_score": {"type": "integer", "description": "IB Diploma score out of 45."},
             "transport": {"type": "boolean", "description": "true only if the student asked for the university bus."},
             "hostel": {"type": "string", "enum": ["none", "non_ac_4", "non_ac_3", "ac_4", "ac_3"], "description": "Pass ONLY if student explicitly requested hostel. Default is 'none'."},
-            "specialization": {"type": "boolean", "description": "true for AI & ML, Data Science, Cyber Security tracks."},
+            "specialization": {"type": "boolean", "description": "true only if the student chose a specialisation that carries the specialisation fee (from Year 2)."},
         }, ["program"])}),
 
     "check_eligibility": (tool_check_eligibility, "Checking eligibility", {

@@ -93,7 +93,7 @@ ABOUT_SRU_ANGLES = [
     "11. Student Life, Vibrant Clubs & Annual Festivals (20+ student clubs like GDG/Ashwavega, 50+ annual events like Sparkrill '27 & PRAGATHI 2.0)",
     "12. World-Class Faculty & Academic Leadership (PhD/PostDoc faculty from IITs/NITs, Chancellor Sri A. Varada Reddy, VC Prof. Deepak Garg - AI pioneer)",
     "13. Practical Engineering Labs & Prototyping Infrastructure (High-tech digital classrooms, robotics arenas, aerospace composite materials labs)",
-    "14. Transparent Fee Structure & Merit Scholarships (Transparent per-sem fees, ₹9,000/yr escalation, 10%-40% merit waivers, 19 special concessions)",
+    "14. Transparent Fee Structure & Merit Scholarships (Transparent per-sem fees, ₹9,000/yr escalation, 10%-40% merit waivers, 20 special concessions)",
     "15. Campus Safety, Biometrics & Student Well-Being (Biometric roll call, 8:30 PM 1st-yr curfew, 9:00/9:30 PM seniors, CCTV, health dispensary)",
     "16. ICAR-Accredited Agricultural Sciences Hub (1st private university in Telugu States with ICAR accreditation, experiential organic farms)",
     "17. Astra School of Business & Modern Management (BBA/MBA with analytics, fintech, agribusiness, case-study pedagogy, corporate mentoring)",

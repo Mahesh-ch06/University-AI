@@ -143,11 +143,10 @@ async def test_scenario_6_parent_mode_and_eligibility():
     """'my daughter got 58%, can she join btech? is hostel safe?' -> parent mode, eligibility, search."""
     elig = check_eligibility("btech_cse", 58)
     assert elig["status"] == "ok"
-    # 58% meets the fee card's 50% but not the programme page's 60%: the sources disagree, so it is not
-    # presented as confirmed either way.
-    assert elig["eligibility_status"] == "needs_confirmation"
-    assert elig["eligible"] is None
-    assert elig["lowest_listed_minimum"] == 50
+    # 2027-28 circular: 55% for B.Tech CSE, so 58% meets the minimum (admission still depends on documents/seats)
+    assert elig["eligibility_status"] == "meets_minimum"
+    assert elig["lowest_listed_minimum"] == 55
+    assert "seat availability" in elig["explanation"]
 
     sys_prompt = prompt.build_system_prompt({"is_parent": True})
     assert "THE USER IS A PARENT" in sys_prompt

@@ -154,38 +154,51 @@ async def ensure_exemplars_seeded():
         if not collection:
             return
 
-        # Foundational B.Tech eligibility exemplar (minimums as listed by each official source)
+        # Seeded answers older than the 2027-28 fee circular are retired (never kept as a fallback). Only
+        # answers carrying an obsolete marker are removed, so an admin's own exemplar is never touched.
+        obsolete = ("minimum of 50% aggregate marks in Mathematics", "fee card lists fees from 50%", "60% in PCM",
+                    "laundry", "₹1,27,500 per semester", "3.70–3.90 lakh")
+
+        async def _current(question: str):
+            match = await svc.find_matching_exemplar(question, distance_threshold=0.20)
+            if match and any(m in (match.get("answer") or "") for m in obsolete):
+                try:
+                    collection.delete(where={"answer": match["answer"]})
+                    return None
+                except Exception as exc:  # never block start-up on this
+                    logger.warning("Could not retire an outdated exemplar: %s", exc)
+            return match
+
+        from app.sru_agent import fees as _fees
+
+        # Foundational B.Tech eligibility exemplar (minimums from the 2027-28 fee circular)
         q1 = "What is the eligibility criteria and admission process for B.Tech?"
-        match1 = await svc.find_matching_exemplar(q1, distance_threshold=0.20)
-        if match1 and "minimum of 50% aggregate marks in Mathematics" in (match1.get("answer") or ""):
-            # Retire the old exemplar that stated a single 50% cutoff as fact (the sources disagree).
-            try:
-                collection.delete(where={"answer": match1["answer"]})
-                match1 = None
-            except Exception as exc:  # never block start-up on this
-                logger.warning("Could not retire the outdated eligibility exemplar: %s", exc)
-        if not match1:
+        if not await _current(q1):
+            cse = _fees.load_data()["programs"]["btech_cse"]["min_percent"]
+            other = _fees.load_data()["programs"]["btech_mech"]["min_percent"]
             ans1 = (
-                "B.Tech needs 10+2 / Intermediate with Mathematics, Physics and Chemistry (MPC). The minimum marks "
-                "differ between official sources: the 2027-28 fee card lists fees from 50% (CSE / ECE from 55%), while "
-                "the 2026-27 programme pages list 60% in PCM, so the Admissions Office confirms scores in between.\n\n"
+                "B.Tech needs 10+2 / Intermediate with Mathematics, Physics and Chemistry (MPC). The 2027-28 fee "
+                f"circular lists a minimum of **{cse:g}%** for B.Tech CSE and ECE (and their specialisations) and "
+                f"**{other:g}%** for the other branches. Meeting the minimum isn't a guarantee of admission; documents "
+                "and seat availability decide it.\n\n"
                 "To apply: register at https://apply.sru.edu.in, complete the application and upload documents, submit "
                 "your JEE Main / EAPCET result where available, then accept the offer and pay the fee.\n\n"
                 "Which branch are you interested in, and what are your 10+2 marks? I'll check your eligibility."
             )
             await svc.register_exemplar(uuid.uuid4(), q1, ans1)
 
-        # Gold standard score & fee breakdown exemplar (878/1000 score)
+        # Gold standard score & fee breakdown exemplar (878/1000 score), every figure from the fee engine
         q2 = "I scored 878/1000 in intermediate. What is my fee and scholarship?"
-        match2 = await svc.find_matching_exemplar(q2, distance_threshold=0.20)
-        if not match2:
+        if not await _current(q2):
+            r = _fees.calculate_fee("btech_cse", percent=87.8)
             ans2 = (
-                "Nice score! 87.8% falls in the 80–91.9% band, so you'd get the **25% merit waiver**: "
-                "₹2,55,000/year tuition (₹1,27,500 per semester), subject to marksheet verification. Tuition rises ₹9,000 yearly.\n\n"
-                "**Verification:** bring original 10th and 12th marksheets, TC, ID/category proof, and photos.\n"
-                "**Hostel:** 3- or 4-sharing, AC or Non-AC, ₹1,15,000–₹1,35,000/year including 4 meals.\n"
-                "**Rough first-year total:** about ₹3.70–3.90 lakh (tuition + room & mess), plus laundry and refundable deposits.\n\n"
-                "Want me to compare AC vs Non-AC, or check extra concessions you may qualify for?"
+                f"Nice score! 87.8% falls in the 80–91.9% band, so you'd get a **{r['scholarship_percent']}% merit "
+                f"scholarship** on tuition. For B.Tech CSE that's {r['tuition_first_year_after_scholarship']} tuition a "
+                f"year, split equally between the semesters, subject to marksheet verification.\n\n"
+                f"• **Semester 1:** {r['sem1_total_payable']} (tuition + enrollment, other and Year-1 exam fees)\n"
+                f"• **Semester 2:** {r['sem2_total_payable']}\n"
+                f"• **First year:** {r['first_year_total_payable']} (application form {r['application_fee']} separately)\n\n"
+                "Hostel and bus are optional extras. Which programme are you considering? I'll work out its exact fee."
             )
             await svc.register_exemplar(uuid.uuid4(), q2, ans2)
             logger.info("Auto-seeded gold standard merit scholarship verified exemplar.")

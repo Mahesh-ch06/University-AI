@@ -27,9 +27,9 @@ def test_other_fees_card_contents_and_amounts():
     assert len(items) == 6
 
     heads_and_amounts = {item["category"]: item["amount"] for item in items}
-    assert heads_and_amounts.get("Enrolment Fee") == "₹5,000"
-    assert heads_and_amounts.get("Other Academic / University Charges") == "₹15,000"
-    assert heads_and_amounts.get("Examination Fee (First Year)") == "₹5,000"
+    assert heads_and_amounts.get("Enrollment Fee") == "₹5,000"
+    assert heads_and_amounts.get("Other Fee") == "₹15,000"
+    assert heads_and_amounts.get("Exam Fee (Year 1)") == "₹5,000"
     assert heads_and_amounts.get("Application Form Fee") == "₹1,100"
     assert heads_and_amounts.get("Specialisation Fee") == "₹30,000"
     assert heads_and_amounts.get("PhD Fee") == "₹70,000"

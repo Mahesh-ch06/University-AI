@@ -183,8 +183,9 @@ def test_wizard_eligibility_50_percent_cutoff():
         "55%",
     )
     text55, info55 = execute_wizard_step(step4_55)
-    assert info55["is_eligible"] is None
-    assert "list different minimum marks" in text55 and "fully eligible" not in text55.lower()
+    # 2027-28 circular: 55% is the B.Tech CSE minimum (inclusive); meeting it is not a guarantee of admission
+    assert info55["is_eligible"] is not False
+    assert "meets the minimum marks (**55%**" in text55 and "fully eligible" not in text55.lower()
 
     # 45% should require additional guidance (below 50% cutoff)
     step4_45 = get_wizard_step_from_history(
@@ -197,7 +198,7 @@ def test_wizard_eligibility_50_percent_cutoff():
     )
     text45, info45 = execute_wizard_step(step4_45)
     assert info45["is_eligible"] is False
-    assert "below the official **50% minimum**" in text45
+    assert "below the official **55% minimum**" in text45
 
 
 def test_wizard_cancellation():
@@ -231,7 +232,7 @@ def test_btech_cse_join_and_fee_card():
     fee_card = next(c for c in cards if c.get("type") == "fee_breakdown")
     assert "B.Tech CSE" in fee_card["title"]
     categories = [item["category"] for item in fee_card["items"]]
-    assert any("1st Semester" in cat for cat in categories)
+    assert any(cat.startswith("Semester 1") for cat in categories)
     assert any("Enrollment" in cat for cat in categories)
 
     # Check Ad card details (media_1794676975023.png reference)
@@ -269,76 +270,67 @@ def test_application_ad_on_interested_to_join_sru():
 
 
 def test_btech_cse_semester_fee_structure():
-    """Verify exact per-semester fee amounts for B.Tech CSE."""
+    """B.Tech CSE standard fee, semester by semester, from the fee engine: only tuition is split."""
     from app.services.card_service import BTECH_CSE_SEMESTER_FEE_CARD
     items = {i["category"]: i["amount"] for i in BTECH_CSE_SEMESTER_FEE_CARD["items"]}
-    assert "1st Semester Tuition Fee (B.Tech CSE)" in items
-    assert items["1st Semester Tuition Fee (B.Tech CSE)"] == "₹1,70,000"
-    assert "One-Time Enrollment Fee" in items
-    assert items["One-Time Enrollment Fee"] == "₹5,000"
+    assert items["Semester 1: Tuition"] == items["Semester 2: Tuition"] == "₹1,70,000"
+    assert items["Semester 1: Enrollment fee"] == "₹5,000"
+    assert items["Semester 1: Other fee"] == "₹15,000" and items["Semester 1: Exam fee (Year 1)"] == "₹5,000"
+    assert "Semester 2: Other fee" not in items and "Semester 2: Enrollment fee" not in items
+    assert items["Semester 1 payable"] == "₹1,95,000" and items["Semester 2 payable"] == "₹1,70,000"
+    assert items["First-year payable"] == "₹3,65,000"
 
 
 def test_btech_cse_fee_without_hostel_does_not_add_hostel():
-    """Verify that asking for B.Tech CSE fee without hostel does NOT add hostel fee."""
+    """Asking for the B.Tech CSE fee without hostel never adds a hostel fee."""
     from app.services.card_service import generate_cards
     cards = generate_cards(
         user_message="What is the fee breakdown for B.Tech CSE per semester?",
         answer="Here is the per semester fee breakdown for B.Tech CSE.",
     )
-    assert len(cards) >= 1
     fee_card = next(c for c in cards if c.get("type") == "fee_breakdown")
-    assert "B.Tech CSE" in fee_card["title"]
-    assert "Hostel" not in fee_card["title"]
-    # Verify no item has hostel in category or amount
+    assert "B.Tech CSE" in fee_card["title"] and "Hostel" not in fee_card["title"]
     assert not any("Hostel" in item["category"] for item in fee_card["items"])
-    # Verify regular academic per-sem total
     item_map = {i["category"]: i["amount"] for i in fee_card["items"]}
-    assert item_map.get("Total Per-Semester Payable (Regular)") == "₹1,80,000 / Sem"
-    assert item_map.get("Total 1st Semester Payable") == "₹1,85,000"
+    assert item_map.get("Semester 1 payable") == "₹1,95,000"
+    assert item_map.get("Semester 2 payable") == "₹1,70,000"
 
 
 def test_btech_cse_fee_with_hostel_adds_hostel_per_sem():
-    """Verify that asking for fee WITH hostel adds the hostel per-semester breakdown."""
+    """Asking for the fee WITH hostel adds the hostel (and its one-time deposit) where the policy places them."""
     from app.services.card_service import generate_cards
     cards = generate_cards(
         user_message="I want to join B.Tech CSE with hostel, what is the total fee breakdown per sem?",
         answer="Here is the total per-semester fee breakdown including tuition and hostel.",
     )
-    assert len(cards) >= 1
     fee_card = next(c for c in cards if c.get("type") == "fee_breakdown")
     assert "Hostel" in fee_card["title"]
     item_map = {i["category"]: i["amount"] for i in fee_card["items"]}
-    assert "Residential Hostel & Mess (AC 4-Sharing)" in item_map
-    assert item_map["Residential Hostel & Mess (AC 4-Sharing)"] == "₹62,500 / Sem"
-    assert item_map.get("Combined Total Per-Semester (Regular)") == "₹2,42,500 / Sem"
-    assert item_map.get("Combined Total 1st Semester Payable") == "₹2,47,500"
+    assert item_map["Semester 1: Hostel (AC, 4-sharing)"] == "₹1,25,000"
+    assert item_map["Semester 1: Electricity deposit (hostel)"] == "₹10,000"
+    assert item_map.get("Semester 1 payable") == "₹3,30,000"
+    assert item_map.get("Semester 2 payable") == "₹1,70,000"
 
 
 def test_calculate_fee_conditional_hostel():
-    """Verify calculate_fee tool conditional hostel behavior."""
+    """Hostel is optional: never added unless asked, and then placed by the policy (not split by half)."""
     from app.sru_agent.fees import calculate_fee
 
-    # 1. Without hostel (default)
     res_no_hostel = calculate_fee(program="btech_cse", hostel="none")
-    assert res_no_hostel["has_hostel"] is False
-    assert res_no_hostel["total_per_semester"] == "₹1,80,000"
-    assert res_no_hostel["sem1_total_payable"] == "₹1,85,000"
-    assert "hostel_per_sem" not in res_no_hostel["per_sem_breakdown"]
-    assert res_no_hostel["hostel"] is None
+    assert res_no_hostel["has_hostel"] is False and res_no_hostel["hostel"] is None
+    assert res_no_hostel["sem1_total_payable"] == "₹1,95,000"
+    assert res_no_hostel["sem2_total_payable"] == "₹1,70,000"
+    assert not any(i["key"] in ("hostel", "electricity_deposit") for i in res_no_hostel["semester_1"]["items"])
 
-    # 2. With AC 4-sharing hostel explicitly requested
     res_with_hostel = calculate_fee(program="btech_cse", hostel="ac_4")
-    assert res_with_hostel["has_hostel"] is True
-    assert res_with_hostel["hostel"] is not None
-    assert res_with_hostel["hostel"]["per_semester"] == "₹62,500"
-    assert res_with_hostel["total_per_semester"] == "₹2,42,500"
-    assert res_with_hostel["sem1_total_payable"] == "₹2,47,500"
-    assert res_with_hostel["per_sem_breakdown"]["hostel_per_sem"] == "₹62,500"
-
-
-
-
-
+    assert res_with_hostel["has_hostel"] is True and res_with_hostel["hostel"]["per_year"] == "₹1,25,000"
+    s1 = {i["key"]: i["amount"] for i in res_with_hostel["semester_1"]["items"]}
+    assert s1["hostel"] == "₹1,25,000" and s1["electricity_deposit"] == "₹10,000"
+    assert res_with_hostel["sem1_total_payable"] == "₹3,30,000"
+    assert res_with_hostel["sem2_total_payable"] == "₹1,70,000"
+    # the one-time deposit is not repeated in later years
+    assert not any(i["key"] == "electricity_deposit" for y in res_with_hostel["schedule"][1:]
+                   for s in y["semesters"] for i in s["items"])
 
 
 @pytest.fixture(autouse=True)

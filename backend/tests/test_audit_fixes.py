@@ -106,7 +106,7 @@ def test_fee_flow_combined_hostel_and_tuition():
     res = fee_flow.process_fee_flow("Add hostel to my B.Tech CSE fee", "sess_1", profile, state)
     assert res is not None
     assert "combined fee breakdown" in res["text"].lower()
-    assert "₹2,42,500 / semester" in res["text"]
+    assert "Semester 1 payable: ₹3,30,000" in res["text"] and "₹1,70,000" in res["text"]
     assert len(res["cards"]) == 1
     assert res["cards"][0]["type"] == "fee_breakdown"
     

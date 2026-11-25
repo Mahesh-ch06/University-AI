@@ -208,7 +208,7 @@ GET  /api/v1/agent/fee-config    # everything the Fee & Scholarship Calculator d
 | Field | Values |
 |---|---|
 | `mode` | `eligibility` \| `scholarship` |
-| `program` | programme key from `fees_2027_28.json` (e.g. `btech_cse`) |
+| `program` | programme key from `fee_policy_2027_28.json` (e.g. `btech_cse`) |
 | `board_key` | `ts_state_board` \| `ap_state_board` \| `cbse` \| `icse` \| `other_state_board` \| `ib` |
 | `academic_stage` | `1st_year` \| `2nd_year` \| `completed` |
 | `raw_marks`, `max_marks` | numbers (IB: points out of 45) |

@@ -99,14 +99,14 @@ def test_pay_question_from_a_new_student_starts_the_evaluation_not_the_final_car
 # ------------------------------------------------------------------ concessions, programmes, typos
 def test_a_group_with_several_categories_lists_them_all():
     labels = [c["label"] for c in fee_plan.concessions_for_group("is there any concession for girls?")]
-    assert labels == ["Only girl child from Telangana", "Girl students from states other than Telangana"]
+    assert labels == ["Only girl child from Telangana", "Girl Child from Outside Telangana"]
     assert len(fee_plan.concessions_for_group("sports quota available?")) == 2
     assert fee_plan.concessions_for_group("any fee concession for single parent?") == []
 
 
-def test_programme_overview_comes_from_the_fee_card():
+def test_programme_overview_comes_from_the_fee_policy():
     text = dialogue.program_overview("btech_cse")
-    assert "₹3,40,000 a year" in text and "4 years" in text and "50%" in text
+    assert "₹3,40,000 a year" in text and "4 years" in text and "55%" in text
     assert "qualifying-degree percentage" in dialogue.program_overview("mba")
 
 

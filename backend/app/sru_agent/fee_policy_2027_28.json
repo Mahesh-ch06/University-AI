@@ -1,138 +1,10 @@
 {
-  "_README": "Single source of truth for fees. Tuition, scholarship slabs, fee components and special concessions are copied from the official fee card PDF (SRU_FEE_CARD_ADMISSIONS_2027_28.pdf). Hostel room fees are NOT on that fee card; they come from the admissions handbook (backend/data/handbook/08_...). After editing, run `python scripts/export_fee_config.py` and the tests.",
+  "_README": "THE single fee policy for SR University 2027-28. Every figure is copied from the official fee circular 'SRU_Fee_Structure_and_Scholarship_Policy.pdf' (SR University Fee Circulation: Official Fee Structure & Merit Scholarship Matrix). The ONE calculator (app/sru_agent/fees.py) reads this file; the chatbot, the admission flow and the frontend calculator all go through it. Settings in 'schedule' are configurable assumptions where the circular is silent. After editing run `python scripts/export_fee_config.py` and the tests.",
+  "policy_id": "sru-fee-circular-2027-28",
   "academic_year": "2027-28",
-  "source": "SR University Official Fee Structure & Merit Scholarship fee card, Academic Year 2027-28",
+  "source": "SR University Fee Circulation: Official Fee Structure & Merit Scholarship Matrix, Academic Year 2027-28",
+  "source_document": "SRU_Fee_Structure_and_Scholarship_Policy.pdf",
   "verified": true,
-  "needs_confirmation": [
-    "ELIGIBILITY: the 2027-28 fee card lists standard fees from 50% (55% for CSE/ECE), and the agent uses that. The older programme pages on sru.edu.in (2026-27) say 60% in 10+2 PCM plus JEE Main / state entrance for B.Tech, 55% for B.Sc, B.Des, M.Sc and MBA, 50% for BBA and B.Com, 60% for BCA and MCA. Please confirm the 2027-28 minimums and get the website updated.",
-    "CSE and ECE: the fee card's standard-fee band starts at 55% (other programs at 50%). Confirm whether 50-54.9% is admissible for CSE/ECE.",
-    "JEE Main: the fee card says 90-94.5 percentile for 30% and 95+ for 40%. This file treats 90-94.99 as 30%.",
-    "IB: the fee card itself notes that 30-37 (30%) overlaps 30-33 (25%), and 35/45+ is listed for 40%. This file applies the lower figure (30-33 = 25%, 34-37 = 30%, 38+ = 40%) and tells IB students with 30-37 to confirm.",
-    "Examination fee is printed as 'Examination Fee (First Year)' Rs 5,000. This file charges it every year; confirm the amount for later years.",
-    "Specialisation fee Rs 30,000 from the second year: the fee card does not say which programs it applies to.",
-    "Hostel room fees, caution deposit and laundry are not on the fee card; they come from the admissions handbook.",
-    "No admission fee appears on the fee card (only Rs 5,000 enrolment and Rs 1,100 application form fee)."
-  ],
-  "one_time": {
-    "enrollment_fee": 5000,
-    "application_fee": 1100
-  },
-  "yearly_other": {
-    "other_fee": 15000,
-    "exam_fee": 5000
-  },
-  "transport_per_year": 30000,
-  "phd_fee_per_year": 70000,
-  "hostel_per_year": {
-    "non_ac_4": 115000,
-    "non_ac_3": 125000,
-    "ac_4": 125000,
-    "ac_3": 135000
-  },
-  "hostel_deposits": {
-    "caution_deposit": 5000,
-    "laundry_per_year": 5000,
-    "electricity_deposit_non_ac": 5000,
-    "electricity_deposit_ac": 10000
-  },
-  "special_concessions": [
-    {
-      "key": "orphan",
-      "label": "Students who have lost both parents",
-      "amount": 50000
-    },
-    {
-      "key": "sports_international",
-      "label": "International-level sports achievers",
-      "amount": 50000
-    },
-    {
-      "key": "staff_child",
-      "label": "Children of regular SR University employees",
-      "amount": 50000
-    },
-    {
-      "key": "disability",
-      "label": "Students with 50% or above disability",
-      "amount": 20000
-    },
-    {
-      "key": "defence",
-      "label": "Children of Defence personnel, CRPF personnel and martyrs",
-      "amount": 15000
-    },
-    {
-      "key": "state_police",
-      "label": "Children of State Police personnel",
-      "amount": 15000
-    },
-    {
-      "key": "sr_junior_college",
-      "label": "Students of SR Junior College",
-      "amount": 15000
-    },
-    {
-      "key": "alumni",
-      "label": "SRU alumni, their children and siblings",
-      "amount": 15000
-    },
-    {
-      "key": "ncc_c",
-      "label": "NCC 'C' certificate holders",
-      "amount": 15000
-    },
-    {
-      "key": "non_local",
-      "label": "Students from states other than Telangana and Andhra Pradesh",
-      "amount": 15000
-    },
-    {
-      "key": "sports_national",
-      "label": "National-level sports achievers",
-      "amount": 15000
-    },
-    {
-      "key": "single_parent",
-      "label": "Students with a single living parent / divorced parents",
-      "amount": 15000
-    },
-    {
-      "key": "lateral_entry",
-      "label": "Lateral entry students",
-      "amount": 15000
-    },
-    {
-      "key": "padma_gallantry",
-      "label": "Children of Padma awardees, J&K migrant families and Gallantry award recipients",
-      "amount": 15000
-    },
-    {
-      "key": "only_girl_child_telangana",
-      "label": "Only girl child from Telangana",
-      "amount": 15000
-    },
-    {
-      "key": "sibling",
-      "label": "Sibling (brother or sister) currently enrolled at SR University (2027-28)",
-      "amount": 15000
-    },
-    {
-      "key": "international",
-      "label": "International students",
-      "amount": 15000
-    },
-    {
-      "key": "andhra_pradesh",
-      "label": "Students from Andhra Pradesh",
-      "amount": 15000
-    },
-    {
-      "key": "girl_child_outside_telangana",
-      "label": "Girl students from states other than Telangana",
-      "amount": 15000
-    }
-  ],
-  "special_concession_note": "Annual, for all courses, subject to verification and approval of supporting documents. The fee card lists exactly these 19 categories. State-level sports is NOT listed (only National and International level).",
   "programs": {
     "btech_cse": {
       "name": "B.Tech CSE (AIML, Data Science, Cyber Security, Robotics and Automation, Quantum AI)",
@@ -160,17 +32,9 @@
       "duration_years": 4,
       "tuition_per_year": 340000,
       "yearly_increase": 9000,
-      "min_percent": 50,
+      "min_percent": 55,
       "eligibility_note": "10+2 / Intermediate with Maths, Physics, Chemistry (MPC)",
-      "slab_set": "ug",
-      "specialization_fee_per_year_from_year2": 30000,
-      "fee_band_min_percent": 55,
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 / Intermediate with Physics, Chemistry and Mathematics (PCM)",
-        "entrance": "JEE Main or a state-level engineering entrance exam (including EAPCET), or merit in sports / cultural activities",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "btech_ai_robotics": {
       "name": "B.Tech in AI and Robotics",
@@ -187,13 +51,7 @@
       "yearly_increase": 12000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate with Maths, Physics, Chemistry (MPC)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 / Intermediate with Physics, Chemistry and Mathematics (PCM)",
-        "entrance": "JEE Main or a state-level engineering entrance exam (including EAPCET), or merit in sports / cultural activities",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "btech_ece": {
       "name": "B.Tech ECE (AIML, VLSI, Robotics and Automation)",
@@ -208,16 +66,9 @@
       "duration_years": 4,
       "tuition_per_year": 270000,
       "yearly_increase": 8000,
-      "min_percent": 50,
+      "min_percent": 55,
       "eligibility_note": "10+2 / Intermediate with Maths, Physics, Chemistry (MPC)",
-      "slab_set": "ug",
-      "fee_band_min_percent": 55,
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 / Intermediate with Physics, Chemistry and Mathematics (PCM)",
-        "entrance": "JEE Main or a state-level engineering entrance exam (including EAPCET), or merit in sports / cultural activities",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "btech_eee": {
       "name": "B.Tech Electrical and Electronics Engineering (Electrical Vehicles, Renewable Energy)",
@@ -233,13 +84,7 @@
       "yearly_increase": 6000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate with Maths, Physics, Chemistry (MPC)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 / Intermediate with Physics, Chemistry and Mathematics (PCM)",
-        "entrance": "JEE Main or a state-level engineering entrance exam (including EAPCET), or merit in sports / cultural activities",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "btech_mech": {
       "name": "B.Tech Mechanical Engineering (Robotics and Automation, Smart Manufacturing)",
@@ -255,13 +100,7 @@
       "yearly_increase": 6000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate with Maths, Physics, Chemistry (MPC)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 / Intermediate with Physics, Chemistry and Mathematics (PCM)",
-        "entrance": "JEE Main or a state-level engineering entrance exam (including EAPCET), or merit in sports / cultural activities",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "btech_civil": {
       "name": "B.Tech Civil Engineering",
@@ -276,13 +115,7 @@
       "yearly_increase": 6000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate with Maths, Physics, Chemistry (MPC)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 / Intermediate with Physics, Chemistry and Mathematics (PCM)",
-        "entrance": "JEE Main or a state-level engineering entrance exam (including EAPCET), or merit in sports / cultural activities",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "btech_biotech": {
       "name": "B.Tech Biotechnology with AI",
@@ -298,12 +131,7 @@
       "yearly_increase": 6000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate with PCM or PCB",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "10+2 with PCM or PCB (a 2-year agriculture / seed technology diploma with first class is also accepted)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "btech_food_tech": {
       "name": "B.Tech Food Technology",
@@ -318,16 +146,10 @@
       "yearly_increase": 6000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate (required subjects are confirmed by the Admissions Office)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 / Intermediate with Physics, Chemistry and Mathematics (PCM)",
-        "entrance": "JEE Main or a state-level engineering entrance exam (including EAPCET), or merit in sports / cultural activities",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "btech_engg_physics": {
-      "name": "B.Tech Engineering Physics with AI, Robotics & Space / B.Tech Applied Chemistry in AI, NanoRobotics & Drug Discovery",
+      "name": "B.Tech Engineering Physics with AI, Robotics & Space / B.Tech Applied Chemistry with AI, Robotics & Drug Discovery",
       "aliases": [
         "engineering physics",
         "applied chemistry",
@@ -340,12 +162,7 @@
       "yearly_increase": 6000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate with PCM (PCM or PCB for Applied Chemistry)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "10+2 with PCM or PCB (website entry for B.Tech Applied Chemistry in AI, NanoRobotics and Drug Discovery)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "btech_iep": {
       "name": "B.Tech International Engineering Programme (IEP)",
@@ -361,13 +178,7 @@
       "yearly_increase": 10000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate with Maths, Physics, Chemistry (MPC)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 / Intermediate with Physics, Chemistry and Mathematics (PCM)",
-        "entrance": "JEE Main or a state-level engineering entrance exam (including EAPCET), or merit in sports / cultural activities",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bsc_agri": {
       "name": "B.Sc Agriculture (ICAR-accredited)",
@@ -384,12 +195,7 @@
       "yearly_increase": 6000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate with PCB (BiPC); a 2-year agriculture or seed technology diploma with first class is also accepted",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "10+2 with PCB (a 2-year agriculture / seed technology diploma with first class is also accepted)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bdes": {
       "name": "B.Des (Design)",
@@ -405,12 +211,7 @@
       "yearly_increase": 6000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "10+2 (stream not stated on the website)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bba": {
       "name": "BBA",
@@ -425,12 +226,7 @@
       "yearly_increase": 4000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 50,
-        "requirement": "10+2 (stream not stated on the website)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bsc_hospitality": {
       "name": "B.Sc in Hospitality and Event Management",
@@ -467,12 +263,7 @@
       "yearly_increase": 6000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 50,
-        "requirement": "10+2 (stream not stated on the website)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bca": {
       "name": "BCA (Hons.)",
@@ -487,12 +278,7 @@
       "yearly_increase": 4000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate (required subjects are confirmed by the Admissions Office)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 in the prescribed subjects (the website does not name them)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bsc_cs": {
       "name": "B.Sc. Computer Science (Hons.)",
@@ -507,12 +293,7 @@
       "yearly_increase": 4000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate (required subjects are confirmed by the Admissions Office)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 in the prescribed subjects (the website does not name them)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bsc_maths_ai": {
       "name": "B.Sc. (Hons.) in Mathematics and AI",
@@ -529,12 +310,7 @@
       "yearly_increase": 3000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate (required subjects are confirmed by the Admissions Office)",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "10+2 in the prescribed subjects (the website does not name them)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bcom": {
       "name": "B.Com.",
@@ -549,12 +325,7 @@
       "yearly_increase": 3000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 50,
-        "requirement": "10+2 (stream not stated on the website)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bsc_physics": {
       "name": "B.Sc Physics",
@@ -567,12 +338,7 @@
       "yearly_increase": 3000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "10+2 (subjects not stated on the website)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "bsc_chemistry": {
       "name": "B.Sc Chemistry",
@@ -585,12 +351,7 @@
       "yearly_increase": 3000,
       "min_percent": 50,
       "eligibility_note": "10+2 / Intermediate with PCM or PCB",
-      "slab_set": "ug",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "10+2 with PCM or PCB",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "slab_set": "ug"
     },
     "mba": {
       "name": "MBA (Finance, Operations, HR, Business Analytics, Marketing)",
@@ -605,11 +366,7 @@
       "min_percent": 50,
       "eligibility_note": "A recognised Bachelor's degree",
       "slab_set": "pg",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "Bachelor's degree (55% in the qualifying examination)",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "min_percent_confirmed": false
     },
     "mba_agri": {
       "name": "MBA in Agri Business Management",
@@ -626,11 +383,7 @@
       "min_percent": 50,
       "eligibility_note": "B.Sc. / B.Tech. in the corresponding discipline",
       "slab_set": "pg",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "B.Sc. / B.Tech. in the corresponding discipline, 55% aggregate",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "min_percent_confirmed": false
     },
     "mca": {
       "name": "MCA",
@@ -645,11 +398,7 @@
       "min_percent": 50,
       "eligibility_note": "A recognised Bachelor's degree (required subjects are confirmed by the Admissions Office)",
       "slab_set": "pg",
-      "website_crosscheck": {
-        "min_percent": 60,
-        "requirement": "The website entry is unclear for MCA; confirm with the Admissions Office",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "min_percent_confirmed": false
     },
     "mtech": {
       "name": "M.Tech (CSE, Data Science, AIML, Electronic Design Technology, VLSI, Embedded Systems, Advanced Manufacturing Systems, Thermal Engineering, Construction Technology & Management, Power Electronics)",
@@ -665,12 +414,7 @@
       "min_percent": 50,
       "eligibility_note": "B.Tech. / B.E. in the corresponding discipline (M.Sc. / MCA holders are also considered)",
       "slab_set": "pg",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "B.Tech. in the corresponding discipline with 55% aggregate (M.Sc. / MCA holders also eligible)",
-        "entrance": "Merit rank in SRSAT / PGCET / GATE",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "min_percent_confirmed": false
     },
     "msc": {
       "name": "M.Sc (Computer Science, Agronomy, Genetics & Plant Breeding, Agriculture Extension Education, Agriculture Economics, Plant Pathology, Horticulture, Soil Science)",
@@ -686,11 +430,7 @@
       "min_percent": 50,
       "eligibility_note": "B.Sc. / B.Tech. in the corresponding discipline",
       "slab_set": "pg",
-      "website_crosscheck": {
-        "min_percent": 55,
-        "requirement": "B.Sc. / B.Tech. with 55% aggregate in the corresponding discipline",
-        "source": "sru.edu.in programme pages (read 17 Nov 2026; pages are for 2026-27)"
-      }
+      "min_percent_confirmed": false
     }
   },
   "slab_sets": {
@@ -782,7 +522,7 @@
         },
         {
           "min": 90,
-          "max": 94.99,
+          "max": 94.5,
           "percent": 30
         },
         {
@@ -870,12 +610,211 @@
       "ib": []
     }
   },
-  "yearly_other_labels": {
-    "other_fee": "Other Academic / University Charges",
-    "exam_fee": "Examination Fee (First Year)"
+  "charges": {
+    "enrollment_fee": {
+      "label": "Enrollment fee",
+      "amount": 5000,
+      "kind": "one_time",
+      "year": 1,
+      "semester": 1
+    },
+    "other_fee": {
+      "label": "Other fee",
+      "amount": 15000,
+      "kind": "yearly",
+      "semester": 1
+    },
+    "exam_fee": {
+      "label": "Exam fee (Year 1)",
+      "amount": 5000,
+      "kind": "one_time",
+      "year": 1,
+      "semester": 1
+    },
+    "application_fee": {
+      "label": "Application form fee",
+      "amount": 1100,
+      "kind": "at_application"
+    },
+    "specialization_fee": {
+      "label": "Specialisation fee",
+      "amount": 30000,
+      "kind": "yearly",
+      "from_year": 2,
+      "semester": 1,
+      "optional": true
+    },
+    "bus": {
+      "label": "Bus (university transport)",
+      "amount": 30000,
+      "kind": "yearly",
+      "semester": 1,
+      "optional": true
+    },
+    "electricity_deposit": {
+      "label": "Electricity deposit (hostel)",
+      "non_ac": 5000,
+      "ac": 10000,
+      "kind": "one_time",
+      "year": 1,
+      "semester": 1,
+      "optional": true
+    },
+    "phd_fee": {
+      "label": "Ph.D. fee",
+      "amount": 70000,
+      "kind": "yearly"
+    }
   },
-  "transport_note": "Transportation fee varies depending on distance; Rs 30,000 is the amount printed on the fee card.",
-  "hostel_source": "Admissions handbook (hostel room fees are not printed on the 2027-28 fee card).",
+  "schedule": {
+    "_note": "Configurable assumptions for what the circular does not state. Change them here only after the Admissions / Accounts office confirms; the calculator and every flow follow automatically.",
+    "semesters_per_year": 2,
+    "scholarship_continues_every_year": true,
+    "increment_rule": "flat_after_scholarship",
+    "other_fee_every_year": true,
+    "specialization_fee_programs": [
+      "btech_cse"
+    ],
+    "bus_semester": 1,
+    "hostel_semester": 1,
+    "concession_semester": 1
+  },
+  "hostel": {
+    "status": "pending_confirmation",
+    "source": "Admissions handbook. Hostel room fees are NOT on the 2027-28 fee circular; the Admissions Office confirms them.",
+    "per_year": {
+      "non_ac_4": 115000,
+      "non_ac_3": 125000,
+      "ac_4": 125000,
+      "ac_3": 135000
+    },
+    "includes": "room with meals"
+  },
+  "special_concessions": [
+    {
+      "key": "sibling",
+      "label": "Real brother or sister on rolls in SRU in 2027–28",
+      "amount": 15000
+    },
+    {
+      "key": "only_girl_child_telangana",
+      "label": "Only girl child from Telangana",
+      "amount": 15000
+    },
+    {
+      "key": "girl_child_outside_telangana",
+      "label": "Girl Child from Outside Telangana",
+      "amount": 15000
+    },
+    {
+      "key": "single_parent",
+      "label": "Only one parent alive or divorced",
+      "amount": 15000
+    },
+    {
+      "key": "defence",
+      "label": "Defence / CRPF / martyr family",
+      "amount": 15000
+    },
+    {
+      "key": "state_police",
+      "label": "Child of State Police of any state",
+      "amount": 15000
+    },
+    {
+      "key": "sr_junior_college",
+      "label": "SR Junior College student",
+      "amount": 15000
+    },
+    {
+      "key": "alumni",
+      "label": "SRU old student or child of old student or Sibling of Old Student",
+      "amount": 15000
+    },
+    {
+      "key": "ncc_c",
+      "label": "NCC C certificate",
+      "amount": 15000
+    },
+    {
+      "key": "non_local",
+      "label": "Student from outside TG and AP",
+      "amount": 15000
+    },
+    {
+      "key": "sports_national",
+      "label": "Sports — National",
+      "amount": 15000
+    },
+    {
+      "key": "chancellor_recommendation",
+      "label": "Chancellor/Pro Chancellor Recommendation",
+      "amount": 10000,
+      "selectable": false,
+      "note": "Granted only on a Chancellor / Pro Chancellor recommendation; a student cannot claim it in the calculator."
+    },
+    {
+      "key": "lateral_entry",
+      "label": "Lateral Entry Students",
+      "amount": 15000
+    },
+    {
+      "key": "padma_gallantry",
+      "label": "Children of Padma Awards/ J&K Migrants/ Gallantry Awards",
+      "amount": 15000
+    },
+    {
+      "key": "sports_international",
+      "label": "Sports — International",
+      "amount": 50000
+    },
+    {
+      "key": "orphan",
+      "label": "Both parents not alive",
+      "amount": 50000
+    },
+    {
+      "key": "international",
+      "label": "International Students",
+      "amount": 15000
+    },
+    {
+      "key": "andhra_pradesh",
+      "label": "Students from Andhra Pradesh",
+      "amount": 15000
+    },
+    {
+      "key": "staff_child",
+      "label": "Children of Regular SRU Staff",
+      "amount": 50000
+    },
+    {
+      "key": "disability",
+      "label": "More than 50% Disability",
+      "amount": 20000
+    }
+  ],
+  "special_concession_note": "Annual, for all courses, subject to verification of credentials. The circular lists exactly these 20 categories. State-level sports is not listed (only National and International).",
+  "terms": [
+    "Yearly increase in tuition fee applies annually irrespective of scholarship status.",
+    "Special category concessions apply per academic year subject to verification of credentials."
+  ],
+  "needs_confirmation": [
+    "Hostel room fees are not on the fee circular (they come from the admissions handbook); confirm the 2027-28 hostel fees.",
+    "Other fee (₹15,000): the circular lists it among annual components; the calculator charges it in Semester 1 of every year (schedule.other_fee_every_year).",
+    "Specialisation fee (₹30,000 a year from Year 2): the circular does not name the programmes; the calculator applies it only to B.Tech CSE when a specialisation is chosen (schedule.specialization_fee_programs).",
+    "Bus, hostel and special concessions: the circular gives annual amounts but no payment schedule; the calculator places them in Semester 1 of each year (schedule.*_semester).",
+    "Scholarship continuation in later years is assumed (schedule.scholarship_continues_every_year); the circular does not state renewal conditions.",
+    "JEE Main: 30% is printed as 90–94.5 percentile and 40% as 95+; a percentile between 94.5 and 95 is not covered and is flagged for verification.",
+    "IB: the circular's IB ranges overlap (30–33 under 25%, 30–37 under 30%, 35/45+ under 40%); the lower figure is applied and the Admissions Office confirms IB scores 30 to 37.",
+    "Minimum marks: 55% for B.Tech CSE and ECE (and their specialisations), 50% for other UG programmes. B.Tech AI & Robotics and B.Tech IEP are listed separately from CSE/ECE, so 50% is applied; confirm.",
+    "PG minimum (50% in the qualifying degree) is subject to confirmation.",
+    "Chancellor / Pro Chancellor Recommendation concession (₹10,000) is granted on recommendation only and is not offered in the calculator."
+  ],
+  "ib_overlap_note": "The fee circular's IB ranges overlap (30-33 under 25%, 30-37 under 30%, 35/45+ under 40%). The lower figure is applied here; the Admissions Office confirms the exact slab for IB scores 30 to 37.",
+  "jee_gap_note": "The circular lists 90–94.5 percentile for 30% and 95+ for 40%; a JEE percentile between 94.5 and 95 is not covered, so no scholarship is applied for it and the Admissions Office confirms.",
+  "transport_note": "Bus fee ₹30,000 a year as printed on the fee circular; it is optional and added only when you choose the university bus.",
+  "rankings_source": "Rankings and accreditations are not part of the fee circular; they are the university's published distinctions.",
   "rankings": [
     {
       "body": "NIRF 2025",
@@ -893,13 +832,5 @@
       "body": "ICAR",
       "claim": "First private university in Telangana and Andhra Pradesh to achieve ICAR accreditation"
     }
-  ],
-  "terms": [
-    "Tuition fees are subject to an annual increase, irrespective of the scholarship awarded.",
-    "Special category concessions are applicable annually, subject to verification and approval of supporting documents.",
-    "Lateral entry students are eligible for the same applicable tuition fee structure and concessions as regular students, subject to university norms.",
-    "All fees, scholarships and concessions are subject to university policies and approval. The University reserves the right to revise the fee structure as per applicable regulations."
-  ],
-  "ib_overlap_note": "The fee card's IB ranges overlap (30-33 under 25%, 30-37 under 30%, 35/45+ under 40%). The lower figure is applied here; the Admissions Office confirms the exact slab for IB scores 30 to 37.",
-  "website_crosscheck_note": "'website_crosscheck' records what the programme pages on sru.edu.in said on 17 Nov 2026 (those pages are for 2026-27 and older than the 2027-28 fee card). It is NOT shown to students; the fee card is the authority. It is kept so the differences can be settled with the Admissions Office."
+  ]
 }

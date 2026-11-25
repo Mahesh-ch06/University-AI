@@ -4,17 +4,14 @@ Every flow (fee intake, scholarship counselling, the admission journey, the AI's
 calculate_fee tools, the old chat endpoint) calls this module, so the answer can never differ between
 flows. No threshold is written anywhere else.
 
-Source of truth: ``fees_2027_28.json`` (built from the official 2027-28 fee card):
-  * ``min_percent``                      - minimum on the 2027-28 fee card (current, authoritative);
-  * ``fee_band_min_percent``             - where the fee card's fee band starts (CSE / ECE: 55%);
-  * ``website_crosscheck.min_percent``   - the programme page on sru.edu.in (2026-27 pages, older).
+Source of truth: ``fee_policy_2027_28.json`` (built from the official 2027-28 fee circular). Each programme has
+ONE ``min_percent``: 55% in Intermediate for B.Tech CSE and ECE (and their specialisations), 50% for every other
+UG programme, and 50% in the qualifying degree for PG (``min_percent_confirmed: false``: subject to confirmation).
 
-These sources do not always agree (for B.Tech the fee card says 50%, the programme page 60% in PCM).
-SRU Buddy never picks one of them:
-  * below the LOWEST documented minimum      -> ``below_minimum``      (does not meet any source);
-  * at / above the HIGHEST documented minimum -> ``meets_minimum``      (meets every source);
-  * in between                                -> ``needs_confirmation`` (sources disagree; the
-    Admissions Office confirms). The disputed value is never presented as confirmed.
+  * below the minimum           -> ``below_minimum``  (flagged; no fee is presented as payable, the Admissions
+                                   Office verifies);
+  * at / above the minimum      -> ``meets_minimum``  (meets the fee-card minimum; this is NOT a guarantee of
+                                   admission, which depends on documents and seats).
 
 Admission eligibility is separate from scholarship eligibility (scholarship slabs live in fees.py).
 Minimums are inclusive: 50% meets a 50% minimum, 49.99% does not. Percentages are compared unrounded.
@@ -89,19 +86,12 @@ def stream_requirement(program_key: str) -> dict:
 
 
 def thresholds(program_key: str) -> dict:
-    """Every documented minimum for the programme, lowest and highest, and whether they disagree."""
+    """The programme's minimum marks from the fee policy (one source, so floor == ceiling)."""
     prog = fees.load_data()["programs"][program_key]
-    sources = [{"source": f"the {config.ADMISSION_YEAR} fee card", "percent": float(prog["min_percent"])}]
-    if prog.get("fee_band_min_percent"):
-        sources.append({"source": f"the {config.ADMISSION_YEAR} fee card's fee band for this programme",
-                        "percent": float(prog["fee_band_min_percent"])})
-    site = prog.get("website_crosscheck") or {}
-    if site.get("min_percent") is not None:
-        sources.append({"source": "the university's programme page (2026-27)", "percent": float(site["min_percent"]),
-                        "requirement": site.get("requirement"), "entrance": site.get("entrance")})
-    values = [s["percent"] for s in sources]
-    return {"floor": min(values), "ceiling": max(values), "sources": sources, "conflict": min(values) != max(values),
-            "entrance_note": site.get("entrance")}
+    pct = float(prog["min_percent"])
+    sources = [{"source": f"the {config.ADMISSION_YEAR} fee circular", "percent": pct}]
+    return {"floor": pct, "ceiling": pct, "sources": sources, "conflict": False, "entrance_note": None,
+            "confirmed": prog.get("min_percent_confirmed", True)}
 
 
 def lowest_minimum_any_program(level: str = "ug") -> float:
@@ -135,6 +125,7 @@ def assess(program_key: str | None, percent=None, stream: str | None = None) -> 
         "status": status, "program_key": program_key, "program": name, "level": level, "percent": pct,
         "percent_text": show_percent(pct), "floor": t["floor"], "ceiling": t["ceiling"], "sources": t["sources"],
         "conflict": t["conflict"], "entrance_note": t["entrance_note"] if level == "ug" else None,
+        "minimum_confirmed": t["confirmed"],
         "stream_requirement": req, "stream": stream, "stream_ok": stream_ok,
         # Asked only when the marks do not already rule the student out.
         "needs_stream": bool(req.get("any_of")) and stream is None and status != BELOW,
@@ -174,8 +165,10 @@ def explain(result: dict, score_text: str | None = None) -> str:
     else:
         subjects = (f", and you studied the required subjects ({', '.join(req['any_of'])})"
                     if req.get("any_of") and result.get("stream_ok") else "")
-        lines.append(f"{given} This meets the minimum marks in {qualifying} listed for **{name}** in every "
-                     f"official source (highest listed: {show_percent(result['ceiling'])}){subjects}.")
+        lines.append(f"{given} This meets the minimum marks (**{show_percent(result['ceiling'])}** in {qualifying}) "
+                     f"listed for **{name}** in the {config.ADMISSION_YEAR} fee circular{subjects}.")
+        if result.get("minimum_confirmed") is False:
+            lines.append("The postgraduate minimum is subject to confirmation by the Admissions Office.")
     if req.get("any_of") and not result.get("stream_ok"):
         lines.append(f"{name} also requires {req['label']}.")
     elif req.get("unstated"):
@@ -200,7 +193,7 @@ def stream_chips(result: dict) -> list[str]:
 
 
 _OVERVIEW_ROWS = [
-    ("B.Tech CSE / ECE", "btech_cse"),
+    ("B.Tech CSE / ECE (all specialisations)", "btech_cse"),
     ("Other B.Tech branches", "btech_mech"),
     ("B.Sc (Hons.) Agriculture", "bsc_agri"),
     ("BBA", "bba"),
@@ -215,10 +208,7 @@ _OVERVIEW_ROWS = [
 
 def _minimum_cell(program_key: str) -> str:
     t = thresholds(program_key)
-    if not t["conflict"]:
-        return show_percent(t["floor"])
-    parts = [f"{show_percent(s['percent'])} ({s['source'].replace('the ', '', 1)})" for s in t["sources"]]
-    return "; ".join(parts)
+    return show_percent(t["floor"]) + ("" if t["confirmed"] else " (subject to confirmation)")
 
 
 def rule_text(program_key: str) -> str:
@@ -234,7 +224,7 @@ def rule_text(program_key: str) -> str:
         lines.append(f"- Minimum marks: the official sources differ ({parts}); the Admissions Office confirms the "
                      f"{config.ADMISSION_YEAR} figure ({config.ADMISSIONS_PHONE}).")
     else:
-        lines.append(f"- Minimum marks: {show_percent(t['floor'])}")
+        lines.append(f"- Minimum marks: {_minimum_cell(program_key)}")
     if t.get("entrance_note"):
         lines.append(f"- Entrance: {t['entrance_note']}")
     lines += ["", "Final admission depends on document verification and seat availability.",
@@ -246,8 +236,7 @@ def overview_text() -> str:
     """Eligibility for the main programmes, built from the data file (never hand-written thresholds)."""
     data = fees.load_data()["programs"]
     lines = [f"### Admission eligibility at SR University ({config.ADMISSION_YEAR})", "",
-             "Minimum marks differ by programme. Where the official sources list different minimums, both are "
-             "shown and the Admissions Office confirms the 2027-28 figure.", "",
+             "Minimum marks from the 2027-28 fee circular. Meeting the minimum is not a guarantee of admission.", "",
              "| Programme | Qualification | Minimum marks |", "|---|---|---|"]
     for label, key in _OVERVIEW_ROWS:
         if key in data:

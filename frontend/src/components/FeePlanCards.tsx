@@ -151,12 +151,16 @@ export function GroupedConcessionsCard({ card, onSelect }: { card: any; onSelect
 
 export function ConcessionsTableCard({ card, onSelect }: { card: any; onSelect?: Select }) {
   const data = card.data || card;
+  // Categories granted only on a recommendation (not claimable by a student) are listed under the table.
   const rows: { category: string; per_year: string }[] = useMemo(
     () =>
-      [...(data.all_categories || [])].sort(
-        (a: any, b: any) => amountValue(b.per_year) - amountValue(a.per_year)
-      ),
+      [...(data.all_categories || [])]
+        .filter((r: any) => r.selectable !== false)
+        .sort((a: any, b: any) => amountValue(b.per_year) - amountValue(a.per_year)),
     [data.all_categories]
+  );
+  const byRecommendation: { category: string; per_year: string }[] = (data.all_categories || []).filter(
+    (r: any) => r.selectable === false
   );
   const [picked, setPicked] = useState<string | null>(null);
   const [applied, setApplied] = useState(false);
@@ -220,6 +224,12 @@ export function ConcessionsTableCard({ card, onSelect }: { card: any; onSelect?:
           </tbody>
         </table>
       </div>
+      {byRecommendation.length > 0 && (
+        <p className="fp-hint fp-hint-muted">
+          Also on the circular, by recommendation only:{" "}
+          {byRecommendation.map((r) => `${r.category} (${r.per_year})`).join("; ")}.
+        </p>
+      )}
       <div className="agent-card-footer fp-footer">
         <button
           type="button"

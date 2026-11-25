@@ -85,7 +85,8 @@ def test_settings_defaults_and_validation():
 
 def test_every_concession_is_in_exactly_one_group():
     placed = [k for g in fee_plan.CONCESSION_GROUPS for k in g["items"]]
-    keys = [c["key"] for c in fees.load_data()["special_concessions"]]
+    # every category a student can claim (the Chancellor recommendation is granted, never picked)
+    keys = [c["key"] for c in fees.load_data()["special_concessions"] if c.get("selectable", True)]
     assert sorted(placed) == sorted(keys) and len(placed) == len(set(placed)) == 19
     other = next(g for g in fee_plan.CONCESSION_GROUPS if g["key"] == "other")
     assert other.get("private") and {"orphan", "single_parent", "disability"} <= set(other["items"])
@@ -104,7 +105,7 @@ async def test_table_mode_card_and_chips():
     app_settings.set_for_tests(concession_picker="table")
     done = (await _chat(STEPS))[-1]
     card = _card(done, "get_special_concessions")
-    assert card["mode"] == "table" and "groups" not in card and len(card["all_categories"]) == 19
+    assert card["mode"] == "table" and "groups" not in card and len(card["all_categories"]) == 20
     assert done["suggestions"] == [fee_journey.NONE_APPLY, fee_journey.SHOW_FEE]
 
 
@@ -354,7 +355,7 @@ async def test_ping_touches_nothing():
 
 
 # ------------------------------------------------------------------ v4.12.1: understand what the student asks
-SRJC = 'Apply the "Students of SR Junior College" concession to my fee'
+SRJC = 'Apply the "SR Junior College student" concession to my fee'
 DAY_SCHOLAR = ["No hostel, I'm a day scholar", "No, I'll manage"]
 
 
@@ -373,7 +374,7 @@ async def test_fee_summary_shows_the_programme_the_student_chose(program_answer,
 async def test_documents_question_answers_about_the_selected_concession():
     out = await _chat(STEPS[:-1] + ["885", "MPC", SRJC, "Not yet"] + DAY_SCHOLAR + ["Documents needed for the concession"])
     ans = out[-1]["answer"]
-    assert "Students of SR Junior College" in ans and "₹15,000" in ans
+    assert "SR Junior College student" in ans and "₹15,000" in ans
     assert "₹2,80,000 → ₹2,65,000" in ans                      # the effect on this student's fee
     assert "I already have your details" not in ans            # never sent to the scholarship steps
     assert "Yes, I have the proof" in out[-1]["suggestions"]
@@ -387,7 +388,7 @@ async def test_documents_question_without_a_selection_explains_and_offers_to_che
 async def test_documents_question_mid_flow_answers_then_returns_to_the_open_step():
     out = await _chat(STEPS + [SRJC, "what documents do I need for it?"])
     ans = out[-1]["answer"]
-    assert "Students of SR Junior College" in ans and "back to your fee" in ans and "supporting document" in ans
+    assert "SR Junior College student" in ans and "back to your fee" in ans and "supporting document" in ans
     assert out[-1]["suggestions"] == ["Yes, I have it", "Not yet"]          # the proof question again
 
 

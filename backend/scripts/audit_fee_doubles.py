@@ -1,10 +1,10 @@
 import json
 import re
 
-with open("backend/app/sru_agent/fees_2027_28.json", "r", encoding="utf-8") as f:
+with open("backend/app/sru_agent/fee_policy_2027_28.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 
-print("=== 1. CHECKING OVERLAPPING ALIASES IN fees_2027_28.json ===")
+print("=== 1. CHECKING OVERLAPPING ALIASES IN fee_policy_2027_28.json ===")
 alias_map = {}
 for p_key, p_val in data["programs"].items():
     for alias in p_val.get("aliases", []):
@@ -34,7 +34,7 @@ for kw in keywords:
         for m in matches:
             print(f"    - {m[0]}: {m[1]} -> Rs {m[2]:,}")
 
-print("\n=== 3. CHECKING FEE CARD PDF ROWS VS fees_2027_28.json ===")
+print("\n=== 3. CHECKING FEE CARD PDF ROWS VS fee_policy_2027_28.json ===")
 # Check if any program in the official fee card is missing or misnamed
 for p_key, p_val in data["programs"].items():
     print(f"Program [{p_key}]: {p_val['name']}")

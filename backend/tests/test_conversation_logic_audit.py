@@ -67,16 +67,18 @@ def test_percentage_maths_is_exact():
 
 @pytest.mark.parametrize("program,percent,status", [
     ("btech_cse", 23.0, eligibility.BELOW),         # the reported bug
-    ("btech_cse", 49.99, eligibility.BELOW),        # just below the lowest documented minimum
-    ("btech_cse", 50.0, eligibility.CONFIRM),       # fee card 50%, programme page 60%: disputed
-    ("btech_cse", 59.99, eligibility.CONFIRM),
-    ("btech_cse", 60.0, eligibility.MEETS),         # meets every documented minimum (inclusive)
+    ("btech_cse", 54.99, eligibility.BELOW),        # 2027-28 circular: 55% for CSE and its specialisations
+    ("btech_cse", 55.0, eligibility.MEETS),         # inclusive
+    ("btech_ece", 54.9, eligibility.BELOW),         # 55% for ECE too
+    ("btech_ece", 55.0, eligibility.MEETS),
+    ("btech_mech", 49.99, eligibility.BELOW),       # 50% for every other UG programme
+    ("btech_mech", 50.0, eligibility.MEETS),
     ("bba", 49.99, eligibility.BELOW),
-    ("bba", 50.0, eligibility.MEETS),               # BBA: every source says 50% -> boundary meets
-    ("mba", 52.0, eligibility.CONFIRM),             # fee card 50%, programme page 55%
-    ("mba", 55.0, eligibility.MEETS),
+    ("bba", 50.0, eligibility.MEETS),
+    ("mba", 49.99, eligibility.BELOW),              # PG: 50% in the qualifying degree (subject to confirmation)
+    ("mba", 50.0, eligibility.MEETS),
 ])
-def test_threshold_boundaries_use_every_documented_source(program, percent, status):
+def test_threshold_boundaries_follow_the_fee_circular(program, percent, status):
     assert eligibility.assess(program, percent)["status"] == status
 
 
@@ -84,14 +86,13 @@ def test_thresholds_come_only_from_the_fee_data_file():
     data = fees.load_data()["programs"]
     for key, prog in data.items():
         t = eligibility.thresholds(key)
-        assert t["floor"] == min([prog["min_percent"]] + [v for v in (prog.get("fee_band_min_percent"),
-                                 (prog.get("website_crosscheck") or {}).get("min_percent")) if v is not None])
+        assert t["floor"] == t["ceiling"] == prog["min_percent"] and t["conflict"] is False
 
 
 def test_230_out_of_1000_reply_is_correct_and_never_claims_eligibility():
     text = eligibility.explain(eligibility.assess("btech_cse", 23.0), "230 marks out of 1000")
     assert "230 marks out of 1000" in text and "**23%**" in text
-    assert "below the official **50% minimum**" in text
+    assert "below the official **55% minimum**" in text
     assert "do not currently meet the general eligibility criteria" in text
     assert "meet the official" not in text and "you qualify" not in text.lower()
     # No invented pathways or exceptions
@@ -99,12 +100,12 @@ def test_230_out_of_1000_reply_is_correct_and_never_claims_eligibility():
         assert word not in text.lower()
 
 
-def test_disputed_score_is_not_presented_as_confirmed():
+def test_boundary_score_meets_the_circular_minimum_without_promising_admission():
     text = eligibility.explain(eligibility.assess("btech_cse", 55.0))
-    assert "official sources list different minimum marks" in text
-    assert "50%" in text and "60%" in text
-    assert "can't confirm your eligibility" in text
-    assert "meets the minimum" not in text
+    assert "meets the minimum marks (**55%**" in text and "fee circular" in text
+    assert "Final admission depends on document verification and seat availability." in text
+    pg = eligibility.explain(eligibility.assess("mba", 50.0))
+    assert "subject to confirmation" in pg
 
 
 def test_subject_requirement_is_asked_not_assumed_and_mismatch_is_clear():
@@ -143,7 +144,7 @@ def test_bare_marks_ask_for_the_total_instead_of_assuming_1000():
 
 def test_legacy_wizard_uses_the_same_rules():
     text, info = flow_service.execute_wizard_step({"step": 4, "degree": "B.Tech", "branch": "CSE", "score": "23%"})
-    assert info["is_eligible"] is False and "below the official **50% minimum**" in text
+    assert info["is_eligible"] is False and "below the official **55% minimum**" in text
     text, info = flow_service.execute_wizard_step({"step": 4, "degree": "B.Tech", "branch": "CSE", "score": "92%"})
     assert "40% merit tuition waiver" not in text           # the old invented claim
     assert "30%" in text                                    # 92% State Board slab from the fee card
@@ -249,7 +250,7 @@ async def test_full_multi_message_journey_keeps_context():
         answers.append(done["answer"])
     final = answers[-1]
     assert "B.Tech Computer Science & Engineering (CSE)" in final           # never lost the programme
-    assert "below the official **50% minimum**" in final
+    assert "below the official **55% minimum**" in final
     assert len(set(answers)) == len(answers)                                # no question repeated
     assert chat.model.calls == 0                                            # all of it without an AI call
     assert (await chat.state()).get("active_program") == "btech_cse"
@@ -303,10 +304,11 @@ def test_unavailable_data_is_acknowledged_not_invented():
     assert fees.check_eligibility("astronomy", 80)["status"] == "unknown_program"
 
 
-def test_conflicting_sources_are_flagged_in_the_overview():
+def test_overview_lists_the_circular_minimums():
     text = eligibility.overview_text()
-    assert "50% (2027-28 fee card)" in text and "60% (university's programme page (2026-27))" in text
-    assert "Admissions Office confirms" in text
+    assert "| B.Tech CSE / ECE (all specialisations) |" in text and "| 55% |" in text
+    assert "50% (subject to confirmation)" in text                      # PG
+    assert "programme page" not in text and "60%" not in text           # the old 2026-27 web figures are gone
 
 
 # =====================================================================================================
