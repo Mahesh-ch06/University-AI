@@ -336,6 +336,8 @@ const areMessagePropsEqual = (previous: Props, next: Props): boolean =>
   previous.messageId === next.messageId &&
   previous.conversationId === next.conversationId &&
   previous.sessionId === next.sessionId &&
-  previous.isStreaming === next.isStreaming;
+  previous.isStreaming === next.isStreaming &&
+  // v4.17.1: a newer fee estimate marks this card outdated: the bubble must re-render to show it
+  previous.feeOutdated === next.feeOutdated;
 
 export default memo(MessageBubble, areMessagePropsEqual);

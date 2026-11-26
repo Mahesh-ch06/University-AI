@@ -17,6 +17,7 @@ AGENT_MAX_CONCURRENCY model calls run at once, and (5) still answers fee questio
 file if the model cannot be reached at all.
 """
 import asyncio
+import json
 import contextvars
 import logging
 import re
@@ -428,16 +429,66 @@ def _chips_for(answer, suggestions, options: bool) -> list:
     return fitting[:3] + resume
 
 
+def _answer_sources(answer: str, evidence: list, passages: str = "") -> list[dict]:
+    """The sources that support this answer (v4.17.1): only evidence used in this turn, and only when the answer
+    shares its specific content (names, figures, distinctive words). Links come from the sources' own metadata;
+    none is ever made up."""
+    def _tokens(text):
+        text = (text or "").lower()
+        return {w for w in re.findall(r"[a-z]{5,}|\d[\d,.]{1,}", text)}
+    said = _tokens(answer)
+    if not said:
+        return []
+    cands = []
+    for item in evidence or []:
+        if not isinstance(item, dict):
+            continue
+        tool, r = item.get("tool"), item.get("result") or {}
+        if tool == "search_university_info":
+            for ps in r.get("passages") or []:
+                src = ps.get("source") or {}
+                url = src.get("page_url") or (src.get("source") if str(src.get("source", "")).startswith("http") else None)
+                cands.append({"document_id": str(src.get("document_id") or f"handbook:{ps.get('title', '')[:60]}"),
+                              "title": ps.get("title") or "SR University document", "section": src.get("section"),
+                              "page_url": url, "_text": ps.get("text", "")})
+        elif tool == "find_faculty":
+            for f in r.get("faculty") or []:
+                cands.append({"document_id": f"faculty:{f.get('profile_url') or f.get('name')}",
+                              "title": f"Faculty profile: {f.get('name', '')}", "page_url": f.get("profile_url"),
+                              "department": f.get("department"), "_text": json.dumps(f, ensure_ascii=False)})
+            for k in r.get("approved_knowledge") or []:
+                cands.append({"document_id": f"knowledge:{k.get('title', '')[:60]}", "title": k.get("title", ""),
+                              "_text": k.get("text", "")})
+        elif tool in ("calculate_fee", "compare_programs", "check_eligibility", "get_special_concessions",
+                      "get_program_info"):
+            cands.append({"document_id": "fee-policy-2027-28",
+                          "title": r.get("source") or "SR University Fee Circular 2027-28",
+                          "_text": json.dumps(r, ensure_ascii=False, default=str)})
+    for m in re.finditer(r"^\[(.+?) \| source: (.+?)\]\n(.*?)(?=^\[|\Z)", passages or "", re.M | re.S):
+        cands.append({"document_id": f"handbook:{m.group(1)[:60]}", "title": m.group(1),
+                      "page_url": m.group(2) if m.group(2).startswith("http") else None, "_text": m.group(3)})
+    out, seen = [], set()
+    for c in cands:
+        overlap = said & _tokens(c.pop("_text", ""))
+        key = c["document_id"]
+        if key in seen or len(overlap) < 3:
+            continue
+        seen.add(key)
+        out.append({k: v for k, v in c.items() if v})
+        if len(out) >= 4:
+            break
+    return out
+
+
 def _done(conversation_id, answer, used=(), cards=(), suggestions=(), telemetry=None, profile=None, eligible=None,
-          options=False):
+          options=False, sources=None):
     # Every answer passes here: one that leaks internal instructions or a secret-shaped string is replaced.
     answer = ai_guard.guard_reply(answer) if isinstance(answer, str) else answer
     suggestions = _chips_for(answer, suggestions, options)
     fee_plan.apply_card_settings(cards)   # the admin panel's concessions picker choice, for every card
     d = {"type": "done", "conversation_id": conversation_id, "answer": answer,
          "tools_used": list(used), "model": config.AGENT_MODEL,
-         # kept so the existing frontend 'done' handler does not break
-         "sources": [], "suggestions": list(suggestions), "cards": list(cards), "flow": None}
+         "sources": list(sources or []), "suggestions": list(suggestions), "cards": list(cards), "flow": None}
     if profile is not None:
         d["profile"] = profile
     if telemetry is not None:
@@ -2071,42 +2122,107 @@ def _fix_typos(message: str) -> str:
     return out
 
 
-_QUESTION_START = re.compile(
-    r"^\s*(?:what|which|who|whom|whose|when|where|why|how|is|are|am|was|were|do|does|did|can|could|will|would|"
-    r"should|shall|may|might|tell|explain|give|show|list|compare)\b", re.IGNORECASE)
+_BARE_NUMBER = re.compile(r"^\s*\d{1,6}(?:[.,]\d+)?\s*(?:%|percent|/\s*\d{2,4}|out\s+of\s+\d{2,4})?\s*$",
+                          re.IGNORECASE)
+_DATE_WORDS = re.compile(r"\d|\b(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|"
+                         r"mar|apr|may|jun|jul|aug|sep|oct|nov|dec)", re.IGNORECASE)
 
 
-def _short_reply(message: str) -> bool:
-    """A short reply to the bot's own question ("CBSE", "no hostel", "yes", "Ravi Kumar"), not a new question.
-    Judged by the FORM of the message (length, a question mark, a question opening), never by topic words."""
+def _answers_open_step(message: str, conv_state: dict) -> str | None:
+    """Which open step this message answers, or None (v4.17.1).
+
+    The message must give what that step asked for, read by the step's own parser (a board, a stage, marks, a
+    stream, a rank, a programme, a room, a concession, yes / no, a name or phone number). Its length or punctuation
+    decides nothing: "placement record" while the board is asked answers nothing, so the model takes it and the
+    step stays open (its "continue" chip brings the student back)."""
     text = (message or "").strip()
-    return bool(text) and "?" not in text and len(text.split()) <= 8 and not _QUESTION_START.match(text)
+    if not text:
+        return None
+    try:
+        d = fee_intake.parse_details(text) or {}
+    except Exception:
+        d = {}
+    program = fees.find_program(text)
+    yes_no = bool(_AFFIRM.match(text) or _DECLINE.match(text) or fee_journey._YES.match(text)
+                  or fee_journey._NO.match(text))
+    number = bool(_BARE_NUMBER.match(text))
+    marks = number or any(d.get(k) is not None for k in ("raw_marks", "percent", "max_marks"))
+    entrance = any(d.get(k) is not None for k in ("eapcet_rank", "jee_percentile", "no_entrance", "admission_route"))
+    wants = {
+        "board": bool(d.get("board") or d.get("board_key")),
+        "stage": bool(d.get("academic_stage")),
+        "marks": marks, "percent": marks, "marks_max": marks, "degree_percent": marks, "total": marks,
+        "stream": bool(d.get("stream") or eligibility.parse_stream(text)),
+        "rank": entrance or number or yes_no, "ib": d.get("ib_score") is not None or number,
+        "program": bool(program), "branch": bool(program), "confirm_details": yes_no or bool(d),
+    }
+    intake = conv_state.get("fee_intake") or {}
+    waiting = intake.get("waiting_for")
+    if waiting and waiting not in ("done",):
+        if waiting == "form" or wants.get(waiting) or (waiting not in wants and (bool(d) or yes_no)):
+            return f"fee_step:{waiting}"
+    fee_eval = conv_state.get(fee_journey.KEY) or {}
+    aw = fee_eval.get("awaiting") if fee_eval.get("active") and not fee_eval.get("final_shown") else None
+    if aw:
+        ok = {"program": bool(program),
+              "concession": bool(fee_plan.find_concession(text)) or yes_no,
+              "hostel": bool(fee_journey._read_hostel(text)) or yes_no,
+              "entrance": bool(fee_journey._read_entrance(text, aw)) or entrance or yes_no,
+              "eapcet_value": number, "jee_value": number,
+              "scholarship_steps": bool(d) or bool(program)}.get(aw, yes_no)
+        if ok:
+            return f"fee_evaluation:{aw}"
+    if conv_state.get("pending_action") or conv_state.get("gate_pending") or conv_state.get("awaiting_name"):
+        if tools.find_phone(text) or yes_no or intents.extract_name(text, bare_ok=True):
+            return "contact_details"
+    if conv_state.get("offer") and (yes_no or (conv_state.get("offer") == "fee_chart_program" and program)):
+        return "offer"
+    if conv_state.get("pending_concession") and program:
+        return "concession_programme"
+    if (conv_state.get("awaiting_date_confirmation") or conv_state.get("pending_visit_date")) \
+            and (yes_no or _DATE_WORDS.search(text)):
+        return "visit_date"
+    if (conv_state.get("fee_flow_state") in ("awaiting_school_selection", "awaiting_course_selection")
+            or conv_state.get("fee_tree_step")) and program:
+        return "fee_browser"
+    flow = conv_state.get("affordability_flow") or {}
+    if isinstance(flow, dict) and flow.get("step"):
+        if (flow["step"] == "awaiting_academics" and (marks or program)) or \
+                (flow["step"] == "awaiting_concession" and (fee_plan.find_concession(text) or yes_no)):
+            return "affordability"
+    dlg = conv_state.get("dialogue") or {}
+    step = dlg.get("step")
+    if step:
+        if step in wants and wants[step]:
+            return f"journey:{step}"
+        if step in ("topic_aspect", "program_aspect"):
+            from . import dialogue as _dialogue
+            topic = _dialogue.TOPICS.get(dlg.get("topic") or "", {})
+            if any(re.search(rx, text, re.IGNORECASE) for _label, rx, _q in topic.get("aspects", [])):
+                return f"journey:{step}"
+        if step in ("goal", "interest") and (program or yes_no):
+            return f"journey:{step}"
+    return None
 
 
 def _structured_turn(source, rewritten: bool, conv_state: dict, message: str, step_answer: bool,
                      dlg_busy: bool) -> str | None:
-    """Why this turn belongs to a fixed flow, or None when the model should understand it (v4.17.0).
+    """Why this turn belongs to a fixed flow, or None when the model should understand it (v4.17.0 / v4.17.1).
 
     Only facts about the TURN are used, never the meaning of topic words: what the student pressed, a submitted
-    form, the answer the open step's own parser accepted, a short reply while the bot waits on its own question
-    (a callback being arranged, "shall I prepare your fee chart?", a fee step), or a phone number (data the
-    callback flow must save exactly). A question typed during an open step goes to the model, which sees the
-    whole conversation; the step stays open and its "continue" chip brings the student back."""
+    form, a phone number (data the callback flow must save exactly), or a typed answer that GIVES what the open
+    step asked for (_answers_open_step). Anything else typed during an open step - a question, a new topic,
+    "placement record" while the board is asked - is understood by the model, which sees the whole
+    conversation; the step stays open and its "continue" chip brings the student back."""
     if source != "typed":
         return "button" if source == "button" else "internal"
     if rewritten:
         return "form"
-    if step_answer:
-        return "answer_to_fee_step"
     if tools.find_phone(message or ""):
         return "phone_number"
-    fee_eval = conv_state.get(fee_journey.KEY) or {}
-    waiting = bool(dlg_busy or conv_state.get("pending_action") or conv_state.get("gate_pending")
-                   or conv_state.get("offer") or conv_state.get("pending_concession")
-                   or (conv_state.get("dialogue") or {}).get("step")
-                   or (fee_eval.get("active") and fee_eval.get("awaiting") and not fee_eval.get("final_shown")))
-    if waiting and _short_reply(message):
-        return "reply_to_open_step"
+    answered = _answers_open_step(message, conv_state)
+    if answered:
+        return f"answer:{answered}"
     return None
 
 
@@ -2315,7 +2431,8 @@ async def run_agent(
         # The student asked something new instead of answering the bot's last question: that question is not
         # waiting any more (a fee evaluation in progress stays, with its "continue" chip).
         stale = {}
-        if (conv_state.get("dialogue") or {}).get("step"):
+        if (conv_state.get("dialogue") or {}).get("step") in ("topic_aspect", "program_aspect"):
+            # a "which aspect?" question; the admission journey's steps (programme, board, marks...) are kept
             stale["dialogue"] = {k: v for k, v in (conv_state.get("dialogue") or {}).items() if k != "step"}
         if conv_state.get("offer"):
             stale["offer"] = None
@@ -4291,4 +4408,10 @@ async def run_agent(
 
     turn_telemetry.total_latency_ms = round((time.perf_counter() - started) * 1000, 2)
     observability.record_policy_telemetry(turn_telemetry)
-    yield _done(conversation_id, final, used, cards, suggestions, telemetry=turn_telemetry.to_dict(), profile=profile)
+    try:
+        sources = _answer_sources(final, turn_evidence, passages)
+    except Exception:
+        log.exception("source references skipped")
+        sources = []
+    yield _done(conversation_id, final, used, cards, suggestions, telemetry=turn_telemetry.to_dict(), profile=profile,
+                sources=sources)

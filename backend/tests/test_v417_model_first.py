@@ -71,20 +71,46 @@ def test_structured_turns_are_facts_about_the_turn_not_the_words():
     assert _structured_turn("button", False, {}, "Calculate my scholarship", False, False) == "button"
     assert _structured_turn(None, False, {}, "anything", False, False) == "internal"
     assert _structured_turn("typed", True, {}, "Am I eligible for B.Tech CSE?", False, False) == "form"
-    assert _structured_turn("typed", False, {}, "CBSE", True, True) == "answer_to_fee_step"
-    reply = "reply_to_open_step"
-    assert _structured_turn("typed", False, {"pending_action": "callback"}, "Ravi Kumar", False, False) == reply
-    assert _structured_turn("typed", False, {"offer": "fee_chart"}, "yes", False, False) == reply
-    fee_eval = {"fee_eval": {"active": True, "awaiting": "hostel", "final_shown": False}}
-    assert _structured_turn("typed", False, fee_eval, "no hostel", False, False) == reply
-    # a QUESTION during an open step is understood by the model (the step stays open)
-    assert _structured_turn("typed", False, fee_eval, "what about placements?", False, False) is None
-    assert _structured_turn("typed", False, {"offer": "fee_chart"}, "how is the hostel food", False, False) is None
-    assert _structured_turn("typed", False, {"dialogue": {"step": "aspect"}},
-                            "is sru good for cse compared to other colleges in hyderabad", False, False) is None
+    assert _structured_turn("typed", False, {}, "my number is 9876543210", False, False) == "phone_number"
+    # no open step: a typed answer-shaped message is still a question for the model
+    assert _structured_turn("typed", False, {}, "CBSE", False, False) is None
+
+
+def _intake(waiting):
+    return {"fee_intake": {"counsellor_mode": True, "program": "btech_cse", "waiting_for": waiting}}
+
+
+@pytest.mark.parametrize("state, message", [
+    (_intake("board"), "CBSE"), (_intake("board"), "Telangana Intermediate (TSBIE)"),
+    (_intake("stage"), "Completed Intermediate (Passed out)"),
+    (_intake("marks"), "931 out of 1000"), (_intake("marks"), "87%"), (_intake("percent"), "92"),
+    (_intake("stream"), "MPC (Maths, Physics, Chemistry)"),
+    ({"fee_eval": {"active": True, "awaiting": "hostel", "final_shown": False}}, "Non-AC 4-sharing"),
+    ({"fee_eval": {"active": True, "awaiting": "hostel", "final_shown": False}}, "no hostel"),
+    ({"pending_action": "callback"}, "Ravi Kumar"), ({"offer": "fee_chart"}, "yes"),
+])
+def test_a_typed_message_that_gives_what_the_step_asked_for_continues_it(state, message):
+    assert (_structured_turn("typed", False, state, message, False, False) or "").startswith("answer:")
+
+
+@pytest.mark.parametrize("state, message", [
+    (_intake("board"), "placement record"),               # short, no question mark, answers nothing asked
+    (_intake("marks"), "hostel food"),
+    (_intake("stream"), "campus life"),
+    ({"fee_eval": {"active": True, "awaiting": "hostel", "final_shown": False}}, "what about placements?"),
+    ({"fee_eval": {"active": True, "awaiting": "concession", "final_shown": False}}, "is the campus safe"),
+    ({"offer": "fee_chart"}, "how is the hostel food"),
+    ({"pending_action": "callback"}, "what is the fee for MBA?"),
+    ({"dialogue": {"step": "topic_aspect", "topic": "hostel"}}, "is sru good for cse compared to other colleges"),
+])
+def test_anything_else_typed_during_an_open_step_goes_to_the_model(state, message):
+    assert _structured_turn("typed", False, state, message, False, False) is None
+
+
+def test_a_closed_step_takes_nothing():
     done_eval = {"fee_eval": {"active": True, "awaiting": "hostel", "final_shown": True}}
     assert _structured_turn("typed", False, done_eval, "no hostel", False, False) is None
-    assert _structured_turn("typed", False, {}, "my number is 9876543210", False, False) == "phone_number"
+    assert _structured_turn("typed", False, _intake("done"), "CBSE", False, False) is None
 
 
 def test_request_schema_defaults_to_typed_and_rejects_other_sources():

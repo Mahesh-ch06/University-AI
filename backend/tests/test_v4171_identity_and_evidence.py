@@ -138,3 +138,34 @@ def test_this_turns_tool_results_count_as_evidence():
                                  evidence=[{"tool": "search_university_info",
                                             "result": {"passages": [{"text": "Hostel coordinator: Dr. Zed Quorvak"}]}}])
     assert not problems
+
+
+# ------------------------------------------------------------------------- sources that support the answer ----
+def test_sources_are_the_evidence_that_supports_the_answer():
+    from app.sru_agent.agent import _answer_sources
+    evidence = [{"tool": "search_university_info", "result": {"passages": [
+        {"title": "University FAQ — Leadership", "text": "Q: Who is the Senior Director of Admissions and Marketing?\n"
+         "A: Admissions and marketing activities are led by Dr. Ram Raghotham Rao Deshmukh.",
+         "source": {"document_id": "d-1", "section": "Leadership", "page_url": "https://sru.edu.in/about"}},
+        {"title": "Sports & Recreation Facilities", "text": "Cricket ground, football ground, basketball court.",
+         "source": {"document_id": "d-2"}}]}}]
+    answer = ("Admissions and marketing at SR University are led by Dr. Ram Raghotham Rao Deshmukh, Senior "
+              "Director of Admissions and Marketing.")
+    got = _answer_sources(answer, evidence)
+    assert [s["document_id"] for s in got] == ["d-1"]                   # the unrelated passage is not cited
+    assert got[0]["page_url"] == "https://sru.edu.in/about" and got[0]["section"] == "Leadership"
+
+
+def test_no_source_and_no_made_up_link_without_evidence():
+    from app.sru_agent.agent import _answer_sources
+    assert _answer_sources("SR University is a great place to study engineering.", []) == []
+    got = _answer_sources("Dr. Example Person teaches machine learning.",
+                          [{"tool": "find_faculty", "result": {"faculty": [{"name": "Dr. Example Person",
+                                                                           "research_areas": "machine learning"}]}}])
+    assert got and "page_url" not in got[0]                             # no profile link in the data: none
+
+
+def test_done_event_carries_sources():
+    from app.sru_agent.agent import _done
+    ev = _done("c-1", "answer", sources=[{"document_id": "d-1", "title": "T"}])
+    assert ev["sources"] == [{"document_id": "d-1", "title": "T"}]

@@ -228,7 +228,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     pendingQuestionRef.current = null;
     setPendingQuestion(null);
     if (q) {
-      executeSendMessage(q, true);
+      executeSendMessage(q, true, undefined, pendingSourceRef.current);
     }
   };
 
@@ -259,6 +259,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
   const [isRestoringConv, setIsRestoringConv] = useState<boolean>(false);
   const [pendingRecoveryQuery, setPendingRecoveryQuery] = useState<string | null>(null);
   const pendingRecoveryQueryRef = useRef<string | null>(null);
+  // Where a held message came from ("typed" or a "button" tap): kept so that, once the welcome-back choice or the
+  // contact details are done, it is sent exactly as the student sent it (v4.17.1).
+  const pendingSourceRef = useRef<"typed" | "button">("typed");
   const resumeAfterMinutesRef = useRef<number>(DEFAULT_RESUME_AFTER_MINUTES);
   const restoringRef = useRef(false);
   // Where a restored conversation continues: a quiet divider after its last saved message.
@@ -464,8 +467,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     const pending = takePendingRecoveryQuery();
     // A plain greeting ("hi") was only the way back in: the restored conversation is the answer to it.
     if (pending && !/^\s*(?:hi+|hello+|hey+|hai|hii+|good\s+(?:morning|afternoon|evening)|namaste|namaskaram|hlo|helo)\b[\s!.,]*$/i.test(pending)) {
+      const pendingSource = pendingSourceRef.current;
       setTimeout(() => {
-        executeSendMessage(pending, false);
+        executeSendMessage(pending, false, undefined, pendingSource);
       }, 60);
     }
   };
@@ -512,8 +516,9 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
     if (!started) return;
     const pending = takePendingRecoveryQuery();
     if (pending) {
+      const pendingSource = pendingSourceRef.current;
       setTimeout(() => {
-        handleSendMessage(pending);
+        handleSendMessage(pending, undefined, pendingSource);
       }, 60);
     }
   };
@@ -685,6 +690,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         setRecovery(firstOffer);
         setPendingRecoveryQuery(trimmed);
         pendingRecoveryQueryRef.current = trimmed;
+        pendingSourceRef.current = source;
         const userMsgId = crypto.randomUUID();
         setMessages((prev) => [
           ...prev.filter((m) => !m.id.startsWith("pending-recovery-")),
@@ -711,6 +717,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
         // conversation they choose. Nothing is sent or started on their behalf.
         setPendingRecoveryQuery(trimmed);
         pendingRecoveryQueryRef.current = trimmed;
+        pendingSourceRef.current = source;
         const userMsgId = crypto.randomUUID();
         setMessages((prev) => [
           ...prev.filter((m) => !m.id.startsWith("pending-recovery-")),
@@ -741,6 +748,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
       setMessages((prev) => [...prev, tempUserMsg]);
       setPendingQuestion(trimmed);
       pendingQuestionRef.current = trimmed;
+      pendingSourceRef.current = source;
       setShowInlineLeadForm(true);
       setError(null);
       return;
@@ -1102,6 +1110,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                   role={msg.role}
                   content={msg.content}
                   cards={msg.cards}
+                  sources={msg.sources}
                   suggestions={msg.suggestions}
                   flow={msg.flow}
                   messageId={msg.id}
@@ -1610,6 +1619,7 @@ export default function ChatPage({ onOpenAdmin, variant = "full" }: Props) {
                       role={msg.role}
                       content={msg.content}
                       cards={msg.cards}
+                      sources={msg.sources}
                       suggestions={msg.suggestions}
                       flow={msg.flow}
                       messageId={msg.id}
