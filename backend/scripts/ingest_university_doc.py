@@ -89,9 +89,14 @@ def _norm(text: str) -> str:
 
 
 def _missing_or_changed(entries: list[ParsedEntry], collection) -> tuple[list[ParsedEntry], list[str]]:
-    """Entries not in the index yet, or whose indexed text differs from the document now, and the ids of the
-    outdated index chunks they replace. Retired sections are left out. (Additive: nothing in the database is
-    deleted; only outdated chunks of the derived search index are replaced.)"""
+    """What the additive update must do to make the FAQ index match the document.
+
+    Returns (entries to index, chunk ids to remove AFTER the new ones are indexed):
+      * an entry not in the index, or whose indexed text differs from the document now, is (re)indexed;
+      * a chunk is removed when a newer text replaces it, when it duplicates an identical chunk, or when its
+        (section, question) is no longer in the document at all (e.g. a question the old parser stored with its
+        list number, "4. Does SRiX ...").
+    Retired sections are never indexed. Nothing in the database is deleted; only derived index chunks."""
     existing = collection.get(where={"document_type": "faq"}, include=["metadatas", "documents"])
     # keyed by (section, question): the same question can be asked in two sections with different answers
     by_question: dict[tuple[str, str], list[tuple[str, str]]] = {}
@@ -99,33 +104,70 @@ def _missing_or_changed(entries: list[ParsedEntry], collection) -> tuple[list[Pa
         key = (_norm((meta or {}).get(CHROMA_SECTION_KEY, "")), _norm((meta or {}).get(CHROMA_QUESTION_KEY, "")))
         by_question.setdefault(key, []).append((cid, _norm(doc)))
     retired = _retired_sections()
-    to_add, stale = [], []
+    to_add, stale, wanted = [], [], set()
     for entry in entries:
         if entry.section in retired:
             continue
-        indexed = by_question.get((_norm(entry.section), _norm(entry.question[:200])), [])
-        if any(text == _norm(entry.chunk_text) for _, text in indexed):
+        key = (_norm(entry.section), _norm(entry.question[:200]))
+        wanted.add(key)
+        indexed = by_question.get(key, [])
+        current = _norm(entry.chunk_text)
+        same = [cid for cid, text in indexed if text == current]
+        if same:
+            stale.extend(same[1:])                                          # identical duplicates
+            stale.extend(cid for cid, text in indexed if text != current)  # older texts left by a failed run
             continue
         to_add.append(entry)
-        stale.extend(cid for cid, _ in indexed)
+        stale.extend(cid for cid, _ in indexed)                             # replaced once the new one is in
+    for key, chunks in by_question.items():
+        if key not in wanted:
+            stale.extend(cid for cid, _ in chunks)                          # no longer in the document
     return to_add, stale
 
 
-async def _add_missing(entries: list[ParsedEntry], department_override: str | None) -> None:
+async def _archive_documents_without_chunks(collection, document_ids: set[str]) -> int:
+    """Documents whose index chunks were all replaced are archived (status inactive), never deleted."""
+    if not document_ids:
+        return 0
+    from sqlalchemy import update
+    from app.db.session import async_session_factory
+    from app.models.document import Document, DocumentVersion
+    empty = [d for d in document_ids if not collection.get(where={"document_id": d}, include=[]).get("ids")]
+    if not empty:
+        return 0
+    async with async_session_factory() as db:
+        ids = [uuid.UUID(d) for d in empty]
+        await db.execute(update(Document).where(Document.id.in_(ids)).values(status="inactive"))
+        await db.execute(update(DocumentVersion).where(DocumentVersion.document_id.in_(ids)).values(active=False))
+        await db.commit()
+    return len(empty)
+
+
+async def _add_missing(entries: list[ParsedEntry], department_override: str | None) -> dict:
+    """Additive, idempotent update of the FAQ index (see _missing_or_changed). The new chunks are indexed FIRST;
+    superseded chunks are removed only after that succeeded, so a failed run (e.g. the embedding service is
+    unavailable) leaves the previous knowledge in place and the next run finishes the job."""
     from app.db.chroma import get_chroma_client
     from app.services.rag_service import COLLECTION_NAME
     collection = get_chroma_client().get_or_create_collection(name=COLLECTION_NAME,
                                                                metadata={"hnsw:space": "cosine"})
     to_add, stale = _missing_or_changed(entries, collection)
-    print(f"{len(to_add)} entries to add or update; {len(stale)} outdated index chunks to replace; "
+    print(f"{len(to_add)} entries to add or update; {len(stale)} superseded index chunks to remove afterwards; "
           f"retired sections skipped: {sorted(_retired_sections())}")
     for e in to_add:
         print(f"  + [{e.section}] {e.question[:80]}")
-    if not to_add:
-        return
+    if to_add:
+        await _ingest_entries(to_add, department_override)      # raises on failure: nothing is removed then
+    archived = 0
     if stale:
+        old = collection.get(ids=stale, include=["metadatas"])
+        doc_ids = {(m or {}).get("document_id") for m in old.get("metadatas", []) if (m or {}).get("document_id")}
         collection.delete(ids=stale)
-    await _ingest_entries(to_add, department_override)
+        archived = await _archive_documents_without_chunks(collection, doc_ids)
+    result = {"added": len(to_add), "removed": len(stale), "archived_documents": archived,
+              "faq_chunks": len(collection.get(where={"document_type": "faq"}, include=[]).get("ids", []))}
+    print(f"Done: {result}")
+    return result
 
 
 async def _ingest_entries(

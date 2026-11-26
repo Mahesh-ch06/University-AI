@@ -107,3 +107,137 @@ def check(text: str, *, fee_result: dict | None = None, sources: list | None = N
         problems.append("unverified amounts: " + ", ".join(fees.inr(a) for a in unknown[:5]))
         out = out.rstrip() + NOTE.format(phone=config.ADMISSIONS_PHONE)
     return out, problems
+
+
+# ---- v4.17.1: people and the offices they hold -------------------------------------------------------------------
+# A name with an honorific ("Dr. Ram Raghotham Rao Deshmukh") must be in this turn's evidence or in the approved
+# corpus (faculty directory, handbook, indexed university FAQ); a sentence that says someone holds an office must
+# have evidence that pairs that name with that office. Otherwise the sentence is replaced, never shown as a fact.
+_PERSON = re.compile(r"\b(?:Dr|Prof|Professor|Mr|Mrs|Ms|Sri|Smt|Col|Lt|Capt)\.?\s+((?:[A-Z][A-Za-z]*\.?\s?){1,5})")
+_ROLE_CLAIM = re.compile(
+    r"\b(?:(?:Senior|Associate|Assistant|Deputy|Additional|Joint)\s+)?(?:Director|Dean|Head|Registrar|Controller|"
+    r"Chancellor|Vice[\s-]Chancellor|Pro[\s-]Vice[\s-]Chancellor|Pro[\s-]Chancellor|CEO|Principal|Warden|Coordinator)"
+    r"(?:\s+(?:of|for)\s+(?:the\s+)?([A-Z][\w&\-]*(?:\s+(?:and|&|of|for)?\s*[A-Z][\w&\-]*){0,5}))?")
+_NEGATED = re.compile(r"\b(?:not|isn't|is not|no longer|never|neither|nor)\b|n't\b", re.IGNORECASE)
+_UNVERIFIED_LINE = "I couldn't verify that detail in SR University's official records."
+_corpus_cache: dict = {"at": 0.0, "text": ""}
+
+
+def _norm_text(text: str) -> str:
+    text = re.sub(r"\b(?:dr|prof|professor|mr|mrs|ms|sri|smt|col|lt|capt)\b\.?", " ", (text or "").lower())
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def _approved_corpus() -> str:
+    """Normalised text of every approved source of names and titles (cached for 10 minutes)."""
+    import time
+    from pathlib import Path
+    if _corpus_cache["text"] and time.time() - _corpus_cache["at"] < 600:
+        return _corpus_cache["text"]
+    parts = []
+    try:
+        from . import faculty
+        parts += [f"{p['name']} {p.get('role', '')} {p.get('designation', '')}" for p in faculty._data()["faculty"]]
+    except Exception:
+        pass
+    try:
+        from app.config import settings
+        for path in sorted(Path(settings.DATA_DIR, "handbook").glob("*.md")):
+            parts.append(path.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    try:
+        from app.db.chroma import get_chroma_client
+        from app.services.rag_service import COLLECTION_NAME
+        got = get_chroma_client().get_or_create_collection(name=COLLECTION_NAME).get(include=["documents"])
+        parts += [d for d in got.get("documents") or [] if d]
+    except Exception:
+        pass
+    _corpus_cache.update(at=time.time(), text=" \n ".join(_norm_text(p) for p in parts))
+    return _corpus_cache["text"]
+
+
+def _name_tokens(raw: str) -> list[str]:
+    return [t for t in _norm_text(raw).split() if len(t) > 2]
+
+
+def _known_name(tokens: list[str], corpus: str) -> bool:
+    """The name's words appear together (in order, at most two words apart) in the evidence."""
+    if not tokens:
+        return True
+    pattern = r"\b" + r"\b(?:\s+\w+){0,2}\s+\b".join(map(re.escape, tokens)) + r"\b"
+    return bool(re.search(pattern, corpus))
+
+
+def _role_paired(tokens: list[str], office: str, corpus: str) -> bool:
+    """Some evidence mentions this person and the office words within a short distance (one entry or row)."""
+    office_words = [w[:5] for w in _norm_text(office).split() if len(w) > 3 and w not in ("university",)]
+    if not office_words:
+        return True
+    surname = tokens[-1]
+    for m in re.finditer(rf"\b{re.escape(surname)}\b", corpus):
+        window = corpus[max(0, m.start() - 260): m.end() + 260]
+        found = {w[:5] for w in window.split()}
+        if all(w in found for w in office_words):
+            return True
+    return False
+
+
+_ABBREV = re.compile(r"(?:\b(?:Dr|Prof|Mr|Mrs|Ms|Sri|Smt|Col|Lt|Capt|St|No|vs|etc|e\.g|i\.e|Ph\.D|M\.Tech|B\.Tech)|"
+                     r"\b[A-Z])\.$")
+
+
+def _sentences(line: str) -> list[str]:
+    """Split a line into sentences, but not after an honorific or an initial ("Dr. Ram", "B. S. Rao")."""
+    out, start = [], 0
+    for m in re.finditer(r"[.!?](?:\*\*)?\s+", line):
+        head = line[start:m.start() + 1]
+        if _ABBREV.search(head.rstrip("*")):
+            continue
+        out.append(line[start:m.end()].rstrip())
+        start = m.end()
+    out.append(line[start:])
+    return [x for x in out if x != ""]
+
+
+def check_people(text: str, evidence: list | None = None) -> tuple[str, list[str]]:
+    """(text, problems): sentences naming a person who is in no approved source, or saying that someone holds an
+    office no source pairs them with, are replaced by an honest 'could not verify' line."""
+    if not text or not _PERSON.search(text):
+        return text, []
+    turn = " \n ".join(_norm_text(e if isinstance(e, str) else json.dumps(e, ensure_ascii=False, default=str))
+                       for e in (evidence or []) if e)
+    corpus = turn + " \n " + _approved_corpus()
+    problems, out_lines = [], []
+    for line in text.split("\n"):
+        sentences = _sentences(line)
+        kept = []
+        for sent in sentences:
+            bad = None
+            for m in _PERSON.finditer(sent):
+                tokens = _name_tokens(m.group(1))
+                if not _known_name(tokens, corpus):
+                    bad = f"unverified person: {m.group(0).strip()}"
+                    break
+                role = _ROLE_CLAIM.search(sent[m.end():] + " " + sent[:m.start()])
+                if role and role.group(1) and not _NEGATED.search(sent) and not _role_paired(tokens, role.group(0), corpus):
+                    bad = f"unverified role: {m.group(0).strip()} as {role.group(0).strip()}"
+                    break
+            if bad:
+                problems.append(bad)
+                prefix = re.match(r"\s*(?:[-*•]\s+|\d+\.\s+)?", sent).group(0)
+                kept.append(prefix + _UNVERIFIED_LINE)
+            else:
+                kept.append(sent)
+        out_lines.append(" ".join(kept))
+    out = "\n".join(out_lines)
+    if problems:
+        dedup = []
+        for ln in out.split("\n"):
+            if ln.strip().lstrip("-*• ").startswith(_UNVERIFIED_LINE) and dedup and dedup[-1].strip().lstrip("-*• ").startswith(_UNVERIFIED_LINE):
+                continue
+            dedup.append(ln)
+        out = "\n".join(dedup)
+        if config.ADMISSIONS_PHONE not in out:
+            out = out.rstrip() + f"\n\nThe Admissions Office ({config.ADMISSIONS_PHONE}) can confirm it."
+    return out, problems

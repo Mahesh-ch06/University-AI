@@ -332,53 +332,98 @@ from app.sru_agent import tools as agent_tools
 
 # Connect agent knowledge retrieval to ChromaDB
 async def agent_knowledge_search(query: str):
-    """Handbook search for the agent.
+    """Approved-knowledge search for the agent (v4.17.1): the handbook keyword search AND the vector index,
+    merged.
 
-    1. Keyword search over the handbook files on disk (no AI call, always up to date, works on a
-       cold start and when the Gemini quota is used up).
-    2. Only if that finds nothing: the vector index (covers documents uploaded through the admin
-       console; costs one embedding call).
-    """
+    Before, a keyword hit stopped the search, so a weak match on a handbook page ("Director" -> sports
+    facilities) hid the right passage in the vector index (the university FAQ, documents uploaded in the admin
+    console). Now both run: strong semantic matches come first, then the two lists alternate; near-identical
+    passages are kept once; every passage keeps its source. The keyword search alone still answers when the
+    embedding service is unavailable (cold start, quota)."""
+    lexical, semantic = [], []
     try:
         from app.sru_agent import knowledge
-        found = knowledge.search(query, k=4, min_score=3.0)
-        if found:
-            return [{"title": f["title"], "text": f["text"][:1800], "source": f["source"]} for f in found]
+        lexical = [{"title": f["title"], "text": f["text"][:1800], "source": f["source"], "retrieval": "keyword"}
+                   for f in knowledge.search(query, k=4, min_score=3.0)]
     except Exception as err:
         logger.warning("keyword handbook search failed: %s", err)
     try:
         from app.db.chroma import get_chroma_client
         from app.services.rag_service import COLLECTION_NAME
-        client = get_chroma_client()
-        collection = client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-        )
-        try:
-            from app.api.v1.deps import get_embedding_provider
-            emb_prov = get_embedding_provider()
-            emb = await emb_prov.embed_single(query)
-            results = await asyncio.to_thread(
-                collection.query,
-                query_embeddings=[emb],
-                n_results=5,
-            )
-        except Exception:
-            results = await asyncio.to_thread(
-                collection.query,
-                query_texts=[query],
-                n_results=5,
-            )
-
-        docs = results.get("documents", [[]])[0] if results.get("documents") else []
-        metas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
-        # Keep the source of every passage (title, type, page, dates, document id) for citation and audit.
-        keep = ("document_type", "page", "effective_date", "publication_date", "document_id")
-        return [{"title": (m or {}).get("title", ""), "text": d, **{k: (m or {}).get(k) for k in keep}}
-                for d, m in zip(docs, metas)]
+        collection = get_chroma_client().get_or_create_collection(name=COLLECTION_NAME,
+                                                                  metadata={"hnsw:space": "cosine"})
+        from app.api.v1.deps import get_embedding_provider
+        emb = await get_embedding_provider().embed_single(query)
+        results = await asyncio.to_thread(collection.query, query_embeddings=[emb], n_results=12)
+        docs = (results.get("documents") or [[]])[0]
+        metas = (results.get("metadatas") or [[]])[0]
+        dists = (results.get("distances") or [[]])[0] or [None] * len(docs)
+        keep = ("document_type", "page", "effective_date", "publication_date", "document_id", "section", "question",
+                "page_url")
+        for d, m, dist in zip(docs, metas, dists):
+            if dist is not None and dist > _SEMANTIC_MAX_DISTANCE:
+                continue                     # not about this question
+            m = m or {}
+            semantic.append({"title": m.get("title", ""), "text": d, "retrieval": "semantic",
+                             "distance": round(dist, 3) if dist is not None else None,
+                             **{k: m.get(k) for k in keep if m.get(k)}})
+        semantic = _rerank_by_question_words(query, semantic)
     except Exception as err:
-        logger.warning("agent_knowledge_search fallback on error: %s", err)
-        return []
+        logger.warning("vector knowledge search unavailable, keyword results only: %s", err)
+    return _merge_evidence(semantic, lexical)
+
+
+_GENERIC_WORDS = set("what which when where whom whose about does have there their with from that this then than "
+                     "into your mine sru university universities college please tell know give show more some "
+                     "much many like would could should will shall also only just very really".split())
+
+
+def _rerank_by_question_words(query: str, hits: list) -> list:
+    """Similar FAQ entries ("Who is the X of SR University?") sit close together in the vector space; the
+    distinctive words of the student's own question decide between them. Each distinct question word found in
+    a passage lowers its rank distance a little (stems of 5 letters, so "admission" matches "Admissions")."""
+    import re as _re
+    words = {w[:5] for w in _re.findall(r"[a-z]+", (query or "").lower()) if len(w) > 3 and w not in _GENERIC_WORDS}
+    if not words:
+        return hits
+    def adjusted(h):
+        text = f"{h.get('title', '')} {h.get('question', '')} {h.get('text', '')}".lower()
+        found = {t[:5] for t in _re.findall(r"[a-z]+", text) if len(t) > 3}
+        return (h.get("distance") or 0.5) - 0.03 * len(words & found)
+    for h in hits:
+        h["rank"] = round(adjusted(h), 3)
+    return sorted(hits, key=lambda h: h["rank"])
+
+
+# Cosine distance above which a vector match is not about the question (measured on the index: right answers
+# 0.19-0.34, unrelated passages 0.45+).
+_SEMANTIC_MAX_DISTANCE = 0.42
+
+
+def _merge_evidence(semantic: list, lexical: list, limit: int = 6) -> list:
+    """Strong semantic matches (distance < 0.33) first, then semantic and keyword results alternate; the same
+    passage found by both is kept once."""
+    import re as _re
+    strong = [h for h in semantic if (h.get("rank", h.get("distance")) or 1) < 0.33]
+    rest_sem = [h for h in semantic if h not in strong]
+    ordered = strong[:]
+    for pair in zip_longest_lists(lexical, rest_sem):
+        ordered.extend(pair)
+    seen, out = set(), []
+    for h in ordered:
+        key = _re.sub(r"\W+", " ", (h.get("text") or "").lower())[:160]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(h)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def zip_longest_lists(a: list, b: list):
+    for i in range(max(len(a), len(b))):
+        yield [x for x in ((a[i] if i < len(a) else None), (b[i] if i < len(b) else None)) if x is not None]
 
 # Connect agent lead saving directly to PostgreSQL
 async def agent_lead_saver(lead_data: dict):

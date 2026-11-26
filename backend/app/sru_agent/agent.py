@@ -1008,6 +1008,8 @@ async def _model_words(brief: str, message: str, session_id: str, *, history=Non
         return None
     from . import answer_check
     checked, problems = answer_check.check(text, sources=[facts or "", brief])
+    if not problems:
+        checked, problems = answer_check.check_people(checked, evidence=[facts or "", brief])
     if problems:
         log.info("model words rejected for session %s: %s", (session_id or "")[:8], "; ".join(problems)[:200])
         return None
@@ -1454,6 +1456,10 @@ _shown_offline_titles: dict = {}
 
 # v4.17.0: said when every AI key is resting (rate limit) or the model can't be reached. It never guesses an
 # answer from the words of the question; it says so, and offers buttons that work without the model.
+# Details checked before they are shown (see the streaming loop): amounts, percentages, a person's name with an
+# honorific, phone numbers.
+_SENSITIVE_DETAIL = re.compile(r"₹|\bRs\.?\s?\d|\b\d[\d,.]*\s?%|\b\d+(?:\.\d+)?\s?LPA\b|"
+                               r"\b(?:Dr|Prof|Mr|Mrs|Ms|Sri|Smt|Col)\.?\s+[A-Z]|\b\d{3}\s?\d{3}\s?\d{4}\b")
 # A Markdown table in an answer (its header separator row, e.g. "|---|---|").
 _HAS_MD_TABLE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)+\|?\s*$", re.MULTILINE)
 _LIMIT_REPLY_OPTIONS = [
@@ -4012,6 +4018,8 @@ async def run_agent(
     # request or a cancellation: those are checked for honesty first and only then shown.
     live_ok = not (pending or action_note or _CANCEL_ASK.search(message) or intents.is_callback_request(message))
     streamed = ""
+    shown, hold_from = 0, None        # live text shown so far / where the first sensitive detail starts
+    turn_evidence: list = []          # every tool result of this turn: the self-check's evidence
     try:
         link["key"] = None if client else _ring.next_key()
         if link["fixed"] is None and not link["key"]:
@@ -4052,9 +4060,18 @@ async def run_agent(
                     if kind == "text":
                         round_text += value
                         streamed += value
-                        # Stop showing live text once it looks like a leak; the final answer is replaced in _done.
-                        if not ai_guard.leak_reason(streamed):
-                            yield {"type": "token", "delta": value}
+                        # v4.17.1: text is shown live only up to the first sensitive detail (an amount, a
+                        # percentage, a person's name, a phone number); from there the answer is sent after the
+                        # self-check, so a wrong name or fee never appears and then disappears. A short tail is
+                        # always held back, so a half-written detail is never shown either. A leak stops it too.
+                        if hold_from is None:
+                            sens = _SENSITIVE_DETAIL.search(streamed)
+                            if sens:
+                                hold_from = sens.start()
+                        limit = len(streamed) - 12 if hold_from is None else min(hold_from, len(streamed) - 12)
+                        if limit > shown and not ai_guard.leak_reason(streamed):
+                            yield {"type": "token", "delta": streamed[shown:limit]}
+                            shown = limit
                     else:
                         resp = value
             else:
@@ -4097,6 +4114,7 @@ async def run_agent(
                 yield {"type": "tool", "name": call.name, "status": "done",
                        "result_status": result.get("status"),
                        "result": result if is_card_ready else None}
+                turn_evidence.append({"tool": call.name, "result": result})
                 result_parts.append(types.Part(function_response=types.FunctionResponse(
                     name=call.name, response=result, id=getattr(call, "id", None))))
             contents.append(types.Content(role="user", parts=result_parts))
@@ -4176,9 +4194,10 @@ async def run_agent(
         from . import answer_check
         fee_card = next((c["data"] for c in cards if isinstance(c, dict) and c.get("type") == "calculate_fee"
                          and isinstance(c.get("data"), dict)), None)
-        final, problems = answer_check.check(
-            final, fee_result=fee_card or prefetched_fee,
-            sources=[passages, fee_note or "", faculty_note or "", facts_note or "", cards])
+        evidence = [passages, fee_note or "", faculty_note or "", facts_note or "", cards, *turn_evidence]
+        final, problems = answer_check.check(final, fee_result=fee_card or prefetched_fee, sources=evidence)
+        final, people_problems = answer_check.check_people(final, evidence=evidence)
+        problems += people_problems
         if problems:
             log.warning("self-check corrected the model's answer: %s", "; ".join(problems)[:300])
     from app.services.guardrail_service import normalize_positive_brand_advocacy
@@ -4191,8 +4210,12 @@ async def run_agent(
     if not streamed:
         for piece in _chunks(final):
             yield {"type": "token", "delta": piece}
-    # (when the words were streamed live, the 'done' event carries the final text, which the
-    # browser shows in place of what it streamed)
+    elif final.startswith(streamed[:shown]):
+        # the checked answer continues what was shown live: send the rest (held-back details, the tail)
+        for piece in _chunks(final[shown:]):
+            yield {"type": "token", "delta": piece}
+    # (otherwise the 'done' event carries the corrected final text, which the browser shows in place of what it
+    # streamed; a held-back detail was never on screen)
     await memory.append_history(session_id, message, final, conversation_id)
 
     # ---- 7. Cards and follow-up suggestions ---------------------------------------------------

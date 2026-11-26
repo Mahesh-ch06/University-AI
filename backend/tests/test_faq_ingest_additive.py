@@ -6,6 +6,8 @@
   "Is it 60% and above?" does not make its corrected answer obsolete.
 """
 import sys
+
+import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -59,3 +61,37 @@ def test_retired_phrase_in_the_question_does_not_retire_a_corrected_answer():
     outdated = "Section: Eligibility\nQ: What is the cutoff?\nA: 60% and above in Intermediate."
     assert any(m in _answer_part(outdated) for m in _OBSOLETE_FEE_MARKERS)
     assert _answer_part("Fees: 60% aggregate required") == "Fees: 60% aggregate required"   # not a Q&A chunk
+
+
+def test_old_numbered_question_is_superseded_by_the_corrected_one():
+    old = ("o1", {"document_type": "faq", "section": "SRiX", "question": "4. Does SRiX provide seed funding?"},
+           "Section: SRiX\nQ: 4. Does SRiX provide seed funding?\nA: Yes.")
+    new = _entry("SRiX", "Does SRiX provide seed funding?", "SRiX connects startups with seed funding.")
+    to_add, stale = _missing_or_changed([new], FakeCollection([old]))
+    assert to_add == [new] and stale == ["o1"]
+
+
+def test_a_failed_import_removes_nothing(monkeypatch):
+    import asyncio
+    import scripts.ingest_university_doc as ing
+
+    class Col(FakeCollection):
+        deleted = []
+
+        def delete(self, ids):
+            self.deleted.extend(ids)
+
+    col = Col([("o1", {"document_type": "faq", "section": "SRiX", "question": "4. Old?"}, "Q: 4. Old?\nA: x")])
+
+    class Client:
+        def get_or_create_collection(self, **kw):
+            return col
+
+    async def boom(entries, dept):
+        raise RuntimeError("429 Too Many Requests")
+
+    monkeypatch.setattr("app.db.chroma.get_chroma_client", lambda: Client())
+    monkeypatch.setattr(ing, "_ingest_entries", boom)
+    with pytest.raises(RuntimeError):
+        asyncio.run(ing._add_missing([_entry("SRiX", "New question?", "A full answer sentence here.")], None))
+    assert col.deleted == []          # the previous knowledge stays until the replacement is indexed
