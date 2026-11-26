@@ -63,7 +63,66 @@ def _norm(text: str) -> str:
 
 
 def _name_key(name: str) -> str:
+    """The person's name only: honorifics and any role written in brackets after the name
+    ("Dr. Rupesh Mishra (Director of Centre for Experiential Learning)") are not part of it."""
+    name = re.sub(r"\([^)]*\)", " ", name or "")
     return " ".join(w for w in _norm(name).split() if w not in ("dr", "prof", "mr", "ms", "mrs"))
+
+
+# Words that name an office or a title, never a person: a question that shares "Director" or "Admissions" with a
+# profile is not about that person (v4.17.1, entity resolution).
+_ROLE_WORDS = set("director directors deputy associate assistant additional joint chief executive officer officers "
+                  "registrar controller chancellor vice pro president chairman chairperson chair principal "
+                  "coordinator coordinators manager incharge charge warden librarian secretary ceo cfo coo "
+                  "admissions admission marketing placement placements training examinations exams exam evaluation "
+                  "office centre center cell lead leads leader leaders role position designation holds hold serve "
+                  "serves served post title officials official authority".split())
+_ROLE_NOUN = re.compile(
+    r"\b(?:director|registrar|controller|chancellor|officer|coordinator|principal|president|ceo|"
+    r"chair(?:man|person)?|warden|librarian|secretary|in[\s-]?charge|manager)s?\b", re.IGNORECASE)
+
+
+def _name_words(query: str) -> list[str]:
+    """The words of a query that can be part of a person's name."""
+    return [w for w in _name_key(query).split()
+            if len(w) > 2 and w not in _STOP and w not in _ROLE_WORDS and w not in _UNIT_ONLY and not _units(w)]
+
+
+def _is_person_name(words: list[str]) -> bool:
+    """Do these words name someone in the directory (every word a name part, close spellings allowed)?"""
+    words = [w for w in words if len(w) > 2]
+    if not words:
+        return False
+    for p in _data()["faculty"]:
+        parts = _name_key(p["name"]).split()
+        if all(w in parts or any(difflib.SequenceMatcher(None, w, part).ratio() >= 0.84 for part in parts
+                                 if len(part) > 2) for w in words):
+            return True
+    return False
+
+
+def _stem(word: str) -> str:
+    return word[:6]
+
+
+def _office_words(query: str) -> list[str]:
+    """What the asked role is about ("Director of Admissions and Marketing" -> admissions, marketing)."""
+    generic = {"director", "directors", "deputy", "associate", "assistant", "additional", "joint", "chief",
+               "officer", "officers", "role", "position", "designation", "holds", "hold", "serve", "serves",
+               "lead", "leads", "leader", "leaders", "post", "title", "official", "officials", "authority"}
+    return [w for w in _norm(query).split()
+            if len(w) > 2 and w not in _STOP and w not in generic and not _ROLE_NOUN.fullmatch(w)]
+
+
+def _holds_role(person: dict, query: str) -> bool:
+    """Does this profile's own role / designation name the office asked about (every office word, and the title)?"""
+    text = _norm(f"{person.get('name', '')} {person.get('role', '')} {person.get('designation', '')}")
+    words = text.split()
+    noun = _ROLE_NOUN.search(query or "")
+    if noun and _stem(noun.group(0).lower()) not in {_stem(w) for w in words}:
+        return False
+    office = _office_words(query)
+    return bool(office) and all(any(_stem(w) == _stem(o) for w in words) for o in office)
 
 
 _TITLE_NAME = re.compile(r"\b(?:dr|prof|professor)\.?\s+[A-Za-z]{3,}|\bwho\s+heads?\b", re.IGNORECASE)
@@ -191,30 +250,95 @@ def search(query: str = "", department: str = "", role: str = "") -> dict:
                      all(w in _norm(p["designation"]) for w in portfolio_words)]
         if portfolio and not units:
             primary = portfolio  # "dean of student welfare"
+        elif portfolio_words and not units and not _is_person_name(portfolio_words):
+            # "Associate Dean PDF" / "dean of students": the profile whose own designation is that title, or none
+            title = portfolio_words + (["dean"] if wants_dean else ["head"])
+            titled = [p for p in people if all(any(_stem(w) == _stem(x) for x in
+                                                   _norm(f"{p['role']} {p['designation']}").split()) for w in title)]
+            if titled:
+                main = [p for p in titled if not re.search(r"\b(?:associate|assistant|deputy|additional)\s+(?:dean|head)",
+                                                         f"{p['role']} {p['designation']}", re.IGNORECASE)]
+                out = {**base, "status": "ok", "kind": "role_holder",
+                       "note": "Quote each designation exactly as written.",
+                       "faculty": [_brief(p, detail=len(titled) == 1) for p in (main or titled)[:6]]}
+                if not main:
+                    out["exact_title_held"] = False
+                    out["note"] = ("No profile holds the exact title asked; these hold related associate / assistant "
+                                   "titles. Say that, quote their titles exactly, and do not call any of them the "
+                                   "holder of the title asked.")
+                return out
+            # an office no profile here holds; the school deans are different people (they are not returned for it)
+            return {**base, "status": "no_results", "kind": "role_not_in_directory", "asked_role": query or role,
+                    "note": "No faculty profile holds this office. Answer only from the approved university "
+                            "documents; do not name a school dean for it."}
         if primary:
             leaders = primary
         if leaders:
             return {**base, "status": "ok", "kind": "leaders",
                     "faculty": [_brief(p, detail=len(leaders) == 1) for p in leaders[:12]]}
 
-    # 2. A person by name
-    named = _by_name(query) if query else []
-    if named and not units:
-        strong = [p for p in named if all(
-            w in _name_key(p["name"]).split() for w in _name_key(query).split()
-            if len(w) > 2 and w not in _STOP and not _units(w))]
-        named = strong or named
-        if len(named) <= 3:
-            return {**base, "status": "ok", "kind": "person",
-                    "faculty": [_brief(p, detail=True) for p in named]}
+    # 2. A role or office ("Director of Admissions", "registrar"): only a profile whose own designation names
+    #    that office answers it. The directory lists teaching faculty and academic leaders; other offices are in
+    #    the approved university documents (the tool searches them when this says role_not_in_directory).
+    asked_names = _name_words(query) if query else []
+    role_query = bool(_ROLE_NOUN.search(text)) and not (wants_dean or wants_head)
+    holders = [p for p in people if _holds_role(p, text)] if role_query else []
+    if holders:
+            return {**base, "status": "ok", "kind": "role_holder",
+                    "note": "These profiles' own designation names the office asked about. Quote the designation "
+                            "exactly as written.",
+                    "faculty": [_brief(p, detail=len(holders) == 1) for p in holders[:6]]}
+    if role_query and not asked_names:
+        return {**base, "status": "no_results", "kind": "role_not_in_directory",
+                "asked_role": query or role,
+                "note": "No faculty profile holds this office. Do not name a faculty member for it because a title "
+                        "word (e.g. 'Director') is shared; answer only from the approved university documents."}
 
-    # 3. A topic, optionally inside a department ("who teaches machine learning in CSE")
+    # 3. A person by name: every name word must match (a close spelling counts); a partial match is reported as
+    #    such, never as the same person.
+    named = _by_name(" ".join(asked_names)) if asked_names else []
+    if named and not units:
+        def _missing(p):
+            parts = _name_key(p["name"]).split()
+            # a close spelling counts as the same name word ("seshikala" ~ "sheshikala", 0.95); "randeep" is
+            # not "sandeep" (0.86) and "mitra" is not "mishra" (0.73)
+            return [w for w in asked_names if w not in parts and not any(
+                difflib.SequenceMatcher(None, w, part).ratio() >= 0.88 for part in parts if len(part) > 2)]
+        # everyone whose name has every asked word (not just the best-scored: "Babu" names three people)
+        exact = [p for p in people if not _missing(p)]
+        if len(exact) > 3:
+            return {**base, "status": "ok", "kind": "person", "match": "ambiguous", "matches": len(exact),
+                    "faculty": [_brief(p) for p in exact[:5]],
+                    "note": f"{len(exact)} profiles match this name: ask the student for the full name or "
+                            "department; do not pick one."}
+        if exact:
+            out = {**base, "status": "ok", "kind": "person", "match": "exact",
+                   "faculty": [_brief(p, detail=True) for p in exact]}
+            if len(exact) > 1:
+                out["note"] = ("Several profiles match this name: say they are different people and ask which one "
+                               "the student means.")
+            if role_query:
+                out["role_check"] = {p["name"]: _holds_role(p, text) for p in exact}
+                if not all(out["role_check"].values()):
+                    out["note"] = ("The profile does not list the role asked about. Say so; do not confirm a role "
+                                   "the designation does not show.")
+            return out
+        if not exact and len(named) <= 3:
+            return {**base, "status": "ok", "kind": "person", "match": "partial",
+                    "asked_name": " ".join(asked_names),
+                    "unmatched_name_words": sorted({w for p in named for w in _missing(p)}),
+                    "faculty": [_brief(p) for p in named],
+                    "note": "No profile matches the full name asked. These are only similar names: they may be "
+                            "different people. Do not say they are the same person; ask the student to confirm "
+                            "the name, and do not attribute any role to them from the question."}
+
+    # 4. A topic, optionally inside a department ("who teaches machine learning in CSE")
     pool = [p for p in people if any(_in_unit(p, u) for u in units)] if units else people
     topical = _by_topic(" ".join(_topic_words(query or "")), pool)
     if topical:
         return {**base, "status": "ok", "kind": "topic", "faculty": [_brief(p) for p in topical]}
 
-    # 4. A whole department or school: numbers, leaders and a few senior names
+    # 5. A whole department or school: numbers, leaders and a few senior names
     if units:
         unit = units[0]
         members = [p for p in people if _in_unit(p, unit)]
@@ -234,7 +358,9 @@ def search(query: str = "", department: str = "", role: str = "") -> dict:
                     "some_senior_faculty": [_brief(p) for p in senior[:6]]}
 
     if named:
-        return {**base, "status": "ok", "kind": "person", "faculty": [_brief(p) for p in named]}
+        return {**base, "status": "ok", "kind": "person", "match": "partial",
+                "note": "Similar names only; confirm the person with the student before attributing anything.",
+                "faculty": [_brief(p) for p in named]}
     if not _topic_words(query or ""):
         return {**base, "status": "ok", "kind": "overview", **overview()}  # "tell me about the faculty"
     return {**base, "status": "no_results",

@@ -246,7 +246,7 @@ export function sendMessageStream(
   (async () => {
     let tokensStreamed = 0;
 
-    const streamFromEndpoint = async (url: string): Promise<boolean> => {
+    const streamFromEndpoint = async (url: string, strict = false): Promise<boolean> => {
       let res: Response;
       try {
         res = await fetch(url, {
@@ -282,6 +282,18 @@ export function sendMessageStream(
       }
 
       if (!res.ok || !res.body) {
+        if (strict) {
+          // v4.17.1: the agent answered with an error (a limit, a validation problem): say it, do not resend the
+          // message to a different pipeline that has neither this conversation's state nor its rules.
+          let detail = "";
+          try {
+            const body = await res.json();
+            detail = typeof body?.detail === "string" ? body.detail : "";
+          } catch {
+            /* not JSON */
+          }
+          throw new Error(detail || `SRU Buddy could not answer just now (error ${res.status}). Please tap Retry.`);
+        }
         return false;
       }
 
@@ -324,8 +336,9 @@ export function sendMessageStream(
             callbacks.onDone?.(parsed);
             return true;
           } else if (parsed.type === "error") {
-            // If an error is returned before any token was delivered, fail so fallback can attempt
-            if (tokensStreamed === 0) {
+            // The agent's own honest error (model unavailable, a limit...): shown as it is. Only the legacy mode
+            // (VITE_USE_AGENT=false) may try another endpoint before any token arrived.
+            if (tokensStreamed === 0 && !strict) {
               return false;
             }
             throw new Error(parsed.detail || "Error streaming response");
@@ -340,16 +353,17 @@ export function sendMessageStream(
       let success = false;
 
       if (useAgent) {
-        try {
-          success = await streamFromEndpoint(`${API_BASE}/api/v1/agent/stream`);
-        } catch (err: unknown) {
-          if ((err as Error)?.name === "AbortError") return;
-          success = false;
+        // v4.17.1: no silent switch to the legacy /chat/stream pipeline when the agent fails: that pipeline has
+        // neither this conversation's state, nor the typed / button source, nor the agent's checks, and the
+        // message would be processed twice. The error is shown with Retry instead.
+        success = await streamFromEndpoint(`${API_BASE}/api/v1/agent/stream`, true);
+        if (!success && !controller.signal.aborted) {
+          throw new Error("SRU Buddy could not answer just now. Please tap Retry.");
         }
       }
 
-      // If agent stream was not used or failed before sending tokens, fall back to chat stream
-      if (!success && !controller.signal.aborted) {
+      // Legacy mode only (VITE_USE_AGENT=false): the chat stream endpoint
+      if (!useAgent && !success && !controller.signal.aborted) {
         const legacySuccess = await streamFromEndpoint(`${API_BASE}/api/v1/chat/stream`);
         if (!legacySuccess) {
           throw new Error("Failed to receive response from university companion.");

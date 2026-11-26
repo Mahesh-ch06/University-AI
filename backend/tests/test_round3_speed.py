@@ -96,7 +96,9 @@ async def test_answer_streams_while_the_model_writes_it():
     client = StreamingClient([[_text_chunk("SR University has "), _text_chunk("a 150-acre campus.")]])
     events = await _events(client, "what is the library like at sru?", f"stream-{uuid.uuid4()}")
     tokens = [e["delta"] for e in events if e["type"] == "token"]
-    assert tokens[:2] == ["SR University has ", "a 150-acre campus."]  # the model's own pieces
+    # streamed live, in pieces, while the model writes (v4.17.1: up to the first checked detail, here "150-acre"
+    # is not one; a short tail is held back and sent after the self-check)
+    assert len(tokens) >= 2 and tokens[0] and "".join(tokens).startswith("SR University has")
     done = events[-1]
     assert done["type"] == "done" and done["answer"] == "SR University has a 150-acre campus."
     # the words are not sent a second time after streaming
@@ -232,3 +234,14 @@ async def test_done_reaches_the_browser_before_the_chat_is_saved():
 
 def test_retry_waits_are_short_by_default():
     assert sum(config.AGENT_RETRY_DELAYS) <= 4
+
+
+
+@pytest.mark.asyncio
+async def test_a_fee_amount_is_not_streamed_before_the_self_check():
+    client = StreamingClient([[_text_chunk("With 92% your first year is "), _text_chunk("₹2,63,000 for CSE.")]])
+    events = await _events(client, "what is the library like at sru?", f"stream-hold-{uuid.uuid4()}")
+    tokens = [e["delta"] for e in events if e["type"] == "token"]
+    done = events[-1]
+    assert tokens[0] == "With "                          # shown live only up to the first detail ("92%")
+    assert "".join(tokens) == done["answer"]            # the rest is sent after the self-check

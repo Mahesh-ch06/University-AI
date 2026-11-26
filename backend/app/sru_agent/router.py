@@ -38,7 +38,7 @@ async def _log_turn(session_id, conv_id, message, event, started_at, channel=Non
         extra = {"channel": channel} if channel else {}
         await _on_turn_complete(session_id, conv_id, message, event["answer"], event["tools_used"],
                                 cards=event.get("cards") or [], suggestions=event.get("suggestions") or [],
-                                started_at=started_at, **extra)
+                                started_at=started_at, sources=event.get("sources") or [], **extra)
     except TypeError:
         await _on_turn_complete(session_id, conv_id, message, event["answer"], event["tools_used"])
 

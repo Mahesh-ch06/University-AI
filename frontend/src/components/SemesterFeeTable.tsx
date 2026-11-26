@@ -14,7 +14,7 @@ export interface SemesterBlock {
   formatted_total?: string;
 }
 
-function money(value: unknown): string {
+export function money(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "number") {
     const sign = value < 0 ? "− " : "";

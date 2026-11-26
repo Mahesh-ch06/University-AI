@@ -50,17 +50,32 @@ def _is_blank(text: str) -> bool:
     return text.strip().lower() in _BLANK_MARKERS
 
 
+_RE_NUMBERED = re.compile(r"^\s*\d{1,3}[.)]\s+(?=\S)")
+_STARTERS = ("what", "when", "where", "who", "whom", "whose", "how", "why", "can", "is", "are", "am", "do", "does",
+             "did", "will", "which", "should", "could", "would", "has", "have", "may")
+
+
+def _strip_number(text: str) -> str:
+    """"16. Who is the Senior Director...?" -> "Who is the Senior Director...?" (the number is list position only)."""
+    return _RE_NUMBERED.sub("", text, count=1).strip()
+
+
 def _looks_like_question(text: str) -> bool:
-    """Heuristic: bold paragraph that is likely a question."""
-    text = text.strip()
+    """A paragraph that asks something: it has a question mark, or it starts with a question word and is not a
+    full sentence (no closing full stop). Numbering ("12. ...") is ignored."""
+    text = _strip_number(text)
     if not text:
         return False
-    # Has a question mark, or starts with a WH-word / common question starters
     if "?" in text:
         return True
-    starters = ("what", "when", "where", "who", "how", "why", "can", "is", "are",
-                 "do", "does", "will", "which", "should", "could", "has", "have")
-    return text.lower().split()[0] in starters if text else False
+    first = text.lower().split()[0].strip(",:;")
+    return first in _STARTERS and not text.rstrip().endswith((".", "!"))
+
+
+def _is_label(text: str) -> bool:
+    """A short heading-like line ("Hostel Fees", "Mess Timings") rather than a sentence of an answer."""
+    t = _strip_number(text)
+    return bool(t) and len(t.split()) <= 6 and not t.rstrip().endswith((".", "!", ":", ";", ","))
 
 
 def _para_is_bold(para) -> bool:
@@ -69,10 +84,22 @@ def _para_is_bold(para) -> bool:
     return bool(runs) and all(r.bold for r in runs)
 
 
-def parse_university_docx(file_path: Path) -> list[ParsedEntry]:
+def parse_university_docx(file_path: Path, report: dict | None = None) -> list[ParsedEntry]:
     """
     Parse the SRU university DOCX and return ParsedEntry objects.
-    Entries with blank answers are skipped.
+
+    Rules (v4.17.1, from an audit of the whole document):
+      * Title paragraphs start a section.
+      * A Heading paragraph that is a question ("16. Who is the Senior Director of Admissions and Marketing?") is a
+        QUESTION; only other headings are sub-section labels. (Earlier every heading was a label, so all 113
+        Heading-3 questions and their answers were lost.)
+      * A bold Normal paragraph that is a question, or a numbered bold item in a list of questions
+        ("12. Mess Timings"), is a question; its list number is not part of the question.
+      * Everything else under a question is its answer, kept in order with line breaks (numbered steps inside an
+        answer stay in the answer). Bold sentences inside an answer do not end it; only a short bold label does.
+      * A bare URL line is the source page for the entries that follow.
+      * Questions with no answer are skipped and listed in `report["unanswered"]`; paragraphs that belong to no
+        question are listed in `report["orphans"]` (nothing is dropped silently).
     """
     try:
         from docx import Document as DocxDocument
@@ -81,23 +108,26 @@ def parse_university_docx(file_path: Path) -> list[ParsedEntry]:
 
     doc = DocxDocument(str(file_path))
     entries: list[ParsedEntry] = []
+    report = report if report is not None else {}
+    report.setdefault("unanswered", [])
+    report.setdefault("orphans", [])
 
     current_section = "General"
     current_sub_section = ""
     current_page_url: str | None = None
 
-    # Q&A state
     pending_question: str | None = None
     answer_lines: list[str] = []
-    # Track URL lines that appear AFTER a question block (applies to that block's section)
-    pending_url_update: str | None = None
 
     def _flush() -> None:
         nonlocal pending_question, answer_lines
         if pending_question is None:
             return
-        answer_text = " ".join(l for l in answer_lines if l).strip()
-        if not _is_blank(answer_text):
+        answer_text = "\n".join(l for l in answer_lines if l).strip()
+        # An "answer" made only of further questions and labels (a list of unanswered questions) is no answer.
+        substantive = [l for l in answer_lines
+                       if l.strip() and not _looks_like_question(l) and len(l.split()) >= 4]
+        if not _is_blank(answer_text) and substantive:
             entries.append(ParsedEntry(
                 section=current_section,
                 sub_section=current_sub_section,
@@ -106,18 +136,25 @@ def parse_university_docx(file_path: Path) -> list[ParsedEntry]:
                 answer=answer_text,
             ))
         else:
-            logger.debug(
-                "Skipping unanswered Q in [%s > %s]: %s",
-                current_section, current_sub_section, pending_question[:80],
-            )
+            report["unanswered"].append((current_section, pending_question))
+            logger.debug("Skipping unanswered Q in [%s > %s]: %s",
+                         current_section, current_sub_section, pending_question[:80])
         pending_question = None
-        answer_lines.clear()
+        answer_lines = []
+
+    def _start_question(text: str) -> None:
+        nonlocal pending_question, answer_lines
+        _flush()
+        # A question and its answer in one paragraph, split by a line break
+        # ("Who is the Dean of PG Studies?\nThe Dean of PG Studies is ..."): the first line is the question.
+        first, _, rest = text.partition("\n")
+        pending_question = _strip_number(first if rest.strip() and "?" in first else text)
+        answer_lines = [l.strip() for l in rest.splitlines() if l.strip()] if rest.strip() and "?" in first else []
 
     for para in doc.paragraphs:
         raw = para.text.strip()
         if not raw:
             continue
-
         style_name = para.style.name or ""
 
         # ── Top-level section (Title style) ───────────────────────────────
@@ -126,47 +163,46 @@ def parse_university_docx(file_path: Path) -> list[ParsedEntry]:
             current_section = raw
             current_sub_section = ""
             current_page_url = None
-            logger.debug("Section: %s", current_section)
             continue
 
-        # ── Heading styles ─────────────────────────────────────────────────
+        # ── Heading styles: a question, or a sub-section label ─────────────
         if "Heading" in style_name:
-            _flush()
-            current_sub_section = raw
-            current_page_url = None
-            logger.debug("Sub-section: %s", current_sub_section)
-            continue
-
-        # ── Bare URL line ──────────────────────────────────────────────────
-        if _RE_URL.match(raw):
-            # URL that follows a block — assign to current section context
-            current_page_url = raw.rstrip(".,;)")
-            logger.debug("URL for [%s]: %s", current_section, current_page_url)
-            continue
-
-        # ── Bold Normal paragraph → question or sub-section label ──────────
-        is_bold = _para_is_bold(para)
-        if is_bold and style_name == "Normal":
-            if _looks_like_question(raw):
-                # It's a question
-                _flush()
-                pending_question = raw
-                answer_lines = []
+            if _looks_like_question(raw) or _RE_NUMBERED.match(raw):
+                _start_question(raw)
             else:
-                # It's a sub-section label
                 _flush()
                 current_sub_section = raw
-                logger.debug("Sub-section: %s", current_sub_section)
+                current_page_url = None
             continue
 
-        # ── Non-bold Normal → answer line (or continuation) ───────────────
+        # ── Bare URL line: the source page of what follows ────────────────
+        if _RE_URL.match(raw):
+            current_page_url = raw.rstrip(".,;)")
+            continue
+
+        is_bold = _para_is_bold(para)
+        if is_bold and _looks_like_question(raw):
+            _start_question(raw)
+            continue
+        if is_bold and _RE_NUMBERED.match(raw) and _is_label(raw):
+            # a numbered topic item in a list of questions ("12. Mess Timings"): asked as a topic
+            _start_question(raw)
+            continue
+        if is_bold and _is_label(raw):
+            _flush()
+            current_sub_section = raw
+            continue
+
+        # ── Answer text (plain or bold sentences, numbered steps) ─────────
         if pending_question is not None:
             answer_lines.append(raw)
+        elif _looks_like_question(raw):
+            report["unanswered"].append((current_section, _strip_number(raw)))   # a question with no answer
+        else:
+            report["orphans"].append((current_section, raw))   # sample prompts / example dialogue, not facts
 
-    _flush()  # flush last entry
+    _flush()
 
-    logger.info(
-        "Parsed %d answerable Q&A entries from '%s'",
-        len(entries), file_path.name,
-    )
+    logger.info("Parsed %d answerable Q&A entries from '%s' (%d unanswered, %d orphan paragraphs)",
+                len(entries), file_path.name, len(report["unanswered"]), len(report["orphans"]))
     return entries

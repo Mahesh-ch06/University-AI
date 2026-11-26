@@ -175,8 +175,10 @@
     frame = document.createElement("iframe");
     frame.title = "SRU Buddy, SR University admissions assistant";
     frame.src = appUrl;
-    frame.allow = "microphone; clipboard-write";
-    frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups");
+    // web-share: "Share fee card" can open the phone's share sheet from inside the widget; allow-downloads: the
+    // "Download fee card" fallback works too (v4.17.1)
+    frame.allow = "microphone; clipboard-write; web-share";
+    frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads");
     frame.setAttribute("loading", "eager");
     panel.appendChild(frame);
   }
