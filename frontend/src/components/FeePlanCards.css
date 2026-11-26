@@ -606,3 +606,34 @@
 .fp-sem-block {
   margin: 10px 0;
 }
+
+/* v4.17.1: fee card sharing options when the image cannot be shared directly */
+.fp-share-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+}
+.fp-share-panel-note {
+  width: 100%;
+  font-size: 0.78rem;
+  color: var(--o-muted, #5d5e6c);
+}
+.fp-share-option {
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--o-line, #e4e6eb);
+  background: var(--surface-1, #ffffff);
+  color: var(--o-brand, #194f90);
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.fp-share-option:hover,
+.fp-share-option:focus-visible {
+  border-color: var(--o-brand, #194f90);
+  outline: none;
+}

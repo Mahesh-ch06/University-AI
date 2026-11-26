@@ -1,7 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AwardIcon, CheckIcon, RupeeIcon, ShareIcon, ShieldCheckIcon } from "./Icons";
 import "./FeePlanCards.css";
 import { SemesterFeeTable } from "./SemesterFeeTable";
+import {
+  canCopyImage,
+  copyCaption,
+  copyImage,
+  downloadBlob,
+  renderFeeCardPng,
+  shareFeeCardImage,
+  type FeeImageModel,
+} from "../utils/feeCardImage";
 
 /**
  * Fee-plan cards, all filled by the ONE fee engine (app/sru_agent/fees.py, the 2027-28 fee circular) via the backend
@@ -324,29 +333,23 @@ export function ConcessionFeeCard({ card }: { card: any }) {
 export function FeePlanCard({ card }: { card: any }) {
   const d = card.data || {};
   const rows: any[] = d.rows || [];
-  const [status, setStatus] = useState<"" | "copied" | "failed">("");
-  const shareText: string = d.share_text || "";
-
-  const share = async () => {
-    const title = `SR University fee chart: ${d.program}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, text: shareText });
-        return;
-      }
-      await navigator.clipboard.writeText(shareText);
-      setStatus("copied");
-    } catch (err) {
-      if ((err as Error)?.name === "AbortError") return; // the student closed the share sheet
-      try {
-        await navigator.clipboard.writeText(shareText);
-        setStatus("copied");
-      } catch {
-        setStatus("failed");
-      }
-    }
-    window.setTimeout(() => setStatus(""), 2400);
-  };
+  const imageModel = useMemo<FeeImageModel>(() => {
+    const merit = rows.find((r) => r.kind === "discount" && /scholarship/i.test(r.item || ""));
+    return {
+      heading: "Fee estimate",
+      program: d.program || "",
+      specialization: d.specialization || undefined,
+      academicYear: d.academic_year,
+      scholarship: merit ? `${merit.item} (${merit.amount})` : undefined,
+      semesters: semestersOf(d),
+      confirmed: d.first_year_total ? { label: "First-year payable", value: d.first_year_total } : undefined,
+      pendingTotal: d.concession?.total_if_approved
+        ? { label: `With ${d.concession.label} concession, if approved`, value: d.concession.total_if_approved }
+        : undefined,
+      notes: [d.course_total && d.duration_years ? `Full course (${d.duration_years} years): ${d.course_total}` : "",
+              d.application_fee ? `Application fee ${d.application_fee}, paid separately.` : ""].filter(Boolean),
+    };
+  }, [d, rows]);
 
   return (
     <div className="rich-card fp-card fp-plan">
@@ -409,26 +412,109 @@ export function FeePlanCard({ card }: { card: any }) {
         {d.concession?.note && <li>{d.concession.note}</li>}
       </ul>
       <div className="agent-card-footer fp-footer">
-        <button type="button" className="agent-card-map-btn" onClick={share} disabled={!shareText}>
-          <ShareIcon size={14} /> {status === "copied" ? "Copied" : "Share"}
-        </button>
-        <a
-          className="agent-card-wa-btn"
-          href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          WhatsApp
-        </a>
-        {status === "failed" && (
-          <span className="agent-card-source-tag" role="status">
-            Couldn't share. Long-press the chart to copy it.
-          </span>
-        )}
+        <FeeCardShare model={imageModel} fileName="sru-fee-estimate.png" title={`SR University fee estimate: ${d.program}`} />
         <span className="agent-card-source-tag">Source: SR University fee circular, {d.academic_year}.</span>
       </div>
     </div>
   );
+}
+
+/**
+ * "Share fee card" (v4.17.1): shares the card as a PNG image (exact card data) with a short caption through the
+ * phone's share sheet. Where a browser or embedded frame cannot share files, it offers Download / Copy caption /
+ * Copy image instead, and says exactly what happened (an image is never reported as shared when it was not).
+ */
+function FeeCardShare({ model, fileName, title }: { model: FeeImageModel; fileName: string; title: string }) {
+  const blobRef = useRef<Blob | null>(null);
+  const [panel, setPanel] = useState(false);
+  const [status, setStatus] = useState("");
+  const key = JSON.stringify(model);
+  useEffect(() => {
+    // Rendered ahead, so a tap can open the share sheet at once (the browser allows it only right after a tap).
+    let alive = true;
+    blobRef.current = null;
+    const t = window.setTimeout(() => {
+      renderFeeCardPng(model)
+        .then((b) => {
+          if (alive) blobRef.current = b;
+        })
+        .catch(() => {});
+    }, 250);
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  const blob = async (): Promise<Blob | null> => {
+    if (blobRef.current) return blobRef.current;
+    try {
+      blobRef.current = await renderFeeCardPng(model);
+      return blobRef.current;
+    } catch {
+      return null;
+    }
+  };
+  const flash = (text: string) => {
+    setStatus(text);
+    window.setTimeout(() => setStatus(""), 3200);
+  };
+  const onShare = async () => {
+    setStatus("");
+    const b = await blob();
+    if (!b) {
+      setPanel(true);
+      flash("Couldn't create the image on this device.");
+      return;
+    }
+    const outcome = await shareFeeCardImage(b, fileName, title);
+    if (outcome === "shared") flash("Fee card shared.");
+    else if (outcome === "cancelled") return; // closed the share sheet: nothing to say
+    else setPanel(true);
+  };
+  const onDownload = async () => {
+    const b = await blob();
+    flash(b && downloadBlob(b, fileName) ? "Fee card downloaded." : "Couldn't download the image.");
+  };
+  const onCopyCaption = async () => flash((await copyCaption()) ? "Caption copied." : "Couldn't copy the caption.");
+  const onCopyImage = async () => {
+    const b = await blob();
+    flash(b && (await copyImage(b)) ? "Image copied. Paste it into WhatsApp." : "Couldn't copy the image.");
+  };
+
+  return (
+    <>
+      <button type="button" className="agent-card-map-btn" onClick={onShare} aria-label="Share this fee card as an image">
+        <ShareIcon size={14} /> Share fee card
+      </button>
+      {panel && (
+        <div className="fp-share-panel" role="group" aria-label="Fee card sharing options">
+          <span className="fp-share-panel-note">Sharing the image directly isn't available here. You can:</span>
+          <button type="button" className="fp-share-option" onClick={onDownload}>
+            Download fee card
+          </button>
+          <button type="button" className="fp-share-option" onClick={onCopyCaption}>
+            Copy caption
+          </button>
+          {canCopyImage() && (
+            <button type="button" className="fp-share-option" onClick={onCopyImage}>
+              Copy image
+            </button>
+          )}
+        </div>
+      )}
+      {status && (
+        <span className="agent-card-source-tag" role="status">
+          {status}
+        </span>
+      )}
+    </>
+  );
+}
+
+function semestersOf(d: any) {
+  return Array.isArray(d.semesters) ? d.semesters : undefined;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -436,39 +522,31 @@ const STATUS_TEXT: Record<string, string> = {
   estimated: "Estimate",
 };
 
-async function shareText(title: string, text: string): Promise<"" | "copied" | "failed"> {
-  try {
-    if (navigator.share) {
-      await navigator.share({ title, text });
-      return "";
-    }
-    await navigator.clipboard.writeText(text);
-    return "copied";
-  } catch (err) {
-    if ((err as Error)?.name === "AbortError") return "";
-    try {
-      await navigator.clipboard.writeText(text);
-      return "copied";
-    } catch {
-      return "failed";
-    }
-  }
-}
-
 export function FeeSummaryCard({ card }: { card: any }) {
   const d = card.data || {};
   const rows: any[] = d.rows || [];
   const sch = d.scholarship || {};
   const cons = d.special_consideration || {};
   const pending: string[] = d.pending || [];
-  const [status, setStatus] = useState<"" | "copied" | "failed">("");
-  const text: string = d.share_text || "";
-
-  const onShare = async () => {
-    const result = await shareText(`SR University fee summary: ${d.program}`, text);
-    setStatus(result);
-    if (result) window.setTimeout(() => setStatus(""), 2400);
-  };
+  const imageModel = useMemo<FeeImageModel>(
+    () => ({
+      heading: "Fee summary",
+      program: d.course || d.program || "",
+      specialization: d.specialization || undefined,
+      academicYear: d.academic_year,
+      scholarship: sch.label || undefined,
+      semesters: semestersOf(d),
+      confirmed: d.payable_confirmed ? { label: "First-year payable (confirmed)", value: d.payable_confirmed } : undefined,
+      pendingTotal: d.payable_after_approval
+        ? { label: "If pending concessions are approved", value: d.payable_after_approval }
+        : undefined,
+      pending,
+      notes: [d.course_total && d.duration_years
+        ? `Full course (${d.duration_years} years, as things stand): ${d.course_total}` : "",
+              d.application_fee ? `Application fee ${d.application_fee}, paid separately.` : ""].filter(Boolean),
+    }),
+    [d, sch, pending]
+  );
 
   return (
     <div className="rich-card fp-card fp-summary">
@@ -578,22 +656,7 @@ export function FeeSummaryCard({ card }: { card: any }) {
       </ul>
 
       <div className="agent-card-footer fp-footer">
-        <button type="button" className="agent-card-map-btn" onClick={onShare} disabled={!text}>
-          <ShareIcon size={14} /> {status === "copied" ? "Copied" : "Share"}
-        </button>
-        <a
-          className="agent-card-wa-btn"
-          href={`https://wa.me/?text=${encodeURIComponent(text)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          WhatsApp
-        </a>
-        {status === "failed" && (
-          <span className="agent-card-source-tag" role="status">
-            Couldn't share. Long-press the summary to copy it.
-          </span>
-        )}
+        <FeeCardShare model={imageModel} fileName="sru-fee-summary.png" title={`SR University fee summary: ${d.program}`} />
         <span className="agent-card-source-tag">Source: SR University fee circular, {d.academic_year}.</span>
       </div>
     </div>
