@@ -71,26 +71,32 @@ async def save_profile(session_id: str, profile: dict) -> None:
     if before == wanted:
         return  # nothing changed: no database round trip
     async with async_session_factory() as db:
-        rows = (await db.execute(
-            select(UserMemory).where(UserMemory.session_id == session_id,
-                                     UserMemory.memory_key.like(PREFIX + "%")))).scalars().all()
-        existing = {row.memory_key[len(PREFIX):]: row for row in rows}
-        for key, encoded in wanted.items():
-            row = existing.get(key)
-            if row is None:
-                db.add(UserMemory(id=uuid.uuid4(), session_id=session_id, memory_key=PREFIX + key,
-                                  memory_value=encoded, consented=True))
-            elif row.memory_value != encoded:
-                row.memory_value = encoded
-        gone = [PREFIX + key for key in existing if key not in wanted]
-        if gone:
-            await db.execute(delete(UserMemory).where(UserMemory.session_id == session_id,
-                                                      UserMemory.memory_key.in_(gone)))
+        await write_profile(db, session_id, profile)
         await db.commit()
     _last_saved[session_id] = wanted
     if len(_last_saved) > 5000:  # keep the change-detection cache small
         for key in list(_last_saved)[:1000]:
             _last_saved.pop(key, None)
+
+
+async def write_profile(db, session_id: str, profile: dict):
+    """Write profile changes in the caller's transaction with the corresponding chat messages."""
+    wanted = _durable(profile)
+    rows = (await db.execute(
+        select(UserMemory).where(UserMemory.session_id == session_id,
+                                 UserMemory.memory_key.like(PREFIX + "%")))).scalars().all()
+    existing = {row.memory_key[len(PREFIX):]: row for row in rows}
+    for key, encoded in wanted.items():
+        row = existing.get(key)
+        if row is None:
+            db.add(UserMemory(id=uuid.uuid4(), session_id=session_id, memory_key=PREFIX + key,
+                              memory_value=encoded, consented=True))
+        elif row.memory_value != encoded:
+            row.memory_value = encoded
+    gone = [PREFIX + key for key in existing if key not in wanted]
+    if gone:
+        await db.execute(delete(UserMemory).where(UserMemory.session_id == session_id,
+                                                  UserMemory.memory_key.in_(gone)))
 
 
 async def load_history(session_id: str, conversation_id: str) -> list:
@@ -142,28 +148,33 @@ STATE_CHUNK = 240
 
 
 async def save_conversation_state(session_id: str, conversation_id: str, state: dict) -> None:
+    async with async_session_factory() as db:
+        await write_state(db, session_id, conversation_id, state)
+        await db.commit()
+
+
+async def write_state(db, session_id: str, conversation_id: str, state: dict):
     encoded = json.dumps(state, ensure_ascii=False, default=str)
     parts = [encoded[i:i + STATE_CHUNK] for i in range(0, len(encoded), STATE_CHUNK)] or [""]
     base = f"{STATE_PREFIX}{conversation_id}"
-    async with async_session_factory() as db:
-        rows = (await db.execute(select(UserMemory).where(
-            UserMemory.session_id == session_id, UserMemory.memory_key.like(base + "%")))).scalars().all()
-        existing = {row.memory_key: row for row in rows}
+    rows = (await db.execute(select(UserMemory).where(
+        UserMemory.session_id == session_id, UserMemory.memory_key.like(base + "%")))).scalars().all()
+    existing = {row.memory_key: row for row in rows}
 
-        def put(key: str, value: str):
-            row = existing.pop(key, None)
-            if row is None:
-                db.add(UserMemory(id=uuid.uuid4(), session_id=session_id, memory_key=key, memory_value=value,
-                                  consented=True))
-            elif row.memory_value != value:
-                row.memory_value = value
+    def put(key: str, value: str):
+        row = existing.pop(key, None)
+        if row is None:
+            db.add(UserMemory(id=uuid.uuid4(), session_id=session_id, memory_key=key, memory_value=value,
+                              consented=True))
+        elif row.memory_value != value:
+            row.memory_value = value
 
-        put(base, json.dumps({"__pieces__": len(parts)}))
-        for i, part in enumerate(parts):
-            put(f"{base}#{i}", part)
-        for row in existing.values():          # pieces left from a longer earlier state
-            await db.delete(row)
-        await db.commit()
+    put(base, json.dumps({"__pieces__": len(parts)}))
+    for i, part in enumerate(parts):
+        put(f"{base}#{i}", part)
+    for row in existing.values():          # pieces left from a longer earlier state
+        await db.delete(row)
+
 
 
 async def load_conversation_state(session_id: str, conversation_id: str) -> dict:

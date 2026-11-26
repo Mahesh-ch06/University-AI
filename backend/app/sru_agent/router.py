@@ -3,6 +3,8 @@
     from sru_agent.router import router as agent_router
     app.include_router(agent_router)
 """
+from contextlib import aclosing
+from uuid import UUID
 import json
 import logging
 import time
@@ -11,7 +13,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.chat import ConversationRecoveryContext, ResetSessionRequest, ResetSessionResponse
 from . import config, fees, memory
@@ -93,7 +95,17 @@ class AcademicForm(BaseModel):
     entrance_value: Optional[float] = Field(default=None, ge=0, le=1000000)
 
 
+class MessageReference(BaseModel):
+    message_id: UUID
+    card_index: int | None = Field(default=None, ge=0)
+
+
 class AgentRequest(BaseModel):
+    request_id: UUID | None = None
+    reply_to: MessageReference | None = None
+    edit_message_id: UUID | None = None
+    expected_message_id: UUID | None = None
+
     session_id: str = Field(min_length=16, max_length=64, pattern=SESSION_ID_PATTERN)
     message: str = Field(min_length=1, max_length=config.AGENT_MAX_MESSAGE_CHARS)
     conversation_id: Optional[str] = None
@@ -104,6 +116,15 @@ class AgentRequest(BaseModel):
     # "typed": the student typed the message (the model understands it). "button": the text of a chip, card
     # option or tile the bot offered (its fixed flow runs). Default "typed".
     source: Literal["typed", "button"] = "typed"
+
+    @model_validator(mode="after")
+    def validate_message_action(self):
+        if self.reply_to or self.edit_message_id:
+            if not self.conversation_id or self.source != "typed" or self.form:
+                raise ValueError("Message actions require a typed turn in an existing conversation.")
+        if self.edit_message_id and (self.reply_to or not self.request_id or not self.expected_message_id):
+            raise ValueError("Editing requires a request ID and the latest displayed message ID.")
+        return self
 
 
 class FeeRequest(BaseModel):
@@ -136,6 +157,23 @@ async def agent_stream(req: AgentRequest, request: Request = None):
             refusal = None if await memory.allow_request(req.session_id) else security.BUSY_MESSAGE
         if refusal:
             yield _sse({"type": "error", "detail": refusal})
+            return
+
+        if request is not None and _conversation_resolver is not None:
+            from app.services import agent_turns
+            try:
+                async with aclosing(agent_turns.stream(req, run_agent)) as stream:
+                    async for event in stream:
+                        yield _sse(event)
+            except agent_turns.TurnRejected as exc:
+                yield _sse({"type": "error", "detail": str(exc)})
+            except Exception:
+                log.exception("Unable to complete admissions turn")
+                yield _sse({"type": "error", "detail": "Unable to save this turn. Refresh the chat and try again."})
+            return
+
+        if req.reply_to or req.edit_message_id:
+            yield _sse({"type": "error", "detail": "Message actions require saved conversation history."})
             return
 
         conv_id = req.conversation_id

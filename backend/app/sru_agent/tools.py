@@ -854,7 +854,14 @@ ACTION_TOOLS = {"request_counsellor_callback", "request_campus_visit_callback", 
                 "update_contact_details"}
 
 
+# Set by the durable turn service. Called before any tool with an external effect.
+from contextvars import ContextVar
+before_action = ContextVar("agent_before_action", default=None)
+
+
 async def run_tool(name: str, args: dict, ctx: dict) -> dict:
+    if name in ACTION_TOOLS and before_action.get() is not None:
+        await before_action.get()()
     if name not in TOOLS:
         return {"status": "unknown_tool"}
     try:

@@ -8,6 +8,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.services.message_context import card_preview
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.feedback import Feedback
@@ -108,6 +109,12 @@ async def get_conversation(
             MessageResponse(
                 id=m.id,
                 role=m.role,
+                card_previews=[card_preview(c, m.content) for c in (m.metadata_ or {}).get("cards", [])],
+                source=(m.metadata_ or {}).get("source"),
+                edited=bool((m.metadata_ or {}).get("edited")),
+                editable_until=(m.metadata_ or {}).get("editable_until"),
+                reply_to=(m.metadata_ or {}).get("reply_to"),
+                external_action=bool((m.metadata_ or {}).get("external_action")),
                 content=m.content,
                 sources=_parse_sources(m.sources),
                 suggestions=(m.metadata_ or {}).get("suggestions", []),
@@ -151,6 +158,12 @@ async def get_shared_conversation(
             MessageResponse(
                 id=m.id,
                 role=m.role,
+                card_previews=[card_preview(c, m.content) for c in (m.metadata_ or {}).get("cards", [])],
+                source=(m.metadata_ or {}).get("source"),
+                edited=bool((m.metadata_ or {}).get("edited")),
+                editable_until=(m.metadata_ or {}).get("editable_until"),
+                reply_to=(m.metadata_ or {}).get("reply_to"),
+                external_action=bool((m.metadata_ or {}).get("external_action")),
                 content=m.content,
                 sources=_parse_sources(m.sources),
                 suggestions=(m.metadata_ or {}).get("suggestions", []),

@@ -51,6 +51,12 @@ class MessageResponse(BaseModel):
     """A single message in a conversation."""
 
     id: UUID
+    source: str | None = None
+    edited: bool = False
+    card_previews: list[str] = Field(default_factory=list)
+    editable_until: datetime | None = None
+    reply_to: dict | None = None
+    external_action: bool = False
     role: str
     content: str
     sources: list[SourceReference] | None = None

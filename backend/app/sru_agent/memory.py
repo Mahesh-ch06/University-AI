@@ -4,6 +4,8 @@ Uses Redis when REDIS_URL is set, otherwise the server's own memory
 (fine for one server process; use Redis in production).
 """
 import asyncio
+from contextlib import contextmanager
+from contextvars import ContextVar
 import copy
 import json
 import logging
@@ -121,7 +123,33 @@ async def _flush_key(key):
         _flushing.pop(key, None)
 
 
+# Agent turns work against a private copy until messages and memory commit together.
+_turn_values = ContextVar("agent_turn_values", default=None)
+
+
+@contextmanager
+def stage_turn(values):
+    token = _turn_values.set(values)
+    try:
+        yield
+    finally:
+        _turn_values.reset(token)
+
+
+def turn_memory(session_id, conversation_id, profile, state, history):
+    return {f"sru:profile:{session_id}": profile, _state_key(session_id, conversation_id): state,
+            _history_key(session_id, conversation_id): history}
+
+
+async def publish_turn(values):
+    for key, value in values.items():
+        await _set(key, value)
+
+
 async def _get(key, default):
+    staged = _turn_values.get()
+    if staged is not None and key in staged:
+        return copy.deepcopy(staged[key])
     hot = _hot_get(key)
     if hot is not None:
         return hot
@@ -143,6 +171,10 @@ async def _get(key, default):
 
 
 async def _set(key, value):
+    staged = _turn_values.get()
+    if staged is not None:
+        staged[key] = copy.deepcopy(value)
+        return
     _hot_put(key, value)
     r = _client()
     if r:
@@ -238,7 +270,7 @@ async def _save_profile_now(session_id: str):
 
 async def _save_profile(session_id: str, profile: dict):
     await _set(f"sru:profile:{session_id}", profile)
-    if not _profile_saver:
+    if _turn_values.get() is not None or not _profile_saver:
         return
     first = session_id not in _profile_saving
     _profile_saving[session_id] = copy.deepcopy(profile)
@@ -343,7 +375,7 @@ async def update_conversation_state(session_id: str, conversation_id: str | None
     state.update(fields)
     key = _state_key(session_id, conversation_id)
     await _set(key, state)
-    if _state_saver and conversation_id:
+    if _turn_values.get() is None and _state_saver and conversation_id:
         encoded = json.dumps(state, sort_keys=True, ensure_ascii=False, default=str)
         if _state_saved.get(key) != encoded:
             _state_saved[key] = encoded
