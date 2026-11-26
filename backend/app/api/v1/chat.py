@@ -8,10 +8,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import get_embedding_provider, get_llm_provider, get_rag_service, get_redis
+from app.api.v1.deps import get_llm_provider, get_rag_service, get_redis
 from app.db.session import get_db
 from app.providers.base import LLMProvider
-from app.providers.embedding_base import EmbeddingProvider
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
@@ -233,10 +232,9 @@ async def delete_conversation(
 async def submit_feedback(
     request: FeedbackRequest,
     db: AsyncSession = Depends(get_db),
-    embeddings: EmbeddingProvider = Depends(get_embedding_provider),
 ) -> FeedbackResponse:
     """Submit user feedback (thumbs up/down and optional comment) on one of your own answers."""
-    result = await conversation_service.create_feedback(db, request, embeddings)
+    result = await conversation_service.create_feedback(db, request)
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

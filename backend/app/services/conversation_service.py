@@ -356,7 +356,7 @@ async def create_feedback(
         from app.providers.embedding_base import EmbeddingProvider
 
         emb_provider = embeddings if isinstance(embeddings, EmbeddingProvider) else None
-        if emb_provider and request.rating == -1:
+        if request.rating == -1:
             # If negatively rated, ensure it is pruned if it was ever in the exemplar store
             exemplar_service = ExemplarService(emb_provider)
             await exemplar_service.remove_exemplar(request.message_id)
